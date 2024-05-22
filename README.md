@@ -4,5 +4,5 @@
 **Execution Instructions**  
 - Clone the repository.
 - Extract the folder.
-- Run **run_dlss_updater.bat**.
-- Allow CMD to run until finished.
+- Run **python main.py** via CMD inside the extracted folder location.
+- Allow the CMD to run.
