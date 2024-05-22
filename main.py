@@ -2,15 +2,15 @@ import os
 import sys
 import ctypes
 import subprocess
-import pkg_resources
 from pathlib import Path
+from importlib.metadata import distributions, PackageNotFoundError
 from dlss_updater.scanner import get_steam_install_path, get_steam_libraries, find_nvngx_dlss_dll
 from dlss_updater.updater import update_dll
 from dlss_updater.config import LATEST_DLL_PATH
 
 def install_dependencies():
     required = {'pefile', 'psutil'}
-    installed = {pkg.key for pkg in pkg_resources.working_set}
+    installed = {dist.metadata['Name'].lower() for dist in distributions()}
     missing = required - installed
 
     if missing:
