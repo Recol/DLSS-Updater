@@ -2,7 +2,6 @@ import os
 import shutil
 import pefile
 from dlss_updater.config import LATEST_DLL_VERSION, LATEST_DLL_PATH
-import tempfile
 from pathlib import Path
 import stat
 import psutil
@@ -89,19 +88,7 @@ def update_dll(dll_path, latest_dll_path):
             print(f"File {dll_path} is still in use after multiple attempts. Cannot update.")
             return False
 
-        # Backup to a temporary directory first
-        temp_backup_path = Path(tempfile.gettempdir()) / (dll_path.name + ".bak")
-        print(f"Creating temporary backup: {temp_backup_path}")
-        shutil.copyfile(dll_path, temp_backup_path)
-        
-        # Move the temporary backup to the target directory
-        final_backup_path = dll_path.with_suffix(".dll.bak")
-        print(f"Final backup path: {final_backup_path}")
-
-        # Remove read-only attribute from the backup file if set
-        remove_read_only(final_backup_path)
-        shutil.move(temp_backup_path, final_backup_path)
-        
+        # Copy the latest DLL to the target path
         print(f"Copying {latest_dll_path} to {dll_path}")
         shutil.copyfile(latest_dll_path, dll_path)
         print(f"Updated {dll_path} from version {existing_version} to {LATEST_DLL_VERSION}.")
