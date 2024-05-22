@@ -3,5 +3,6 @@
 
 **Execution Instructions**  
 - Clone the repository.
+- Extract the folder.
 - Run **run_dlss_updater.bat**.
 - Allow CMD to run until finished.
