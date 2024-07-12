@@ -1,2 +1,4 @@
 *.pyc
 *.zip
+*venv
+*build

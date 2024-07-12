@@ -1,22 +1,23 @@
-import os
 import sys
+import os
 import ctypes
-import subprocess
 from pathlib import Path
-from importlib.metadata import distributions, PackageNotFoundError
-from dlss_updater.scanner import get_steam_install_path, get_steam_libraries, find_nvngx_dlss_dll
-from dlss_updater.updater import update_dll
-from dlss_updater.config import LATEST_DLL_PATH
+from importlib.metadata import distributions
 
-def install_dependencies():
+from dlss_updater import (
+    update_dll, is_whitelisted, __version__, LATEST_DLL_PATH
+)
+from dlss_updater.scanner import find_all_dlss_dlls
+
+def check_dependencies():
     required = {'pefile', 'psutil'}
     installed = {dist.metadata['Name'].lower() for dist in distributions()}
     missing = required - installed
 
     if missing:
-        print(f"Installing missing dependencies: {', '.join(missing)}")
-        python = sys.executable
-        subprocess.check_call([python, '-m', 'pip', 'install', *missing])
+        print(f"Missing dependencies: {', '.join(missing)}")
+        return False
+    return True
 
 def run_as_admin():
     script = Path(sys.argv[0]).resolve()
@@ -31,27 +32,52 @@ def is_admin():
         return False
 
 def main():
-    steam_path = get_steam_install_path()
-    if not steam_path:
-        print("Steam is not installed.")
-        return
+    if gui_mode:
+        log_file = os.path.join(os.path.dirname(sys.executable), 'dlss_updater.log')
+        sys.stdout = sys.stderr = open(log_file, 'w')
 
-    library_paths = get_steam_libraries(steam_path)
-    dll_paths = find_nvngx_dlss_dll(library_paths)
+    print(f"DLSS Updater version {__version__}")
+
+    dll_paths = find_all_dlss_dlls()
 
     if not dll_paths:
         print("No DLLs found.")
         return
 
+    updated_games = []
+    skipped_games = []
+
     print(f"Found {len(dll_paths)} DLLs.")
     for dll_path in dll_paths:
-        if update_dll(dll_path, LATEST_DLL_PATH):
-            print(f"Updated DLSS DLL at {dll_path}.")
+        if not is_whitelisted(str(dll_path)):
+            if update_dll(dll_path, LATEST_DLL_PATH):
+                print(f"Updated DLSS DLL at {dll_path}.")
+                updated_games.append(str(dll_path))
+            else:
+                print(f"DLSS DLL not updated at {dll_path}.")
+                skipped_games.append(str(dll_path))
         else:
-            print(f"DLSS DLL not updated at {dll_path}.")
+            print(f"Skipped whitelisted game: {dll_path}")
+            skipped_games.append(str(dll_path))
+
+    print("\nSummary:")
+    print("Games updated successfully:")
+    for game in updated_games:
+        print(f" - {game}")
+
+    print("\nGames skipped:")
+    for game in skipped_games:
+        print(f" - {game}")
+
+    input("\nPress Enter to exit...")
 
 if __name__ == "__main__":
-    install_dependencies()
+    gui_mode = '--gui' in sys.argv
+    print("Python executable:", sys.executable)
+    print("sys.path:", sys.path)
+    if not check_dependencies():
+        sys.exit(1)
+
     if not is_admin():
         run_as_admin()
     else:

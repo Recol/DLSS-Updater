@@ -6,6 +6,12 @@ from pathlib import Path
 import stat
 import psutil
 import time
+from packaging import version
+
+def parse_version(version_string):
+    # Replace commas with dots and remove any trailing zeros
+    cleaned_version = '.'.join(version_string.replace(',', '.').split('.')[:3])
+    return version.parse(cleaned_version)
 
 def get_dll_version(dll_path):
     try:
@@ -17,11 +23,10 @@ def get_dll_version(dll_path):
                         for st in entry.StringTable:
                             for key, value in st.entries.items():
                                 if key == b'FileVersion':
-                                    version = value.decode('utf-8')
-                                    return version
+                                    return value.decode('utf-8').strip()
     except Exception as e:
         print(f"Error reading version from {dll_path}: {e}")
-        return None
+    return None
 
 def remove_read_only(file_path):
     if not os.access(file_path, os.W_OK):
@@ -54,9 +59,19 @@ def update_dll(dll_path, latest_dll_path):
 
     try:
         existing_version = get_dll_version(dll_path)
-        if existing_version and existing_version >= LATEST_DLL_VERSION:
-            print(f"{dll_path} is already up-to-date (version {existing_version}).")
-            return False
+        latest_version = get_dll_version(latest_dll_path)
+
+        if existing_version and latest_version:
+            existing_parsed = parse_version(existing_version)
+            latest_parsed = parse_version(latest_version)
+            
+            print(f"Existing version: {existing_version}, Latest version: {latest_version}")
+            
+            if existing_parsed >= latest_parsed:
+                print(f"{dll_path} is already up-to-date (version {existing_version}).")
+                return False
+            else:
+                print(f"Update needed: {existing_version} -> {latest_version}")
 
         # Check if the target path exists
         if not dll_path.exists():
@@ -91,7 +106,7 @@ def update_dll(dll_path, latest_dll_path):
         # Copy the latest DLL to the target path
         print(f"Copying {latest_dll_path} to {dll_path}")
         shutil.copyfile(latest_dll_path, dll_path)
-        print(f"Updated {dll_path} from version {existing_version} to {LATEST_DLL_VERSION}.")
+        print(f"Updated {dll_path} from version {existing_version} to {latest_version}.")
 
         # Set the read-only attribute back
         set_read_only(dll_path)

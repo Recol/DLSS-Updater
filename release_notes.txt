@@ -1,0 +1,9 @@
+Version 1.0.0
+- Initial release with Steam support.
+
+Version 1.1.0
+- Added support for EA Launcher.
+- Added support for Ubisoft Launcher.
+- Added support for the Epic Games Launcher.
+- Improved logging for updated and skipped games.
+- Integration of a one click executable for running the application.
