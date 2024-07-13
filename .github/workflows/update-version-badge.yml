@@ -2,6 +2,8 @@ name: Update Version Badge
 
 on:
   push:
+    branches:
+      - main
     paths:
       - dlss_updater/version.py
   workflow_dispatch:
@@ -25,9 +27,11 @@ jobs:
           curl -o version.svg "https://img.shields.io/badge/version-$VERSION-blue"
 
       - name: Commit version badge
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add version.svg
           git commit -m "Update version badge to $VERSION"
-          git push
+          git push https://${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git HEAD:main
