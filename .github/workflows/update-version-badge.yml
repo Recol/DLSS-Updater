@@ -35,4 +35,8 @@ jobs:
           git remote set-url origin https://${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
           git add version.svg
           git commit -m "Update version badge to $VERSION"
-          git push https://${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git main
+          git push origin main
+
+      - name: Debug
+        run: |
+          git remote -v
