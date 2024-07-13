@@ -80,27 +80,72 @@ def get_epic_games_libraries(epic_path):
         return []
     return [epic_games_path]
 
+def get_gog_install_path():
+    try:
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\GOG.com\GalaxyClient\paths")
+        value, _ = winreg.QueryValueEx(key, "client")
+        return value
+    except FileNotFoundError:
+        return None
+
+def get_gog_games(gog_path):
+    gog_games_path = Path(gog_path).parent / "Games"
+    if not gog_games_path.exists():
+        return []
+    return [gog_games_path]
+
+def get_battlenet_install_path():
+    try:
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Blizzard Entertainment\Battle.net")
+        value, _ = winreg.QueryValueEx(key, "InstallPath")
+        return value
+    except FileNotFoundError:
+        return None
+
+def get_battlenet_games(battlenet_path):
+    battlenet_games_path = Path(battlenet_path).parent / "Games"
+    if not battlenet_games_path.exists():
+        return []
+    return [battlenet_games_path]
+
 def find_all_dlss_dlls():
-    all_dll_paths = []
+    all_dll_paths = {
+        "Steam": [],
+        "EA Launcher": [],
+        "Ubisoft Launcher": [],
+        "Epic Games Launcher": [],
+        "GOG Launcher": [],
+        "Battle.net Launcher": []
+    }
 
     steam_path = get_steam_install_path()
     if steam_path:
         steam_libraries = get_steam_libraries(steam_path)
-        all_dll_paths.extend(find_nvngx_dlss_dll(steam_libraries, "Steam"))
+        all_dll_paths["Steam"].extend(find_nvngx_dlss_dll(steam_libraries, "Steam"))
 
     ea_path = get_ea_install_path()
     if ea_path:
         ea_games = get_ea_games(ea_path)
-        all_dll_paths.extend(find_nvngx_dlss_dll(ea_games, "EA Launcher"))
+        all_dll_paths["EA Launcher"].extend(find_nvngx_dlss_dll(ea_games, "EA Launcher"))
 
     ubisoft_path = get_ubisoft_install_path()
     if ubisoft_path:
         ubisoft_games = get_ubisoft_games(ubisoft_path)
-        all_dll_paths.extend(find_nvngx_dlss_dll(ubisoft_games, "Ubisoft Launcher"))
+        all_dll_paths["Ubisoft Launcher"].extend(find_nvngx_dlss_dll(ubisoft_games, "Ubisoft Launcher"))
 
     epic_path = get_epic_games_install_path()
     if epic_path:
         epic_libraries = get_epic_games_libraries(epic_path)
-        all_dll_paths.extend(find_nvngx_dlss_dll(epic_libraries, "Epic Games Launcher"))
+        all_dll_paths["Epic Games Launcher"].extend(find_nvngx_dlss_dll(epic_libraries, "Epic Games Launcher"))
+
+    gog_path = get_gog_install_path()
+    if gog_path:
+        gog_games = get_gog_games(gog_path)
+        all_dll_paths["GOG Launcher"].extend(find_nvngx_dlss_dll(gog_games, "GOG Launcher"))
+
+    battlenet_path = get_battlenet_install_path()
+    if battlenet_path:
+        battlenet_games = get_battlenet_games(battlenet_path)
+        all_dll_paths["Battle.net Launcher"].extend(find_nvngx_dlss_dll(battlenet_games, "Battle.net Launcher"))
 
     return all_dll_paths

@@ -7,3 +7,8 @@ Version 1.1.0
 - Added support for the Epic Games Launcher.
 - Improved logging for updated and skipped games.
 - Integration of a one click executable for running the application.
+
+Version 1.2.0
+- Support for Battle.Net.
+- Support for GOG Launcher.
+- Better summarisation of games at the end.

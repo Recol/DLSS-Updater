@@ -47,23 +47,23 @@ If you prefer to build the application yourself, follow these steps:
    cd DLSS-Updater
 
 2. **Create and Activate a Virtual Environment:**  
-    python -m venv venv
-    venv\Scripts\activate
+    	python -m venv venv
+     	venv\Scripts\activate
 
 3. **Install Dependencies:**  
-    pip install -r requirements.txt  
+   	 pip install -r requirements.txt  
 
 4. **Build the Executable:**  
     Ensure you have pyinstaller installed:  
         pip install pyinstaller  
     Run PyInstaller to build the executable:  
-    pyinstaller DLSS_Updater.spec  
+        pyinstaller DLSS_Updater.spec  
 
 5. **Run the Built Executable:**  
     Navigate to the dist directory:  
         cd dist/DLSS_Updater  
     Run the DLSS_Updater.exe executable:  
-        .\DLSS_Updater.exe  
+       .\DLSS_Updater.exe  
 
 
 
