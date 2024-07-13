@@ -1,6 +1,7 @@
 # DLSS Updater
 
 [![CodeQL](https://github.com/Recol/DLSS-Updater/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/Recol/DLSS-Updater/actions?query=workflow%3ACodeQL)
+![Version](./version.svg)
 
 What if you could update all the DLSS DLLs for the games detected on your system?
 
