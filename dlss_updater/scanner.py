@@ -1,15 +1,14 @@
 import os
-import winreg
 from pathlib import Path
 from .whitelist import is_whitelisted
-import subprocess
 
 def get_steam_install_path():
     try:
+        import winreg
         key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam")
         value, _ = winreg.QueryValueEx(key, "InstallPath")
         return value
-    except FileNotFoundError:
+    except (FileNotFoundError, ImportError):
         return None
 
 def get_steam_libraries(steam_path):
@@ -39,44 +38,23 @@ def find_nvngx_dlss_dll(library_paths, launcher_name):
                     print(f"Skipped whitelisted game in {launcher_name}: {dll_path}")
     return dll_paths
 
-def get_ea_install_path():
-    # Check common installation paths
-    common_paths = [
-        r"C:\Program Files\Electronic Arts\EA Desktop\EA Desktop",
-        r"C:\Program Files (x86)\Electronic Arts\EA Desktop\EA Desktop"
-    ]
-    
-    for path in common_paths:
-        if Path(path).exists():
-            return path
-    
-    return None
-
-def get_all_drives():
-    drives = []
-    bitmask = subprocess.check_output(['wmic', 'logicaldisk', 'get', 'name']).decode().split('\n')
-    for line in bitmask:
-        if line.strip():
-            drives.append(line.strip())
-    return drives
-
 def get_ea_games():
-    drives = get_all_drives()
-    games_paths = []
-
-    for drive in drives:
-        games_path = Path(drive) / "EA Games"
-        if games_path.exists():
-            games_paths.append(games_path)
-
-    return games_paths
+    ea_path = input("Please enter the path for EA games or type 'N/A' to skip: ").strip()
+    if ea_path.lower() == "n/a":
+        return []
+    ea_games_path = Path(ea_path)
+    if not ea_games_path.exists():
+        print("Invalid path for EA games.")
+        return []
+    return [ea_games_path]
 
 def get_ubisoft_install_path():
     try:
+        import winreg
         key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Ubisoft\Launcher")
         value, _ = winreg.QueryValueEx(key, "InstallDir")
         return value
-    except FileNotFoundError:
+    except (FileNotFoundError, ImportError):
         return None
 
 def get_ubisoft_games(ubisoft_path):
@@ -85,57 +63,33 @@ def get_ubisoft_games(ubisoft_path):
         return []
     return [ubisoft_games_path]
 
-def get_epic_games_install_path():
-    # Check common installation paths
-    common_paths = [
-        r"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64",
-        r"C:\Program Files\Epic Games\Launcher\Portal\Binaries\Win64"
-    ]
-    
-    for path in common_paths:
-        if Path(path).exists():
-            return path
-    
-    return None
+def get_epic_games():
+    epic_path = input("Please enter the path for Epic Games or type 'N/A' to skip: ").strip()
+    if epic_path.lower() == "n/a":
+        return []
+    epic_games_path = Path(epic_path)
+    if not epic_games_path.exists():
+        print("Invalid path for Epic Games.")
+        return []
+    return [epic_games_path]
 
-def get_epic_games_libraries():
-    drives = get_all_drives()
-    games_paths = []
-
-    for drive in drives:
-        games_path = Path(drive) / "Epic Games"
-        if games_path.exists():
-            games_paths.append(games_path)
-
-    return games_paths
-
-def get_gog_install_path():
-    try:
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\GOG.com\GalaxyClient\paths")
-        value, _ = winreg.QueryValueEx(key, "client")
-        return value
-    except FileNotFoundError:
-        return None
-
-def get_gog_games(gog_path):
-    gog_games_path = Path(gog_path) / "Games"
+def get_gog_games():
+    gog_path = input("Please enter the path for GOG games or type 'N/A' to skip: ").strip()
+    if gog_path.lower() == "n/a":
+        return []
+    gog_games_path = Path(gog_path)
     if not gog_games_path.exists():
+        print("Invalid path for GOG games.")
         return []
     return [gog_games_path]
 
-def get_battlenet_install_path():
-    try:
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Blizzard Entertainment\Battle.net\Capabilities")
-        value, _ = winreg.QueryValueEx(key, "ApplicationIcon")
-        battlenet_path = str(Path(value).parent.parent)
-        if Path(battlenet_path).exists():
-            return battlenet_path
-    except FileNotFoundError:
-        return None
-
-def get_battlenet_games(battlenet_path):
-    battlenet_games_path = Path(battlenet_path) / "Games"
+def get_battlenet_games():
+    battlenet_path = input("Please enter the path for Battle.net games or type 'N/A' to skip: ").strip()
+    if battlenet_path.lower() == "n/a":
+        return []
+    battlenet_games_path = Path(battlenet_path)
     if not battlenet_games_path.exists():
+        print("Invalid path for Battle.net games.")
         return []
     return [battlenet_games_path]
 
@@ -154,9 +108,8 @@ def find_all_dlss_dlls():
         steam_libraries = get_steam_libraries(steam_path)
         all_dll_paths["Steam"].extend(find_nvngx_dlss_dll(steam_libraries, "Steam"))
 
-    ea_path = get_ea_install_path()
-    if ea_path:
-        ea_games = get_ea_games()
+    ea_games = get_ea_games()
+    if ea_games:
         all_dll_paths["EA Launcher"].extend(find_nvngx_dlss_dll(ea_games, "EA Launcher"))
 
     ubisoft_path = get_ubisoft_install_path()
@@ -164,19 +117,16 @@ def find_all_dlss_dlls():
         ubisoft_games = get_ubisoft_games(ubisoft_path)
         all_dll_paths["Ubisoft Launcher"].extend(find_nvngx_dlss_dll(ubisoft_games, "Ubisoft Launcher"))
 
-    epic_path = get_epic_games_install_path()
-    if epic_path:
-        epic_libraries = get_epic_games_libraries()
-        all_dll_paths["Epic Games Launcher"].extend(find_nvngx_dlss_dll(epic_libraries, "Epic Games Launcher"))
+    epic_games = get_epic_games()
+    if epic_games:
+        all_dll_paths["Epic Games Launcher"].extend(find_nvngx_dlss_dll(epic_games, "Epic Games Launcher"))
 
-    gog_path = get_gog_install_path()
-    if gog_path:
-        gog_games = get_gog_games(gog_path)
+    gog_games = get_gog_games()
+    if gog_games:
         all_dll_paths["GOG Launcher"].extend(find_nvngx_dlss_dll(gog_games, "GOG Launcher"))
 
-    battlenet_path = get_battlenet_install_path()
-    if battlenet_path:
-        battlenet_games = get_battlenet_games(battlenet_path)
+    battlenet_games = get_battlenet_games()
+    if battlenet_games:
         all_dll_paths["Battle.net Launcher"].extend(find_nvngx_dlss_dll(battlenet_games, "Battle.net Launcher"))
 
     return all_dll_paths

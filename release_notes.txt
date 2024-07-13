@@ -18,3 +18,7 @@ Version 1.2.1
 
 Version 1.2.2
 - Change of approach for the Epic Games Launcher and EA Play to successfully detect them.
+
+Version 1.2.4
+- Revisions to logging to improve the execution flow and stop the bombarding of information to the user.
+- Changes to how some launchers are detected for games.
