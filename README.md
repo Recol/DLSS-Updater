@@ -41,29 +41,29 @@ If you prefer to build the application yourself, follow these steps:
 
 #### Steps
 
-1. **Clone the Repository:**
+1. **Clone the Repository:**  
    ```sh
    git clone https://github.com/yourusername/DLSS-Updater.git
    cd DLSS-Updater
 
-2. **Create and Activate a Virtual Environment:**
+2. **Create and Activate a Virtual Environment:**  
     python -m venv venv
     venv\Scripts\activate
 
-3. **Install Dependencies:**
-    pip install -r requirements.txt
+3. **Install Dependencies:**  
+    pip install -r requirements.txt  
 
-4. **Build the Executable:**
-    Ensure you have pyinstaller installed:
-        pip install pyinstaller
-    Run PyInstaller to build the executable:
-    pyinstaller DLSS_Updater.spec
+4. **Build the Executable:**  
+    Ensure you have pyinstaller installed:  
+        pip install pyinstaller  
+    Run PyInstaller to build the executable:  
+    pyinstaller DLSS_Updater.spec  
 
-5. **Run the Built Executable:**
-    Navigate to the dist directory:
-        cd dist/DLSS_Updater
-    Run the DLSS_Updater.exe executable:
-        .\DLSS_Updater.exe
+5. **Run the Built Executable:**  
+    Navigate to the dist directory:  
+        cd dist/DLSS_Updater  
+    Run the DLSS_Updater.exe executable:  
+        .\DLSS_Updater.exe  
 
 
 
@@ -74,15 +74,17 @@ If you prefer to build the application yourself, follow these steps:
 - Insert xyz feature that wants to be requested.
 
 ## Release Notes
- Each release includes detailed notes about new features, bug fixes, and other changes. You can find the release notes in the release_notes.txt file included with the application or in the Releases section.
+ Each release includes detailed notes about new features, bug fixes, and other changes. 
+ You can find the release notes in the release_notes.txt file included with the application or in the Releases section.
 
 ## Troubleshooting
-    If you encounter any issues, please refer to the Issues section on GitHub to see if your problem has already been reported. If not, feel free to open a new issue with detailed information about the problem.
+ If you encounter any issues, please refer to the Issues section on GitHub to see if your problem has already been reported. 
+ If not, feel free to open a new issue with detailed information about the problem.
 
 ## License
-    This project is licensed under the Creative Commons Attribution Non Commercial Share Alike 4.0 International License. See the LICENSE file for more details.
+ This project is licensed under the Creative Commons Attribution Non Commercial Share Alike 4.0 International License. See the LICENSE file for more details.
 
 ## Credits
-    This project uses Nvidia's DLSS (Deep Learning Super Sampling) technology. Please refer to Nvidia's [DLSS page](https://www.nvidia.com/en-us/geforce/technologies/dlss/) for more information.
-    Special thanks to all contributors of open-source libraries used in this project, including but not limited to pefile, psutil, and packaging.
-    If any are not credited and should be, please inform the author and credit will be applied where required.
+ This project uses Nvidia's DLSS (Deep Learning Super Sampling) technology. Please refer to Nvidia's [DLSS page](https://www.nvidia.com/en-us/geforce/technologies/dlss/) for more information.
+ Special thanks to all contributors of open-source libraries used in this project, including but not limited to pefile, psutil, and packaging.
+ If any are not credited and should be, please inform the author and credit will be applied where required.
