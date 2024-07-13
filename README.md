@@ -9,6 +9,8 @@ What if you could update all the DLSS DLLs for the games detected on your system
 - Ubisoft
 - EA Play
 - Epic Games Launcher
+- GOG Galaxy
+- Battle.net
 
 The current supported DLL included is version 3.7.10.
 
