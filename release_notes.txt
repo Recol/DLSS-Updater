@@ -15,3 +15,6 @@ Version 1.2.0
 
 Version 1.2.1
 - Fixes for registry path locations for game directories.
+
+Version 1.2.2
+- Change of approach for the Epic Games Launcher and EA Play to successfully detect them.

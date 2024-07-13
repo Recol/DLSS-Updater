@@ -2,6 +2,7 @@ import os
 import winreg
 from pathlib import Path
 from .whitelist import is_whitelisted
+import subprocess
 
 def get_steam_install_path():
     try:
@@ -39,27 +40,36 @@ def find_nvngx_dlss_dll(library_paths, launcher_name):
     return dll_paths
 
 def get_ea_install_path():
-    registry_paths = [
-        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Electronic Arts\EA Desktop", "InstallationDir"),
-        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Electronic Arts\EA Desktop", "InstallationDir")
+    # Check common installation paths
+    common_paths = [
+        r"C:\Program Files\Electronic Arts\EA Desktop\EA Desktop",
+        r"C:\Program Files (x86)\Electronic Arts\EA Desktop\EA Desktop"
     ]
-
-    for key, subkey, value_name in registry_paths:
-        try:
-            with winreg.OpenKey(key, subkey) as reg_key:
-                value, _ = winreg.QueryValueEx(reg_key, value_name)
-                if Path(value).exists():
-                    return value
-        except FileNotFoundError:
-            continue
+    
+    for path in common_paths:
+        if Path(path).exists():
+            return path
     
     return None
 
-def get_ea_games(ea_path):
-    ea_games_path = Path(ea_path) / "EA Games"
-    if not ea_games_path.exists():
-        return []
-    return [ea_games_path]
+def get_all_drives():
+    drives = []
+    bitmask = subprocess.check_output(['wmic', 'logicaldisk', 'get', 'name']).decode().split('\n')
+    for line in bitmask:
+        if line.strip():
+            drives.append(line.strip())
+    return drives
+
+def get_ea_games():
+    drives = get_all_drives()
+    games_paths = []
+
+    for drive in drives:
+        games_path = Path(drive) / "EA Games"
+        if games_path.exists():
+            games_paths.append(games_path)
+
+    return games_paths
 
 def get_ubisoft_install_path():
     try:
@@ -76,17 +86,28 @@ def get_ubisoft_games(ubisoft_path):
     return [ubisoft_games_path]
 
 def get_epic_games_install_path():
-    try:
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Epic Games\EpicGamesLauncher")
-        value, _ = winreg.QueryValueEx(key, "AppDataPath")
-        return str(Path(value).parent.parent / "Epic Games")
-    except FileNotFoundError:
-        return None
+    # Check common installation paths
+    common_paths = [
+        r"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64",
+        r"C:\Program Files\Epic Games\Launcher\Portal\Binaries\Win64"
+    ]
+    
+    for path in common_paths:
+        if Path(path).exists():
+            return path
+    
+    return None
 
-def get_epic_games_libraries(epic_path):
-    if not epic_path.exists():
-        return []
-    return [epic_path]
+def get_epic_games_libraries():
+    drives = get_all_drives()
+    games_paths = []
+
+    for drive in drives:
+        games_path = Path(drive) / "Epic Games"
+        if games_path.exists():
+            games_paths.append(games_path)
+
+    return games_paths
 
 def get_gog_install_path():
     try:
@@ -135,7 +156,7 @@ def find_all_dlss_dlls():
 
     ea_path = get_ea_install_path()
     if ea_path:
-        ea_games = get_ea_games(ea_path)
+        ea_games = get_ea_games()
         all_dll_paths["EA Launcher"].extend(find_nvngx_dlss_dll(ea_games, "EA Launcher"))
 
     ubisoft_path = get_ubisoft_install_path()
@@ -145,7 +166,7 @@ def find_all_dlss_dlls():
 
     epic_path = get_epic_games_install_path()
     if epic_path:
-        epic_libraries = get_epic_games_libraries(Path(epic_path))
+        epic_libraries = get_epic_games_libraries()
         all_dll_paths["Epic Games Launcher"].extend(find_nvngx_dlss_dll(epic_libraries, "Epic Games Launcher"))
 
     gog_path = get_gog_install_path()
