@@ -12,3 +12,6 @@ Version 1.2.0
 - Support for Battle.Net.
 - Support for GOG Launcher.
 - Better summarisation of games at the end.
+
+Version 1.2.1
+- Fixes for registry path locations for game directories.

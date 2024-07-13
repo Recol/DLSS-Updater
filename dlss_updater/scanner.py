@@ -39,12 +39,21 @@ def find_nvngx_dlss_dll(library_paths, launcher_name):
     return dll_paths
 
 def get_ea_install_path():
-    try:
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Electronic Arts\EA Desktop")
-        value, _ = winreg.QueryValueEx(key, "InstallationDir")
-        return value
-    except FileNotFoundError:
-        return None
+    registry_paths = [
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Electronic Arts\EA Desktop", "InstallationDir"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Electronic Arts\EA Desktop", "InstallationDir")
+    ]
+
+    for key, subkey, value_name in registry_paths:
+        try:
+            with winreg.OpenKey(key, subkey) as reg_key:
+                value, _ = winreg.QueryValueEx(reg_key, value_name)
+                if Path(value).exists():
+                    return value
+        except FileNotFoundError:
+            continue
+    
+    return None
 
 def get_ea_games(ea_path):
     ea_games_path = Path(ea_path) / "EA Games"
@@ -68,17 +77,16 @@ def get_ubisoft_games(ubisoft_path):
 
 def get_epic_games_install_path():
     try:
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Epic Games\EpicGamesLauncher")
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Epic Games\EpicGamesLauncher")
         value, _ = winreg.QueryValueEx(key, "AppDataPath")
-        return value
+        return str(Path(value).parent.parent / "Epic Games")
     except FileNotFoundError:
         return None
 
 def get_epic_games_libraries(epic_path):
-    epic_games_path = Path(epic_path).parent / "UnrealEngine" / "Launcher" / "Installed"
-    if not epic_games_path.exists():
+    if not epic_path.exists():
         return []
-    return [epic_games_path]
+    return [epic_path]
 
 def get_gog_install_path():
     try:
@@ -89,21 +97,23 @@ def get_gog_install_path():
         return None
 
 def get_gog_games(gog_path):
-    gog_games_path = Path(gog_path).parent / "Games"
+    gog_games_path = Path(gog_path) / "Games"
     if not gog_games_path.exists():
         return []
     return [gog_games_path]
 
 def get_battlenet_install_path():
     try:
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Blizzard Entertainment\Battle.net")
-        value, _ = winreg.QueryValueEx(key, "InstallPath")
-        return value
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Blizzard Entertainment\Battle.net\Capabilities")
+        value, _ = winreg.QueryValueEx(key, "ApplicationIcon")
+        battlenet_path = str(Path(value).parent.parent)
+        if Path(battlenet_path).exists():
+            return battlenet_path
     except FileNotFoundError:
         return None
 
 def get_battlenet_games(battlenet_path):
-    battlenet_games_path = Path(battlenet_path).parent / "Games"
+    battlenet_games_path = Path(battlenet_path) / "Games"
     if not battlenet_games_path.exists():
         return []
     return [battlenet_games_path]
@@ -135,7 +145,7 @@ def find_all_dlss_dlls():
 
     epic_path = get_epic_games_install_path()
     if epic_path:
-        epic_libraries = get_epic_games_libraries(epic_path)
+        epic_libraries = get_epic_games_libraries(Path(epic_path))
         all_dll_paths["Epic Games Launcher"].extend(find_nvngx_dlss_dll(epic_libraries, "Epic Games Launcher"))
 
     gog_path = get_gog_install_path()
