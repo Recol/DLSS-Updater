@@ -14,8 +14,11 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[],
-    datas=[('latest_dll/nvngx_dlss.dll', 'latest_dll'), 
-           ('dlss_updater', 'dlss_updater')],  # Add this line to include the entire dlss_updater directory
+    datas=[
+        ('latest_dll/nvngx_dlss.dll', 'latest_dll'),
+        ('dlss_updater', 'dlss_updater'),
+        ('release_notes.txt', '.')
+    ],
     hiddenimports=['pefile', 'psutil', 'importlib.metadata', 'packaging', 'importlib_metadata'] + dlss_updater_imports,
     hookspath=['./hooks'],
     hooksconfig={},

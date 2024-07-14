@@ -6,6 +6,7 @@ WHITELISTED_GAMES = {
     # Add more games as needed
 }
 
+
 def is_whitelisted(game_path):
     # Extract the game name from the path
     path_parts = game_path.split(os.path.sep)
