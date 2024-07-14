@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import ctypes
 
+
 # Add the directory containing the executable to sys.path
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
@@ -76,7 +77,10 @@ def extract_game_name(dll_path, launcher_name):
         if launcher_name == "Steam":
             return parts[parts.index('steamapps') + 2]
         elif launcher_name == "EA Launcher":
-            return parts[parts.index('EA Games') + 1]
+            if 'EA Games' in parts:
+                return parts[parts.index('EA Games') + 1]
+            else:
+                return parts[-2]  # Assume the parent directory is the game name
         elif launcher_name == "Ubisoft Launcher":
             return parts[parts.index('games') + 1]
         elif launcher_name == "Epic Games Launcher":
