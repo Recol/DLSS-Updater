@@ -22,3 +22,9 @@ Version 1.2.2
 Version 1.2.4
 - Revisions to logging to improve the execution flow and stop the bombarding of information to the user.
 - Changes to how some launchers are detected for games.
+
+Version 1.2.5
+- Fix a handling issue where the prompt will not appear in a situation where a DLL is not detected.
+
+Version 1.2.6
+- Add prototype code for automatic version provisioning.

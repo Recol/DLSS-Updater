@@ -3,9 +3,8 @@ import os
 import ctypes
 from pathlib import Path
 from importlib.metadata import distributions
-
 from dlss_updater import (
-    update_dll, is_whitelisted, __version__, LATEST_DLL_PATH
+    update_dll, is_whitelisted, __version__, LATEST_DLL_PATH, auto_update
 )
 from dlss_updater.scanner import find_all_dlss_dlls
 
@@ -13,7 +12,6 @@ def check_dependencies():
     required = {'pefile', 'psutil'}
     installed = {dist.metadata['Name'].lower() for dist in distributions()}
     missing = required - installed
-
     if missing:
         print(f"Missing dependencies: {', '.join(missing)}")
         return False
@@ -49,7 +47,7 @@ def extract_game_name(dll_path, launcher_name):
     elif launcher_name == "Ubisoft Launcher":
         return parts[parts.index('games') + 1]
     elif launcher_name == "Epic Games Launcher":
-        return parts[parts.index('Epic Games') + 1]
+        return parts[parts.index('Installed') + 1]
     elif launcher_name == "GOG Launcher":
         return parts[parts.index('Games') + 1]
     elif launcher_name == "Battle.net Launcher":
@@ -64,51 +62,61 @@ def main():
 
     print(f"DLSS Updater version {__version__}")
 
-    display_release_notes()
+    try:
+        if auto_update():
+            print("Update process completed. Please restart the application.")
+            input("\nPress Enter to exit...")
+            return
 
-    all_dll_paths = find_all_dlss_dlls()
+        display_release_notes()
 
-    if not any(all_dll_paths.values()):
-        print("No DLLs found.")
-        return
+        all_dll_paths = find_all_dlss_dlls()
 
-    updated_games = []
-    skipped_games = []
+        updated_games = []
+        skipped_games = []
 
-    for launcher, dll_paths in all_dll_paths.items():
-        for dll_path in dll_paths:
-            if not is_whitelisted(str(dll_path)):
-                if update_dll(dll_path, LATEST_DLL_PATH):
-                    updated_games.append((dll_path, launcher))
-                else:
-                    skipped_games.append((dll_path, launcher))
-            else:
-                skipped_games.append((dll_path, launcher))
+        print("Found DLLs in the following launchers:")
+        for launcher, dll_paths in all_dll_paths.items():
+            if dll_paths:
+                print(f"{launcher}:")
+                for dll_path in dll_paths:
+                    print(f" - {dll_path}")
+                    if not is_whitelisted(str(dll_path)):
+                        if update_dll(dll_path, LATEST_DLL_PATH):
+                            print(f"Updated DLSS DLL at {dll_path}.")
+                            updated_games.append(str(dll_path))
+                        else:
+                            print(f"DLSS DLL not updated at {dll_path}.")
+                            skipped_games.append((dll_path, launcher))
+                    else:
+                        print(f"Skipped whitelisted game: {dll_path}")
+                        skipped_games.append((dll_path, launcher))
 
-    print("\nSummary:")
-    if updated_games:
+        print("\nSummary:")
         print("Games updated successfully:")
-        for dll_path, launcher in updated_games:
-            game_name = extract_game_name(dll_path, launcher)
-            print(f" - {game_name} - {launcher}")
-    else:
-        print("No games were updated.")
+        for game in updated_games:
+            print(f" - {game}")
 
-    if skipped_games:
         print("\nGames skipped:")
         for dll_path, launcher in skipped_games:
             game_name = extract_game_name(dll_path, launcher)
             print(f" - {game_name} - {launcher}")
-    else:
-        print("No games were skipped.")
 
-    input("\nPress Enter to exit...")
+        if not any(all_dll_paths.values()):
+            print("No DLLs found.")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    finally:
+        input("\nPress Enter to exit...")
 
 if __name__ == "__main__":
     gui_mode = '--gui' in sys.argv
+    print("Python executable:", sys.executable)
+    print("sys.path:", sys.path)
     if not check_dependencies():
         sys.exit(1)
-
     if not is_admin():
         run_as_admin()
     else:
