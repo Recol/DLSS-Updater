@@ -34,3 +34,6 @@ Version provioning handling exception fixes, corrections to updates.
 
 Version 1.2.8:
 Refactoring, bug fixes.
+
+Version 1.2.9:
+Fixes to critical failure race conditions on input serialisation.

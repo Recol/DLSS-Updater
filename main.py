@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 import ctypes
 
-
 # Add the directory containing the executable to sys.path
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
@@ -73,19 +72,23 @@ def display_release_notes():
 
 def extract_game_name(dll_path, launcher_name):
     parts = Path(dll_path).parts
-    if launcher_name == "Steam":
-        return parts[parts.index('steamapps') + 2]
-    elif launcher_name == "EA Launcher":
-        return parts[parts.index('EA Games') + 1]
-    elif launcher_name == "Ubisoft Launcher":
-        return parts[parts.index('games') + 1]
-    elif launcher_name == "Epic Games Launcher":
-        return parts[parts.index('Installed') + 1]
-    elif launcher_name == "GOG Launcher":
-        return parts[parts.index('Games') + 1]
-    elif launcher_name == "Battle.net Launcher":
-        return parts[parts.index('Games') + 1]
-    else:
+    try:
+        if launcher_name == "Steam":
+            return parts[parts.index('steamapps') + 2]
+        elif launcher_name == "EA Launcher":
+            return parts[parts.index('EA Games') + 1]
+        elif launcher_name == "Ubisoft Launcher":
+            return parts[parts.index('games') + 1]
+        elif launcher_name == "Epic Games Launcher":
+            return parts[parts.index('Installed') + 1]
+        elif launcher_name == "GOG Launcher":
+            return parts[parts.index('Games') + 1]
+        elif launcher_name == "Battle.net Launcher":
+            return parts[parts.index('Games') + 1]
+        else:
+            return "Unknown Game"
+    except ValueError as e:
+        print(f"Error extracting game name for {dll_path} in {launcher_name}: {e}")
         return "Unknown Game"
 
 def main():
