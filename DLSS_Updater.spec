@@ -3,16 +3,22 @@
 import pefile
 import psutil
 import os
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 block_cipher = None
+
+dlss_updater_imports = collect_submodules('dlss_updater')
+dlss_updater_datas = collect_data_files('dlss_updater')
 
 a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[],
-    datas=[('latest_dll/nvngx_dlss.dll', 'latest_dll')],
-    hiddenimports=['pefile', 'psutil', 'importlib.metadata', 'packaging'],
+    datas=[('latest_dll/nvngx_dlss.dll', 'latest_dll'), 
+           ('dlss_updater', 'dlss_updater')],  # Add this line to include the entire dlss_updater directory
+    hiddenimports=['pefile', 'psutil', 'importlib.metadata', 'packaging', 'importlib_metadata'] + dlss_updater_imports,
     hookspath=['./hooks'],
+    hooksconfig={},
     runtime_hooks=[],
     excludes=[],
     win_no_prefer_redirects=False,
@@ -33,8 +39,6 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=True,
 )
 

@@ -28,3 +28,9 @@ Version 1.2.5
 
 Version 1.2.6
 - Add prototype code for automatic version provisioning.
+
+Version 1.2.7
+Version provioning handling exception fixes, corrections to updates.
+
+Version 1.2.8:
+Refactoring, bug fixes.

@@ -1,21 +1,54 @@
 import sys
 import os
-import ctypes
 from pathlib import Path
-from importlib.metadata import distributions
-from dlss_updater import (
-    update_dll, is_whitelisted, __version__, LATEST_DLL_PATH, auto_update
-)
-from dlss_updater.scanner import find_all_dlss_dlls
+import ctypes
+
+
+# Add the directory containing the executable to sys.path
+if getattr(sys, 'frozen', False):
+    application_path = os.path.dirname(sys.executable)
+    sys.path.insert(0, application_path)
+
+# Import dlss_updater modules, handling potential import errors
+try:
+    from dlss_updater import (
+        update_dll, is_whitelisted, __version__, LATEST_DLL_PATH
+    )
+    from dlss_updater.scanner import find_all_dlss_dlls
+    from dlss_updater.auto_updater import auto_update
+except ImportError as e:
+    print(f"Error importing dlss_updater modules: {e}")
+    print("Current sys.path:")
+    for path in sys.path:
+        print(path)
+    print("\nCurrent directory contents:")
+    for item in os.listdir():
+        print(item)
+    print("\ndlss_updater directory contents:")
+    try:
+        for item in os.listdir('dlss_updater'):
+            print(item)
+    except FileNotFoundError:
+        print("dlss_updater directory not found")
+    sys.exit(1)
 
 def check_dependencies():
-    required = {'pefile', 'psutil'}
-    installed = {dist.metadata['Name'].lower() for dist in distributions()}
-    missing = required - installed
-    if missing:
-        print(f"Missing dependencies: {', '.join(missing)}")
-        return False
-    return True
+    try:
+        from importlib.metadata import distributions
+        required = {'pefile', 'psutil'}
+        installed = set()
+        for dist in distributions():
+            name = dist.metadata.get('Name')
+            if name:
+                installed.add(name.lower())
+        missing = required - installed
+        if missing:
+            print(f"Missing dependencies: {', '.join(missing)}")
+            return False
+        return True
+    except ImportError:
+        print("Unable to check dependencies. Proceeding anyway.")
+        return True
 
 def run_as_admin():
     script = Path(sys.argv[0]).resolve()
@@ -63,10 +96,22 @@ def main():
     print(f"DLSS Updater version {__version__}")
 
     try:
-        if auto_update():
-            print("Update process completed. Please restart the application.")
-            input("\nPress Enter to exit...")
-            return
+        print("Checking for updates...")
+        print("Deco: This function currently doesn't update itself correctly, please simply skip this if it appears for now.")
+        if auto_update is None:
+            print("No updates were found.")
+        else:
+            try:
+                update_available = auto_update()
+                if update_available:
+                    print("The application will now close for the update. It will restart automatically.")
+                    return  # Exit here to allow the update process to take over
+                else:
+                    print("No updates available or update was declined.")
+            except Exception as e:
+                print(f"Error during update check: {e}")
+                import traceback
+                traceback.print_exc()
 
         display_release_notes()
 
@@ -75,38 +120,47 @@ def main():
         updated_games = []
         skipped_games = []
 
-        print("Found DLLs in the following launchers:")
-        for launcher, dll_paths in all_dll_paths.items():
-            if dll_paths:
-                print(f"{launcher}:")
-                for dll_path in dll_paths:
-                    print(f" - {dll_path}")
-                    if not is_whitelisted(str(dll_path)):
-                        if update_dll(dll_path, LATEST_DLL_PATH):
-                            print(f"Updated DLSS DLL at {dll_path}.")
-                            updated_games.append(str(dll_path))
+        if any(all_dll_paths.values()):
+            print("Found DLLs in the following launchers:")
+            for launcher, dll_paths in all_dll_paths.items():
+                if dll_paths:
+                    print(f"{launcher}:")
+                    for dll_path in dll_paths:
+                        print(f" - {dll_path}")
+                        if not is_whitelisted(str(dll_path)):
+                            if update_dll(dll_path, LATEST_DLL_PATH):
+                                print(f"Updated DLSS DLL at {dll_path}.")
+                                updated_games.append(str(dll_path))
+                            else:
+                                print(f"DLSS DLL not updated at {dll_path}.")
+                                skipped_games.append((dll_path, launcher))
                         else:
-                            print(f"DLSS DLL not updated at {dll_path}.")
+                            print(f"Skipped whitelisted game: {dll_path}")
                             skipped_games.append((dll_path, launcher))
-                    else:
-                        print(f"Skipped whitelisted game: {dll_path}")
-                        skipped_games.append((dll_path, launcher))
-
-        print("\nSummary:")
-        print("Games updated successfully:")
-        for game in updated_games:
-            print(f" - {game}")
-
-        print("\nGames skipped:")
-        for dll_path, launcher in skipped_games:
-            game_name = extract_game_name(dll_path, launcher)
-            print(f" - {game_name} - {launcher}")
-
-        if not any(all_dll_paths.values()):
+        else:
             print("No DLLs found.")
+
+        # Always display the summary
+        print("\nSummary:")
+        if updated_games:
+            print("Games updated successfully:")
+            for game in updated_games:
+                print(f" - {game}")
+        else:
+            print("No games were updated.")
+
+        if skipped_games:
+            print("\nGames skipped:")
+            for dll_path, launcher in skipped_games:
+                game_name = extract_game_name(dll_path, launcher)
+                print(f" - {game_name} - {launcher}")
+        else:
+            print("\nNo games were skipped.")
 
     except Exception as e:
         print(f"An error occurred: {e}")
+        import traceback
+        traceback.print_exc()
 
     finally:
         input("\nPress Enter to exit...")
