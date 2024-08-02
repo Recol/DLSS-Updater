@@ -73,7 +73,6 @@ def update_script(current_exe, new_exe):
     # Start the updated executable
     subprocess.Popen([current_exe])
 
-
 def perform_update(new_exe_path):
     current_exe = sys.executable
 
