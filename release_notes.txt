@@ -1,37 +1,3 @@
-Version 1.0.0
-- Initial release with Steam support.
-
-Version 1.1.0
-- Added support for EA Launcher.
-- Added support for Ubisoft Launcher.
-- Added support for the Epic Games Launcher.
-- Improved logging for updated and skipped games.
-- Integration of a one click executable for running the application.
-
-Version 1.2.0
-- Support for Battle.Net.
-- Support for GOG Launcher.
-- Better summarisation of games at the end.
-
-Version 1.2.1
-- Fixes for registry path locations for game directories.
-
-Version 1.2.2
-- Change of approach for the Epic Games Launcher and EA Play to successfully detect them.
-
-Version 1.2.4
-- Revisions to logging to improve the execution flow and stop the bombarding of information to the user.
-- Changes to how some launchers are detected for games.
-
-Version 1.2.5
-- Fix a handling issue where the prompt will not appear in a situation where a DLL is not detected.
-
-Version 1.2.6
-- Add prototype code for automatic version provisioning.
-
-Version 1.2.7
-Version provioning handling exception fixes, corrections to updates.
-
 Version 1.2.8:
 Refactoring, bug fixes.
 
@@ -51,3 +17,5 @@ Updated the NVGX DLL to version 3.7.20.
 Changed the acceptance for skipping to use the Enter key than typing N/A.
 Formatting fixes.
 
+Version 1.4.1:
+Add note about manual update downloads.
