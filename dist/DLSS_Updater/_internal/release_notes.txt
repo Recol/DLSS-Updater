@@ -1,16 +1,3 @@
-Version 1.2.8:
-Refactoring, bug fixes.
-
-Version 1.2.9:
-Fixes to critical failure race conditions on input serialisation.
-
-Version 1.3.0:
-Fixes for handling race conditions.
-
-Version 1.3.1:
-Build process corrections so you can actually see these release notes (hi :) -Deco).
-Additional cleanups to remove duplicate some duplicate messaging.
-Source code formatting cleanups to adhere to flake8 etc.
 
 Version 1.4.0:
 Updated the NVGX DLL to version 3.7.20.
@@ -30,3 +17,12 @@ Minor update note fixes.
 
 Version 1.5.2:
 Add exclusion for DLSS DLL's which are less than 2.0.
+
+Version 1.5.3:
+Logging messaging cleanup to be more useful when updating a DLL.
+
+Version 1.5.5:
+Whitelist updated to account for Delta Force, Monster Hunter World, Fortnite, and The First Descendant.
+Updated the license to migrate to the Apache 2.0 from the BY-SA.
+Logging improvements for clarity.
+Add experimental EAC global block into the code, do not enable though.

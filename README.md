@@ -23,6 +23,8 @@ The following games here are **not** supported:
 - 3DMark (This is not supported as this uses its own version for testing)
 - Warframe (The WF launcher will replace the DLL when the game is booted)
 - Insert xyz other game not included.
+- Easy Anti Cheat Games
+- Monster Hunter World
 
 ## Execution Instructions
 
@@ -95,6 +97,9 @@ If you prefer to build the application yourself, follow these steps:
     ```sh
     .\DLSS_Updater.exe
     ```
+
+## Easy Anti Cheat
+- The tool will not globally block games as some games do allow for this, with that being said i will whitelist games as they appear if they do not function for this.
 
 ## Future Features
 

@@ -74,11 +74,15 @@ async def update_dll(dll_path, latest_dll_path):
             existing_parsed = parse_version(existing_version)
             latest_parsed = parse_version(latest_version)
 
-            print(f"Existing version: {existing_version}, Latest version: {latest_version}")
+            print(
+                f"Existing version: {existing_version}, Latest version: {latest_version}"
+            )
 
             # Check if the DLSS DLL version is less than 2
             if existing_parsed < parse_version("2.0.0"):
-                print(f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated.")
+                print(
+                    f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated."
+                )
                 return False
 
             if existing_parsed >= latest_parsed:
@@ -86,6 +90,7 @@ async def update_dll(dll_path, latest_dll_path):
                 return False
             else:
                 print(f"Update needed: {existing_version} -> {latest_version}")
+                print("Preparing to update...")
 
         # Check if the target path exists
         if not dll_path.exists():
@@ -102,14 +107,18 @@ async def update_dll(dll_path, latest_dll_path):
             print(f"Error: No write permission to the directory: {dll_path.parent}")
             return False
 
+        print("Checking file permissions...")
         # Remove read-only attribute if set
         remove_read_only(dll_path)
 
+        print("Checking if file is in use...")
         # Check if the file is in use and retry if necessary
         retry_count = 5
         retry_interval = 2  # seconds
         while await asyncio.to_thread(is_file_in_use, dll_path) and retry_count > 0:
-            print(f"File {dll_path} is in use. Retrying in {retry_interval} seconds...")
+            print(
+                f"File {dll_path} is in use. Retrying in {retry_interval} seconds... (Attempts left: {retry_count})"
+            )
             await asyncio.sleep(retry_interval)
             retry_count -= 1
 
@@ -119,15 +128,18 @@ async def update_dll(dll_path, latest_dll_path):
             )
             return False
 
+        print("Starting file copy...")
         # Copy the latest DLL to the target path
-        print(f"Copying {latest_dll_path} to {dll_path}")
         await asyncio.to_thread(shutil.copyfile, latest_dll_path, dll_path)
-        print(
-            f"Updated {dll_path} from version {existing_version} to {latest_version}."
-        )
+        print("File copy completed.")
 
+        print("Setting file permissions...")
         # Set the read-only attribute back
         set_read_only(dll_path)
+
+        print(
+            f"Successfully updated {dll_path} from version {existing_version} to {latest_version}."
+        )
         return True
     except Exception as e:
         print(f"Error updating {dll_path}: {e}")

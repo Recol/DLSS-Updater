@@ -5,14 +5,13 @@ import ctypes
 import asyncio
 
 
-# Add the directory containing the executable to sys.path
-if getattr(sys, "frozen", False):
-    application_path = os.path.dirname(sys.executable)
-    sys.path.insert(0, application_path)
-
-# Import dlss_updater modules, handling potential import errors
 try:
-    from dlss_updater import update_dll, is_whitelisted, __version__, LATEST_DLL_PATH
+    from dlss_updater import (
+        update_dll,
+        is_whitelisted,
+        __version__,
+        LATEST_DLL_PATH,
+    )
     from dlss_updater.scanner import find_all_dlss_dlls
     from dlss_updater.auto_updater import auto_update
 except ImportError as e:
@@ -30,6 +29,11 @@ except ImportError as e:
     except FileNotFoundError:
         print("dlss_updater directory not found")
     sys.exit(1)
+
+# Add the directory containing the executable to sys.path
+if getattr(sys, "frozen", False):
+    application_path = os.path.dirname(sys.executable)
+    sys.path.insert(0, application_path)
 
 
 def check_dependencies():
@@ -143,53 +147,49 @@ async def main():
                     for dll_path in dll_paths:
                         if str(dll_path) not in processed_dlls:
                             print(f" - {dll_path}")
-                            if not is_whitelisted(str(dll_path)):
-                                update_tasks.append(
-                                    update_dll(dll_path, LATEST_DLL_PATH)
-                                )
-                                dll_paths_to_update.append(dll_path)
+                            if is_whitelisted(str(dll_path)):
+                                skipped_games.append((dll_path, launcher, "Whitelisted"))
                             else:
-                                print(f"Skipped whitelisted game: {dll_path}")
-                                skipped_games.append((dll_path, launcher))
+                                update_tasks.append(update_dll(dll_path, LATEST_DLL_PATH))
+                                dll_paths_to_update.append((dll_path, launcher))
                             processed_dlls.add(str(dll_path))
 
             if update_tasks:
+                print("\nUpdating DLLs...")
                 update_results = await asyncio.gather(*update_tasks)
-                for dll_path, result in zip(dll_paths_to_update, update_results):
+                for (dll_path, launcher), result in zip(dll_paths_to_update, update_results):
                     if result:
-                        print(f"Updated DLSS DLL at {dll_path}.")
-                        updated_games.append(str(dll_path))
+                        print(f"Successfully updated DLSS DLL at {dll_path}.")
+                        updated_games.append((dll_path, launcher))
                     else:
-                        print(f"DLSS DLL not updated at {dll_path}.")
-                        skipped_games.append((dll_path, launcher))
+                        print(f"Failed to update DLSS DLL at {dll_path}.")
+                        skipped_games.append((dll_path, launcher, "Update failed"))
+                print("DLL updates completed.")
+            elif skipped_games:
+                print("All found DLLs were skipped.")
+            else:
+                print("No DLLs were eligible for update.")
         else:
             print("No DLLs found.")
 
         # Always display the summary
         print("\nSummary:")
-        if updated_games:
-            print("Games updated successfully:")
-            for game in updated_games:
-                print(f" - {game}")
-        else:
-            print("No games were updated.")
+        if updated_games or skipped_games:
+            if updated_games:
+                print("Games updated successfully:")
+                for dll_path, launcher in updated_games:
+                    game_name = extract_game_name(dll_path, launcher)
+                    print(f" - {game_name} - {launcher}")
+            else:
+                print("No games were updated.")
 
-        if skipped_games:
-            print("\nGames skipped:")
-            for dll_path, launcher in skipped_games:
-                game_name = extract_game_name(dll_path, launcher)
-                print(f" - {game_name} - {launcher}")
+            if skipped_games:
+                print("\nGames skipped:")
+                for dll_path, launcher, reason in skipped_games:
+                    game_name = extract_game_name(dll_path, launcher)
+                    print(f" - {game_name} - {launcher} (Reason: {reason})")
         else:
-            print("\nNo games were skipped.")
-
-        if skipped_games:
-            print("\nGames skipped:")
-            for dll_path, launcher in skipped_games:
-                game_name = extract_game_name(dll_path, launcher)
-                print(f" - {game_name} - {launcher}")
-        else:
-            print("\nNo games were skipped.")
-
+            print("No DLLs were found or processed.")
     except Exception as e:
         print(f"An error occurred: {e}")
         import traceback
