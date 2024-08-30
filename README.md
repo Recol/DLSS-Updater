@@ -22,9 +22,10 @@ The current supported DLL included is version 3.7.20.
 The following games here are **not** supported:
 - 3DMark (This is not supported as this uses its own version for testing)
 - Warframe (The WF launcher will replace the DLL when the game is booted)
-- Insert xyz other game not included.
 - Fortnite
 - Monster Hunter World
+- The First Descendant
+- Insert xyz other game not included.
 
 ## Execution Instructions
 
