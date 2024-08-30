@@ -27,3 +27,6 @@ Minor bug fixes and cleanups.
 
 Version 1.5.1:
 Minor update note fixes.
+
+Version 1.5.2:
+Add exclusion for DLSS DLL's which are less than 2.0.

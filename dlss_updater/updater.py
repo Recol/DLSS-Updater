@@ -64,7 +64,7 @@ def normalize_path(path):
 async def update_dll(dll_path, latest_dll_path):
     dll_path = Path(normalize_path(dll_path)).resolve()
     latest_dll_path = Path(normalize_path(latest_dll_path)).resolve()
-    print(f"Updating DLL from {latest_dll_path} to {dll_path}...")
+    print(f"Checking DLL at {dll_path}...")
 
     try:
         existing_version = get_dll_version(dll_path)
@@ -74,9 +74,12 @@ async def update_dll(dll_path, latest_dll_path):
             existing_parsed = parse_version(existing_version)
             latest_parsed = parse_version(latest_version)
 
-            print(
-                f"Existing version: {existing_version}, Latest version: {latest_version}"
-            )
+            print(f"Existing version: {existing_version}, Latest version: {latest_version}")
+
+            # Check if the DLSS DLL version is less than 2
+            if existing_parsed < parse_version("2.0.0"):
+                print(f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated.")
+                return False
 
             if existing_parsed >= latest_parsed:
                 print(f"{dll_path} is already up-to-date (version {existing_version}).")

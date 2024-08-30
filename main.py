@@ -141,9 +141,7 @@ async def main():
                 if dll_paths:
                     print(f"{launcher}:")
                     for dll_path in dll_paths:
-                        if (
-                            str(dll_path) not in processed_dlls
-                        ):  # Check if DLL has been processed
+                        if str(dll_path) not in processed_dlls:
                             print(f" - {dll_path}")
                             if not is_whitelisted(str(dll_path)):
                                 update_tasks.append(
@@ -153,7 +151,7 @@ async def main():
                             else:
                                 print(f"Skipped whitelisted game: {dll_path}")
                                 skipped_games.append((dll_path, launcher))
-                            processed_dlls.add(str(dll_path))  # Mark DLL as processed
+                            processed_dlls.add(str(dll_path))
 
             if update_tasks:
                 update_results = await asyncio.gather(*update_tasks)
@@ -175,6 +173,14 @@ async def main():
                 print(f" - {game}")
         else:
             print("No games were updated.")
+
+        if skipped_games:
+            print("\nGames skipped:")
+            for dll_path, launcher in skipped_games:
+                game_name = extract_game_name(dll_path, launcher)
+                print(f" - {game_name} - {launcher}")
+        else:
+            print("\nNo games were skipped.")
 
         if skipped_games:
             print("\nGames skipped:")
