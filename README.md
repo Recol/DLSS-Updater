@@ -99,8 +99,9 @@ If you prefer to build the application yourself, follow these steps:
 ## Future Features
 
 - Support for additional launchers.
-- Potential support for updating the DLSS frame generation DLL.
-- Possible other game inclusion.
+- Support for updating the DLSS Frame Generation and Ray Reconstruction DLL.
+- Possible other game launcher inclusion.
+- A GUI?
 - Insert xyz feature that wants to be requested.
 
 ## Release Notes
