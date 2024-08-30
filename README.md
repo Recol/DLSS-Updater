@@ -23,7 +23,7 @@ The following games here are **not** supported:
 - 3DMark (This is not supported as this uses its own version for testing)
 - Warframe (The WF launcher will replace the DLL when the game is booted)
 - Insert xyz other game not included.
-- Easy Anti Cheat Games
+- Fortnite
 - Monster Hunter World
 
 ## Execution Instructions
