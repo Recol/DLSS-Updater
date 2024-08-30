@@ -109,6 +109,7 @@ If you prefer to build the application yourself, follow these steps:
 - Possible other game launcher inclusion.
 - A GUI?
 - Insert xyz feature that wants to be requested.
+- Ability to restore and create backups of DLL swaps.
 
 ## Release Notes
 
