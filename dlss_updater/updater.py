@@ -5,7 +5,7 @@ from dlss_updater.config import LATEST_DLL_VERSION, LATEST_DLL_PATH
 from pathlib import Path
 import stat
 import psutil
-import time
+import asyncio
 from packaging import version
 
 
@@ -61,7 +61,7 @@ def normalize_path(path):
     return os.path.normpath(path)
 
 
-def update_dll(dll_path, latest_dll_path):
+async def update_dll(dll_path, latest_dll_path):
     dll_path = Path(normalize_path(dll_path)).resolve()
     latest_dll_path = Path(normalize_path(latest_dll_path)).resolve()
     print(f"Updating DLL from {latest_dll_path} to {dll_path}...")
@@ -104,13 +104,13 @@ def update_dll(dll_path, latest_dll_path):
 
         # Check if the file is in use and retry if necessary
         retry_count = 5
-        retry_interval = 10  # seconds
-        while is_file_in_use(dll_path) and retry_count > 0:
+        retry_interval = 2  # seconds
+        while await asyncio.to_thread(is_file_in_use, dll_path) and retry_count > 0:
             print(f"File {dll_path} is in use. Retrying in {retry_interval} seconds...")
-            time.sleep(retry_interval)
+            await asyncio.sleep(retry_interval)
             retry_count -= 1
 
-        if retry_count == 0 and is_file_in_use(dll_path):
+        if retry_count == 0 and await asyncio.to_thread(is_file_in_use, dll_path):
             print(
                 f"File {dll_path} is still in use after multiple attempts. Cannot update."
             )
@@ -118,7 +118,7 @@ def update_dll(dll_path, latest_dll_path):
 
         # Copy the latest DLL to the target path
         print(f"Copying {latest_dll_path} to {dll_path}")
-        shutil.copyfile(latest_dll_path, dll_path)
+        await asyncio.to_thread(shutil.copyfile, latest_dll_path, dll_path)
         print(
             f"Updated {dll_path} from version {existing_version} to {latest_version}."
         )
@@ -126,13 +126,6 @@ def update_dll(dll_path, latest_dll_path):
         # Set the read-only attribute back
         set_read_only(dll_path)
         return True
-    except OSError as e:
-        print(f"OSError: {e}")
-        print(f"Path: {dll_path}")
-        print(
-            "Check if the file is open in another program or if there are permission issues."
-        )
-        return False
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        print(f"Error updating {dll_path}: {e}")
         return False

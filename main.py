@@ -2,6 +2,7 @@ import sys
 import os
 from pathlib import Path
 import ctypes
+import asyncio
 
 
 # Add the directory containing the executable to sys.path
@@ -79,29 +80,27 @@ def display_release_notes():
 def extract_game_name(dll_path, launcher_name):
     parts = Path(dll_path).parts
     try:
-        if launcher_name == "Steam":
+        if "steamapps" in parts:
             return parts[parts.index("steamapps") + 2]
-        elif launcher_name == "EA Launcher":
-            if "EA Games" in parts:
-                return parts[parts.index("EA Games") + 1]
-            else:
-                return parts[-2]  # Assume the parent directory is the game name
-        elif launcher_name == "Ubisoft Launcher":
+        elif "EA Games" in parts:
+            return parts[parts.index("EA Games") + 1]
+        elif "Ubisoft Game Launcher" in parts:
             return parts[parts.index("games") + 1]
-        elif launcher_name == "Epic Games Launcher":
-            return parts[parts.index("Installed") + 1]
-        elif launcher_name == "GOG Launcher":
+        elif "Epic Games" in parts:
+            return parts[parts.index("Epic Games") + 2]
+        elif "GOG Galaxy" in parts:
             return parts[parts.index("Games") + 1]
-        elif launcher_name == "Battle.net Launcher":
-            return parts[parts.index("Games") + 1]
+        elif "Battle.net" in parts:
+            return parts[parts.index("Battle.net") + 1]
         else:
-            return "Unknown Game"
-    except ValueError as e:
+            # If we can't determine the game name, use the parent directory name
+            return parts[-2]
+    except (ValueError, IndexError) as e:
         print(f"Error extracting game name for {dll_path} in {launcher_name}: {e}")
         return "Unknown Game"
 
 
-def main():
+async def main():
     if gui_mode:
         log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
         sys.stdout = sys.stderr = open(log_file, "w")
@@ -114,13 +113,12 @@ def main():
             print("No updates were found.")
         else:
             try:
-                update_available = auto_update()
+                update_available = await asyncio.to_thread(auto_update)
                 if update_available:
                     print(
                         "The application will now close for the update. It will restart automatically."
                     )
                     return  # Exit here to allow the update process to take over
-
             except Exception as e:
                 print(f"Error during update check: {e}")
                 import traceback
@@ -129,28 +127,43 @@ def main():
 
         display_release_notes()
 
-        all_dll_paths = find_all_dlss_dlls()
+        all_dll_paths = await find_all_dlss_dlls()
 
         updated_games = []
         skipped_games = []
+        processed_dlls = set()  # Keep track of processed DLLs
 
         if any(all_dll_paths.values()):
             print("Found DLLs in the following launchers:")
+            update_tasks = []
+            dll_paths_to_update = []
             for launcher, dll_paths in all_dll_paths.items():
                 if dll_paths:
                     print(f"{launcher}:")
                     for dll_path in dll_paths:
-                        print(f" - {dll_path}")
-                        if not is_whitelisted(str(dll_path)):
-                            if update_dll(dll_path, LATEST_DLL_PATH):
-                                print(f"Updated DLSS DLL at {dll_path}.")
-                                updated_games.append(str(dll_path))
+                        if (
+                            str(dll_path) not in processed_dlls
+                        ):  # Check if DLL has been processed
+                            print(f" - {dll_path}")
+                            if not is_whitelisted(str(dll_path)):
+                                update_tasks.append(
+                                    update_dll(dll_path, LATEST_DLL_PATH)
+                                )
+                                dll_paths_to_update.append(dll_path)
                             else:
-                                print(f"DLSS DLL not updated at {dll_path}.")
+                                print(f"Skipped whitelisted game: {dll_path}")
                                 skipped_games.append((dll_path, launcher))
-                        else:
-                            print(f"Skipped whitelisted game: {dll_path}")
-                            skipped_games.append((dll_path, launcher))
+                            processed_dlls.add(str(dll_path))  # Mark DLL as processed
+
+            if update_tasks:
+                update_results = await asyncio.gather(*update_tasks)
+                for dll_path, result in zip(dll_paths_to_update, update_results):
+                    if result:
+                        print(f"Updated DLSS DLL at {dll_path}.")
+                        updated_games.append(str(dll_path))
+                    else:
+                        print(f"DLSS DLL not updated at {dll_path}.")
+                        skipped_games.append((dll_path, launcher))
         else:
             print("No DLLs found.")
 
@@ -190,4 +203,4 @@ if __name__ == "__main__":
     if not is_admin():
         run_as_admin()
     else:
-        main()
+        asyncio.run(main())

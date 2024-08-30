@@ -19,3 +19,8 @@ Formatting fixes.
 
 Version 1.4.1:
 Add note about manual update downloads.
+
+Version 1.5.0:
+Refactor code to use concurrency to speed up I/O related operations for updating multiple folders.
+Introduced DLL tracking for proper handling of await and async handling operations.
+Minor bug fixes and cleanups.

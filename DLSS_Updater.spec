@@ -19,7 +19,10 @@ a = Analysis(
         ('dlss_updater', 'dlss_updater'),
         ('release_notes.txt', '.')
     ],
-    hiddenimports=['pefile', 'psutil', 'importlib.metadata', 'packaging', 'importlib_metadata'] + dlss_updater_imports,
+    hiddenimports=[
+        'pefile', 'psutil', 'importlib.metadata', 'packaging', 'importlib_metadata',
+        'asyncio', 'concurrent.futures'
+    ] + dlss_updater_imports,
     hookspath=['./hooks'],
     hooksconfig={},
     runtime_hooks=[],
