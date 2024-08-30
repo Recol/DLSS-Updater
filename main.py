@@ -116,7 +116,7 @@ async def main():
                 update_available = await asyncio.to_thread(auto_update)
                 if update_available:
                     print(
-                        "The application will now close for the update. It will restart automatically."
+                        "The application will now close for the update. If the update does NOT automatically restart, please manually reboot it from the /update/ folder."
                     )
                     return  # Exit here to allow the update process to take over
             except Exception as e:
