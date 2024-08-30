@@ -34,6 +34,8 @@ The following games here are **not** supported:
 4. Run the `DLSS_Updater.exe` executable.
 5. Follow the instructions in the terminal.
 
+**Note:** If version 1.5.0+ does not work correctly, please use [version 1.4.1](https://github.com/Recol/DLSS-Updater/releases/tag/V1.4.1) instead.
+
 ### Building from Source
 
 If you prefer to build the application yourself, follow these steps:
