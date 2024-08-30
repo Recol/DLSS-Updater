@@ -99,7 +99,7 @@ If you prefer to build the application yourself, follow these steps:
 ## Future Features
 
 - Support for additional launchers.
-- Potential support for updating the DLSS upscaler itself.
+- Potential support for updating the DLSS frame generation DLL.
 - Possible other game inclusion.
 - Insert xyz feature that wants to be requested.
 
