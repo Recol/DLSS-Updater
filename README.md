@@ -121,7 +121,7 @@ If you encounter any issues, please refer to the Issues section on GitHub to see
 
 ## License
 
-This project is licensed under the Creative Commons Attribution Non Commercial Share Alike 4.0 International License. See the LICENSE file for more details.
+This project is licensed under the Apache 2.0 License. See the LICENSE file for more details.
 
 ## Credits
 
