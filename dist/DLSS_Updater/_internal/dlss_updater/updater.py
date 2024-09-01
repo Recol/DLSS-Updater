@@ -71,13 +71,12 @@ def normalize_path(path):
 async def create_backup(dll_path):
     backup_path = dll_path.with_suffix(".dlsss")
     try:
-        shutil.copy2(dll_path, backup_path)
+        await asyncio.to_thread(shutil.copy2, dll_path, backup_path)
         print(f"Created backup: {backup_path}")
-        return True
+        return backup_path
     except Exception as e:
         print(f"Failed to create backup for {dll_path}: {e}")
-        return False
-
+        return None
 
 async def update_dll(dll_path, latest_dll_path):
     dll_path = Path(normalize_path(dll_path)).resolve()
@@ -102,11 +101,11 @@ async def update_dll(dll_path, latest_dll_path):
                 print(
                     f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated."
                 )
-                return False
+                return False, None
 
             if existing_parsed >= latest_parsed:
                 print(f"{dll_path} is already up-to-date (version {existing_version}).")
-                return False
+                return False, None
             else:
                 print(f"Update needed: {existing_version} -> {latest_version}")
                 print("Preparing to update...")
@@ -114,23 +113,24 @@ async def update_dll(dll_path, latest_dll_path):
         # Check if the target path exists
         if not dll_path.exists():
             print(f"Error: Target DLL path does not exist: {dll_path}")
-            return False
+            return False, None
 
         # Check if the latest DLL path exists
         if not latest_dll_path.exists():
             print(f"Error: Latest DLL path does not exist: {latest_dll_path}")
-            return False
+            return False, None
 
         # Ensure the target directory is writable
         if not os.access(dll_path.parent, os.W_OK):
             print(f"Error: No write permission to the directory: {dll_path.parent}")
-            return False
+            return False, None
 
         # Create backup
         print("Creating backup...")
-        if not await create_backup(dll_path):
+        backup_path = await create_backup(dll_path)
+        if not backup_path:
             print(f"Skipping update for {dll_path} due to backup failure.")
-            return False
+            return False, None
 
         print("Checking file permissions...")
         remove_read_only(dll_path)
@@ -151,7 +151,7 @@ async def update_dll(dll_path, latest_dll_path):
                 f"File {dll_path} is still in use after multiple attempts. Cannot update."
             )
             restore_permissions(dll_path, original_permissions)
-            return False
+            return False, None
 
         print("Starting file copy...")
         await asyncio.to_thread(shutil.copyfile, latest_dll_path, dll_path)
@@ -163,8 +163,8 @@ async def update_dll(dll_path, latest_dll_path):
         print(
             f"Successfully updated {dll_path} from version {existing_version} to {latest_version}."
         )
-        return True
+        return True, backup_path
     except Exception as e:
         print(f"Error updating {dll_path}: {e}")
         restore_permissions(dll_path, original_permissions)
-        return False
+        return False, None

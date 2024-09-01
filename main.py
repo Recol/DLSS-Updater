@@ -110,6 +110,7 @@ async def main():
         sys.stdout = sys.stderr = open(log_file, "w")
 
     print(f"DLSS Updater version {__version__}")
+    print("Starting DLL search...")
 
     try:
         print("Checking for updates...")
@@ -126,21 +127,21 @@ async def main():
             except Exception as e:
                 print(f"Error during update check: {e}")
                 import traceback
-
                 traceback.print_exc()
 
         display_release_notes()
 
+        print("Searching for DLSS DLLs...")
         all_dll_paths = await find_all_dlss_dlls()
+        print("DLL search completed.")
 
         updated_games = []
         skipped_games = []
+        successful_backups = []
         processed_dlls = set()  # Keep track of processed DLLs
 
-        all_dll_paths = await find_all_dlss_dlls()
-
         if any(all_dll_paths.values()):
-            print("Found DLLs in the following launchers:")
+            print("\nFound DLLs in the following launchers:")
             update_tasks = []
             dll_paths_to_update = []
             for launcher, dll_paths in all_dll_paths.items():
@@ -170,12 +171,14 @@ async def main():
             if update_tasks:
                 print("\nUpdating DLLs...")
                 update_results = await asyncio.gather(*update_tasks)
-                for (dll_path, launcher), result in zip(
+                for (dll_path, launcher), (result, backup_path) in zip(
                     dll_paths_to_update, update_results
                 ):
                     if result:
                         print(f"Successfully updated DLSS DLL at {dll_path}.")
                         updated_games.append((dll_path, launcher))
+                        if backup_path:
+                            successful_backups.append((dll_path, backup_path))
                     else:
                         print(f"Failed to update DLSS DLL at {dll_path}.")
                         skipped_games.append((dll_path, launcher, "Update failed"))
@@ -187,9 +190,9 @@ async def main():
         else:
             print("No DLLs found.")
 
-        # Always display the summary
+        # Display summary
         print("\nSummary:")
-        if updated_games or skipped_games:
+        if updated_games or skipped_games or successful_backups:
             if updated_games:
                 print("Games updated successfully:")
                 for dll_path, launcher in updated_games:
@@ -198,6 +201,14 @@ async def main():
             else:
                 print("No games were updated.")
 
+            if successful_backups:
+                print("\nSuccessful backups:")
+                for dll_path, backup_path in successful_backups:
+                    game_name = extract_game_name(dll_path, "Unknown")
+                    print(f" - {game_name}: {backup_path}")
+            else:
+                print("\nNo backups were created.")
+
             if skipped_games:
                 print("\nGames skipped:")
                 for dll_path, launcher, reason in skipped_games:
@@ -205,10 +216,10 @@ async def main():
                     print(f" - {game_name} - {launcher} (Reason: {reason})")
         else:
             print("No DLLs were found or processed.")
+
     except Exception as e:
         print(f"An error occurred: {e}")
         import traceback
-
         traceback.print_exc()
 
     finally:

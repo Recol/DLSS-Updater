@@ -14,3 +14,7 @@ Improve handling for some async IO behaviour to try and speed up improvements.
 Implement soft backup logic for compatibility with DLSS Swapper (the main DLSS file only for now).
 Remove logic for setting DLL's to read only.
 A few other minor bug fixes.
+
+Version 2.0.1:
+Fix minor regressions in the old release involving the EA Launcher.
+Improve output clarity for detected launchers.
