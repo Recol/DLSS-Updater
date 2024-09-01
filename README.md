@@ -16,7 +16,7 @@ What if you could update all the DLSS DLLs for the games detected on your system
   - Epic Games Launcher
   - GOG Galaxy
   - Battle.net (Note for Battle.net: Please ensure that the launcher is **open** before updating this launcher (this does not apply if you are entering a custom folder))
-- A soft backup system for allowing restoration with [!DLSS Swapper](https://github.com/beeradmoore/dlss-swapper).
+- A soft backup system for allowing restoration with [DLSS Swapper](https://github.com/beeradmoore/dlss-swapper).
 - Support for updating Ray Reconstruction and Frame Generation DLL's.
 - (Some) support for manual folder locations (just insert your manual folders in place of the launcher ones).
 
