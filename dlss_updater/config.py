@@ -13,5 +13,14 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
-LATEST_DLL_VERSION = "3.17.20.0"
-LATEST_DLL_PATH = resource_path(os.path.join("latest_dll", "nvngx_dlss.dll"))
+LATEST_DLL_VERSIONS = {
+    "nvngx_dlss.dll": "3.17.20.0",
+    "nvngx_dlssg.dll": "3.17.20.0",
+    "nvngx_dlssd.dll": "3.17.20.0",
+}
+
+LATEST_DLL_PATHS = {
+    "nvngx_dlss.dll": resource_path(os.path.join("latest_dll", "nvngx_dlss.dll")),
+    "nvngx_dlssg.dll": resource_path(os.path.join("latest_dll", "nvngx_dlssg.dll")),
+    "nvngx_dlssd.dll": resource_path(os.path.join("latest_dll", "nvngx_dlssd.dll")),
+}

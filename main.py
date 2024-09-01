@@ -10,7 +10,7 @@ try:
         update_dll,
         is_whitelisted,
         __version__,
-        LATEST_DLL_PATH,
+        LATEST_DLL_PATHS,
     )
     from dlss_updater.scanner import find_all_dlss_dlls
     from dlss_updater.auto_updater import auto_update
@@ -137,6 +137,8 @@ async def main():
         skipped_games = []
         processed_dlls = set()  # Keep track of processed DLLs
 
+        all_dll_paths = await find_all_dlss_dlls()
+
         if any(all_dll_paths.values()):
             print("Found DLLs in the following launchers:")
             update_tasks = []
@@ -148,16 +150,29 @@ async def main():
                         if str(dll_path) not in processed_dlls:
                             print(f" - {dll_path}")
                             if is_whitelisted(str(dll_path)):
-                                skipped_games.append((dll_path, launcher, "Whitelisted"))
+                                skipped_games.append(
+                                    (dll_path, launcher, "Whitelisted")
+                                )
                             else:
-                                update_tasks.append(update_dll(dll_path, LATEST_DLL_PATH))
-                                dll_paths_to_update.append((dll_path, launcher))
+                                dll_name = dll_path.name.lower()
+                                if dll_name in LATEST_DLL_PATHS:
+                                    latest_dll_path = LATEST_DLL_PATHS[dll_name]
+                                    update_tasks.append(
+                                        update_dll(dll_path, latest_dll_path)
+                                    )
+                                    dll_paths_to_update.append((dll_path, launcher))
+                                else:
+                                    skipped_games.append(
+                                        (dll_path, launcher, "No update available")
+                                    )
                             processed_dlls.add(str(dll_path))
 
             if update_tasks:
                 print("\nUpdating DLLs...")
                 update_results = await asyncio.gather(*update_tasks)
-                for (dll_path, launcher), result in zip(dll_paths_to_update, update_results):
+                for (dll_path, launcher), result in zip(
+                    dll_paths_to_update, update_results
+                ):
                     if result:
                         print(f"Successfully updated DLSS DLL at {dll_path}.")
                         updated_games.append((dll_path, launcher))

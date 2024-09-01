@@ -1,9 +1,10 @@
 import os
 import shutil
 import pefile
-from dlss_updater.config import LATEST_DLL_VERSION, LATEST_DLL_PATH
+from dlss_updater.config import LATEST_DLL_VERSIONS, LATEST_DLL_PATHS
 from pathlib import Path
 import stat
+import time
 import psutil
 import asyncio
 from packaging import version
@@ -37,34 +38,53 @@ def remove_read_only(file_path):
         os.chmod(file_path, stat.S_IWRITE)
 
 
-def set_read_only(file_path):
-    if os.access(file_path, os.W_OK):
-        print(f"Setting read-only attribute for {file_path}")
-        os.chmod(file_path, stat.S_IREAD)
+def restore_permissions(file_path, original_permissions):
+    os.chmod(file_path, original_permissions)
 
 
-def is_file_in_use(file_path):
-    for proc in psutil.process_iter(["pid", "name"]):
+def is_file_in_use(file_path, timeout=5):
+    start_time = time.time()
+    while time.time() - start_time < timeout:
         try:
-            for item in proc.open_files():
-                if file_path == item.path:
-                    print(
-                        f"File {file_path} is in use by process {proc.info['name']} (PID: {proc.info['pid']})"
-                    )
-                    return True
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-    return False
+            with open(file_path, "rb"):
+                return False  # File is not in use
+        except PermissionError:
+            for proc in psutil.process_iter(["pid", "name", "open_files"]):
+                try:
+                    for file in proc.open_files():
+                        if file.path == file_path:
+                            print(
+                                f"File {file_path} is in use by process {proc.name()} (PID: {proc.pid})"
+                            )
+                            return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        time.sleep(0.1)  # Short sleep to prevent CPU overuse
+    print(f"Timeout reached while checking if file {file_path} is in use")
+    return True  # Assume file is NOT in use if we can't determine otherwise to prevent hanging conditions
 
 
 def normalize_path(path):
     return os.path.normpath(path)
 
 
+async def create_backup(dll_path):
+    backup_path = dll_path.with_suffix(".dlsss")
+    try:
+        shutil.copy2(dll_path, backup_path)
+        print(f"Created backup: {backup_path}")
+        return True
+    except Exception as e:
+        print(f"Failed to create backup for {dll_path}: {e}")
+        return False
+
+
 async def update_dll(dll_path, latest_dll_path):
     dll_path = Path(normalize_path(dll_path)).resolve()
     latest_dll_path = Path(normalize_path(latest_dll_path)).resolve()
     print(f"Checking DLL at {dll_path}...")
+
+    original_permissions = os.stat(dll_path).st_mode
 
     try:
         existing_version = get_dll_version(dll_path)
@@ -78,7 +98,6 @@ async def update_dll(dll_path, latest_dll_path):
                 f"Existing version: {existing_version}, Latest version: {latest_version}"
             )
 
-            # Check if the DLSS DLL version is less than 2
             if existing_parsed < parse_version("2.0.0"):
                 print(
                     f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated."
@@ -107,35 +126,39 @@ async def update_dll(dll_path, latest_dll_path):
             print(f"Error: No write permission to the directory: {dll_path.parent}")
             return False
 
+        # Create backup
+        print("Creating backup...")
+        if not await create_backup(dll_path):
+            print(f"Skipping update for {dll_path} due to backup failure.")
+            return False
+
         print("Checking file permissions...")
-        # Remove read-only attribute if set
         remove_read_only(dll_path)
 
         print("Checking if file is in use...")
-        # Check if the file is in use and retry if necessary
-        retry_count = 5
-        retry_interval = 2  # seconds
-        while await asyncio.to_thread(is_file_in_use, dll_path) and retry_count > 0:
+        retry_count = 3
+        while retry_count > 0:
+            if not await asyncio.to_thread(is_file_in_use, str(dll_path)):
+                break
             print(
-                f"File {dll_path} is in use. Retrying in {retry_interval} seconds... (Attempts left: {retry_count})"
+                f"File is in use. Retrying in 2 seconds... (Attempts left: {retry_count})"
             )
-            await asyncio.sleep(retry_interval)
+            await asyncio.sleep(2)
             retry_count -= 1
 
-        if retry_count == 0 and await asyncio.to_thread(is_file_in_use, dll_path):
+        if retry_count == 0:
             print(
                 f"File {dll_path} is still in use after multiple attempts. Cannot update."
             )
+            restore_permissions(dll_path, original_permissions)
             return False
 
         print("Starting file copy...")
-        # Copy the latest DLL to the target path
         await asyncio.to_thread(shutil.copyfile, latest_dll_path, dll_path)
         print("File copy completed.")
 
-        print("Setting file permissions...")
-        # Set the read-only attribute back
-        set_read_only(dll_path)
+        # Restore original permissions
+        restore_permissions(dll_path, original_permissions)
 
         print(
             f"Successfully updated {dll_path} from version {existing_version} to {latest_version}."
@@ -143,4 +166,5 @@ async def update_dll(dll_path, latest_dll_path):
         return True
     except Exception as e:
         print(f"Error updating {dll_path}: {e}")
+        restore_permissions(dll_path, original_permissions)
         return False

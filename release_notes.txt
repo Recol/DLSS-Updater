@@ -1,23 +1,3 @@
-
-Version 1.4.0:
-Updated the NVGX DLL to version 3.7.20.
-Changed the acceptance for skipping to use the Enter key than typing N/A.
-Formatting fixes.
-
-Version 1.4.1:
-Add note about manual update downloads.
-
-Version 1.5.0:
-Refactor code to use concurrency to speed up I/O related operations for updating multiple folders.
-Introduced DLL tracking for proper handling of await and async handling operations.
-Minor bug fixes and cleanups.
-
-Version 1.5.1:
-Minor update note fixes.
-
-Version 1.5.2:
-Add exclusion for DLSS DLL's which are less than 2.0.
-
 Version 1.5.3:
 Logging messaging cleanup to be more useful when updating a DLL.
 
@@ -26,3 +6,11 @@ Whitelist updated to account for Delta Force, Monster Hunter World, Fortnite, an
 Updated the license to migrate to the Apache 2.0 from the BY-SA.
 Logging improvements for clarity.
 Add experimental EAC global block into the code, do not enable though.
+
+Version 2.0.0:
+Add support for Ray Reconstruction and the Frame Generation DLL's.
+Improve logic conditions to prevent potential hanging on an infinite check for file permissions with timeouts.
+Improve handling for some async IO behaviour to try and speed up improvements.
+Implement soft backup logic for compatibility with DLSS Swapper (the main DLSS file only for now).
+Remove logic for setting DLL's to read only.
+A few other minor bug fixes.

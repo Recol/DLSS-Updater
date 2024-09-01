@@ -13,7 +13,7 @@ What if you could update all the DLSS DLLs for the games detected on your system
   - EA Play
   - Epic Games Launcher
   - GOG Galaxy
-  - Battle.net
+  - Battle.net (Note for Battle.net: Please ensure that the launcher is **open** before updating this launcher (this does not apply if you are entering a custom folder))
 
 The current supported DLL included is version 3.7.20.
 
@@ -37,7 +37,6 @@ The following games here are **not** supported:
 4. Run the `DLSS_Updater.exe` executable.
 5. Follow the instructions in the terminal.
 
-**Note:** If version 1.5.0+ does not work correctly, please use [version 1.4.1](https://github.com/Recol/DLSS-Updater/releases/tag/V1.4.1) instead.
 
 ### Building from Source
 
