@@ -1,6 +1,3 @@
-Version 1.5.3:
-Logging messaging cleanup to be more useful when updating a DLL.
-
 Version 1.5.5:
 Whitelist updated to account for Delta Force, Monster Hunter World, Fortnite, and The First Descendant.
 Updated the license to migrate to the Apache 2.0 from the BY-SA.
@@ -8,7 +5,7 @@ Logging improvements for clarity.
 Add experimental EAC global block into the code, do not enable though.
 
 Version 2.0.0:
-Add support for Ray Reconstruction and the Frame Generation DLL's.
+Add support for Ray Reconstruction and the Frame Geneartion DLL's.
 Improve logic conditions to prevent potential hanging on an infinite check for file permissions with timeouts.
 Improve handling for some async IO behaviour to try and speed up improvements.
 Implement soft backup logic for compatibility with DLSS Swapper (the main DLSS file only for now).
@@ -18,3 +15,7 @@ A few other minor bug fixes.
 Version 2.0.1:
 Fix minor regressions in the old release involving the EA Launcher.
 Improve output clarity for detected launchers.
+
+Version 2.0.2:
+Whitelist Evil Dead The Game.
+

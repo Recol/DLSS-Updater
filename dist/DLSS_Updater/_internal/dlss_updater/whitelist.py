@@ -6,6 +6,7 @@ WHITELISTED_GAMES = {
     "3DMark",
     "Fortnite",
     "The First Descendant",
+    "EVIL DEAD The Game",
     # Add more games as needed
 }
 

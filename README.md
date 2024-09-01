@@ -25,6 +25,7 @@ The following games here are **not** supported:
 - Fortnite
 - Monster Hunter World
 - The First Descendant
+- EVIL DEAD The Game
 - Insert xyz other game not included.
 
 ## Execution Instructions
