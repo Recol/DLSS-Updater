@@ -112,7 +112,7 @@ If you prefer to build the application yourself, follow these steps:
 ## Future Features
 
 - Support for additional launchers.
-~~- Support for updating the DLSS Frame Generation and Ray Reconstruction DLL.~~ - This is now included.
+- ~~Support for updating the DLSS Frame Generation and Ray Reconstruction DLL.~~ - This is now included.
 - A GUI?
 - Ability to restore and create backups of DLL swaps. - This is currently being worked on, however support has been added for restoring with DLSS Swapper currently.
 - Outputting stuff to a [log file](https://github.com/Recol/DLSS-Updater/issues/11).
