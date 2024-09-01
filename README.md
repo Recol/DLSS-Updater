@@ -31,6 +31,7 @@ The following games here are **not** supported:
 - Monster Hunter World
 - The First Descendant
 - EVIL DEAD The Game
+- Escape From Tarkov
 - **Any** game that is using a DLSS version <2.0 (this is because these are non-updatable)
 - Insert xyz other game not included.
 

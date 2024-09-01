@@ -1,9 +1,3 @@
-Version 1.5.5:
-Whitelist updated to account for Delta Force, Monster Hunter World, Fortnite, and The First Descendant.
-Updated the license to migrate to the Apache 2.0 from the BY-SA.
-Logging improvements for clarity.
-Add experimental EAC global block into the code, do not enable though.
-
 Version 2.0.0:
 Add support for Ray Reconstruction and the Frame Geneartion DLL's.
 Improve logic conditions to prevent potential hanging on an infinite check for file permissions with timeouts.
@@ -19,3 +13,5 @@ Improve output clarity for detected launchers.
 Version 2.0.2:
 Whitelist Evil Dead The Game.
 
+Version 2.0.3:
+Whitelist Escape From Tarkov.
