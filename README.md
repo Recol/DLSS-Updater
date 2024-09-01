@@ -2,6 +2,8 @@
 
 [![CodeQL](https://github.com/Recol/DLSS-Updater/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/Recol/DLSS-Updater/actions?query=workflow%3ACodeQL)
 ![Version](./version.svg)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-donate-yellow.svg)](https://buymeacoffee.com/decouk)
+
 
 What if you could update all the DLSS DLLs for the games detected on your system?
 
@@ -14,6 +16,9 @@ What if you could update all the DLSS DLLs for the games detected on your system
   - Epic Games Launcher
   - GOG Galaxy
   - Battle.net (Note for Battle.net: Please ensure that the launcher is **open** before updating this launcher (this does not apply if you are entering a custom folder))
+- A soft backup system for allowing restoration with [!DLSS Swapper](https://github.com/beeradmoore/dlss-swapper).
+- Support for updating Ray Reconstruction and Frame Generation DLL's.
+- (Some) support for manual folder locations (just insert your manual folders in place of the launcher ones).
 
 The current supported DLL included is version 3.7.20.
 
@@ -26,6 +31,7 @@ The following games here are **not** supported:
 - Monster Hunter World
 - The First Descendant
 - EVIL DEAD The Game
+- **Any** game that is using a DLSS version <2.0 (this is because these are non-updatable)
 - Insert xyz other game not included.
 
 ## Execution Instructions
