@@ -8,6 +8,7 @@ WHITELISTED_GAMES = {
     "The First Descendant",
     "EVIL DEAD The Game",
     "Escape From Tarkov",
+    "Back 4 Blood",
     # Add more games as needed
 }
 
