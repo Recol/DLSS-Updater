@@ -9,6 +9,9 @@ WHITELISTED_GAMES = {
     "EVIL DEAD The Game",
     "Escape From Tarkov",
     "Back 4 Blood",
+    "Squad",
+    "Squad 44",
+    "Chivalry 2",
     # Add more games as needed
 }
 
