@@ -17,3 +17,6 @@ Add the following games to the whitelist:
 Chivalry 2
 Squad
 Squad 44
+
+Version 2.0.7:
+Fix minor typo in the config file versions, doesn't affect actual functionality.
