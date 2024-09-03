@@ -20,3 +20,7 @@ Squad 44
 
 Version 2.0.7:
 Fix minor typo in the config file versions, doesn't affect actual functionality.
+
+Version 2.0.8:
+Whitelist Need For Speed Unbound.
+
