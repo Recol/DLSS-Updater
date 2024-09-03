@@ -37,6 +37,7 @@ The following games here are **not** supported:
 - Squad
 - Squad 44
 - Chivalry 2
+- Need For Speed Unbound
 - **Any** game that is using a DLSS version <2.0 (this is because these are non-updatable)
 - Insert xyz other game not included.
 
