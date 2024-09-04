@@ -42,6 +42,10 @@ The following games here are **not** supported:
 - **Any** game that is using a DLSS version <2.0 (this is because these are non-updatable)
 - Insert xyz other game not included.
 
+## Restoring modified DLL's
+- In order to do this, simply rename the **.dlsss** file of the respective DLL which you wish to restore to **.dll** and overwrite the original file. 
+- Support does not exist yet for being able to restore them using the program.
+
 ## Execution Instructions
 
 ### Running the Pre-built Application

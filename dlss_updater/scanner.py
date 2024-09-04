@@ -2,6 +2,9 @@ import os
 from pathlib import Path
 from .whitelist import is_whitelisted
 import asyncio
+from .logger import setup_logger
+
+logger = setup_logger()
 
 
 def get_steam_install_path():
@@ -41,10 +44,10 @@ async def find_dlss_dlls(library_paths, launcher_name):
                 if dll_name.lower() in [f.lower() for f in files]:
                     dll_path = Path(root) / dll_name
                     if not is_whitelisted(str(dll_path)):
-                        print(f"Found DLSS DLL in {launcher_name}: {dll_path}")
+                        logger.info(f"Found DLSS DLL in {launcher_name}: {dll_path}")
                         dll_paths.append(dll_path)
                     else:
-                        print(
+                        logger.info(
                             f"Skipped whitelisted game in {launcher_name}: {dll_path}"
                         )
             await asyncio.sleep(0)  # Yield control to allow other tasks to run
@@ -61,14 +64,15 @@ async def get_ea_games():
         "Please enter the path for EA games or press Enter to skip: "
     )
     if ea_path is None:
-        print("EA games path skipped.")
+        logger.info("EA games path skipped.")
         return []
     ea_games_path = Path(ea_path)
     if not ea_games_path.exists():
-        print(f"Invalid path for EA games: {ea_games_path}")
+        logger.info(f"Invalid path for EA games: {ea_games_path}")
         return []
-    print(f"EA games path set to: {ea_games_path}")
+    logger.info(f"EA games path set to: {ea_games_path}")
     return [ea_games_path]
+
 
 def get_ubisoft_install_path():
     try:
@@ -98,7 +102,7 @@ async def get_epic_games():
         return []
     epic_games_path = Path(epic_path)
     if not epic_games_path.exists():
-        print("Invalid path for Epic Games.")
+        logger.info("Invalid path for Epic Games.")
         return []
     return [epic_games_path]
 
@@ -111,7 +115,7 @@ async def get_gog_games():
         return []
     gog_games_path = Path(gog_path)
     if not gog_games_path.exists():
-        print("Invalid path for GOG games.")
+        logger.info("Invalid path for GOG games.")
         return []
     return [gog_games_path]
 
@@ -124,13 +128,13 @@ async def get_battlenet_games():
         return []
     battlenet_games_path = Path(battlenet_path)
     if not battlenet_games_path.exists():
-        print("Invalid path for Battle.net games.")
+        logger.info("Invalid path for Battle.net games.")
         return []
     return [battlenet_games_path]
 
 
 async def find_all_dlss_dlls():
-    print("Starting find_all_dlss_dlls function")
+    logger.info("Starting find_all_dlss_dlls function")
     all_dll_paths = {
         "Steam": [],
         "EA Launcher": [],
@@ -141,21 +145,21 @@ async def find_all_dlss_dlls():
     }
 
     # Steam
-    print("Checking Steam...")
+    logger.info("Checking Steam...")
     steam_path = get_steam_install_path()
     if steam_path:
         steam_libraries = get_steam_libraries(steam_path)
         all_dll_paths["Steam"] = await find_dlss_dlls(steam_libraries, "Steam")
 
     # EA
-    print("Checking EA...")
+    logger.info("Checking EA...")
     ea_games = await get_ea_games()
     if ea_games:
         ea_dlls = await find_dlss_dlls(ea_games, "EA Launcher")
         all_dll_paths["EA Launcher"].extend(ea_dlls)
 
     # Ubisoft
-    print("Checking Ubisoft...")
+    logger.info("Checking Ubisoft...")
     ubisoft_path = get_ubisoft_install_path()
     if ubisoft_path:
         ubisoft_games = await get_ubisoft_games(ubisoft_path)
@@ -164,7 +168,7 @@ async def find_all_dlss_dlls():
         )
 
     # Epic Games
-    print("Checking Epic Games...")
+    logger.info("Checking Epic Games...")
     epic_games = await get_epic_games()
     if epic_games:
         all_dll_paths["Epic Games Launcher"] = await find_dlss_dlls(
@@ -172,13 +176,13 @@ async def find_all_dlss_dlls():
         )
 
     # GOG
-    print("Checking GOG...")
+    logger.info("Checking GOG...")
     gog_games = await get_gog_games()
     if gog_games:
         all_dll_paths["GOG Launcher"] = await find_dlss_dlls(gog_games, "GOG Launcher")
 
     # Battle.net
-    print("Checking Battle.net...")
+    logger.info("Checking Battle.net...")
     battlenet_games = await get_battlenet_games()
     if battlenet_games:
         all_dll_paths["Battle.net Launcher"] = await find_dlss_dlls(
@@ -186,7 +190,7 @@ async def find_all_dlss_dlls():
         )
 
     # Remove duplicates
-    print("Removing duplicates...")
+    logger.info("Removing duplicates...")
     unique_dlls = set()
     for launcher in all_dll_paths:
         all_dll_paths[launcher] = [
@@ -195,5 +199,5 @@ async def find_all_dlss_dlls():
             if str(dll) not in unique_dlls and not unique_dlls.add(str(dll))
         ]
 
-    print("find_all_dlss_dlls function completed")
+    logger.info("find_all_dlss_dlls function completed")
     return all_dll_paths

@@ -4,6 +4,7 @@ from .whitelist import is_whitelisted
 from .version import __version__
 from .config import LATEST_DLL_PATHS
 from .auto_updater import auto_update
+from .logger import setup_logger
 
 __all__ = [
     "get_steam_install_path",
@@ -14,4 +15,5 @@ __all__ = [
     "__version__",
     "LATEST_DLL_PATHS",
     "auto_update",
+    "setup_logger",
 ]

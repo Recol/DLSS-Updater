@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 WHITELISTED_GAMES = {
     "Warframe",
@@ -26,12 +25,13 @@ def is_whitelisted(game_path):
             return True
     return False
 
+
 # Experimental global block, not use though
 # def has_easy_anti_cheat(dll_path):
 #     eac_folders = ["EasyAntiCheat", "EAC"]
 #     dll_dir = Path(dll_path).parent
 
-#     print(f"Checking for EAC in: {dll_path}")  # Debug print
+#     logger.info(f"Checking for EAC in: {dll_path}")  # Debug logger.info
 
 #     # Check up to 3 levels up from the DLL location
 #     for _ in range(3):

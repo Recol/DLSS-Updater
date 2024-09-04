@@ -1,26 +1,16 @@
-Version 2.0.0:
-Add support for Ray Reconstruction and the Frame Geneartion DLL's.
-Improve logic conditions to prevent potential hanging on an infinite check for file permissions with timeouts.
-Improve handling for some async IO behaviour to try and speed up improvements.
-Implement soft backup logic for compatibility with DLSS Swapper (the main DLSS file only for now).
-Remove logic for setting DLL's to read only.
-A few other minor bug fixes.
-
-Version 2.0.1:
-Fix minor regressions in the old release involving the EA Launcher.
-Improve output clarity for detected launchers.
-
-Consolidate V2.0.2-V2.0.5 changes.
-
-Version 2.0.6:
-Add the following games to the whitelist:
-Chivalry 2
-Squad
-Squad 44
-
-Version 2.0.7:
-Fix minor typo in the config file versions, doesn't affect actual functionality.
-
 Version 2.0.8:
 Whitelist Need For Speed Unbound.
+
+Version 2.0.9:
+Whitelist Starship Troopers.
+
+Version 2.1.0:
+Include support for exporting terminal output to a log file.
+Migrate LICENSE to AGPL from Apache 2.0.
+Migrate print to logger to support differentation between errors/info.
+Linter fixes across codebase.
+Improvements to the auto updater code.
+Logic improvements.
+Updates for restoring DLL notes on the README.
+
 
