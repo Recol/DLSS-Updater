@@ -6,7 +6,8 @@ WHITELISTED_GAMES = {
     "Fortnite",
     "The First Descendant",
     "EVIL DEAD The Game",
-    "Escape From Tarkov",
+    "Escape from Tarkov",
+    "Escape from Tarkov Arena",
     "Back 4 Blood",
     "Squad",
     "Squad 44",
@@ -18,11 +19,17 @@ WHITELISTED_GAMES = {
 
 
 def is_whitelisted(game_path):
-    # Extract the game name from the path
-    path_parts = game_path.split(os.path.sep)
-    for part in path_parts:
-        if part in WHITELISTED_GAMES:
+    # Convert the path to lowercase for case-insensitive matching
+    lower_path = game_path.lower()
+
+    # Check for each whitelisted game
+    for game in WHITELISTED_GAMES:
+        # Convert the game name to lowercase and replace spaces with underscores
+        # This allows for more flexible matching
+        game_check = game.lower().replace(" ", "_")
+        if game_check in lower_path:
             return True
+
     return False
 
 

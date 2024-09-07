@@ -13,4 +13,6 @@ Improvements to the auto updater code.
 Logic improvements.
 Updates for restoring DLL notes on the README.
 
+Version 2.1.1:
+Experimental regex fix for Escape From Tarkov.
 
