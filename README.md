@@ -29,12 +29,15 @@ The following games here are **not** supported:
 - Warframe (The WF launcher will replace the DLL when the game is booted)
 - Fortnite
 - Monster Hunter World
+- Planetside 2
 - The First Descendant
 - EVIL DEAD The Game
 - Escape From Tarkov
+- Escape from Tarkov Arena
 - Back 4 Blood
 - War Thunder
 - Squad
+- Avatar Frontiers of Pandora
 - Squad 44
 - Chivalry 2
 - Need For Speed Unbound

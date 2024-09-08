@@ -35,6 +35,12 @@ def get_steam_libraries(steam_path):
     return libraries
 
 
+from dlss_updater.whitelist import is_whitelisted
+from dlss_updater.logger import setup_logger
+
+logger = setup_logger()
+
+
 async def find_dlss_dlls(library_paths, launcher_name):
     dll_names = ["nvngx_dlss.dll", "nvngx_dlssg.dll", "nvngx_dlssd.dll"]
     dll_paths = []
@@ -42,9 +48,12 @@ async def find_dlss_dlls(library_paths, launcher_name):
         for root, _, files in os.walk(library_path):
             for dll_name in dll_names:
                 if dll_name.lower() in [f.lower() for f in files]:
-                    dll_path = Path(root) / dll_name
-                    if not is_whitelisted(str(dll_path)):
-                        logger.info(f"Found DLSS DLL in {launcher_name}: {dll_path}")
+                    dll_path = os.path.join(root, dll_name)
+                    logger.debug(f"Checking DLL: {dll_path}")
+                    if not is_whitelisted(dll_path):
+                        logger.info(
+                            f"Found non-whitelisted DLSS DLL in {launcher_name}: {dll_path}"
+                        )
                         dll_paths.append(dll_path)
                     else:
                         logger.info(

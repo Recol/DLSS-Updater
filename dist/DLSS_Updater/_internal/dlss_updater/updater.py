@@ -9,6 +9,8 @@ import psutil
 import asyncio
 from packaging import version
 from .logger import setup_logger
+from .constants import DLL_TYPE_MAP
+
 
 logger = setup_logger()
 
@@ -87,6 +89,9 @@ async def update_dll(dll_path, latest_dll_path):
     latest_dll_path = Path(normalize_path(latest_dll_path)).resolve()
     logger.info(f"Checking DLL at {dll_path}...")
 
+    # Determine DLL type
+    dll_type = DLL_TYPE_MAP.get(dll_path.name.lower(), "Unknown DLL type")
+
     original_permissions = os.stat(dll_path).st_mode
 
     try:
@@ -105,13 +110,13 @@ async def update_dll(dll_path, latest_dll_path):
                 logger.info(
                     f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated."
                 )
-                return False, None
+                return False, None, dll_type
 
             if existing_parsed >= latest_parsed:
                 logger.info(
                     f"{dll_path} is already up-to-date (version {existing_version})."
                 )
-                return False, None
+                return False, None, dll_type
             else:
                 logger.info(f"Update needed: {existing_version} -> {latest_version}")
                 logger.info("Preparing to update...")
@@ -119,26 +124,26 @@ async def update_dll(dll_path, latest_dll_path):
         # Check if the target path exists
         if not dll_path.exists():
             logger.error(f"Error: Target DLL path does not exist: {dll_path}")
-            return False, None
+            return False, None, dll_type
 
         # Check if the latest DLL path exists
         if not latest_dll_path.exists():
             logger.error(f"Error: Latest DLL path does not exist: {latest_dll_path}")
-            return False, None
+            return False, None, dll_type
 
         # Ensure the target directory is writable
         if not os.access(dll_path.parent, os.W_OK):
             logger.error(
                 f"Error: No write permission to the directory: {dll_path.parent}"
             )
-            return False, None
+            return False, None, dll_type
 
         # Create backup
         logger.info("Creating backup...")
         backup_path = await create_backup(dll_path)
         if not backup_path:
             logger.info(f"Skipping update for {dll_path} due to backup failure.")
-            return False, None
+            return False, None, dll_type
 
         logger.info("Checking file permissions...")
         remove_read_only(dll_path)
@@ -159,7 +164,7 @@ async def update_dll(dll_path, latest_dll_path):
                 f"File {dll_path} is still in use after multiple attempts. Cannot update."
             )
             restore_permissions(dll_path, original_permissions)
-            return False, None
+            return False, None, dll_type
 
         logger.info("Starting file copy...")
         await asyncio.to_thread(shutil.copyfile, latest_dll_path, dll_path)
@@ -171,8 +176,8 @@ async def update_dll(dll_path, latest_dll_path):
         logger.info(
             f"Successfully updated {dll_path} from version {existing_version} to {latest_version}."
         )
-        return True, backup_path
+        return True, backup_path, dll_type
     except Exception as e:
         logger.error(f"Error updating {dll_path}: {e}")
         restore_permissions(dll_path, original_permissions)
-        return False, None
+        return False, None, dll_type

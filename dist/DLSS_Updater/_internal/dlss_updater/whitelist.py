@@ -1,4 +1,7 @@
 import os
+from dlss_updater.logger import setup_logger
+
+logger = setup_logger()
 
 WHITELISTED_GAMES = {
     "Warframe",
@@ -6,8 +9,10 @@ WHITELISTED_GAMES = {
     "Fortnite",
     "The First Descendant",
     "EVIL DEAD The Game",
-    "Escape from Tarkov",
+    "Escape From Tarkov",
     "Escape from Tarkov Arena",
+    "Planetside 2",
+    "AFOP",
     "Back 4 Blood",
     "Squad",
     "Squad 44",
@@ -19,34 +24,16 @@ WHITELISTED_GAMES = {
 
 
 def is_whitelisted(game_path):
-    # Convert the path to lowercase for case-insensitive matching
-    lower_path = game_path.lower()
+    logger.debug(f"Checking whitelist for: {game_path}")
+    path_parts = game_path.lower().split(os.path.sep)
 
-    # Check for each whitelisted game
     for game in WHITELISTED_GAMES:
-        # Convert the game name to lowercase and replace spaces with underscores
-        # This allows for more flexible matching
-        game_check = game.lower().replace(" ", "_")
-        if game_check in lower_path:
+        game_words = game.lower().split()
+        logger.debug(f"Checking against whitelisted game: {game}")
+
+        if all(word in " ".join(path_parts) for word in game_words):
+            logger.info(f"Whitelist match found: {game} in {game_path}")
             return True
 
+    logger.debug(f"No whitelist match found for: {game_path}")
     return False
-
-
-# Experimental global block, not use though
-# def has_easy_anti_cheat(dll_path):
-#     eac_folders = ["EasyAntiCheat", "EAC"]
-#     dll_dir = Path(dll_path).parent
-
-#     logger.info(f"Checking for EAC in: {dll_path}")  # Debug logger.info
-
-#     # Check up to 3 levels up from the DLL location
-#     for _ in range(3):
-#         for root, dirs, _ in os.walk(dll_dir):
-#             if any(eac_folder in dirs for eac_folder in eac_folders):
-#                 return True
-#         dll_dir = dll_dir.parent
-#         if dll_dir == dll_dir.parent:  # Reached the root directory
-#             break
-
-#     return False

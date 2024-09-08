@@ -5,6 +5,7 @@ from .version import __version__
 from .config import LATEST_DLL_PATHS
 from .auto_updater import auto_update
 from .logger import setup_logger
+from .constants import DLL_TYPE_MAP
 
 __all__ = [
     "get_steam_install_path",
@@ -16,4 +17,5 @@ __all__ = [
     "LATEST_DLL_PATHS",
     "auto_update",
     "setup_logger",
+    "DLL_TYPE_MAP",
 ]

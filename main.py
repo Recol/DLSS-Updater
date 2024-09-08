@@ -7,6 +7,7 @@ from dlss_updater.logger import setup_logger
 
 logger = setup_logger()
 
+
 def check_update_completion():
     update_log_path = os.path.join(os.path.dirname(sys.executable), "update_log.txt")
     if os.path.exists(update_log_path):
@@ -14,12 +15,16 @@ def check_update_completion():
             logger.info(f"Update completed: {f.read()}")
         os.remove(update_log_path)
 
+
 def check_update_error():
-    error_log_path = os.path.join(os.path.dirname(sys.executable), "update_error_log.txt")
+    error_log_path = os.path.join(
+        os.path.dirname(sys.executable), "update_error_log.txt"
+    )
     if os.path.exists(error_log_path):
         with open(error_log_path, "r") as f:
             logger.error(f"Update error occurred: {f.read()}")
         os.remove(error_log_path)
+
 
 try:
     from dlss_updater import (
@@ -27,6 +32,7 @@ try:
         is_whitelisted,
         __version__,
         LATEST_DLL_PATHS,
+        DLL_TYPE_MAP,
     )
     from dlss_updater.scanner import find_all_dlss_dlls
     from dlss_updater.auto_updater import auto_update
@@ -121,7 +127,6 @@ def extract_game_name(dll_path, launcher_name):
         )
         return "Unknown Game"
 
-
 async def main():
     if gui_mode:
         log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
@@ -167,40 +172,47 @@ async def main():
                 if dll_paths:
                     logger.info(f"{launcher}:")
                     for dll_path in dll_paths:
+                        dll_path = Path(dll_path) if isinstance(dll_path, str) else dll_path
                         if str(dll_path) not in processed_dlls:
-                            logger.info(f" - {dll_path}")
+                            dll_type = DLL_TYPE_MAP.get(dll_path.name.lower(), "Unknown DLL type")
+                            logger.info(f" - {dll_type}: {dll_path}")
                             if is_whitelisted(str(dll_path)):
                                 skipped_games.append(
-                                    (dll_path, launcher, "Whitelisted")
+                                    (dll_path, launcher, "Whitelisted", dll_type)
                                 )
                             else:
                                 dll_name = dll_path.name.lower()
                                 if dll_name in LATEST_DLL_PATHS:
                                     latest_dll_path = LATEST_DLL_PATHS[dll_name]
                                     update_tasks.append(
-                                        update_dll(dll_path, latest_dll_path)
+                                        update_dll(str(dll_path), latest_dll_path)
                                     )
-                                    dll_paths_to_update.append((dll_path, launcher))
+                                    dll_paths_to_update.append((str(dll_path), launcher, dll_type))
                                 else:
                                     skipped_games.append(
-                                        (dll_path, launcher, "No update available")
+                                        (str(dll_path), launcher, "No update available", dll_type)
                                     )
                             processed_dlls.add(str(dll_path))
 
             if update_tasks:
                 logger.info("\nUpdating DLLs...")
                 update_results = await asyncio.gather(*update_tasks)
-                for (dll_path, launcher), (result, backup_path) in zip(
+                for (dll_path, launcher, dll_type), result in zip(
                     dll_paths_to_update, update_results
                 ):
-                    if result:
-                        logger.info(f"Successfully updated DLSS DLL at {dll_path}.")
-                        updated_games.append((dll_path, launcher))
-                        if backup_path:
-                            successful_backups.append((dll_path, backup_path))
+                    if isinstance(result, tuple) and len(result) >= 2:
+                        update_success, backup_path = result[:2]
+                        if update_success:
+                            logger.info(f"Successfully updated {dll_type} at {dll_path}.")
+                            updated_games.append((dll_path, launcher, dll_type))
+                            if backup_path:
+                                successful_backups.append((dll_path, backup_path))
+                        else:
+                            logger.info(f"Failed to update {dll_type} at {dll_path}.")
+                            skipped_games.append((dll_path, launcher, "Update failed", dll_type))
                     else:
-                        logger.info(f"Failed to update DLSS DLL at {dll_path}.")
-                        skipped_games.append((dll_path, launcher, "Update failed"))
+                        logger.error(f"Unexpected result format for {dll_path}: {result}")
+                        skipped_games.append((dll_path, launcher, "Unexpected result", dll_type))
                 logger.info("DLL updates completed.")
             elif skipped_games:
                 logger.info("All found DLLs were skipped.")
@@ -215,9 +227,9 @@ async def main():
         if updated_games or skipped_games or successful_backups:
             if updated_games:
                 logger.info("Games updated successfully:")
-                for dll_path, launcher in updated_games:
+                for dll_path, launcher, dll_type in updated_games:
                     game_name = extract_game_name(dll_path, launcher)
-                    logger.info(f" - {game_name} - {launcher}")
+                    logger.info(f" - {game_name} - {launcher} ({dll_type})")
             else:
                 logger.info("No games were updated.")
 
@@ -225,15 +237,16 @@ async def main():
                 logger.info("\nSuccessful backups:")
                 for dll_path, backup_path in successful_backups:
                     game_name = extract_game_name(dll_path, "Unknown")
-                    logger.info(f" - {game_name}: {backup_path}")
+                    dll_type = DLL_TYPE_MAP.get(Path(dll_path).name.lower(), "Unknown DLL type")
+                    logger.info(f" - {game_name}: {backup_path} ({dll_type})")
             else:
                 logger.info("\nNo backups were created.")
 
             if skipped_games:
                 logger.info("\nGames skipped:")
-                for dll_path, launcher, reason in skipped_games:
+                for dll_path, launcher, reason, dll_type in skipped_games:
                     game_name = extract_game_name(dll_path, launcher)
-                    logger.info(f" - {game_name} - {launcher} (Reason: {reason})")
+                    logger.info(f" - {game_name} - {launcher} ({dll_type}) (Reason: {reason})")
         else:
             logger.info("No DLLs were found or processed.")
 
