@@ -128,8 +128,8 @@ If you prefer to build the application yourself, follow these steps:
 - Support for additional launchers.
 - ~~Support for updating the DLSS Frame Generation and Ray Reconstruction DLL.~~ - This is now included.
 - A GUI?
-- Ability to restore and create backups of DLL swaps. - This is currently being worked on, however support has been added for restoring with DLSS Swapper currently.
-- Outputting stuff to a [log file](https://github.com/Recol/DLSS-Updater/issues/11).
+- Ability to restore and ~~create backups of DLL swaps~~. - This is currently being worked on, however support has been added for restoring with DLSS Swapper currently.
+~~- Outputting stuff to a [log file](https://github.com/Recol/DLSS-Updater/issues/11).~~
 - Implementation with [Chocolatey](https://github.com/Recol/DLSS-Updater/issues/4).
 - Support for a [database](https://github.com/Recol/DLSS-Updater/issues/9).
 - Insert xyz feature that wants to be requested.
@@ -143,7 +143,7 @@ If you encounter any issues, please refer to the Issues section on GitHub to see
 
 ## License
 
-This project is licensed under the Apache 2.0 License. See the LICENSE file for more details.
+This project is licensed under the GNU Affero General Public License. See the LICENSE file for more details.
 
 ## Credits
 
