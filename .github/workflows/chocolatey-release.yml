@@ -3,16 +3,17 @@ name: Chocolatey Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v2
     
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v2
       with:
         python-version: '3.x'
     
@@ -31,11 +32,17 @@ jobs:
     - name: Build application
       run: pyinstaller DLSS_Updater.spec --noconfirm
     
+    - name: Get latest release version
+      id: get_version
+      run: |
+        $latest_release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest"
+        $version = $latest_release.tag_name.TrimStart('v')
+        echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      shell: pwsh
+    
     - name: Create Chocolatey package
       run: |
-        $version = "${{ github.event.release.tag_name }}"
-        $version = $version.TrimStart('v')
-        choco pack DLSS-Updater.nuspec --version=$version
+        choco pack DLSS-Updater.nuspec --version=${{ steps.get_version.outputs.VERSION }}
       shell: pwsh
     
     - name: Push to Chocolatey
@@ -43,5 +50,5 @@ jobs:
         CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
       run: |
         choco apikey --key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
-        choco push dlss-updater.${{ github.event.release.tag_name }}.nupkg --source https://push.chocolatey.org/
+        choco push dlss-updater.${{ steps.get_version.outputs.VERSION }}.nupkg --source https://push.chocolatey.org/
       shell: pwsh
