@@ -1,0 +1,73 @@
+name: Update Download Count Badge
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs daily at midnight UTC
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  update-badge:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+
+    - name: Fetch download count and update README
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        import os
+        import requests
+
+        def get_total_downloads():
+            url = "https://api.github.com/repos/Recol/DLSS-Updater/releases"
+            headers = {"Authorization": f"token {os.environ['GITHUB_TOKEN']}"}
+            response = requests.get(url, headers=headers)
+            releases = response.json()
+            total_downloads = sum(asset['download_count'] for release in releases for asset in release['assets'])
+            return total_downloads
+
+        def update_readme(total_downloads):
+            with open('README.md', 'r') as file:
+                content = file.readlines()
+            
+            badge_url = f"https://img.shields.io/badge/Downloads-{total_downloads}-blue"
+            new_badge = f"![Downloads]({badge_url})"
+            
+            # Find the position to insert or update the downloads badge
+            version_badge_index = next((i for i, line in enumerate(content) if '![Version]' in line), -1)
+            downloads_badge_index = next((i for i, line in enumerate(content) if '![Downloads]' in line), -1)
+            
+            if downloads_badge_index != -1:
+                # Update existing downloads badge
+                content[downloads_badge_index] = new_badge + '\n'
+            elif version_badge_index != -1:
+                # Insert new downloads badge after version badge
+                content.insert(version_badge_index + 1, new_badge + '\n')
+            else:
+                # If version badge not found, insert at the top of the file
+                content.insert(0, new_badge + '\n')
+            
+            with open('README.md', 'w') as file:
+                file.writelines(content)
+
+        total_downloads = get_total_downloads()
+        update_readme(total_downloads)
+        print(f"Total downloads: {total_downloads}")
+      shell: python
+
+    - name: Commit and push if changed
+      run: |
+        git config --global user.name 'GitHub Action'
+        git config --global user.email 'action@github.com'
+        git add README.md
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Update download count badge" && git push)
