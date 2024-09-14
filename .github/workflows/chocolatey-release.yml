@@ -36,7 +36,7 @@ jobs:
       id: get_version
       run: |
         $latest_release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest"
-        $version = $latest_release.tag_name.TrimStart('v')
+        $version = $latest_release.tag_name -replace '^[vV]', ''
         echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
     
