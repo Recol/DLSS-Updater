@@ -1,0 +1,41 @@
+name: Chocolatey Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Build application
+      run: pyinstaller DLSS_Updater.spec
+    
+    - name: Create Chocolatey package
+      run: |
+        $version = "${{ github.event.release.tag_name }}"
+        $version = $version.TrimStart('v')
+        choco pack DLSS-Updater.nuspec --version=$version
+      shell: pwsh
+    
+    - name: Push to Chocolatey
+      env:
+        CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+      run: |
+        choco apikey --key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
+        choco push dlss-updater.${{ github.event.release.tag_name }}.nupkg --source https://push.chocolatey.org/
+      shell: pwsh

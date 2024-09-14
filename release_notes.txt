@@ -1,21 +1,3 @@
-Version 2.0.8:
-Whitelist Need For Speed Unbound.
-
-Version 2.0.9:
-Whitelist Starship Troopers.
-
-Version 2.1.0:
-Include support for exporting terminal output to a log file.
-Migrate LICENSE to AGPL from Apache 2.0.
-Migrate print to logger to support differentation between errors/info.
-Linter fixes across codebase.
-Improvements to the auto updater code.
-Logic improvements.
-Updates for restoring DLL notes on the README.
-
-Version 2.1.1:
-Experimental regex fix for Escape From Tarkov.
-
 Version 2.2.0:
 Whitelist Planetside 2, Avatar Frontiers of Pandora, and Escape From Tarkov Arena.
 Fix whitelist detection behaviour for games with anomalous game installations (Escape From Tarkov).
@@ -24,3 +6,6 @@ Implement support for DLSS Upscaler DLL/Frame Generation DLL/Ray Reconstruction 
 
 Version 2.2.1:
 Whitelist Space Marines 2.
+
+Version 2.2.2:
+Initial support for Chocolatey deployment.

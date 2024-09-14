@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>dlss-updater</id>
+    <version>$version$</version>
+    <title>DLSS Updater</title>
+    <authors>Deco</authors>
+    <projectUrl>https://github.com/Recol/DLSS-Updater</projectUrl>
+    <licenseUrl>https://github.com/Recol/DLSS-Updater/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <description>A tool to update DLSS DLLs for various games and launchers.</description>
+    <tags>dlss nvidia gaming</tags>
+  </metadata>
+  <files>
+    <file src="dist\DLSS_Updater\**" target="tools" />
+  </files>
+</package>
