@@ -18,4 +18,4 @@
     <file src="dist\DLSS_Updater\**" target="tools" />
     <file src="VERIFICATION.txt" target="tools" />
   </files>
-
+</package>
