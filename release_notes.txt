@@ -9,3 +9,7 @@ Whitelist Space Marines 2.
 
 Version 2.2.2:
 Initial support for Chocolatey deployment.
+
+Version 2.2.3:
+Whitelist Hunt: Showdown.
+

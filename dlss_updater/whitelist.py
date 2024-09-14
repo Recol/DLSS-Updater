@@ -17,6 +17,7 @@ WHITELISTED_GAMES = {
     "Squad",
     "Squad 44",
     "Chivalry 2",
+    "Hunt Showdown",
     "Need For Speed Unbound",
     "StarshipTroopersExtermination",
     "Space Marine 2",

@@ -38,6 +38,7 @@ The following games here are **not** supported:
 - Back 4 Blood
 - War Thunder
 - Squad
+- Hunt: Showdown
 - Avatar Frontiers of Pandora
 - Squad 44
 - Chivalry 2
