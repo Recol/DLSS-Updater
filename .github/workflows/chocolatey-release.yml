@@ -39,6 +39,21 @@ jobs:
         $version = $latest_release.tag_name -replace '^[vV]', ''
         echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
+
+    - name: Generate file hash
+      run: |
+        $hash = (Get-FileHash "dist\DLSS_Updater\DLSS_Updater.exe" -Algorithm SHA256).Hash
+        echo "FILE_HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      shell: pwsh
+      id: hash
+
+    - name: Update VERIFICATION.txt
+      run: |
+        $content = Get-Content -Path VERIFICATION.txt -Raw
+        $content = $content -replace 'path\\to\\DLSS_Updater.exe', 'DLSS_Updater.exe'
+        $content += "`n`nChecksum (SHA256) for DLSS_Updater.exe: ${{ steps.hash.outputs.FILE_HASH }}"
+        $content | Set-Content -Path VERIFICATION.txt
+      shell: pwsh
     
     - name: Create Chocolatey package
       run: |

@@ -8,10 +8,14 @@
     <projectUrl>https://github.com/Recol/DLSS-Updater</projectUrl>
     <licenseUrl>https://github.com/Recol/DLSS-Updater/blob/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
-    <description>A tool to update DLSS DLLs for various games and launchers.</description>
-    <tags>dlss nvidia gaming</tags>
+    <packageSourceUrl>https://github.com/Recol/DLSS-Updater/releases</packageSourceUrl>
+    <summary>A tool to update DLSS DLLs for various games and launchers.</summary>
+    <description>DLSS Updater is a utility that automatically updates DLSS (Deep Learning Super Sampling) DLLs for games across multiple platforms including Steam, EA Play, Ubisoft, Epic Games, GOG, and Battle.net. It simplifies the process of keeping your games up-to-date with the latest DLSS improvements.</description>
+    <releaseNotes>https://github.com/Recol/DLSS-Updater/blob/main/release_notes.txt</releaseNotes>
+    <tags>dlss nvidia gaming update-tool</tags>
   </metadata>
   <files>
     <file src="dist\DLSS_Updater\**" target="tools" />
+    <file src="VERIFICATION.txt" target="tools" />
   </files>
-</package>
+
