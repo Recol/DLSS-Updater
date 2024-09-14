@@ -21,3 +21,6 @@ Whitelist Planetside 2, Avatar Frontiers of Pandora, and Escape From Tarkov Aren
 Fix whitelist detection behaviour for games with anomalous game installations (Escape From Tarkov).
 Implement better logging for debugging whitelists behaviour to be more informative to the user.
 Implement support for DLSS Upscaler DLL/Frame Generation DLL/Ray Reconstruction differentation for the Summary for if it's skipped/updated.
+
+Version 2.2.1:
+Whitelist Space Marines 2.

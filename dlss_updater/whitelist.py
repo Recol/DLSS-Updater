@@ -19,6 +19,7 @@ WHITELISTED_GAMES = {
     "Chivalry 2",
     "Need For Speed Unbound",
     "StarshipTroopersExtermination",
+    "Space Marine 2",
     # Add more games as needed
 }
 
