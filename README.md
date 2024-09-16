@@ -62,6 +62,10 @@ The following games here are **not** supported:
 4. Run the `DLSS_Updater.exe` executable.
 5. Follow the instructions in the terminal.
 
+## Chocolatey
+
+1. Download DLSS Updater from [here](https://community.chocolatey.org/packages/dlss-updater/2.2.2).
+
 
 ### Building from Source
 
