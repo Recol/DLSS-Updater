@@ -3,9 +3,60 @@ import os
 from pathlib import Path
 import ctypes
 import asyncio
-from dlss_updater.logger import setup_logger
+from dlss_updater.logger import setup_logger, add_qt_handler
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QPushButton
 
 logger = setup_logger()
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("DLSS-Updater")
+        self.setGeometry(100, 100, 600, 400)
+
+        # Create QTextBrowser widget
+        self.text_browser = QTextBrowser(self)
+
+        # Set up layout
+        layout = QVBoxLayout()
+        layout.addWidget(self.text_browser)
+
+        # Set central widget
+        central_widget = QWidget()
+        central_widget.setLayout(layout)
+        self.setCentralWidget(central_widget)
+
+        # Set up logging
+        self.logger = logger
+
+        # Add QTextBrowser handler after setting up the logger
+        add_qt_handler(self.logger, self.text_browser)
+        self.apply_dark_theme()
+
+    def apply_dark_theme(self):
+        """Apply a dark theme using stylesheets."""
+        dark_stylesheet = """
+            QMainWindow {
+                background-color: #2E2E2E; /* Dark background */
+                color: #FFFFFF; /* White text */
+            }
+            QPushButton {
+                background-color: #4D4D4D; /* Button background */
+                color: #FFFFFF; /* Button text color */
+                border: 1px solid #7F7F7F; /* Button border */
+                padding: 5px;
+            }
+            QPushButton:hover {
+                background-color: #5A5A5A; /* Button hover effect */
+            }
+            QTextBrowser {
+                background-color: #3C3C3C; /* Text browser background */
+                color: #FFFFFF; /* Text color */
+                border: 1px solid #7F7F7F; /* Text browser border */
+            }
+        """
+        self.setStyleSheet(dark_stylesheet)
 
 
 def check_update_completion():
@@ -131,7 +182,9 @@ async def main():
     if gui_mode:
         log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
         sys.stdout = sys.stderr = open(log_file, "w")
-
+    main_ui = QApplication(sys.argv)
+    main_window = MainWindow()
+    main_window.show()
     logger.info(f"DLSS Updater version {__version__}")
     logger.info("Starting DLL search...")
 

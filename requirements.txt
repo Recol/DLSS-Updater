@@ -1,3 +1,4 @@
 pefile
 psutil
 packaging
+PyQt5
