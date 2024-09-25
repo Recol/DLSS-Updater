@@ -2,3 +2,4 @@
 *.zip
 *venv
 *build
+\.idea
