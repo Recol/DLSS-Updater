@@ -13,3 +13,9 @@ Initial support for Chocolatey deployment.
 Version 2.2.3:
 Whitelist Hunt: Showdown.
 
+Version 2.2.4:
+Minor updates to the Chocolatey package description.
+Detached the whitelist to a separate repository so new versions do not need to be downloaded for an update.
+Updates to associated documentation.
+Experimental support for bytecode optimisation with PyInstaller.
+

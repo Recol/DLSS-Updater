@@ -33,6 +33,7 @@ a = Analysis(
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
+    optimize=1
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
@@ -48,6 +49,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=True,
+    optimize=1
 )
 
 coll = COLLECT(

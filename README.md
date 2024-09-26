@@ -25,28 +25,17 @@ The current supported DLL included is version 3.7.20.
 
 ## Whitelisted Games
 
-The following games here are **not** supported:
-- 3DMark (This is not supported as this uses its own version for testing)
-- Warframe (The WF launcher will replace the DLL when the game is booted)
-- Fortnite
-- Monster Hunter World
-- Planetside 2
-- The First Descendant
-- EVIL DEAD The Game
-- Escape From Tarkov
-- Escape from Tarkov Arena
-- Back 4 Blood
-- War Thunder
-- Squad
-- Hunt: Showdown
-- Avatar Frontiers of Pandora
-- Squad 44
-- Chivalry 2
-- Need For Speed Unbound
-- Starship Troopers Extermination
-- Warhammer 40000: Space Marines 2
-- **Any** game that is using a DLSS version <2.0 (this is because these are non-updatable)
-- Insert xyz other game not included.
+The list of games that are not supported (whitelisted) is now maintained in a separate repository as a CSV file. This allows for easier updates and potential future expansion of game-specific information without requiring changes to the main application. You can view the current list of whitelisted games here:
+
+[DLSS-Updater-Whitelist](https://github.com/Recol/DLSS-Updater-Whitelist/blob/main/whitelist.csv)
+
+The whitelist includes games that:
+- Use their own version of DLSS for testing (e.g., 3DMark)
+- Replace the DLL when the game is booted (e.g., Warframe)
+- Are using a DLSS version <2.0 (these are non-updatable)
+- Have specific compatibility issues with updated DLSS versions
+
+The application automatically fetches this CSV when run, ensuring it always has the most up-to-date information on which games to skip during the update process.
 
 ## Restoring modified DLL's
 - In order to do this, simply rename the **.dlsss** file of the respective DLL which you wish to restore to **.dll** and overwrite the original file. 
