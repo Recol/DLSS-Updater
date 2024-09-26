@@ -53,7 +53,7 @@ The application automatically fetches this CSV when run, ensuring it always has 
 
 ## Chocolatey
 
-1. Download DLSS Updater from [here](https://community.chocolatey.org/packages/dlss-updater/2.2.2).
+1. Download DLSS Updater from [here](https://community.chocolatey.org/packages/dlss-updater/).
 
 
 ### Building from Source
