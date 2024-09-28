@@ -33,6 +33,7 @@ try:
         __version__,
         LATEST_DLL_PATHS,
         DLL_TYPE_MAP,
+        # protect_warframe_dll,
     )
     from dlss_updater.scanner import find_all_dlss_dlls
     from dlss_updater.auto_updater import auto_update
@@ -127,6 +128,31 @@ def extract_game_name(dll_path, launcher_name):
         )
         return "Unknown Game"
 
+
+# async def verify_warframe_protection(dll_path):
+#     dll_path = Path(dll_path).resolve()
+#     backup_path = (dll_path.parent / "DLSS_Updater_Backup" / dll_path.name).resolve()
+
+#     if not os.path.exists(dll_path):
+#         logger.warning(f"Warframe DLL not found: {dll_path}")
+#         return False
+
+#     if not os.path.exists(backup_path):
+#         logger.warning(f"Backup DLL not found: {backup_path}")
+#         return False
+
+#     # Check if the DLL is read-only and system
+#     attributes = ctypes.windll.kernel32.GetFileAttributesW(str(dll_path))
+#     is_protected = (attributes & 1) != 0 and (attributes & 4) != 0
+
+#     if is_protected:
+#         logger.info(f"Warframe DLL protection verified: {dll_path}")
+#         return True
+#     else:
+#         logger.warning(f"Warframe DLL is not properly protected: {dll_path}")
+#         return False
+
+
 async def main():
     if gui_mode:
         log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
@@ -135,6 +161,8 @@ async def main():
     logger.info(f"DLSS Updater version {__version__}")
     logger.info("Starting DLL search...")
 
+    # observer = Observer()
+    # observer.start()
     try:
         logger.info("Checking for updates...")
         if auto_update is None:
@@ -172,11 +200,40 @@ async def main():
                 if dll_paths:
                     logger.info(f"{launcher}:")
                     for dll_path in dll_paths:
-                        dll_path = Path(dll_path) if isinstance(dll_path, str) else dll_path
+                        dll_path = (
+                            Path(dll_path) if isinstance(dll_path, str) else dll_path
+                        )
                         if str(dll_path) not in processed_dlls:
-                            dll_type = DLL_TYPE_MAP.get(dll_path.name.lower(), "Unknown DLL type")
+                            dll_type = DLL_TYPE_MAP.get(
+                                dll_path.name.lower(), "Unknown DLL type"
+                            )
                             logger.info(f" - {dll_type}: {dll_path}")
-                            if is_whitelisted(str(dll_path)):
+
+                            game_name = extract_game_name(str(dll_path), launcher)
+                            if "warframe" in game_name.lower():
+                                continue
+                                # logger.info(
+                                #     f"Applying Warframe-specific protection to: {dll_path}"
+                                # )
+                                # protected = await protect_warframe_dll(str(dll_path))
+                                # if protected:
+                                #     logger.info(f"Warframe DLL protected: {dll_path}")
+                                #     verified = await verify_warframe_protection(
+                                #         str(dll_path)
+                                #     )
+                                #     if verified:
+                                #         logger.info(
+                                #             f"Warframe DLL protection verified: {dll_path}"
+                                #         )
+                                #     else:
+                                #         logger.warning(
+                                #             f"Warframe DLL protection could not be verified: {dll_path}"
+                                #         )
+                                # else:
+                                #     logger.warning(
+                                #         f"Failed to protect Warframe DLL: {dll_path}"
+                                #     )
+                            elif await is_whitelisted(str(dll_path)):
                                 skipped_games.append(
                                     (dll_path, launcher, "Whitelisted", dll_type)
                                 )
@@ -187,10 +244,17 @@ async def main():
                                     update_tasks.append(
                                         update_dll(str(dll_path), latest_dll_path)
                                     )
-                                    dll_paths_to_update.append((str(dll_path), launcher, dll_type))
+                                    dll_paths_to_update.append(
+                                        (str(dll_path), launcher, dll_type)
+                                    )
                                 else:
                                     skipped_games.append(
-                                        (str(dll_path), launcher, "No update available", dll_type)
+                                        (
+                                            str(dll_path),
+                                            launcher,
+                                            "No update available",
+                                            dll_type,
+                                        )
                                     )
                             processed_dlls.add(str(dll_path))
 
@@ -203,16 +267,24 @@ async def main():
                     if isinstance(result, tuple) and len(result) >= 2:
                         update_success, backup_path = result[:2]
                         if update_success:
-                            logger.info(f"Successfully updated {dll_type} at {dll_path}.")
+                            logger.info(
+                                f"Successfully updated {dll_type} at {dll_path}."
+                            )
                             updated_games.append((dll_path, launcher, dll_type))
                             if backup_path:
                                 successful_backups.append((dll_path, backup_path))
                         else:
                             logger.info(f"Failed to update {dll_type} at {dll_path}.")
-                            skipped_games.append((dll_path, launcher, "Update failed", dll_type))
+                            skipped_games.append(
+                                (dll_path, launcher, "Update failed", dll_type)
+                            )
                     else:
-                        logger.error(f"Unexpected result format for {dll_path}: {result}")
-                        skipped_games.append((dll_path, launcher, "Unexpected result", dll_type))
+                        logger.error(
+                            f"Unexpected result format for {dll_path}: {result}"
+                        )
+                        skipped_games.append(
+                            (dll_path, launcher, "Unexpected result", dll_type)
+                        )
                 logger.info("DLL updates completed.")
             elif skipped_games:
                 logger.info("All found DLLs were skipped.")
@@ -237,7 +309,9 @@ async def main():
                 logger.info("\nSuccessful backups:")
                 for dll_path, backup_path in successful_backups:
                     game_name = extract_game_name(dll_path, "Unknown")
-                    dll_type = DLL_TYPE_MAP.get(Path(dll_path).name.lower(), "Unknown DLL type")
+                    dll_type = DLL_TYPE_MAP.get(
+                        Path(dll_path).name.lower(), "Unknown DLL type"
+                    )
                     logger.info(f" - {game_name}: {backup_path} ({dll_type})")
             else:
                 logger.info("\nNo backups were created.")
@@ -246,10 +320,14 @@ async def main():
                 logger.info("\nGames skipped:")
                 for dll_path, launcher, reason, dll_type in skipped_games:
                     game_name = extract_game_name(dll_path, launcher)
-                    logger.info(f" - {game_name} - {launcher} ({dll_type}) (Reason: {reason})")
+                    logger.info(
+                        f" - {game_name} - {launcher} ({dll_type}) (Reason: {reason})"
+                    )
         else:
             logger.info("No DLLs were found or processed.")
 
+    # except KeyboardInterrupt:
+    #     observer.stop()
     except Exception as e:
         logger.error(f"An error occurred: {e}")
         import traceback
@@ -257,6 +335,7 @@ async def main():
         logger.error(traceback.format_exc())
 
     finally:
+        # observer.join()
         input("\nPress Enter to exit...")
         logger.info("Application exiting.")
 
