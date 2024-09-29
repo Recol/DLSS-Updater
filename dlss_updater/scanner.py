@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from .config import LauncherPathName, update_launcher_path, check_path_value, config_manager
+from .config import LauncherPathName, config_manager
 from .whitelist import is_whitelisted
 import asyncio
 from dlss_updater.logger import setup_logger
@@ -11,15 +11,15 @@ logger = setup_logger()
 
 def get_steam_install_path():
     try:
-        if check_path_value(LauncherPathName.STEAM):
-            return check_path_value(LauncherPathName.STEAM)
+        if config_manager.check_path_value(LauncherPathName.STEAM):
+            return config_manager.check_path_value(LauncherPathName.STEAM)
         import winreg
 
         key = winreg.OpenKey(
             winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam"
         )
         value, _ = winreg.QueryValueEx(key, "InstallPath")
-        update_launcher_path(LauncherPathName.STEAM, str(value))
+        config_manager.update_launcher_path(LauncherPathName.STEAM, str(value))
         return value
     except (FileNotFoundError, ImportError):
         return None
@@ -68,8 +68,8 @@ def get_user_input(prompt):
 
 
 async def get_ea_games():
-    if check_path_value(LauncherPathName.EA):
-        ea_games_path = Path(check_path_value(LauncherPathName.EA))
+    if config_manager.check_path_value(LauncherPathName.EA):
+        ea_games_path = Path(config_manager.check_path_value(LauncherPathName.EA))
         return [ea_games_path]
     ea_path = get_user_input(
         "Please enter the path for EA games or press Enter to skip: "
@@ -82,7 +82,7 @@ async def get_ea_games():
         logger.info(f"Invalid path for EA games: {ea_games_path}")
         return []
     logger.info(f"EA games path set to: {ea_games_path}")
-    update_launcher_path(LauncherPathName.EA, str(ea_games_path))
+    config_manager.update_launcher_path(LauncherPathName.EA, str(ea_games_path))
     return [ea_games_path]
 
 
