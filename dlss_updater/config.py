@@ -37,6 +37,7 @@ class LauncherPathName(StrEnum):
     EPIC = 'EpicPath'
     GOG = 'GOGPath'
     UBISOFT = 'UbisoftPath'
+    BATTLENET = 'BattleDotNetPath'
 
 
 class ConfigManager(configparser.ConfigParser):
