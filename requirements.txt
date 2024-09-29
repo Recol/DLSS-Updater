@@ -1,4 +1,4 @@
 pefile
 psutil
 packaging
-PyQt5
+PyQt6

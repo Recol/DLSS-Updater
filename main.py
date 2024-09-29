@@ -4,7 +4,7 @@ from pathlib import Path
 import ctypes
 import asyncio
 from dlss_updater.logger import setup_logger, add_qt_handler
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QPushButton
+from PyQt6.QtWidgets import QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QPushButton
 
 logger = setup_logger()
 
