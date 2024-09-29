@@ -1,15 +1,18 @@
-Version 2.2.0:
-Whitelist Planetside 2, Avatar Frontiers of Pandora, and Escape From Tarkov Arena.
-Fix whitelist detection behaviour for games with anomalous game installations (Escape From Tarkov).
-Implement better logging for debugging whitelists behaviour to be more informative to the user.
-Implement support for DLSS Upscaler DLL/Frame Generation DLL/Ray Reconstruction differentation for the Summary for if it's skipped/updated.
-
-Version 2.2.1:
-Whitelist Space Marines 2.
-
 Version 2.2.2:
 Initial support for Chocolatey deployment.
 
 Version 2.2.3:
 Whitelist Hunt: Showdown.
+
+Version 2.2.4:
+Minor updates to the Chocolatey package description.
+Detached the whitelist to a separate repository so new versions do not need to be downloaded for an update.
+Updates to associated documentation.
+Experimental support for bytecode optimisation with PyInstaller.
+
+Version 2.2.5:
+Add experimental code for handling of Warframe and removed from the whitelist, it is disabled for now.
+Performance improvements for whitelist matches.
+Minor bug fixes.
+Increase bytecode optimisation to level 2 to decrease file sizes.
 

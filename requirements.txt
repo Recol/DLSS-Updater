@@ -1,4 +1,9 @@
 pefile
 psutil
 packaging
+HEAD
 PyQt6
+
+pywin32
+# watchdog
+upstream/main

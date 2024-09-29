@@ -10,7 +10,7 @@
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <packageSourceUrl>https://github.com/Recol/DLSS-Updater/releases</packageSourceUrl>
     <summary>A tool to update DLSS DLLs for various games and launchers.</summary>
-    <description>DLSS Updater is a utility that automatically updates DLSS (Deep Learning Super Sampling) DLLs for games across multiple platforms including Steam, EA Play, Ubisoft, Epic Games, GOG, and Battle.net. It simplifies the process of keeping your games up-to-date with the latest DLSS improvements.</description>
+    <description>DLSS Updater is a utility that automatically updates DLSS (Deep Learning Super Sampling) DLLs for games across multiple platforms including Steam, EA Play, Ubisoft, Epic Games, GOG, and Battle.net. It simplifies the process of keeping your games up-to-date with the latest DLSS improvements. Note that this package does not contain malware, it is a limitation of Pyinstaller with the binary not being signed, please see https://github.com/pyinstaller/pyinstaller/issues/6754#issuecomment-1100821249 for more details.</description>
     <releaseNotes>https://github.com/Recol/DLSS-Updater/blob/main/release_notes.txt</releaseNotes>
     <tags>dlss nvidia gaming update-tool</tags>
   </metadata>
