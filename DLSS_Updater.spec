@@ -23,7 +23,7 @@ a = Analysis(
     ],
     hiddenimports=[
         'pefile', 'psutil', 'importlib.metadata', 'packaging', 'importlib_metadata',
-        'asyncio', 'concurrent.futures', 'pywin32'
+        'asyncio', 'concurrent.futures', 'pywin32', 'PyQt6'
     ] + dlss_updater_imports,
     hookspath=['./hooks'],
     hooksconfig={},
