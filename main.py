@@ -3,8 +3,12 @@ import os
 from pathlib import Path
 import ctypes
 import asyncio
+
+from PyQt6.QtCore import Qt
+
+from dlss_updater.config import config_manager, LauncherPathName
 from dlss_updater.logger import setup_logger, add_qt_handler
-from PyQt6.QtWidgets import QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QPushButton
+from PyQt6.QtWidgets import QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QSplitter, QPushButton
 
 logger = setup_logger()
 
@@ -14,18 +18,60 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("DLSS-Updater")
         self.setGeometry(100, 100, 600, 400)
+        logger_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.button_list = []
+        
+        # We hold the enum values for each storefront in a list with the same sorting order as the buttons.
+        self.button_enum_list = [
+            LauncherPathName.STEAM,
+            LauncherPathName.EA,
+            LauncherPathName.UBISOFT,
+            LauncherPathName.EPIC,
+            LauncherPathName.GOG,
+            LauncherPathName.BATTLENET
+        ]
+
+        # Create the text browsers for each storefront
+        self.steam_text_browser = QPushButton('Click to select Steam game locations.', self)
+        self.ea_text_browser = QPushButton('Click to select EA game locations.', self)
+        self.ubisoft_text_browser = QPushButton('Click to select Ubisoft game locations.', self)
+        self.epic_text_browser = QPushButton('Click to select Epic game locations.', self)
+        self.gog_text_browser = QPushButton('Click to select GOG game locations.', self)
+        self.battlenet_text_browser = QPushButton('Click to select Battle.net game locations.', self)
+
+        # We add the buttons to an ordered list to ensure ease of accessibility for future updates and function calls.
+        self.button_list.append(self.steam_text_browser)
+        self.button_list.append(self.ea_text_browser)
+        self.button_list.append(self.ubisoft_text_browser)
+        self.button_list.append(self.epic_text_browser)
+        self.button_list.append(self.gog_text_browser)
+        self.button_list.append(self.battlenet_text_browser)
+
+        # Layouts for the browse buttons
+        browse_buttons_layout = QVBoxLayout()
+        browse_buttons_layout.addWidget(self.steam_text_browser)
+        browse_buttons_layout.addWidget(self.ea_text_browser)
+        browse_buttons_layout.addWidget(self.ubisoft_text_browser)
+        browse_buttons_layout.addWidget(self.epic_text_browser)
+        browse_buttons_layout.addWidget(self.gog_text_browser)
+        browse_buttons_layout.addWidget(self.battlenet_text_browser)
+        browse_buttons_container_widget = QWidget()
+        browse_buttons_container_widget.setLayout(browse_buttons_layout)
 
         # Create QTextBrowser widget
         self.text_browser = QTextBrowser(self)
 
         # Set up layout
         layout = QVBoxLayout()
-        layout.addWidget(self.text_browser)
+        logger_splitter.addWidget(browse_buttons_container_widget)
+        logger_splitter.addWidget(self.text_browser)
+        layout.addWidget(logger_splitter)
 
         # Set central widget
         central_widget = QWidget()
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
+        logger_splitter.setSizes([1, 0])
 
         # Set up logging
         self.logger = logger
@@ -33,6 +79,20 @@ class MainWindow(QMainWindow):
         # Add QTextBrowser handler after setting up the logger
         add_qt_handler(self.logger, self.text_browser)
         self.apply_dark_theme()
+
+    def get_current_settings(self):
+        steam_path = config_manager.check_path_value(LauncherPathName.STEAM)
+        ea_path = config_manager.check_path_value(LauncherPathName.EA)
+        ubisoft_path = config_manager.check_path_value(LauncherPathName.UBISOFT)
+        epic_path = config_manager.check_path_value(LauncherPathName.EPIC)
+        gog_path = config_manager.check_path_value(LauncherPathName.GOG)
+        battlenet_path = config_manager.check_path_value(LauncherPathName.BATTLENET)
+
+        path_list = [steam_path, ea_path, ubisoft_path, epic_path, gog_path, battlenet_path]
+
+        for i, button in enumerate(self.button_list):
+            if path_list[i]:
+                button.setText(path_list[i])
 
     def apply_dark_theme(self):
         """Apply a dark theme using stylesheets."""
@@ -211,6 +271,8 @@ async def main():
     main_ui = QApplication(sys.argv)
     main_window = MainWindow()
     main_window.show()
+    main_window.get_current_settings()
+
     logger.info(f"DLSS Updater version {__version__}")
     logger.info("Starting DLL search...")
 
