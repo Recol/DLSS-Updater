@@ -20,7 +20,7 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 600, 400)
         logger_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.button_list = []
-        
+        self.path_list = []
         # We hold the enum values for each storefront in a list with the same sorting order as the buttons.
         self.button_enum_list = [
             LauncherPathName.STEAM,
@@ -88,11 +88,11 @@ class MainWindow(QMainWindow):
         gog_path = config_manager.check_path_value(LauncherPathName.GOG)
         battlenet_path = config_manager.check_path_value(LauncherPathName.BATTLENET)
 
-        path_list = [steam_path, ea_path, ubisoft_path, epic_path, gog_path, battlenet_path]
+        self.path_list = [steam_path, ea_path, ubisoft_path, epic_path, gog_path, battlenet_path]
 
         for i, button in enumerate(self.button_list):
-            if path_list[i]:
-                button.setText(path_list[i])
+            if self.path_list[i]:
+                button.setText(self.path_list[i])
 
     def apply_dark_theme(self):
         """Apply a dark theme using stylesheets."""
