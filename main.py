@@ -8,7 +8,8 @@ from PyQt6.QtCore import Qt
 
 from dlss_updater.config import config_manager, LauncherPathName
 from dlss_updater.logger import setup_logger, add_qt_handler
-from PyQt6.QtWidgets import QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QSplitter, QPushButton
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QSplitter, QPushButton,
+                             QFileDialog)
 
 logger = setup_logger()
 
@@ -30,6 +31,7 @@ class MainWindow(QMainWindow):
             LauncherPathName.GOG,
             LauncherPathName.BATTLENET
         ]
+        self.button_enum_dict = {}
 
         # Create the text browsers for each storefront
         self.steam_text_browser = QPushButton('Click to select Steam game locations.', self)
@@ -39,6 +41,14 @@ class MainWindow(QMainWindow):
         self.gog_text_browser = QPushButton('Click to select GOG game locations.', self)
         self.battlenet_text_browser = QPushButton('Click to select Battle.net game locations.', self)
 
+        # We give a name to each button in order to distinguish them in the dictionary
+        self.steam_text_browser.setObjectName('Steam')
+        self.ea_text_browser.setObjectName('EA')
+        self.ubisoft_text_browser.setObjectName('UBISOFT')
+        self.epic_text_browser.setObjectName('EPIC')
+        self.gog_text_browser.setObjectName('GOG')
+        self.battlenet_text_browser.setObjectName('BATTLENET')
+
         # We add the buttons to an ordered list to ensure ease of accessibility for future updates and function calls.
         self.button_list.append(self.steam_text_browser)
         self.button_list.append(self.ea_text_browser)
@@ -46,6 +56,16 @@ class MainWindow(QMainWindow):
         self.button_list.append(self.epic_text_browser)
         self.button_list.append(self.gog_text_browser)
         self.button_list.append(self.battlenet_text_browser)
+
+        # Add the buttons as key to link them with the corresponding enum
+        self.button_enum_dict.update({
+            self.steam_text_browser.objectName(): LauncherPathName.STEAM,
+            self.ea_text_browser.objectName(): LauncherPathName.EA,
+            self.ubisoft_text_browser.objectName(): LauncherPathName.UBISOFT,
+            self.epic_text_browser.objectName(): LauncherPathName.EPIC,
+            self.gog_text_browser.objectName(): LauncherPathName.GOG,
+            self.battlenet_text_browser.objectName(): LauncherPathName.BATTLENET
+        })
 
         # Layouts for the browse buttons
         browse_buttons_layout = QVBoxLayout()
@@ -57,6 +77,14 @@ class MainWindow(QMainWindow):
         browse_buttons_layout.addWidget(self.battlenet_text_browser)
         browse_buttons_container_widget = QWidget()
         browse_buttons_container_widget.setLayout(browse_buttons_layout)
+
+        # Link buttons to browse functionality
+        self.steam_text_browser.clicked.connect(self.browse_folder)
+        self.ea_text_browser.clicked.connect(self.browse_folder)
+        self.ubisoft_text_browser.clicked.connect(self.browse_folder)
+        self.epic_text_browser.clicked.connect(self.browse_folder)
+        self.gog_text_browser.clicked.connect(self.browse_folder)
+        self.battlenet_text_browser.clicked.connect(self.browse_folder)
 
         # Create QTextBrowser widget
         self.text_browser = QTextBrowser(self)
@@ -93,6 +121,14 @@ class MainWindow(QMainWindow):
         for i, button in enumerate(self.button_list):
             if self.path_list[i]:
                 button.setText(self.path_list[i])
+
+    def browse_folder(self):
+        """Open a dialog to select a directory."""
+        directory = QFileDialog.getExistingDirectory(self, "Select Folder")
+        if directory:
+            directory = directory.replace('/', '\\')
+            self.sender().setText(directory)
+            config_manager.update_launcher_path(self.button_enum_dict.get(self.sender().objectName()), directory)
 
     def apply_dark_theme(self):
         """Apply a dark theme using stylesheets."""
