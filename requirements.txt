@@ -1,6 +1,9 @@
-pefile
-psutil
-packaging
-PyQt6
+pefile~=2024.8.26
+psutil~=6.0.0
+packaging~=24.1
+PyQt6~=6.7.1
 pywin32
 # watchdog
+
+pyinstaller~=6.10.0
+asyncslot~=0.3.1

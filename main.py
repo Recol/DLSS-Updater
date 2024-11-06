@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import ctypes
 import asyncio
+from asyncslot import asyncSlot, AsyncSlotRunner
 
 from PyQt6.QtCore import Qt
 
@@ -20,6 +21,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("DLSS-Updater")
         self.setGeometry(100, 100, 600, 400)
         logger_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.can_continue = False
         self.button_list = []
         self.path_list = []
         # We hold the enum values for each storefront in a list with the same sorting order as the buttons.
@@ -40,6 +42,10 @@ class MainWindow(QMainWindow):
         self.epic_text_browser = QPushButton('Click to select Epic game locations.', self)
         self.gog_text_browser = QPushButton('Click to select GOG game locations.', self)
         self.battlenet_text_browser = QPushButton('Click to select Battle.net game locations.', self)
+
+        # Button to start update process
+        self.start_update_button = QPushButton('Click to start updating.', self)
+        self.start_update_button.clicked.connect(asyncSlot(self.call_async_update))
 
         # We give a name to each button in order to distinguish them in the dictionary
         self.steam_text_browser.setObjectName('Steam')
@@ -75,6 +81,7 @@ class MainWindow(QMainWindow):
         browse_buttons_layout.addWidget(self.epic_text_browser)
         browse_buttons_layout.addWidget(self.gog_text_browser)
         browse_buttons_layout.addWidget(self.battlenet_text_browser)
+        browse_buttons_layout.addWidget(self.start_update_button)
         browse_buttons_container_widget = QWidget()
         browse_buttons_container_widget.setLayout(browse_buttons_layout)
 
@@ -107,6 +114,9 @@ class MainWindow(QMainWindow):
         # Add QTextBrowser handler after setting up the logger
         add_qt_handler(self.logger, self.text_browser)
         self.apply_dark_theme()
+
+    async def call_async_update(self):
+        await update_dlss_versions()
 
     def get_current_settings(self):
         steam_path = config_manager.check_path_value(LauncherPathName.STEAM)
@@ -300,15 +310,7 @@ def extract_game_name(dll_path, launcher_name):
 #         return False
 
 
-async def main():
-    if gui_mode:
-        log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
-        sys.stdout = sys.stderr = open(log_file, "w")
-    main_ui = QApplication(sys.argv)
-    main_window = MainWindow()
-    main_window.show()
-    main_window.get_current_settings()
-
+async def update_dlss_versions():
     logger.info(f"DLSS Updater version {__version__}")
     logger.info("Starting DLL search...")
 
@@ -413,7 +415,7 @@ async def main():
                 logger.info("\nUpdating DLLs...")
                 update_results = await asyncio.gather(*update_tasks)
                 for (dll_path, launcher, dll_type), result in zip(
-                    dll_paths_to_update, update_results
+                        dll_paths_to_update, update_results
                 ):
                     if isinstance(result, tuple) and len(result) >= 2:
                         update_success, backup_path = result[:2]
@@ -490,6 +492,18 @@ async def main():
         input("\nPress Enter to exit...")
         logger.info("Application exiting.")
 
+def main():
+    if gui_mode:
+        log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
+        sys.stdout = sys.stderr = open(log_file, "w")
+    # Run the application with AsyncSlotRunner
+    with AsyncSlotRunner():
+        main_ui = QApplication(sys.argv)
+        main_window = MainWindow()
+        main_window.show()
+        main_window.get_current_settings()
+        sys.exit(main_ui.exec())
+
 
 if __name__ == "__main__":
     check_update_completion()
@@ -503,4 +517,4 @@ if __name__ == "__main__":
     if not is_admin():
         run_as_admin()
     else:
-        asyncio.run(main())
+        main()
