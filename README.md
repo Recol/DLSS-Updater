@@ -21,7 +21,7 @@ What if you could update all the DLSS DLLs for the games detected on your system
 - Support for updating Ray Reconstruction and Frame Generation DLL's.
 - (Some) support for manual folder locations (just insert your manual folders in place of the launcher ones).
 
-The current supported DLL included is version 3.7.20.
+The current supported DLL included is version 3.8.10.
 
 ## Whitelisted Games
 

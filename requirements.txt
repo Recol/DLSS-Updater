@@ -1,6 +1,5 @@
 pefile
 psutil
 packaging
-PyQt6
 pywin32
 # watchdog
