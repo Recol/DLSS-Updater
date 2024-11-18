@@ -2,4 +2,7 @@ pefile
 psutil
 packaging
 pywin32
-# watchdog
+appdirs
+PyQt6
+asyncslot
+pyinstaller

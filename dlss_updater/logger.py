@@ -3,7 +3,24 @@ import sys
 from pathlib import Path
 
 
+class QLogger(logging.Handler):
+    """Logger handler for the Qt GUI"""
+
+    def __init__(self, text_browser):
+        super().__init__()
+        self.text_browser = text_browser
+
+    def emit(self, record):
+        msg = self.format(record)
+        self.text_browser.append(msg)
+
+
 def setup_logger(log_file_name="dlss_updater.log"):
+    """
+    Setups the initial logger.
+    param: log_file_name: filename to be used for the logfile.
+    return: logger instance created.
+    """
     logger = logging.getLogger("DLSSUpdater")
 
     # Check if the logger has already been configured
@@ -33,6 +50,14 @@ def setup_logger(log_file_name="dlss_updater.log"):
         logger.propagate = False
 
     return logger
+
+
+def add_qt_handler(logger_to_extend, text_browser):
+    """Add a QTextBrowser handler to an existing logger instance."""
+    text_browser_handler = QLogger(text_browser)
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    text_browser_handler.setFormatter(formatter)
+    logger_to_extend.addHandler(text_browser_handler)
 
 
 # Usage example

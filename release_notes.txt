@@ -13,3 +13,9 @@ Increase bytecode optimisation to level 2 to decrease file sizes.
 Version 2.2.6:
 Nvidia DLSS DLL updated to version 3.8.10.0 from the release driver 556.14.
 
+Version 2.5.0:
+This version represents a major shift in this project, hence the migration to a new version number.
+Major changes are listed below:
+The addition of a GUI.
+Path persistence to remember past locations that are stored, including on reboot.
+The removal of manual terminal additions.
