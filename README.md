@@ -19,6 +19,7 @@ What if you could update all the DLSS DLLs for the games detected on your system
   - Battle.net (Note for Battle.net: Please ensure that the launcher is **open** before updating this launcher (this does not apply if you are entering a custom folder))
 - A soft backup system for allowing restoration with [DLSS Swapper](https://github.com/beeradmoore/dlss-swapper).
 - Support for updating Ray Reconstruction and Frame Generation DLL's.
+- A GUI!
 - (Some) support for manual folder locations (just insert your manual folders in place of the launcher ones).
 
 The current supported DLL included is version 3.8.10.
@@ -121,12 +122,10 @@ If you prefer to build the application yourself, follow these steps:
 
 ## Future Features
 
-- A GUI?
 - Ability to restore and ~~create backups of DLL swaps~~. - This is currently being worked on, however support has been added for restoring with DLSS Swapper currently.
 - Support for a [database](https://github.com/Recol/DLSS-Updater/issues/9).
 - Insert xyz feature that wants to be requested.
 - Automation support with external software.
-- Forcing Model E for the DLSS model.
 
 ## Release Notes
 
