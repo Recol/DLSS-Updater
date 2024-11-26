@@ -1,6 +1,0 @@
-2024-11-26 16:18:14,879 - DEBUG - Python executable: D:\Github\DLSS-Updater\.venv\Scripts\python.exe
-2024-11-26 16:18:14,880 - DEBUG - sys.path: ['D:\\Github\\DLSS-Updater', 'D:\\Github\\DLSS-Updater', 'C:\\JetBrains Toolbox\\PyCharm Professional\\plugins\\python-ce\\helpers\\pycharm_display', 'C:\\Users\\alexi\\AppData\\Local\\Programs\\Python\\Python312\\python312.zip', 'C:\\Users\\alexi\\AppData\\Local\\Programs\\Python\\Python312\\DLLs', 'C:\\Users\\alexi\\AppData\\Local\\Programs\\Python\\Python312\\Lib', 'C:\\Users\\alexi\\AppData\\Local\\Programs\\Python\\Python312', 'D:\\Github\\DLSS-Updater\\.venv', 'D:\\Github\\DLSS-Updater\\.venv\\Lib\\site-packages', 'D:\\Github\\DLSS-Updater\\.venv\\Lib\\site-packages\\win32', 'D:\\Github\\DLSS-Updater\\.venv\\Lib\\site-packages\\win32\\lib', 'D:\\Github\\DLSS-Updater\\.venv\\Lib\\site-packages\\Pythonwin', 'C:\\JetBrains Toolbox\\PyCharm Professional\\plugins\\python-ce\\helpers\\pycharm_matplotlib_backend', 'C:\\JetBrains Toolbox\\PyCharm Professional\\plugins\\python-ce\\helpers\\pycharm_plotly_backend']
-2024-11-26 16:18:14,880 - INFO - DLSS Updater started
-2024-11-26 16:18:16,141 - INFO - test thingy
-2024-11-26 16:18:21,144 - ERROR - Exception during function execution: name 'bad_function_call' is not defined
-2024-11-26 16:18:21,144 - DEBUG - Thread finished
