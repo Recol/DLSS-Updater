@@ -157,8 +157,6 @@ class MainWindow(QMainWindow):
 
     def call_threaded_update(self):
         self.thread_manager.assign_function(print_something)
-        self.thread_manager.error.connect(self.logger.error)
-        self.thread_manager.result.connect(self.logger.info)
         self.thread_manager.start()
 
     def get_current_settings(self):
@@ -546,7 +544,7 @@ async def update_dlss_versions():
 def print_something():
     logger.info("test thingy")
     time.sleep(5)
-    bad_function_call()
+    logger.info("print after 5 seconds")
 
 def main():
     if gui_mode:

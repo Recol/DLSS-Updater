@@ -3,7 +3,6 @@ from PyQt6.QtCore import QThread, pyqtSignal
 class ThreadManager(QThread):
     finished = pyqtSignal()
     result = pyqtSignal(object)
-    error = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -23,13 +22,9 @@ class ThreadManager(QThread):
     def run(self):
         """Execute the assigned function in the thread."""
         if self.assigned_function is not None:
-            try:
-                self.is_running = True
-                function_output = self.assigned_function(*self.args, **self.kwargs)
-                if function_output is not None:
-                    self.result.emit(function_output)
-            except Exception as e:
-                    self.error.emit(f'Exception during function execution: {e}')
-            finally:
-                self.finished.emit()
-                self.is_running = False
+            self.is_running = True
+            function_output = self.assigned_function(*self.args, **self.kwargs)
+            if function_output is not None:
+                self.result.emit(function_output)
+            self.finished.emit()
+            self.is_running = False
