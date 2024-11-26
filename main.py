@@ -1,17 +1,15 @@
 import sys
 import os
-import time
 from pathlib import Path
 import ctypes
 import asyncio
 from asyncslot import asyncSlot, AsyncSlotRunner
 
-from PyQt6.QtCore import Qt, QUrl, QThreadPool
+from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices
 
 from dlss_updater.config import config_manager, LauncherPathName
 from dlss_updater.logger import setup_logger, add_qt_handler
-from dlss_updater.lib.threading_lib import Worker
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QSplitter, QPushButton,
     QFileDialog, QHBoxLayout, QLabel, QMenu
@@ -24,12 +22,11 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("DLSS-Updater")
-        self.setGeometry(100, 100, 600, 350)
-        self.thread_pool = QThreadPool()
+        self.setGeometry(100, 100, 600, 400)
+
         # Main container
         main_container = QWidget()
         main_layout = QVBoxLayout()
-        main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Header section with welcome, donate and contact
         header_layout = QHBoxLayout()
@@ -88,7 +85,7 @@ class MainWindow(QMainWindow):
 
         # Button to start update process
         self.start_update_button = QPushButton('Click to start updating.', self)
-        self.start_update_button.clicked.connect(self.call_threaded_update)
+        self.start_update_button.clicked.connect(asyncSlot(self.call_async_update))
 
         # We give a name to each button in order to distinguish them in the dictionary
         self.steam_text_browser.setObjectName('Steam')
@@ -155,12 +152,8 @@ class MainWindow(QMainWindow):
         add_qt_handler(self.logger, self.text_browser)
         self.apply_dark_theme()
 
-    def call_threaded_update(self):
-        worker = Worker(print_something)
-        worker.signals.error.connect(self.logger.error)
-        worker.signals.result.connect(self.logger.info)
-        worker.signals.finished.connect(lambda: self.logger.debug("Thread finished"))
-        self.thread_pool.start(worker)
+    async def call_async_update(self):
+        await update_dlss_versions()
 
     def get_current_settings(self):
         steam_path = config_manager.check_path_value(LauncherPathName.STEAM)
@@ -544,21 +537,17 @@ async def update_dlss_versions():
         input("\nPress Enter to exit...")
         logger.info("Application exiting.")
 
-def print_something():
-    logger.info("test thingy")
-    time.sleep(5)
-    bad_function_call()
-
 def main():
     if gui_mode:
         log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
         sys.stdout = sys.stderr = open(log_file, "w")
     # Run the application with AsyncSlotRunner
-    main_ui = QApplication(sys.argv)
-    main_window = MainWindow()
-    main_window.show()
-    main_window.get_current_settings()
-    sys.exit(main_ui.exec())
+    with AsyncSlotRunner():
+        main_ui = QApplication(sys.argv)
+        main_window = MainWindow()
+        main_window.show()
+        main_window.get_current_settings()
+        sys.exit(main_ui.exec())
 
 
 if __name__ == "__main__":
