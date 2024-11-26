@@ -6,12 +6,12 @@ import ctypes
 import asyncio
 from asyncslot import asyncSlot, AsyncSlotRunner
 
-from PyQt6.QtCore import Qt, QUrl, QThreadPool
+from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices
 
 from dlss_updater.config import config_manager, LauncherPathName
 from dlss_updater.logger import setup_logger, add_qt_handler
-from dlss_updater.lib.thread_manager import Worker
+from dlss_updater.lib.thread_manager import ThreadManager
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QSplitter, QPushButton,
     QFileDialog, QHBoxLayout, QLabel, QMenu
@@ -25,7 +25,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("DLSS-Updater")
         self.setGeometry(100, 100, 600, 350)
-        self.thread_pool = QThreadPool()
+        self.thread_manager = ThreadManager()
         # Main container
         main_container = QWidget()
         main_layout = QVBoxLayout()
@@ -156,11 +156,10 @@ class MainWindow(QMainWindow):
         self.apply_dark_theme()
 
     def call_threaded_update(self):
-        worker = Worker(print_something)
-        worker.signals.error.connect(self.logger.error)
-        worker.signals.result.connect(self.logger.info)
-        worker.signals.finished.connect(lambda: self.logger.debug("Thread finished"))
-        self.thread_pool.start(worker)
+        self.thread_manager.assign_function(print_something)
+        self.thread_manager.error.connect(self.logger.error)
+        self.thread_manager.result.connect(self.logger.info)
+        self.thread_manager.start()
 
     def get_current_settings(self):
         steam_path = config_manager.check_path_value(LauncherPathName.STEAM)
