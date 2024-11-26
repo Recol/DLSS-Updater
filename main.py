@@ -11,7 +11,7 @@ from PyQt6.QtGui import QDesktopServices
 
 from dlss_updater.config import config_manager, LauncherPathName
 from dlss_updater.logger import setup_logger, add_qt_handler
-from dlss_updater.lib.threading_lib import Worker
+from dlss_updater.lib.thread_manager import Worker
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QSplitter, QPushButton,
     QFileDialog, QHBoxLayout, QLabel, QMenu
