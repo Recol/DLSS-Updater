@@ -22,11 +22,12 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("DLSS-Updater")
-        self.setGeometry(100, 100, 600, 400)
+        self.setGeometry(100, 100, 600, 350)
 
         # Main container
         main_container = QWidget()
         main_layout = QVBoxLayout()
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Header section with welcome, donate and contact
         header_layout = QHBoxLayout()
