@@ -23,7 +23,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("DLSS-Updater")
         self.setGeometry(100, 100, 600, 350)
-        self.thread_pool = QThreadPool()
+
         # Main container
         main_container = QWidget()
         main_layout = QVBoxLayout()
