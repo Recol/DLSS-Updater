@@ -12,7 +12,12 @@ logger = setup_logger()
 def get_steam_install_path():
     try:
         if config_manager.check_path_value(LauncherPathName.STEAM):
-            return config_manager.check_path_value(LauncherPathName.STEAM)
+            path = config_manager.check_path_value(LauncherPathName.STEAM)
+            # Remove \steamapps\common if it exists
+            path = path.replace("\\steamapps\\common", "")
+            logger.debug(f"Using configured Steam path: {path}")
+            return path
+
         import winreg
 
         key = winreg.OpenKey(
@@ -21,44 +26,66 @@ def get_steam_install_path():
         value, _ = winreg.QueryValueEx(key, "InstallPath")
         config_manager.update_launcher_path(LauncherPathName.STEAM, str(value))
         return value
-    except (FileNotFoundError, ImportError):
+    except (FileNotFoundError, ImportError) as e:
+        logger.debug(f"Could not find Steam install path: {e}")
         return None
 
 
 def get_steam_libraries(steam_path):
+    logger.debug(f"Looking for Steam libraries in: {steam_path}")
     library_folders_path = Path(steam_path) / "steamapps" / "libraryfolders.vdf"
+    logger.debug(f"Checking libraryfolders.vdf at: {library_folders_path}")
+
     if not library_folders_path.exists():
-        return [Path(steam_path) / "steamapps" / "common"]
+        default_path = Path(steam_path) / "steamapps" / "common"
+        logger.debug(
+            f"libraryfolders.vdf not found, using default path: {default_path}"
+        )
+        return [default_path]
 
     libraries = []
-    with library_folders_path.open("r") as file:
+    with library_folders_path.open("r", encoding="utf-8") as file:
         lines = file.readlines()
         for line in lines:
             if "path" in line:
                 path = line.split('"')[3]
-                libraries.append(Path(path) / "steamapps" / "common")
+                library_path = Path(path) / "steamapps" / "common"
+                logger.debug(f"Found Steam library: {library_path}")
+                libraries.append(library_path)
+
+    logger.debug(f"Found total Steam libraries: {len(libraries)}")
+    for lib in libraries:
+        logger.debug(f"Steam library path: {lib}")
     return libraries
 
 
 async def find_dlss_dlls(library_paths, launcher_name):
     dll_names = ["nvngx_dlss.dll", "nvngx_dlssg.dll", "nvngx_dlssd.dll"]
     dll_paths = []
+    logger.debug(f"Searching for DLLs in {launcher_name}")
+
     for library_path in library_paths:
-        for root, _, files in os.walk(library_path):
-            for dll_name in dll_names:
-                if dll_name.lower() in [f.lower() for f in files]:
-                    dll_path = os.path.join(root, dll_name)
-                    logger.debug(f"Checking DLL: {dll_path}")
-                    if not await is_whitelisted(dll_path):
-                        logger.info(
-                            f"Found non-whitelisted DLSS DLL in {launcher_name}: {dll_path}"
-                        )
-                        dll_paths.append(dll_path)
-                    else:
-                        logger.info(
-                            f"Skipped whitelisted game in {launcher_name}: {dll_path}"
-                        )
-            await asyncio.sleep(0)
+        logger.debug(f"Scanning directory: {library_path}")
+        try:
+            for root, _, files in os.walk(library_path):
+                for dll_name in dll_names:
+                    if dll_name.lower() in [f.lower() for f in files]:
+                        dll_path = os.path.join(root, dll_name)
+                        logger.debug(f"Found DLL: {dll_path}")
+                        if not await is_whitelisted(dll_path):
+                            logger.info(
+                                f"Found non-whitelisted DLSS DLL in {launcher_name}: {dll_path}"
+                            )
+                            dll_paths.append(dll_path)
+                        else:
+                            logger.info(
+                                f"Skipped whitelisted game in {launcher_name}: {dll_path}"
+                            )
+                await asyncio.sleep(0)
+        except Exception as e:
+            logger.error(f"Error scanning {library_path}: {e}")
+
+    logger.debug(f"Found {len(dll_paths)} DLLs in {launcher_name}")
     return dll_paths
 
 
