@@ -1,3 +1,9 @@
+Version 2.2.5:
+Add experimental code for handling of Warframe and removed from the whitelist, it is disabled for now.
+Performance improvements for whitelist matches.
+Minor bug fixes.
+Increase bytecode optimisation to level 2 to decrease file sizes.
+
 Version 2.2.6:
 Nvidia DLSS DLL updated to version 3.8.10.0 from the release driver 556.14.
 
@@ -11,3 +17,6 @@ The removal of manual terminal additions.
 Version 2.5.1:
 Updates to the DLSS Frame Generation DLL to version 3.8.1.0.
 Minor logic changes to the Steam library detection to fix race conditions.
+
+Version 2.5.2:
+Updates to the Ray Reconstruction DLL to version 3.7.20.

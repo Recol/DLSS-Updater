@@ -1,6 +1,3 @@
-Version 2.2.6:
-Nvidia DLSS DLL updated to version 3.8.10.0 from the release driver 556.14.
-
 Version 2.5.0:
 This version represents a major shift in this project, hence the migration to a new version number.
 Major changes are listed below:
@@ -11,3 +8,8 @@ The removal of manual terminal additions.
 Version 2.5.1:
 Updates to the DLSS Frame Generation DLL to version 3.8.1.0.
 Minor logic changes to the Steam library detection to fix race conditions.
+
+Version 2.5.2:
+Updates to the Ray Reconstruction DLL to version 3.7.20.
+Fixes to a rare condition where if a backup failed to create updating DLL's would fail.
+

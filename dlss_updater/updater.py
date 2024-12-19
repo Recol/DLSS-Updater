@@ -76,11 +76,38 @@ def normalize_path(path):
 async def create_backup(dll_path):
     backup_path = dll_path.with_suffix(".dlsss")
     try:
+        logger.info(f"Attempting to create backup at: {backup_path}")
+        if backup_path.exists():
+            logger.info("Previous backup exists, removing...")
+            try:
+                # Make the backup file writable before removal
+                os.chmod(backup_path, stat.S_IWRITE)
+                os.remove(backup_path)
+                logger.info("Successfully removed old backup")
+            except Exception as e:
+                logger.error(f"Failed to remove old backup: {e}")
+                return None
+
+        # Set proper permissions on the directory
+        try:
+            dir_path = os.path.dirname(backup_path)
+            os.chmod(dir_path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+        except Exception as e:
+            logger.error(f"Failed to set directory permissions: {e}")
+
         await asyncio.to_thread(shutil.copy2, dll_path, backup_path)
-        logger.info(f"Created backup: {backup_path}")
-        return backup_path
+
+        if backup_path.exists():
+            # Ensure backup is writable for future operations
+            os.chmod(backup_path, stat.S_IWRITE | stat.S_IREAD)
+            logger.info(f"Successfully created backup at: {backup_path}")
+            return backup_path
+        else:
+            logger.error("Backup file not created")
+            return None
     except Exception as e:
         logger.error(f"Failed to create backup for {dll_path}: {e}")
+        logger.error(f"Error type: {type(e)}")
         return None
 
 
@@ -139,11 +166,15 @@ async def update_dll(dll_path, latest_dll_path):
             return False, None, dll_type
 
         # Create backup
-        logger.info("Creating backup...")
+        logger.info("Starting backup process...")
         backup_path = await create_backup(dll_path)
         if not backup_path:
-            logger.info(f"Skipping update for {dll_path} due to backup failure.")
+            logger.error(f"Backup creation failed for {dll_path}")
             return False, None, dll_type
+        if not backup_path.exists():
+            logger.error("Backup file doesn't exist after creation")
+            return False, None, dll_type
+        logger.info(f"Backup created successfully at {backup_path}")
 
         logger.info("Checking file permissions...")
         remove_read_only(dll_path)
@@ -166,17 +197,40 @@ async def update_dll(dll_path, latest_dll_path):
             restore_permissions(dll_path, original_permissions)
             return False, None, dll_type
 
-        logger.info("Starting file copy...")
-        await asyncio.to_thread(shutil.copyfile, latest_dll_path, dll_path)
-        logger.info("File copy completed.")
+        logger.info("Starting file update process...")
+        try:
+            # Remove old DLL
+            os.remove(dll_path)
+            logger.info("Successfully removed old DLL")
 
-        # Restore original permissions
-        restore_permissions(dll_path, original_permissions)
+            # Copy new file
+            await asyncio.to_thread(shutil.copyfile, latest_dll_path, dll_path)
+            logger.info("Successfully copied new DLL")
 
-        logger.info(
-            f"Successfully updated {dll_path} from version {existing_version} to {latest_version}."
-        )
-        return True, backup_path, dll_type
+            # Verify the copy
+            new_version = get_dll_version(dll_path)
+            logger.info(f"Verifying new DLL version: {new_version}")
+
+            if new_version == latest_version:
+                logger.info("Version verification successful")
+                restore_permissions(dll_path, original_permissions)
+                return True, backup_path, dll_type
+            else:
+                logger.error(
+                    f"Version verification failed - Expected: {latest_version}, Got: {new_version}"
+                )
+                return False, backup_path, dll_type
+
+        except Exception as e:
+            logger.error(f"File update operation failed: {e}")
+            if backup_path and backup_path.exists():
+                try:
+                    shutil.copyfile(backup_path, dll_path)
+                    logger.info("Restored backup after failed update")
+                except Exception as restore_error:
+                    logger.error(f"Failed to restore backup: {restore_error}")
+            return False, backup_path, dll_type
+
     except Exception as e:
         logger.error(f"Error updating {dll_path}: {e}")
         restore_permissions(dll_path, original_permissions)
