@@ -145,6 +145,10 @@ class MainWindow(QMainWindow):
         if tooltip:
             button.setToolTip(tooltip)
         
+        # Connect to browse functionality if not the update button
+        if "Update" not in text:
+            button.clicked.connect(self.browse_folder)
+        
         return button
     
     def setup_launcher_buttons(self):

@@ -12,3 +12,6 @@ Migration to a new thread managing model to improve processing times.
 Addition of support for the Xbox game launcher.
 Refactoring of base code to cleanup and improve functional logic.
 Remork to the whitelist logic to prevent spamming of the console with what games are whitelisted repeatedly.
+
+Version 2.6.1:
+Hotfix to fix folders being unclickable.
