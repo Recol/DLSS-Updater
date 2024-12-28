@@ -6,11 +6,9 @@ from pathlib import Path
 import stat
 import time
 import psutil
-import asyncio
 from packaging import version
 from .logger import setup_logger
 from .constants import DLL_TYPE_MAP
-
 
 logger = setup_logger()
 
@@ -52,7 +50,7 @@ def is_file_in_use(file_path, timeout=5):
     while time.time() - start_time < timeout:
         try:
             with open(file_path, "rb"):
-                return False  # File is not in use
+                return False
         except PermissionError:
             for proc in psutil.process_iter(["pid", "name", "open_files"]):
                 try:
@@ -64,7 +62,7 @@ def is_file_in_use(file_path, timeout=5):
                             return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
-        time.sleep(0.1)  # Short sleep to prevent CPU overuse
+        time.sleep(0.1)
     logger.info(f"Timeout reached while checking if file {file_path} is in use")
     return True  # Assume file is NOT in use if we can't determine otherwise to prevent hanging conditions
 
@@ -73,14 +71,13 @@ def normalize_path(path):
     return os.path.normpath(path)
 
 
-async def create_backup(dll_path):
+def create_backup(dll_path):
     backup_path = dll_path.with_suffix(".dlsss")
     try:
         logger.info(f"Attempting to create backup at: {backup_path}")
         if backup_path.exists():
             logger.info("Previous backup exists, removing...")
             try:
-                # Make the backup file writable before removal
                 os.chmod(backup_path, stat.S_IWRITE)
                 os.remove(backup_path)
                 logger.info("Successfully removed old backup")
@@ -88,17 +85,12 @@ async def create_backup(dll_path):
                 logger.error(f"Failed to remove old backup: {e}")
                 return None
 
-        # Set proper permissions on the directory
-        try:
-            dir_path = os.path.dirname(backup_path)
-            os.chmod(dir_path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
-        except Exception as e:
-            logger.error(f"Failed to set directory permissions: {e}")
+        dir_path = os.path.dirname(backup_path)
+        os.chmod(dir_path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
 
-        await asyncio.to_thread(shutil.copy2, dll_path, backup_path)
+        shutil.copy2(dll_path, backup_path)
 
         if backup_path.exists():
-            # Ensure backup is writable for future operations
             os.chmod(backup_path, stat.S_IWRITE | stat.S_IREAD)
             logger.info(f"Successfully created backup at: {backup_path}")
             return backup_path
@@ -111,14 +103,12 @@ async def create_backup(dll_path):
         return None
 
 
-async def update_dll(dll_path, latest_dll_path):
+def update_dll(dll_path, latest_dll_path):
     dll_path = Path(normalize_path(dll_path)).resolve()
     latest_dll_path = Path(normalize_path(latest_dll_path)).resolve()
     logger.info(f"Checking DLL at {dll_path}...")
 
-    # Determine DLL type
     dll_type = DLL_TYPE_MAP.get(dll_path.name.lower(), "Unknown DLL type")
-
     original_permissions = os.stat(dll_path).st_mode
 
     try:
@@ -144,50 +134,35 @@ async def update_dll(dll_path, latest_dll_path):
                     f"{dll_path} is already up-to-date (version {existing_version})."
                 )
                 return False, None, dll_type
-            else:
-                logger.info(f"Update needed: {existing_version} -> {latest_version}")
-                logger.info("Preparing to update...")
 
-        # Check if the target path exists
         if not dll_path.exists():
             logger.error(f"Error: Target DLL path does not exist: {dll_path}")
             return False, None, dll_type
 
-        # Check if the latest DLL path exists
         if not latest_dll_path.exists():
             logger.error(f"Error: Latest DLL path does not exist: {latest_dll_path}")
             return False, None, dll_type
 
-        # Ensure the target directory is writable
         if not os.access(dll_path.parent, os.W_OK):
             logger.error(
                 f"Error: No write permission to the directory: {dll_path.parent}"
             )
             return False, None, dll_type
 
-        # Create backup
-        logger.info("Starting backup process...")
-        backup_path = await create_backup(dll_path)
+        backup_path = create_backup(dll_path)
         if not backup_path:
-            logger.error(f"Backup creation failed for {dll_path}")
             return False, None, dll_type
-        if not backup_path.exists():
-            logger.error("Backup file doesn't exist after creation")
-            return False, None, dll_type
-        logger.info(f"Backup created successfully at {backup_path}")
 
-        logger.info("Checking file permissions...")
         remove_read_only(dll_path)
 
-        logger.info("Checking if file is in use...")
         retry_count = 3
         while retry_count > 0:
-            if not await asyncio.to_thread(is_file_in_use, str(dll_path)):
+            if not is_file_in_use(str(dll_path)):
                 break
             logger.info(
                 f"File is in use. Retrying in 2 seconds... (Attempts left: {retry_count})"
             )
-            await asyncio.sleep(2)
+            time.sleep(2)
             retry_count -= 1
 
         if retry_count == 0:
@@ -197,23 +172,17 @@ async def update_dll(dll_path, latest_dll_path):
             restore_permissions(dll_path, original_permissions)
             return False, None, dll_type
 
-        logger.info("Starting file update process...")
         try:
-            # Remove old DLL
             os.remove(dll_path)
-            logger.info("Successfully removed old DLL")
+            shutil.copyfile(latest_dll_path, dll_path)
+            restore_permissions(dll_path, original_permissions)
 
-            # Copy new file
-            await asyncio.to_thread(shutil.copyfile, latest_dll_path, dll_path)
-            logger.info("Successfully copied new DLL")
-
-            # Verify the copy
+            # Verify update
             new_version = get_dll_version(dll_path)
-            logger.info(f"Verifying new DLL version: {new_version}")
-
             if new_version == latest_version:
-                logger.info("Version verification successful")
-                restore_permissions(dll_path, original_permissions)
+                logger.info(
+                    f"Successfully updated {dll_path} from version {existing_version} to {latest_version}."
+                )
                 return True, backup_path, dll_type
             else:
                 logger.error(

@@ -2,17 +2,23 @@ import sys
 import os
 from pathlib import Path
 import ctypes
-import asyncio
-from asyncslot import asyncSlot, AsyncSlotRunner
-
-from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QDesktopServices
-
+from PyQt6.QtCore import Qt, QUrl, QSize
+from PyQt6.QtGui import QDesktopServices, QIcon
+from dlss_updater.lib.threading_lib import ThreadManager
 from dlss_updater.config import config_manager, LauncherPathName
 from dlss_updater.logger import setup_logger, add_qt_handler
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QTextBrowser, QWidget, QVBoxLayout, QSplitter, QPushButton,
-    QFileDialog, QHBoxLayout, QLabel, QMenu
+    QApplication,
+    QMainWindow,
+    QTextBrowser,
+    QWidget,
+    QVBoxLayout,
+    QSplitter,
+    QPushButton,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
 )
 
 logger = setup_logger()
@@ -21,31 +27,51 @@ logger = setup_logger()
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.thread_manager = ThreadManager(self)
+        self.button_enum_dict = {}
         self.setWindowTitle("DLSS-Updater")
         self.setGeometry(100, 100, 600, 350)
 
         # Main container
         main_container = QWidget()
         main_layout = QVBoxLayout()
-        main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        header_left = QHBoxLayout()
 
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         # Header section with welcome, donate and contact
         header_layout = QHBoxLayout()
         welcome_label = QLabel("Welcome to the GUI :) -Deco")
+        version_label = QLabel(f"v{__version__}")
         welcome_label.setStyleSheet("color: white; font-size: 16px;")
+        version_label.setStyleSheet("color: #888888; font-size: 12px; margin-left: 8px;")
+        header_left.addWidget(welcome_label)
+        header_left.addWidget(version_label)
+        header_left.addStretch()
 
         donate_button = QPushButton("☕ Support Development")
-        donate_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://buymeacoffee.com/decouk")))
+        donate_button.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://buymeacoffee.com/decouk"))
+        )
 
         report_bug_button = QPushButton("🐛 Report a Bug")
-        report_bug_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/Recol/DLSS-Updater/issues")))
-        
+        report_bug_button.clicked.connect(
+            lambda: QDesktopServices.openUrl(
+                QUrl("https://github.com/Recol/DLSS-Updater/issues")
+            )
+        )
+
         contact_button = QPushButton("📞 Contact")
         contact_menu = QMenu()
         twitter_action = contact_menu.addAction("Twitter")
         discord_action = contact_menu.addAction("Discord")
-        twitter_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://x.com/iDeco_UK")))
-        discord_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://discord.com/users/162568099839606784")))
+        twitter_action.triggered.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://x.com/iDeco_UK"))
+        )
+        discord_action.triggered.connect(
+            lambda: QDesktopServices.openUrl(
+                QUrl("https://discord.com/users/162568099839606784")
+            )
+        )
         contact_button.setMenu(contact_menu)
 
         header_layout.addWidget(welcome_label)
@@ -53,86 +79,35 @@ class MainWindow(QMainWindow):
         header_layout.addWidget(donate_button)
         header_layout.addWidget(report_bug_button)
         header_layout.addWidget(contact_button)
+        version_label = QLabel(f"v{__version__}")
+        version_label.setStyleSheet("color: white; font-size: 12px;")
+        header_layout.addWidget(version_label)
 
         # Custom folders info
-        info_label = QLabel("Note: For custom game folders, use any launcher button (e.g. Battle.net) and select your folder location.")
+        info_label = QLabel(
+            "Note: For custom game folders, use any launcher button (e.g. Battle.net) and select your folder location."
+        )
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: white; background-color: #3C3C3C; padding: 10px; border-radius: 4px;")
+        info_label.setStyleSheet(
+            "color: white; background-color: #3C3C3C; padding: 10px; border-radius: 4px;"
+        )
 
         # Original logger splitter setup
         logger_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.can_continue = False
         self.button_list = []
         self.path_list = []
-        
-        # We hold the enum values for each storefront in a list with the same sorting order as the buttons.
-        self.button_enum_list = [
-            LauncherPathName.STEAM,
-            LauncherPathName.EA,
-            LauncherPathName.UBISOFT,
-            LauncherPathName.EPIC,
-            LauncherPathName.GOG,
-            LauncherPathName.BATTLENET
-        ]
-        self.button_enum_dict = {}
 
-        # Create the text browsers for each storefront
-        self.steam_text_browser = QPushButton('Click to select Steam game locations.', self)
-        self.ea_text_browser = QPushButton('Click to select EA game locations.', self)
-        self.ubisoft_text_browser = QPushButton('Click to select Ubisoft game locations.', self)
-        self.epic_text_browser = QPushButton('Click to select Epic game locations.', self)
-        self.gog_text_browser = QPushButton('Click to select GOG game locations.', self)
-        self.battlenet_text_browser = QPushButton('Click to select Battle.net game locations.', self)
-
-        # Button to start update process
-        self.start_update_button = QPushButton('Click to start updating.', self)
-        self.start_update_button.clicked.connect(asyncSlot(self.call_async_update))
-
-        # We give a name to each button in order to distinguish them in the dictionary
-        self.steam_text_browser.setObjectName('Steam')
-        self.ea_text_browser.setObjectName('EA')
-        self.ubisoft_text_browser.setObjectName('UBISOFT')
-        self.epic_text_browser.setObjectName('EPIC')
-        self.gog_text_browser.setObjectName('GOG')
-        self.battlenet_text_browser.setObjectName('BATTLENET')
-
-        # We add the buttons to an ordered list to ensure ease of accessibility for future updates and function calls.
-        self.button_list.append(self.steam_text_browser)
-        self.button_list.append(self.ea_text_browser)
-        self.button_list.append(self.ubisoft_text_browser)
-        self.button_list.append(self.epic_text_browser)
-        self.button_list.append(self.gog_text_browser)
-        self.button_list.append(self.battlenet_text_browser)
-
-        # Add the buttons as key to link them with the corresponding enum
-        self.button_enum_dict.update({
-            self.steam_text_browser.objectName(): LauncherPathName.STEAM,
-            self.ea_text_browser.objectName(): LauncherPathName.EA,
-            self.ubisoft_text_browser.objectName(): LauncherPathName.UBISOFT,
-            self.epic_text_browser.objectName(): LauncherPathName.EPIC,
-            self.gog_text_browser.objectName(): LauncherPathName.GOG,
-            self.battlenet_text_browser.objectName(): LauncherPathName.BATTLENET
-        })
+        # Launcher buttons setup
+        self.setup_launcher_buttons()
 
         # Layouts for the browse buttons
         browse_buttons_layout = QVBoxLayout()
-        browse_buttons_layout.addWidget(self.steam_text_browser)
-        browse_buttons_layout.addWidget(self.ea_text_browser)
-        browse_buttons_layout.addWidget(self.ubisoft_text_browser)
-        browse_buttons_layout.addWidget(self.epic_text_browser)
-        browse_buttons_layout.addWidget(self.gog_text_browser)
-        browse_buttons_layout.addWidget(self.battlenet_text_browser)
+        for button in self.button_list:
+            browse_buttons_layout.addWidget(button)
         browse_buttons_layout.addWidget(self.start_update_button)
         browse_buttons_container_widget = QWidget()
         browse_buttons_container_widget.setLayout(browse_buttons_layout)
-
-        # Link buttons to browse functionality
-        self.steam_text_browser.clicked.connect(self.browse_folder)
-        self.ea_text_browser.clicked.connect(self.browse_folder)
-        self.ubisoft_text_browser.clicked.connect(self.browse_folder)
-        self.epic_text_browser.clicked.connect(self.browse_folder)
-        self.gog_text_browser.clicked.connect(self.browse_folder)
-        self.battlenet_text_browser.clicked.connect(self.browse_folder)
 
         # Create QTextBrowser widget
         self.text_browser = QTextBrowser(self)
@@ -140,7 +115,7 @@ class MainWindow(QMainWindow):
         # Set up layout
         logger_splitter.addWidget(browse_buttons_container_widget)
         logger_splitter.addWidget(self.text_browser)
-        
+
         # Add new layouts to main layout
         main_layout.addLayout(header_layout)
         main_layout.addWidget(info_label)
@@ -153,8 +128,183 @@ class MainWindow(QMainWindow):
         add_qt_handler(self.logger, self.text_browser)
         self.apply_dark_theme()
 
-    async def call_async_update(self):
-        await update_dlss_versions()
+        # Connect the update button to the threaded update function
+        self.start_update_button.clicked.connect(self.call_threaded_update)
+
+    def create_styled_button(self, text, icon_path, tooltip=""):
+        button = QPushButton(f"  {text}", self)
+        
+        # Load and process icon
+        icon = QIcon(resource_path(os.path.join("icons", icon_path)))
+        button.setIcon(icon)
+        button.setIconSize(QSize(24, 24))  # Consistent icon size
+        
+        # Set fixed height for uniformity
+        button.setMinimumHeight(40)
+        
+        if tooltip:
+            button.setToolTip(tooltip)
+        
+        return button
+    
+    def setup_launcher_buttons(self):
+        
+
+        # We hold the enum values for each storefront
+        self.steam_text_browser = self.create_styled_button(
+        "Steam Games", "steam.jpg", "Select Steam game locations"
+    )
+        self.ea_text_browser = self.create_styled_button(
+            "EA Games", "ea.jpg", "Select EA game locations"
+        )
+        self.ubisoft_text_browser = self.create_styled_button(
+            "Ubisoft Games", "ubisoft.png", "Select Ubisoft game locations"
+        )
+        self.epic_text_browser = self.create_styled_button(
+            "Epic Games", "epic.svg", "Select Epic game locations"
+        )
+        self.gog_text_browser = self.create_styled_button(
+            "GOG Games", "gog.jpg", "Select GOG game locations"
+        )
+        self.battlenet_text_browser = self.create_styled_button(
+            "Battle.net Games", "battlenet.png", "Select Battle.net game locations"
+        )
+        self.xbox_text_browser = self.create_styled_button(
+            "Xbox Games", "xbox.png", "Select Xbox game locations"
+        )
+
+        # Update button with special styling
+        self.start_update_button = self.create_styled_button(
+            "Start Update", "update.png", "Start DLSS update process"
+        )
+        self.start_update_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2D5A88;
+                color: white;
+                border: 1px solid #7F7F7F;
+                border-radius: 4px;
+                padding: 8px 16px;
+                text-align: left;
+                font-weight: bold;
+                margin: 2px 0px;
+            }
+            QPushButton:hover {
+                background-color: #366BA3;
+                border-color: #999999;
+            }
+            QPushButton:pressed {
+                background-color: #244B73;
+            }
+            QPushButton:disabled {
+                background-color: #1D3D5A;
+                color: #888888;
+            }
+        """)
+
+        # Set object names
+        self.steam_text_browser.setObjectName("Steam")
+        self.ea_text_browser.setObjectName("EA")
+        self.ubisoft_text_browser.setObjectName("UBISOFT")
+        self.epic_text_browser.setObjectName("EPIC")
+        self.gog_text_browser.setObjectName("GOG")
+        self.battlenet_text_browser.setObjectName("BATTLENET")
+        self.xbox_text_browser.setObjectName("XBOX")
+
+        # Add buttons to list
+        self.button_list = [
+            self.steam_text_browser,
+            self.ea_text_browser,
+            self.ubisoft_text_browser,
+            self.epic_text_browser,
+            self.gog_text_browser,
+            self.battlenet_text_browser,
+            self.xbox_text_browser
+        ]
+
+        # Update button dictionary
+        self.button_enum_dict.update({
+            "Steam": LauncherPathName.STEAM,
+            "EA": LauncherPathName.EA,
+            "UBISOFT": LauncherPathName.UBISOFT,
+            "EPIC": LauncherPathName.EPIC,
+            "GOG": LauncherPathName.GOG,
+            "BATTLENET": LauncherPathName.BATTLENET,
+            "XBOX": LauncherPathName.XBOX,
+        })
+
+        # Apply consistent styling to all launcher buttons
+        button_style = """
+            QPushButton {
+                background-color: #4D4D4D;
+                color: white;
+                border: 1px solid #7F7F7F;
+                border-radius: 4px;
+                padding: 8px 16px;
+                text-align: left;
+                margin: 2px 0px;
+            }
+            QPushButton:hover {
+                background-color: #5A5A5A;
+                border-color: #999999;
+            }
+            QPushButton:pressed {
+                background-color: #444444;
+            }
+            QPushButton:disabled {
+                background-color: #3D3D3D;
+                color: #888888;
+            }
+        """
+        
+        for button in self.button_list:
+            button.setStyleSheet(button_style)
+
+    def call_threaded_update(self):
+        """Start the update process in a separate thread"""
+        self.start_update_button.setEnabled(False)
+        self.logger.info("Starting update process in thread...")
+
+        self.thread_manager.signals.finished.connect(self.handle_update_finished)
+        self.thread_manager.signals.result.connect(self.handle_update_result)
+        self.thread_manager.signals.error.connect(self.handle_update_error)
+
+        self.thread_manager.assign_function(update_dlss_versions)
+        self.thread_manager.run()
+
+    def handle_update_error(self, error):
+        """Handle errors from the update thread"""
+        exctype, value, tb = error
+        self.logger.error(f"Error: {exctype}")
+        self.logger.error(f"Value: {value}")
+        self.logger.error(f"Traceback: {tb}")
+        self.start_update_button.setEnabled(True)
+
+    def handle_update_result(self, result):
+        """Handle results from the update thread"""
+        try:
+            if result:
+                self.logger.info("Update process completed successfully")
+            else:
+                self.logger.error("Update process failed")
+        except Exception as e:
+            self.logger.error(f"Error handling update result: {e}")
+        finally:
+            self.start_update_button.setEnabled(True)
+
+    def handle_update_finished(self):
+        """Handle completion of the update thread"""
+        try:
+            self.logger.debug("Update thread finished")
+            self.start_update_button.setEnabled(True)
+            # Clean up worker reference
+            self._current_worker = None
+        except Exception as e:
+            self.logger.error(f"Error in update finished handler: {e}")
+
+    def closeEvent(self, event):
+        """Handle application close event"""
+        self.thread_pool.waitForDone()
+        super().closeEvent(event)
 
     def get_current_settings(self):
         steam_path = config_manager.check_path_value(LauncherPathName.STEAM)
@@ -163,8 +313,17 @@ class MainWindow(QMainWindow):
         epic_path = config_manager.check_path_value(LauncherPathName.EPIC)
         gog_path = config_manager.check_path_value(LauncherPathName.GOG)
         battlenet_path = config_manager.check_path_value(LauncherPathName.BATTLENET)
+        xbox_path = config_manager.check_path_value(LauncherPathName.XBOX)
 
-        self.path_list = [steam_path, ea_path, ubisoft_path, epic_path, gog_path, battlenet_path]
+        self.path_list = [
+            steam_path,
+            ea_path,
+            ubisoft_path,
+            epic_path,
+            gog_path,
+            battlenet_path,
+            xbox_path,
+        ]
 
         for i, button in enumerate(self.button_list):
             if self.path_list[i]:
@@ -174,9 +333,11 @@ class MainWindow(QMainWindow):
         """Open a dialog to select a directory."""
         directory = QFileDialog.getExistingDirectory(self, "Select Folder")
         if directory:
-            directory = directory.replace('/', '\\')
+            directory = directory.replace("/", "\\")
             self.sender().setText(directory)
-            config_manager.update_launcher_path(self.button_enum_dict.get(self.sender().objectName()), directory)
+            config_manager.update_launcher_path(
+                self.button_enum_dict.get(self.sender().objectName()), directory
+            )
 
     def apply_dark_theme(self):
         """Apply a dark theme using stylesheets."""
@@ -236,10 +397,10 @@ try:
         __version__,
         LATEST_DLL_PATHS,
         DLL_TYPE_MAP,
-        # protect_warframe_dll,
+        find_all_dlss_dlls,
+        auto_update,
+        resource_path,
     )
-    from dlss_updater.scanner import find_all_dlss_dlls
-    from dlss_updater.auto_updater import auto_update
 except ImportError as e:
     logger.error(f"Error importing dlss_updater modules: {e}")
     logger.error("Current sys.path:")
@@ -332,43 +493,18 @@ def extract_game_name(dll_path, launcher_name):
         return "Unknown Game"
 
 
-# async def verify_warframe_protection(dll_path):
-#     dll_path = Path(dll_path).resolve()
-#     backup_path = (dll_path.parent / "DLSS_Updater_Backup" / dll_path.name).resolve()
-
-#     if not os.path.exists(dll_path):
-#         logger.warning(f"Warframe DLL not found: {dll_path}")
-#         return False
-
-#     if not os.path.exists(backup_path):
-#         logger.warning(f"Backup DLL not found: {backup_path}")
-#         return False
-
-#     # Check if the DLL is read-only and system
-#     attributes = ctypes.windll.kernel32.GetFileAttributesW(str(dll_path))
-#     is_protected = (attributes & 1) != 0 and (attributes & 4) != 0
-
-#     if is_protected:
-#         logger.info(f"Warframe DLL protection verified: {dll_path}")
-#         return True
-#     else:
-#         logger.warning(f"Warframe DLL is not properly protected: {dll_path}")
-#         return False
-
-
-async def update_dlss_versions():
+def update_dlss_versions():
+  
     logger.info(f"DLSS Updater version {__version__}")
     logger.info("Starting DLL search...")
-
-    # observer = Observer()
-    # observer.start()
+        # Wrap each major operation in its own try-except block
     try:
         logger.info("Checking for updates...")
         if auto_update is None:
             logger.info("No updates were found.")
         else:
             try:
-                update_available = await asyncio.to_thread(auto_update)
+                update_available = auto_update()
                 if update_available:
                     logger.info(
                         "The application will now close for the update. If the update does NOT automatically restart, please manually reboot it from the /update/ folder."
@@ -382,127 +518,84 @@ async def update_dlss_versions():
 
         display_release_notes()
 
-        logger.info("Searching for DLSS DLLs...")
-        all_dll_paths = await find_all_dlss_dlls()
-        logger.info("DLL search completed.")
+        try:
+            all_dll_paths = find_all_dlss_dlls()
+            logger.info("DLL search completed.")
+        except Exception as e:
+            logger.error(f"Error finding DLLs: {e}")
+            return False
 
         updated_games = []
         skipped_games = []
         successful_backups = []
-        processed_dlls = set()  # Keep track of processed DLLs
+        processed_dlls = set()
 
         if any(all_dll_paths.values()):
             logger.info("\nFound DLLs in the following launchers:")
-            update_tasks = []
-            dll_paths_to_update = []
+            # Process each launcher
             for launcher, dll_paths in all_dll_paths.items():
                 if dll_paths:
                     logger.info(f"{launcher}:")
                     for dll_path in dll_paths:
-                        dll_path = (
-                            Path(dll_path) if isinstance(dll_path, str) else dll_path
-                        )
-                        if str(dll_path) not in processed_dlls:
-                            dll_type = DLL_TYPE_MAP.get(
-                                dll_path.name.lower(), "Unknown DLL type"
+                        try:
+                            dll_path = (
+                                Path(dll_path)
+                                if isinstance(dll_path, str)
+                                else dll_path
                             )
-                            logger.info(f" - {dll_type}: {dll_path}")
-
-                            game_name = extract_game_name(str(dll_path), launcher)
-                            if "warframe" in game_name.lower():
-                                continue
-                                # logger.info(
-                                #     f"Applying Warframe-specific protection to: {dll_path}"
-                                # )
-                                # protected = await protect_warframe_dll(str(dll_path))
-                                # if protected:
-                                #     logger.info(f"Warframe DLL protected: {dll_path}")
-                                #     verified = await verify_warframe_protection(
-                                #         str(dll_path)
-                                #     )
-                                #     if verified:
-                                #         logger.info(
-                                #             f"Warframe DLL protection verified: {dll_path}"
-                                #         )
-                                #     else:
-                                #         logger.warning(
-                                #             f"Warframe DLL protection could not be verified: {dll_path}"
-                                #         )
-                                # else:
-                                #     logger.warning(
-                                #         f"Failed to protect Warframe DLL: {dll_path}"
-                                #     )
-                            elif await is_whitelisted(str(dll_path)):
-                                skipped_games.append(
-                                    (dll_path, launcher, "Whitelisted", dll_type)
-                                )
-                            else:
-                                dll_name = dll_path.name.lower()
-                                if dll_name in LATEST_DLL_PATHS:
-                                    latest_dll_path = LATEST_DLL_PATHS[dll_name]
-                                    update_tasks.append(
-                                        update_dll(str(dll_path), latest_dll_path)
-                                    )
-                                    dll_paths_to_update.append(
-                                        (str(dll_path), launcher, dll_type)
-                                    )
-                                else:
-                                    skipped_games.append(
-                                        (
-                                            str(dll_path),
-                                            launcher,
-                                            "No update available",
-                                            dll_type,
+                            if str(dll_path) not in processed_dlls:
+                                # Use process_single_dll function
+                                result = process_single_dll(dll_path, launcher)
+                                if result:
+                                    success, backup_path, dll_type = result
+                                    if success:
+                                        logger.info(
+                                            f"Successfully processed: {dll_path}"
                                         )
-                                    )
-                            processed_dlls.add(str(dll_path))
+                                        updated_games.append(
+                                            (str(dll_path), launcher, dll_type)
+                                        )
+                                        if backup_path:
+                                            successful_backups.append(
+                                                (str(dll_path), backup_path)
+                                            )
+                                    else:
+                                        if (
+                                            backup_path
+                                        ):  # If we have a backup path but success is False, it was attempted
+                                            skipped_games.append(
+                                                (
+                                                    str(dll_path),
+                                                    launcher,
+                                                    "Update failed",
+                                                    dll_type,
+                                                )
+                                            )
+                                        else:  # If no backup path, it was skipped for other reasons
+                                            skipped_games.append(
+                                                (
+                                                    str(dll_path),
+                                                    launcher,
+                                                    "Skipped",
+                                                    dll_type,
+                                                )
+                                            )
+                                processed_dlls.add(str(dll_path))
+                        except Exception as e:
+                            logger.error(f"Error processing DLL {dll_path}: {e}")
+                            import traceback
 
-            if update_tasks:
-                logger.info("\nUpdating DLLs...")
-                update_results = await asyncio.gather(*update_tasks)
-                for (dll_path, launcher, dll_type), result in zip(
-                        dll_paths_to_update, update_results
-                ):
-                    if isinstance(result, tuple) and len(result) >= 2:
-                        update_success, backup_path = result[:2]
-                        if update_success:
-                            logger.info(
-                                f"Successfully updated {dll_type} at {dll_path}."
-                            )
-                            updated_games.append((dll_path, launcher, dll_type))
-                            if backup_path:
-                                successful_backups.append((dll_path, backup_path))
-                        else:
-                            logger.info(f"Failed to update {dll_type} at {dll_path}.")
-                            skipped_games.append(
-                                (dll_path, launcher, "Update failed", dll_type)
-                            )
-                    else:
-                        logger.error(
-                            f"Unexpected result format for {dll_path}: {result}"
-                        )
-                        skipped_games.append(
-                            (dll_path, launcher, "Unexpected result", dll_type)
-                        )
-                logger.info("DLL updates completed.")
-            elif skipped_games:
-                logger.info("All found DLLs were skipped.")
-            else:
-                logger.info("No DLLs were eligible for update.")
-        else:
-            logger.info("No DLLs found.")
+                            logger.error(traceback.format_exc())
+                            continue
 
-        # Display summary
-        logger.info("\nSummary:")
-        logger.info("")
-        if updated_games or skipped_games or successful_backups:
+            # Display summary after processing
             if updated_games:
-                logger.info("Games updated successfully:")
+                logger.info("\nGames updated successfully:")
                 for dll_path, launcher, dll_type in updated_games:
                     game_name = extract_game_name(dll_path, launcher)
                     logger.info(f" - {game_name} - {launcher} ({dll_type})")
             else:
-                logger.info("No games were updated.")
+                logger.info("\nNo games were updated.")
 
             if successful_backups:
                 logger.info("\nSuccessful backups:")
@@ -525,30 +618,88 @@ async def update_dlss_versions():
         else:
             logger.info("No DLLs were found or processed.")
 
-    # except KeyboardInterrupt:
-    #     observer.stop()
+        return True
+
     except Exception as e:
-        logger.error(f"An error occurred: {e}")
         import traceback
 
-        logger.error(traceback.format_exc())
+        trace = traceback.format_exc()
+        logger.error(f"Critical error in update process: {e}")
+        logger.error(f"Traceback:\n{trace}")
+        return False
 
-    finally:
-        # observer.join()
-        input("\nPress Enter to exit...")
-        logger.info("Application exiting.")
+
+def process_single_dll(dll_path, launcher):
+    """Process a single DLL file"""
+    try:
+        dll_type = DLL_TYPE_MAP.get(dll_path.name.lower(), "Unknown DLL type")
+        logger.info(f" - {dll_type}: {dll_path}")
+
+        game_name = extract_game_name(str(dll_path), launcher)
+        if "warframe" in game_name.lower():
+            return None
+
+        if is_whitelisted(str(dll_path)):
+            return False, None, dll_type
+
+        dll_name = dll_path.name.lower()
+        if dll_name in LATEST_DLL_PATHS:
+            latest_dll_path = LATEST_DLL_PATHS[dll_name]
+            return update_dll(str(dll_path), latest_dll_path)
+
+        return False, None, dll_type
+    except Exception as e:
+        logger.error(f"Error processing DLL {dll_path}: {e}")
+        return False, None, "Error"
+
+
+def display_update_summary(updated_games, skipped_games, successful_backups):
+    """Display a summary of the update process"""
+    logger.info("\nSummary:")
+    if not (updated_games or skipped_games or successful_backups):
+        logger.info("No DLLs were found or processed.")
+        return
+
+    if updated_games:
+        logger.info("\nGames updated successfully:")
+        for dll_path, launcher, dll_type in updated_games:
+            game_name = extract_game_name(dll_path, launcher)
+            logger.info(f" - {game_name} - {launcher} ({dll_type})")
+    else:
+        logger.info("\nNo games were updated.")
+
+    if successful_backups:
+        logger.info("\nSuccessful backups:")
+        for dll_path, backup_path in successful_backups:
+            game_name = extract_game_name(dll_path, "Unknown")
+            dll_type = DLL_TYPE_MAP.get(Path(dll_path).name.lower(), "Unknown DLL type")
+            logger.info(f" - {game_name}: {backup_path} ({dll_type})")
+    else:
+        logger.info("\nNo backups were created.")
+
+    if skipped_games:
+        logger.info("\nGames skipped:")
+        for dll_path, launcher, reason, dll_type in skipped_games:
+            game_name = extract_game_name(dll_path, launcher)
+            logger.info(f" - {game_name} - {launcher} ({dll_type}) (Reason: {reason})")
+
 
 def main():
-    if gui_mode:
-        log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
-        sys.stdout = sys.stderr = open(log_file, "w")
-    # Run the application with AsyncSlotRunner
-    with AsyncSlotRunner():
+    try:
+        if gui_mode:
+            log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
+            sys.stdout = sys.stderr = open(log_file, "w")
+        # Run the application with Qt GUI
         main_ui = QApplication(sys.argv)
         main_window = MainWindow()
         main_window.show()
         main_window.get_current_settings()
         sys.exit(main_ui.exec())
+    except Exception as e:
+        logger.error(f"Critical error starting application: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        sys.exit(1)
 
 
 if __name__ == "__main__":

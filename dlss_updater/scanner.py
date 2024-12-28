@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from .config import LauncherPathName, config_manager
 from .whitelist import is_whitelisted
-import asyncio
 from dlss_updater.logger import setup_logger
 import sys
 
@@ -53,13 +52,10 @@ def get_steam_libraries(steam_path):
                 logger.debug(f"Found Steam library: {library_path}")
                 libraries.append(library_path)
 
-    logger.debug(f"Found total Steam libraries: {len(libraries)}")
-    for lib in libraries:
-        logger.debug(f"Steam library path: {lib}")
     return libraries
 
 
-async def find_dlss_dlls(library_paths, launcher_name):
+def find_dlss_dlls(library_paths, launcher_name):
     dll_names = ["nvngx_dlss.dll", "nvngx_dlssg.dll", "nvngx_dlssd.dll"]
     dll_paths = []
     logger.debug(f"Searching for DLLs in {launcher_name}")
@@ -72,7 +68,7 @@ async def find_dlss_dlls(library_paths, launcher_name):
                     if dll_name.lower() in [f.lower() for f in files]:
                         dll_path = os.path.join(root, dll_name)
                         logger.debug(f"Found DLL: {dll_path}")
-                        if not await is_whitelisted(dll_path):
+                        if not is_whitelisted(dll_path):
                             logger.info(
                                 f"Found non-whitelisted DLSS DLL in {launcher_name}: {dll_path}"
                             )
@@ -81,20 +77,13 @@ async def find_dlss_dlls(library_paths, launcher_name):
                             logger.info(
                                 f"Skipped whitelisted game in {launcher_name}: {dll_path}"
                             )
-                await asyncio.sleep(0)
         except Exception as e:
             logger.error(f"Error scanning {library_path}: {e}")
 
-    logger.debug(f"Found {len(dll_paths)} DLLs in {launcher_name}")
     return dll_paths
 
 
-def get_user_input(prompt):
-    user_input = input(prompt).strip()
-    return None if user_input.lower() in ["n/a", ""] else user_input
-
-
-async def get_ea_games():
+def get_ea_games():
     ea_path = config_manager.check_path_value(LauncherPathName.EA)
     if not ea_path or ea_path == "":
         return []
@@ -118,14 +107,20 @@ def get_ubisoft_install_path():
         return None
 
 
-async def get_ubisoft_games(ubisoft_path):
+def get_ubisoft_games(ubisoft_path):
     ubisoft_games_path = Path(ubisoft_path) / "games"
     if not ubisoft_games_path.exists():
         return []
     return [ubisoft_games_path]
 
+def get_xbox_games():
+    xbox_path = config_manager.check_path_value(LauncherPathName.XBOX)
+    if not xbox_path or xbox_path == "":
+        return []
+    xbox_games_path = Path(xbox_path)
+    return [xbox_games_path] if xbox_games_path.exists() else []
 
-async def get_epic_games():
+def get_epic_games():
     epic_path = config_manager.check_path_value(LauncherPathName.EPIC)
     if not epic_path or epic_path == "":
         return []
@@ -133,7 +128,7 @@ async def get_epic_games():
     return [epic_games_path] if epic_games_path.exists() else []
 
 
-async def get_gog_games():
+def get_gog_games():
     gog_path = config_manager.check_path_value(LauncherPathName.GOG)
     if not gog_path or gog_path == "":
         return []
@@ -141,7 +136,7 @@ async def get_gog_games():
     return [gog_games_path] if gog_games_path.exists() else []
 
 
-async def get_battlenet_games():
+def get_battlenet_games():
     battlenet_path = config_manager.check_path_value(LauncherPathName.BATTLENET)
     if not battlenet_path or battlenet_path == "":
         return []
@@ -149,7 +144,7 @@ async def get_battlenet_games():
     return [battlenet_games_path] if battlenet_games_path.exists() else []
 
 
-async def find_all_dlss_dlls():
+def find_all_dlss_dlls():
     logger.info("Starting find_all_dlss_dlls function")
     all_dll_paths = {
         "Steam": [],
@@ -158,38 +153,49 @@ async def find_all_dlss_dlls():
         "Epic Games Launcher": [],
         "GOG Launcher": [],
         "Battle.net Launcher": [],
+        "Xbox Launcher": [],
     }
 
+    # Steam
     steam_path = get_steam_install_path()
     if steam_path:
         steam_libraries = get_steam_libraries(steam_path)
-        all_dll_paths["Steam"] = await find_dlss_dlls(steam_libraries, "Steam")
+        all_dll_paths["Steam"] = find_dlss_dlls(steam_libraries, "Steam")
 
-    ea_games = await get_ea_games()
+    # EA
+    ea_games = get_ea_games()
     if ea_games:
-        ea_dlls = await find_dlss_dlls(ea_games, "EA Launcher")
-        all_dll_paths["EA Launcher"].extend(ea_dlls)
+        all_dll_paths["EA Launcher"] = find_dlss_dlls(ea_games, "EA Launcher")
 
+    # Ubisoft
     ubisoft_path = get_ubisoft_install_path()
     if ubisoft_path:
-        ubisoft_games = await get_ubisoft_games(ubisoft_path)
-        all_dll_paths["Ubisoft Launcher"] = await find_dlss_dlls(
+        ubisoft_games = get_ubisoft_games(ubisoft_path)
+        all_dll_paths["Ubisoft Launcher"] = find_dlss_dlls(
             ubisoft_games, "Ubisoft Launcher"
         )
 
-    epic_games = await get_epic_games()
+    # Epic Games
+    epic_games = get_epic_games()
     if epic_games:
-        all_dll_paths["Epic Games Launcher"] = await find_dlss_dlls(
+        all_dll_paths["Epic Games Launcher"] = find_dlss_dlls(
             epic_games, "Epic Games Launcher"
         )
 
-    gog_games = await get_gog_games()
-    if gog_games:
-        all_dll_paths["GOG Launcher"] = await find_dlss_dlls(gog_games, "GOG Launcher")
+    # Xbox
+    xbox_games = get_xbox_games()
+    if xbox_games:
+        all_dll_paths["Xbox Launcher"] = find_dlss_dlls(xbox_games, "Xbox Launcher")
 
-    battlenet_games = await get_battlenet_games()
+    # GOG
+    gog_games = get_gog_games()
+    if gog_games:
+        all_dll_paths["GOG Launcher"] = find_dlss_dlls(gog_games, "GOG Launcher")
+
+    # Battle.net
+    battlenet_games = get_battlenet_games()
     if battlenet_games:
-        all_dll_paths["Battle.net Launcher"] = await find_dlss_dlls(
+        all_dll_paths["Battle.net Launcher"] = find_dlss_dlls(
             battlenet_games, "Battle.net Launcher"
         )
 

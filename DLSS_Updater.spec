@@ -19,11 +19,14 @@ a = Analysis(
         ('latest_dll/nvngx_dlssg.dll', 'latest_dll'),
         ('latest_dll/nvngx_dlssd.dll', 'latest_dll'),  
         ('dlss_updater', 'dlss_updater'),
-        ('release_notes.txt', '.')
+        ('release_notes.txt', '.'),
+        ('dlss_updater/icons/*.png', 'icons/'),
+        ('dlss_updater/icons/*.jpg', 'icons/'),
+        ('dlss_updater/icons/*.svg', 'icons/'),
     ],
     hiddenimports=[
-        'pefile', 'psutil', 'importlib.metadata', 'packaging', 'importlib_metadata',
-        'asyncio', 'concurrent.futures', 'pywin32'
+        'pefile', 'psutil', 'importlib.metadata', 'packaging',
+        'concurrent.futures', 'pywin32', 'PyQt6'
     ] + dlss_updater_imports,
     hookspath=['./hooks'],
     hooksconfig={},
@@ -33,7 +36,7 @@ a = Analysis(
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
-    optimize=1
+    optimize=2
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
@@ -50,7 +53,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=True,
-    optimize=1
+    optimize=2
 )
 
 coll = COLLECT(

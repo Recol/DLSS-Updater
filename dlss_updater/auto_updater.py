@@ -16,33 +16,11 @@ logger = setup_logger()
 GITHUB_API_URL = "https://api.github.com/repos/Recol/DLSS-Updater/releases/latest"
 
 
-def auto_update():
-    logger.info("Checking for updates...")
-    latest_version, download_url = check_for_updates()
-
-    if latest_version:
-        logger.info("New version available: %s", latest_version)
-        user_input = input(
-            "Do you want to download and install the update? (y/n): "
-        ).lower()
-
-        if user_input == "y":
-            logger.info("Downloading update...")
-            new_exe_path = download_update(download_url)
-            if new_exe_path:
-                logger.info("Update downloaded successfully.")
-                logger.info(
-                    "The application will now close and update. It will restart automatically."
-                )
-                perform_update(new_exe_path)
-                return True
-    else:
-        logger.info("No updates available. You have the latest version.")
-
-    return False
-
-
 def check_for_updates():
+    """
+    Check for available updates by comparing versions.
+    Returns (latest_version, download_url) tuple or (None, None) if no update available.
+    """
     try:
         with request.urlopen(GITHUB_API_URL) as response:
             latest_release = json.loads(response.read().decode())
@@ -58,18 +36,25 @@ def check_for_updates():
 
 
 def download_update(download_url):
+    """
+    Download and extract the update package.
+    Returns path to new executable or None if download/extraction fails.
+    """
     try:
         update_dir = os.path.join(os.path.dirname(sys.executable), "update")
         os.makedirs(update_dir, exist_ok=True)
         update_zip = os.path.join(update_dir, "update.zip")
+
+        logger.info("Downloading update package...")
         request.urlretrieve(download_url, update_zip)
 
+        logger.info("Extracting update package...")
         with zipfile.ZipFile(update_zip, "r") as zip_ref:
             zip_ref.extractall(update_dir)
 
         os.remove(update_zip)
 
-        # Look for the new executable in the update directory
+        # Look for the new executable
         new_exe = None
         for root, dirs, files in os.walk(update_dir):
             for file in files:
@@ -93,6 +78,9 @@ def download_update(download_url):
 
 
 def update_script(current_exe, new_exe):
+    """
+    Perform the actual update by replacing the old executable with the new one.
+    """
     # Wait for the original process to exit
     time.sleep(2)
 
@@ -107,21 +95,28 @@ def update_script(current_exe, new_exe):
 
         # Start the updated executable
         subprocess.Popen([current_exe], creationflags=subprocess.CREATE_NEW_CONSOLE)
-        
+
         # Log the update completion
-        with open(os.path.join(os.path.dirname(current_exe), "update_log.txt"), "w") as f:
+        with open(
+            os.path.join(os.path.dirname(current_exe), "update_log.txt"), "w"
+        ) as f:
             f.write(f"Update completed at {time.ctime()}. New executable started.")
-        
+
     except Exception as e:
         # Log the error
-        with open(os.path.join(os.path.dirname(current_exe), "update_error_log.txt"), "w") as f:
+        with open(
+            os.path.join(os.path.dirname(current_exe), "update_error_log.txt"), "w"
+        ) as f:
             f.write(f"Error during update process at {time.ctime()}: {str(e)}")
 
 
 def perform_update(new_exe_path):
+    """
+    Start the update process in a new process and exit the current one.
+    """
     current_exe = sys.executable
 
-    # Start the update process
+    # Start the update process in a separate process
     subprocess.Popen(
         [sys.executable, __file__, "update", current_exe, new_exe_path],
         creationflags=subprocess.CREATE_NO_WINDOW,
@@ -129,6 +124,32 @@ def perform_update(new_exe_path):
 
     # Exit the current process
     sys.exit(0)
+
+
+def auto_update():
+    """
+    Main update function that orchestrates the update process.
+    Returns True if an update was downloaded and ready to install,
+    False otherwise.
+    """
+    logger.info("Checking for updates...")
+    latest_version, download_url = check_for_updates()
+
+    if latest_version:
+        logger.info(f"New version available: {latest_version}")
+        new_exe_path = download_update(download_url)
+
+        if new_exe_path:
+            logger.info("Update downloaded successfully.")
+            logger.info(
+                "The application will now close and update. It will restart automatically."
+            )
+            perform_update(new_exe_path)
+            return True
+    else:
+        logger.info("No updates available. You have the latest version.")
+
+    return False
 
 
 if __name__ == "__main__":

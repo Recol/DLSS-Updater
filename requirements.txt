@@ -4,5 +4,4 @@ packaging
 pywin32
 appdirs
 PyQt6
-asyncslot
 pyinstaller

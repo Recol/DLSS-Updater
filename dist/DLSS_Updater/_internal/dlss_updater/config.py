@@ -46,6 +46,7 @@ class LauncherPathName(StrEnum):
     GOG = "GOGPath"
     UBISOFT = "UbisoftPath"
     BATTLENET = "BattleDotNetPath"
+    XBOX = "XboxPath"
 
 
 class ConfigManager(configparser.ConfigParser):
@@ -62,19 +63,28 @@ class ConfigManager(configparser.ConfigParser):
             self.logger = setup_logger()
             self.config_path = get_config_path()
             self.read(self.config_path)
+            
+            # Create or update section
             if not self.has_section("LauncherPaths"):
                 self.add_section("LauncherPaths")
-                self["LauncherPaths"].update(
-                    {
-                        LauncherPathName.STEAM: "",
-                        LauncherPathName.EA: "",
-                        LauncherPathName.EPIC: "",
-                        LauncherPathName.GOG: "",
-                        LauncherPathName.UBISOFT: "",
-                        LauncherPathName.BATTLENET: "",
-                    }
-                )
-                self.save()
+            
+            # Default values for all paths
+            default_paths = {
+                LauncherPathName.STEAM: "",
+                LauncherPathName.EA: "",
+                LauncherPathName.EPIC: "",
+                LauncherPathName.GOG: "",
+                LauncherPathName.UBISOFT: "",
+                LauncherPathName.BATTLENET: "",
+                LauncherPathName.XBOX: "",
+            }
+            
+            # Update with any missing paths
+            for path_name, default_value in default_paths.items():
+                if path_name not in self["LauncherPaths"]:
+                    self["LauncherPaths"][path_name] = default_value
+            
+            self.save()
             self.initialized = True
 
     def update_launcher_path(

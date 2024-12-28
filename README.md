@@ -14,6 +14,7 @@ What if you could update all the DLSS DLLs for the games detected on your system
   - Steam
   - Ubisoft
   - EA Play
+  - Xbox Game Pass (PC)
   - Epic Games Launcher
   - GOG Galaxy
   - Battle.net (Note for Battle.net: Please ensure that the launcher is **open** before updating this launcher (this does not apply if you are entering a custom folder))
