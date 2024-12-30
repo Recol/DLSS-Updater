@@ -106,11 +106,13 @@ class MainWindow(QMainWindow):
         browse_buttons_container_widget.setLayout(browse_buttons_layout)
 
         # Create QTextBrowser widget
-        self.text_browser = QTextBrowser(self)
+        self.logger_window = QTextBrowser(self)
 
-        # Set up layout
+        # Set up splitter layout
         logger_splitter.addWidget(browse_buttons_container_widget)
-        logger_splitter.addWidget(self.text_browser)
+        logger_splitter.addWidget(self.logger_window)
+        # We want the logger_window to be collapsed by default
+        logger_splitter.setSizes([1, 0])
 
         # Add new layouts to main layout
         main_layout.addLayout(header_layout)
@@ -121,7 +123,7 @@ class MainWindow(QMainWindow):
 
         # Set up logging
         self.logger = logger
-        add_qt_handler(self.logger, self.text_browser)
+        add_qt_handler(self.logger, self.logger_window)
 
         # Connect the update button to the threaded update function
         self.start_update_button.clicked.connect(self.call_threaded_update)
