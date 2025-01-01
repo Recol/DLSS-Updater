@@ -5,10 +5,9 @@ from PyQt6.QtCore import Qt, QUrl, QSize
 from PyQt6.QtGui import QDesktopServices, QIcon
 from dlss_updater.lib.threading_lib import ThreadManager
 from dlss_updater.config import config_manager, LauncherPathName
-from dlss_updater.logger import add_qt_handler
+from dlss_updater.logger import add_qt_handler, LoggerWindow
 from PyQt6.QtWidgets import (
     QMainWindow,
-    QTextBrowser,
     QWidget,
     QVBoxLayout,
     QSplitter,
@@ -89,7 +88,7 @@ class MainWindow(QMainWindow):
         )
 
         # Original logger splitter setup
-        logger_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.logger_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.can_continue = False
         self.button_list = []
         self.path_list = []
@@ -106,29 +105,39 @@ class MainWindow(QMainWindow):
         browse_buttons_container_widget.setLayout(browse_buttons_layout)
 
         # Create QTextBrowser widget
-        self.logger_window = QTextBrowser(self)
+        self.logger_window = LoggerWindow(self)
 
         # Set up splitter layout
-        logger_splitter.addWidget(browse_buttons_container_widget)
-        logger_splitter.addWidget(self.logger_window)
+        self.logger_splitter.addWidget(browse_buttons_container_widget)
+        self.logger_splitter.addWidget(self.logger_window)
         # We want the logger_window to be collapsed by default
-        logger_splitter.setSizes([1, 0])
+        self.logger_splitter.setSizes([1, 0])
 
         # Add new layouts to main layout
         main_layout.addLayout(header_layout)
         main_layout.addWidget(info_label)
-        main_layout.addWidget(logger_splitter)
+        main_layout.addWidget(self.logger_splitter)
         main_container.setLayout(main_layout)
         self.setCentralWidget(main_container)
 
         # Set up logging
         self.logger = logger
         add_qt_handler(self.logger, self.logger_window)
+        self.logger_window.signals.error.connect(lambda: self.logger_splitter.setSizes([0, 1]))
 
         # Connect the update button to the threaded update function
         self.start_update_button.clicked.connect(self.call_threaded_update)
 
-    def create_styled_button(self, text, icon_path, tooltip=""):
+        self.apply_dark_theme()
+
+    def create_styled_button(self, text: str, icon_path: str, tooltip: str = "") -> QPushButton:
+        """
+        Creates styled buttons with the specific icon and tooltip.
+        @param text: Text to be displayed.
+        @param icon_path: Path to the icon.
+        @param tooltip: Tooltip on hover. Optional.
+        @return: QPushButton Created button.
+        """
         button = QPushButton(f"  {text}", self)
 
         # Load and process icon
@@ -149,8 +158,9 @@ class MainWindow(QMainWindow):
         return button
 
     def setup_launcher_buttons(self):
-
-
+        """
+        Setups the launcher buttons.
+        """
         # We hold the enum values for each storefront
         self.steam_text_browser = self.create_styled_button(
             "Steam Games", "steam.jpg", "Select Steam game locations"
@@ -210,10 +220,8 @@ class MainWindow(QMainWindow):
             "XBOX": LauncherPathName.XBOX,
         })
 
-        self.apply_dark_theme()
-
     def call_threaded_update(self):
-        """Start the update process in a separate thread"""
+        """Start the update process in a separate thread."""
         self.start_update_button.setEnabled(False)
         self.logger.info("Starting update process in thread...")
 
@@ -225,7 +233,10 @@ class MainWindow(QMainWindow):
         self.thread_manager.run()
 
     def handle_update_error(self, error):
-        """Handle errors from the update thread"""
+        """
+        Handle errors from the update thread.
+        @param error: The error from the update thread.
+        """
         exctype, value, tb = error
         self.logger.error(f"Error: {exctype}")
         self.logger.error(f"Value: {value}")
@@ -233,7 +244,10 @@ class MainWindow(QMainWindow):
         self.start_update_button.setEnabled(True)
 
     def handle_update_result(self, result):
-        """Handle results from the update thread"""
+        """
+        Handle results from the update thread.
+        @param result: The result from the update thread.
+        """
         try:
             if result:
                 self.logger.info("Update process completed successfully")
@@ -245,7 +259,7 @@ class MainWindow(QMainWindow):
             self.start_update_button.setEnabled(True)
 
     def handle_update_finished(self):
-        """Handle completion of the update thread"""
+        """Handle completion of the update thread."""
         try:
             self.logger.debug("Update thread finished")
             self.start_update_button.setEnabled(True)
@@ -255,11 +269,15 @@ class MainWindow(QMainWindow):
             self.logger.error(f"Error in update finished handler: {e}")
 
     def closeEvent(self, event):
-        """Handle application close event"""
+        """
+        Handle application close event.
+        @param event: The close event
+        """
         self.thread_manager.waitForDone()
         super().closeEvent(event)
 
     def get_current_settings(self):
+        """Get the current settings from the settings file."""
         steam_path = config_manager.check_path_value(LauncherPathName.STEAM)
         ea_path = config_manager.check_path_value(LauncherPathName.EA)
         ubisoft_path = config_manager.check_path_value(LauncherPathName.UBISOFT)
