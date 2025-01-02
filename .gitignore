@@ -3,3 +3,4 @@
 *venv
 *build
 \.idea
+*.log
