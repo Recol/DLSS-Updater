@@ -27,6 +27,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("DLSS-Updater")
         self.setGeometry(100, 100, 600, 350)
         self.logger_expanded = False
+        self.original_width = None
 
         # Main container
         main_container = QWidget()
@@ -70,11 +71,17 @@ class MainWindow(QMainWindow):
         )
         contact_button.setMenu(contact_menu)
 
+        # TODO: The splitter for the logger needs to be moved to the top level of the app, so button displacement issues
+        #  gets removed from the experience, as its stands in current implementation, the buttons get moved around.
+        logger_toggle_button = QPushButton("Toggle Logger")
+        logger_toggle_button.clicked.connect(self.toggle_logger_window)
+
         header_layout.addWidget(welcome_label)
         header_layout.addStretch()
         header_layout.addWidget(donate_button)
         header_layout.addWidget(report_bug_button)
         header_layout.addWidget(contact_button)
+        header_layout.addWidget(logger_toggle_button)
         version_label = QLabel(f"v{__version__}")
         version_label.setStyleSheet("color: white; font-size: 12px;")
         header_layout.addWidget(version_label)
@@ -132,13 +139,25 @@ class MainWindow(QMainWindow):
         self.apply_dark_theme()
 
     def expand_logger_window(self):
-        """Increase app window size and expands the logger window."""
+        """Increase app window size and expands the logger window. Used only for errors."""
         if self.logger_expanded:
             return
+        self.original_width = self.width()
         self.setFixedWidth(int(self.width() * 1.4))
         self.logger_splitter.setSizes([int(self.width()), int(self.width())])
         self.logger_expanded = True
 
+    def toggle_logger_window(self):
+        """Increase app window size and expands the logger window."""
+        if self.logger_expanded:
+            self.logger_splitter.setSizes([1, 0])
+            self.setFixedWidth(self.original_width)
+            self.logger_expanded = False
+            return
+        self.original_width = self.width()
+        self.setFixedWidth(int(self.width() * 1.4))
+        self.logger_splitter.setSizes([int(self.width()), int(self.width())])
+        self.logger_expanded = True
 
     def create_styled_button(self, text: str, icon_path: str, tooltip: str = "") -> QPushButton:
         """
