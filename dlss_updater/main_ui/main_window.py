@@ -26,6 +26,7 @@ class MainWindow(QMainWindow):
         self.button_enum_dict = {}
         self.setWindowTitle("DLSS-Updater")
         self.setGeometry(100, 100, 600, 350)
+        self.logger_expanded = False
 
         # Main container
         main_container = QWidget()
@@ -123,12 +124,21 @@ class MainWindow(QMainWindow):
         # Set up logging
         self.logger = logger
         add_qt_handler(self.logger, self.logger_window)
-        self.logger_window.signals.error.connect(lambda: self.logger_splitter.setSizes([0, 1]))
+        self.logger_window.signals.error.connect(self.expand_logger_window)
 
         # Connect the update button to the threaded update function
         self.start_update_button.clicked.connect(self.call_threaded_update)
 
         self.apply_dark_theme()
+
+    def expand_logger_window(self):
+        """Increase app window size and expands the logger window."""
+        if self.logger_expanded:
+            return
+        self.setFixedWidth(int(self.width() * 1.4))
+        self.logger_splitter.setSizes([int(self.width()), int(self.width())])
+        self.logger_expanded = True
+
 
     def create_styled_button(self, text: str, icon_path: str, tooltip: str = "") -> QPushButton:
         """
