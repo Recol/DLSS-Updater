@@ -8,6 +8,7 @@ from dlss_updater.logger import setup_logger
 logger = setup_logger()
 
 
+
 try:
     from dlss_updater import (
         update_dll,
@@ -94,17 +95,6 @@ def is_admin():
         return False
 
 
-def display_release_notes():
-    release_notes_file = Path(__file__).parent / "release_notes.txt"
-    logger.info(f"Looking for release notes at: {release_notes_file}")
-    if release_notes_file.exists():
-        with open(release_notes_file, "r") as file:
-            logger.info("\nRelease Notes:")
-            logger.info(file.read())
-    else:
-        logger.info("\nRelease Notes file not found.")
-
-
 def extract_game_name(dll_path, launcher_name):
     parts = Path(dll_path).parts
     try:
@@ -151,8 +141,6 @@ def update_dlss_versions():
                 import traceback
 
                 traceback.logger.info_exc()
-
-        display_release_notes()
 
         try:
             all_dll_paths = find_all_dlss_dlls()

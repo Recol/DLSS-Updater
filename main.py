@@ -2,37 +2,11 @@ from dlss_updater.utils import *
 from dlss_updater.logger import setup_logger
 from dlss_updater.main_ui.main_window import MainWindow
 from PyQt6.QtWidgets import QApplication
-
+import os
+import sys
 
 logger = setup_logger()
 
-
-try:
-    from dlss_updater import (
-        update_dll,
-        is_whitelisted,
-        __version__,
-        LATEST_DLL_PATHS,
-        DLL_TYPE_MAP,
-        find_all_dlss_dlls,
-        auto_update,
-        resource_path,
-    )
-except ImportError as e:
-    logger.error(f"Error importing dlss_updater modules: {e}")
-    logger.error("Current sys.path:")
-    for path in sys.path:
-        logger.error(path)
-    logger.error("\nCurrent directory contents:")
-    for item in os.listdir():
-        logger.error(item)
-    logger.error("\ndlss_updater directory contents:")
-    try:
-        for item in os.listdir("dlss_updater"):
-            logger.error(item)
-    except FileNotFoundError:
-        logger.error("dlss_updater directory not found")
-    sys.exit(1)
 
 # Add the directory containing the executable to sys.path
 if getattr(sys, "frozen", False):
