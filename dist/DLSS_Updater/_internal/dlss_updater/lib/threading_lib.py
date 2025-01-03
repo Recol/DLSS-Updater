@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QThreadPool, QRunnable, QObject, pyqtSignal
+from PyQt6.QtCore import QThreadPool, QObject, pyqtSignal
 
 
 class WorkerSignals(QObject):

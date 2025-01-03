@@ -21,8 +21,6 @@ a = Analysis(
         ('dlss_updater', 'dlss_updater'),
         ('release_notes.txt', '.'),
         ('dlss_updater/icons/*.png', 'icons/'),
-        ('dlss_updater/icons/*.jpg', 'icons/'),
-        ('dlss_updater/icons/*.svg', 'icons/'),
     ],
     hiddenimports=[
         'pefile', 'psutil', 'importlib.metadata', 'packaging',

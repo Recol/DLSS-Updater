@@ -64,39 +64,73 @@ class ConfigManager(configparser.ConfigParser):
             self.config_path = get_config_path()
             self.read(self.config_path)
             
-            # Create or update section
-            if not self.has_section("LauncherPaths"):
-                self.add_section("LauncherPaths")
-            
-            # Default values for all paths
-            default_paths = {
-                LauncherPathName.STEAM: "",
-                LauncherPathName.EA: "",
-                LauncherPathName.EPIC: "",
-                LauncherPathName.GOG: "",
-                LauncherPathName.UBISOFT: "",
-                LauncherPathName.BATTLENET: "",
-                LauncherPathName.XBOX: "",
+            # Initialize sections
+            sections = {
+                "LauncherPaths": {
+                    LauncherPathName.STEAM: "",
+                    LauncherPathName.EA: "",
+                    LauncherPathName.EPIC: "",
+                    LauncherPathName.GOG: "",
+                    LauncherPathName.UBISOFT: "",
+                    LauncherPathName.BATTLENET: "",
+                    LauncherPathName.XBOX: "",
+                },
+                "Settings": {
+                    "CheckForUpdatesOnStart": "True",
+                    "AutoBackup": "True",
+                    "MinimizeToTray": "False",
+                },
+                "Updates": {
+                    "LastUpdateCheck": "",
+                    "CurrentDLSSVersion": LATEST_DLL_VERSIONS["nvngx_dlss.dll"],
+                }
             }
             
-            # Update with any missing paths
-            for path_name, default_value in default_paths.items():
-                if path_name not in self["LauncherPaths"]:
-                    self["LauncherPaths"][path_name] = default_value
+            for section, values in sections.items():
+                if not self.has_section(section):
+                    self.add_section(section)
+                for key, value in values.items():
+                    if key not in self[section]:
+                        self[section][key] = value
             
             self.save()
             self.initialized = True
 
-    def update_launcher_path(
-        self, path_to_update: LauncherPathName, new_launcher_path: str
-    ):
+    def update_launcher_path(self, path_to_update: LauncherPathName, new_launcher_path: str):
+        """Update launcher path in config"""
         self.logger.debug(f"Attempting to update path for {path_to_update}.")
         self["LauncherPaths"][path_to_update] = new_launcher_path
         self.save()
         self.logger.debug(f"Updated path for {path_to_update}.")
 
     def check_path_value(self, path_to_check: LauncherPathName) -> str:
+        """Get launcher path from config"""
         return self["LauncherPaths"].get(path_to_check, "")
+
+    def reset_launcher_path(self, path_to_reset: LauncherPathName):
+        """Reset launcher path to default empty value"""
+        self.logger.debug(f"Resetting path for {path_to_reset}")
+        self["LauncherPaths"][path_to_reset] = ""
+        self.save()
+
+    def get_setting(self, setting_name: str, default_value: str = "") -> str:
+        """Get setting value with fallback"""
+        return self["Settings"].get(setting_name, default_value)
+
+    def update_setting(self, setting_name: str, value: str):
+        """Update setting value"""
+        self["Settings"][setting_name] = value
+        self.save()
+
+    def update_last_check_time(self, timestamp: str):
+        """Update last update check timestamp"""
+        self["Updates"]["LastUpdateCheck"] = timestamp
+        self.save()
+
+    def update_current_dlss_version(self, version: str):
+        """Update current DLSS version"""
+        self["Updates"]["CurrentDLSSVersion"] = version
+        self.save()
 
     def save(self):
         """Save configuration to disk"""

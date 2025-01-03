@@ -1,11 +1,3 @@
-Version 2.5.1:
-Updates to the DLSS Frame Generation DLL to version 3.8.1.0.
-Minor logic changes to the Steam library detection to fix race conditions.
-
-Version 2.5.2:
-Updates to the Ray Reconstruction DLL to version 3.7.20.
-Fixes to a rare condition where if a backup failed to create updating DLL's would fail.
-
 Version 2.6.0:
 Addition of iconography to the GUI.
 Migration to a new thread managing model to improve processing times.
@@ -15,3 +7,11 @@ Remork to the whitelist logic to prevent spamming of the console with what games
 
 Version 2.6.1:
 Hotfix to fix folders being unclickable.
+
+Version 2.6.2:
+Addition of a toggle logger button to the GUI.
+Coloured filtering for log events is now included.
+Cleanup of the launcher icons to be more presentable.
+Breakup of individual code components.
+Inclusion of a "Reset path" toggle for launchers.
+Inclusion of being able to view (these) release notes from inside the GUI.

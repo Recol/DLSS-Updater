@@ -1,18 +1,46 @@
 import logging
 import sys
 from pathlib import Path
+from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtWidgets import QTextBrowser
+
+class QLoggerLevelSignal(QObject):
+    """Signals for the Logger QTextBrowser derived class."""
+    debug = pyqtSignal()
+    info = pyqtSignal()
+    warning = pyqtSignal()
+    error = pyqtSignal()
+
+
+class LoggerWindow(QTextBrowser):
+    """A QTextBrowser subclass that have signals and a dict for ease of access to said signals."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.signals = QLoggerLevelSignal()
+        self.signals_to_emit = {
+            "DEBUG": self.signals.debug,
+            "INFO": self.signals.info,
+            "WARNING": self.signals.warning,
+            "ERROR": self.signals.error,
+        }
 
 
 class QLogger(logging.Handler):
     """Logger handler for the Qt GUI"""
-
     def __init__(self, text_browser):
         super().__init__()
         self.text_browser = text_browser
+        self.colors_dict = {"DEBUG": "white", "INFO": "green", "WARNING": "yellow", "ERROR": "red"}
 
     def emit(self, record):
+        """
+        Logs the record to the text browser object.
+        @param record: LogRecord object to log.
+        """
         msg = self.format(record)
-        self.text_browser.append(msg)
+        color = self.colors_dict[record.levelname]
+        self.text_browser.signals_to_emit[record.levelname].emit()
+        self.text_browser.append(f'<font color="{color}">{msg}</font>')
 
 
 def setup_logger(log_file_name="dlss_updater.log"):
@@ -53,7 +81,11 @@ def setup_logger(log_file_name="dlss_updater.log"):
 
 
 def add_qt_handler(logger_to_extend, text_browser):
-    """Add a QTextBrowser handler to an existing logger instance."""
+    """
+    Add a QTextBrowser handler to an existing logger instance.
+    @param: logger_to_extend: logger instance to be extended.
+    @param: text_browser: QTextBrowser instance to be added as a logger.
+    """
     text_browser_handler = QLogger(text_browser)
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     text_browser_handler.setFormatter(formatter)
