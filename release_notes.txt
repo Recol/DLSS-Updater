@@ -15,3 +15,5 @@ Cleanup of the launcher icons to be more presentable.
 Breakup of individual code components.
 Inclusion of a "Reset path" toggle for launchers.
 Inclusion of being able to view (these) release notes from inside the GUI.
+Fixes to thread management shenanigans.
+Bug fix to allow multiple reruns.

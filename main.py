@@ -29,7 +29,7 @@ def main():
         logger.error(f"Critical error starting application: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        sys.exit(1)
+        input("Press Enter to exit...")  # Wait for user input before exiting
 
 
 if __name__ == "__main__":

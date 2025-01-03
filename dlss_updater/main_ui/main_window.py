@@ -6,7 +6,7 @@ from PyQt6.QtGui import QDesktopServices, QIcon
 from dlss_updater.lib.threading_lib import ThreadManager
 from pathlib import Path
 from dlss_updater.config import config_manager, LauncherPathName
-from dlss_updater.logger import add_qt_handler, LoggerWindow
+from dlss_updater.logger import add_qt_handler, LoggerWindow, setup_logger
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -128,7 +128,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(main_container)
 
         # Set up logging
-        self.logger = logger
+        self.logger = logger or setup_logger()
         add_qt_handler(self.logger, self.logger_window)
         self.logger_window.signals.error.connect(self.expand_logger_window)
 
@@ -176,15 +176,23 @@ class MainWindow(QMainWindow):
 
     def toggle_logger_window(self):
         """Increase app window size and expands the logger window."""
-        if self.logger_expanded:
-            self.logger_splitter.setSizes([1, 0])
-            self.setFixedWidth(self.original_width)
-            self.logger_expanded = False
-            return
-        self.original_width = self.width()
-        self.setFixedWidth(int(self.width() * 1.4))
-        self.logger_splitter.setSizes([int(self.width()), int(self.width())])
-        self.logger_expanded = True
+        try:
+            if self.logger_expanded:
+                self.logger_splitter.setSizes([1, 0])
+                self.setFixedWidth(self.original_width)
+                self.logger_expanded = False
+                return
+
+            # Store original width before expanding
+            self.original_width = self.width()
+
+            # Expand window
+            self.setFixedWidth(int(self.width() * 1.4))
+            self.logger_splitter.setSizes([int(self.width()), int(self.width())])
+            self.logger_expanded = True
+
+        except Exception as e:
+            self.logger.error(f"Error toggling logger window: {e}")
 
     def create_styled_button(
         self, text: str, icon_path: str, tooltip: str = ""
@@ -321,15 +329,40 @@ class MainWindow(QMainWindow):
 
     def call_threaded_update(self):
         """Start the update process in a separate thread."""
-        self.start_update_button.setEnabled(False)
-        self.logger.info("Starting update process in thread...")
+        try:
+            # Disable the button immediately to prevent multiple clicks
+            self.start_update_button.setEnabled(False)
+            self.logger.info("Starting update process in thread...")
 
-        self.thread_manager.signals.finished.connect(self.handle_update_finished)
-        self.thread_manager.signals.result.connect(self.handle_update_result)
-        self.thread_manager.signals.error.connect(self.handle_update_error)
+            # Clear any previous signal connections
+            if self.thread_manager.signals:
+                try:
+                    # Disconnect previous connections if they exist
+                    self.thread_manager.signals.finished.disconnect()
+                    self.thread_manager.signals.result.disconnect()
+                    self.thread_manager.signals.error.disconnect()
+                except TypeError:
+                    # Ignore errors if signals were not connected
+                    pass
 
-        self.thread_manager.assign_function(update_dlss_versions)
-        self.thread_manager.run()
+            # Assign the update function
+            self.thread_manager.assign_function(update_dlss_versions)
+
+            # Connect new signals
+            self.thread_manager.signals.finished.connect(self.handle_update_finished)
+            self.thread_manager.signals.result.connect(self.handle_update_result)
+            self.thread_manager.signals.error.connect(self.handle_update_error)
+
+            # Run the thread
+            self.thread_manager.run()
+
+        except Exception as e:
+            self.logger.error(f"Error starting update thread: {e}")
+            import traceback
+
+            self.logger.error(traceback.format_exc())
+            # Ensure button is re-enabled in case of an error
+            self.start_update_button.setEnabled(True)
 
     def handle_update_error(self, error):
         """
@@ -368,11 +401,12 @@ class MainWindow(QMainWindow):
             self.logger.error(f"Error in update finished handler: {e}")
 
     def closeEvent(self, event):
-        """
-        Handle application close event.
-        @param event: The close event
-        """
-        self.thread_manager.waitForDone()
+        """Handle application close event."""
+        try:
+            if self.thread_manager and self.thread_manager.current_worker:
+                self.thread_manager.waitForDone()
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}")
         super().closeEvent(event)
 
     def get_current_settings(self):
