@@ -1,4 +1,4 @@
-# -*- mode: python ; coding: utf-8 -*-
+# -- mode: python ; coding: utf-8 --
 
 import pefile
 import psutil
@@ -51,7 +51,8 @@ exe = EXE(
     strip=False,
     upx=True,
     console=True,
-    optimize=2
+    optimize=2,
+    icon='dlss_updater/icons/dlss_updater.ico'
 )
 
 coll = COLLECT(

@@ -2,7 +2,7 @@ from .. import __version__, resource_path
 from ..utils import update_dlss_versions
 import os
 from PyQt6.QtCore import Qt, QUrl, QSize
-from PyQt6.QtGui import QDesktopServices, QIcon
+from PyQt6.QtGui import QDesktopServices, QIcon, QPixmap
 from dlss_updater.lib.threading_lib import ThreadManager
 from pathlib import Path
 from dlss_updater.config import config_manager, LauncherPathName
@@ -32,14 +32,19 @@ class MainWindow(QMainWindow):
         self.logger_expanded = False
         self.original_width = None
 
+        # Load and set the window icon
+        logo_path = resource_path(os.path.join('icons', 'dlss_updater.png'))
+        logo_icon = QIcon(logo_path)
+        self.setWindowIcon(logo_icon)
+
         # Main container
         main_container = QWidget()
         main_layout = QVBoxLayout()
-        header_left = QHBoxLayout()
+        header_layout = QHBoxLayout()
 
         main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        # Header section with welcome, donate and contact
-        header_layout = QHBoxLayout()
+        # Header section with welcome, logo, version, and other buttons
+        header_left = QHBoxLayout()
         welcome_label = QLabel("Welcome to the GUI :) -Deco")
         version_label = QLabel(f"v{__version__}")
         welcome_label.setStyleSheet("color: white; font-size: 16px;")
@@ -47,25 +52,44 @@ class MainWindow(QMainWindow):
             "color: #888888; font-size: 12px; margin-left: 8px;"
         )
         header_left.addWidget(welcome_label)
-        header_left.addWidget(version_label)
         header_left.addStretch()
+        header_left.addWidget(version_label)
 
+        # Add the header layout to the main layout
+        header_layout.addLayout(header_left)
+        main_layout.addLayout(header_layout)
+
+        # Add the DLSS Updater logo as a separate element
+        self.logo_label = QLabel()
+        logo_pixmap = QPixmap(resource_path(os.path.join('dlss_updater', 'icons', 'dlss_updater_full.png')))
+        logo_pixmap = logo_pixmap.scaledToWidth(int(self.width() * 0.6), Qt.TransformationMode.SmoothTransformation)
+        self.logo_label.setPixmap(logo_pixmap)
+        self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(self.logo_label)
+
+        # Custom folders info
+        info_label = QLabel(
+            "Note: For custom game folders, use any launcher button (e.g. Battle.net) and select your folder location."
+        )
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet(
+            "color: white; background-color: #3C3C3C; padding: 10px; border-radius: 4px;"
+        )
+        main_layout.addWidget(info_label)
+
+        # Donate, report a bug, contact, release notes, and view logs buttons
+        button_layout = QHBoxLayout()
         donate_button = QPushButton("☕ Support Development")
         donate_button.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl("https://buymeacoffee.com/decouk"))
         )
-
         report_bug_button = QPushButton("🐛 Report a Bug")
         report_bug_button.clicked.connect(
             lambda: QDesktopServices.openUrl(
                 QUrl("https://github.com/Recol/DLSS-Updater/issues")
             )
         )
-
         contact_button = QPushButton("📞 Contact")
-        release_notes_button = QPushButton("📝 Release Notes")
-        release_notes_button.clicked.connect(self.show_release_notes)
-
         contact_menu = QMenu()
         twitter_action = contact_menu.addAction("Twitter")
         discord_action = contact_menu.addAction("Discord")
@@ -78,29 +102,16 @@ class MainWindow(QMainWindow):
             )
         )
         contact_button.setMenu(contact_menu)
-
-        logger_toggle_button = QPushButton("📋 View Logs")
-        logger_toggle_button.clicked.connect(self.toggle_logger_window)
-
-        header_layout.addWidget(welcome_label)
-        header_layout.addStretch()
-        header_layout.addWidget(donate_button)
-        header_layout.addWidget(report_bug_button)
-        header_layout.addWidget(contact_button)
-        header_layout.addWidget(release_notes_button)
-        header_layout.addWidget(logger_toggle_button)
-        version_label = QLabel(f"v{__version__}")
-        version_label.setStyleSheet("color: white; font-size: 12px;")
-        header_layout.addWidget(version_label)
-
-        # Custom folders info
-        info_label = QLabel(
-            "Note: For custom game folders, use any launcher button (e.g. Battle.net) and select your folder location."
-        )
-        info_label.setWordWrap(True)
-        info_label.setStyleSheet(
-            "color: white; background-color: #3C3C3C; padding: 10px; border-radius: 4px;"
-        )
+        release_notes_button = QPushButton("📝 Release Notes")
+        release_notes_button.clicked.connect(self.show_release_notes)
+        view_logs_button = QPushButton("📋 View Logs")
+        view_logs_button.clicked.connect(self.toggle_logger_window)
+        button_layout.addWidget(donate_button)
+        button_layout.addWidget(report_bug_button)
+        button_layout.addWidget(contact_button)
+        button_layout.addWidget(release_notes_button)
+        button_layout.addWidget(view_logs_button)
+        main_layout.addLayout(button_layout)
 
         # Original logger splitter setup
         self.logger_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -120,9 +131,6 @@ class MainWindow(QMainWindow):
         # We want the logger_window to be collapsed by default
         self.logger_splitter.setSizes([1, 0])
 
-        # Add new layouts to main layout
-        main_layout.addLayout(header_layout)
-        main_layout.addWidget(info_label)
         main_layout.addWidget(self.logger_splitter)
         main_container.setLayout(main_layout)
         self.setCentralWidget(main_container)
