@@ -18,6 +18,6 @@
   <files>
     <file src="dist\DLSS_Updater\**" target="tools" />
     <file src="VERIFICATION.txt" target="tools" />
-    <file src="dist\DLSS_Updater\dlss_updater\icons\dlss_updater.png" target="tools" />
+    <file src="dist\DLSS_Updater\\_internal\dlss_updater\icons\dlss_updater.png" target="tools" />
   </files>
 </package>
