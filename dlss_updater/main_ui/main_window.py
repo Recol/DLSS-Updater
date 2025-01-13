@@ -19,7 +19,9 @@ from PyQt6.QtWidgets import (
     QMenu,
     QDialog,
     QTextBrowser,
+    QMessageBox,
 )
+from dlss_updater.utils import extract_game_name, DLL_TYPE_MAP
 
 
 class MainWindow(QMainWindow):
@@ -33,7 +35,7 @@ class MainWindow(QMainWindow):
         self.original_width = None
 
         # Load and set the window icon
-        logo_path = resource_path(os.path.join('icons', 'dlss_updater.png'))
+        logo_path = resource_path(os.path.join("icons", "dlss_updater.png"))
         logo_icon = QIcon(logo_path)
         self.setWindowIcon(logo_icon)
 
@@ -61,9 +63,6 @@ class MainWindow(QMainWindow):
 
         # Add the DLSS Updater logo as a separate element
         self.logo_label = QLabel()
-        logo_pixmap = QPixmap(resource_path(os.path.join('dlss_updater', 'icons', 'dlss_updater_full.png')))
-        logo_pixmap = logo_pixmap.scaledToWidth(int(self.width() * 0.6), Qt.TransformationMode.SmoothTransformation)
-        self.logo_label.setPixmap(logo_pixmap)
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(self.logo_label)
 
@@ -386,15 +385,25 @@ class MainWindow(QMainWindow):
     def handle_update_result(self, result):
         """
         Handle results from the update thread.
-        @param result: The result from the update thread.
+        @param result: Tuple containing (success, updated_games, skipped_games, successful_backups)
         """
         try:
-            if result:
-                self.logger.info("Update process completed successfully")
+            if isinstance(result, tuple) and len(result) == 4:
+                success, updated_games, skipped_games, successful_backups = result
+                if success:
+                    self.logger.info("Update process completed successfully")
+                    self.show_update_summary(
+                        (updated_games, skipped_games, successful_backups)
+                    )
+                else:
+                    self.logger.error("Update process failed")
             else:
-                self.logger.error("Update process failed")
+                self.logger.error(f"Unexpected result format: {result}")
         except Exception as e:
             self.logger.error(f"Error handling update result: {e}")
+            import traceback
+
+            self.logger.error(traceback.format_exc())
         finally:
             self.start_update_button.setEnabled(True)
 
@@ -450,6 +459,44 @@ class MainWindow(QMainWindow):
             config_manager.update_launcher_path(
                 self.button_enum_dict.get(self.sender().objectName()), directory
             )
+
+    def show_update_summary(self, update_result):
+        """Display the update summary in a message box."""
+        updated_games, skipped_games, successful_backups = update_result
+        message_box = QMessageBox(self)
+        message_box.setWindowTitle("DLSS Updater - Update Summary")
+        message_box.setIcon(QMessageBox.Icon.Information)
+
+        summary_text = ""
+        if updated_games:
+            summary_text += "Games updated successfully:\n"
+            for dll_path, launcher, dll_type in updated_games:
+                game_name = extract_game_name(dll_path, launcher)
+                summary_text += f" - {game_name} - {launcher} ({dll_type})\n"
+        else:
+            summary_text += "No games were updated.\n"
+
+        if successful_backups:
+            summary_text += "\nSuccessful backups:\n"
+            for dll_path, backup_path in successful_backups:
+                game_name = extract_game_name(dll_path, "Unknown")
+                dll_type = DLL_TYPE_MAP.get(
+                    Path(dll_path).name.lower(), "Unknown DLL type"
+                )
+                summary_text += f" - {game_name}: {backup_path} ({dll_type})\n"
+        else:
+            summary_text += "\nNo backups were created.\n"
+
+        if skipped_games:
+            summary_text += "\nGames skipped:\n"
+            for dll_path, launcher, reason, dll_type in skipped_games:
+                game_name = extract_game_name(dll_path, launcher)
+                summary_text += (
+                    f" - {game_name} - {launcher} ({dll_type}) (Reason: {reason})\n"
+                )
+
+        message_box.setText(summary_text)
+        message_box.exec()
 
     def apply_dark_theme(self):
         """Apply a dark theme using stylesheets."""

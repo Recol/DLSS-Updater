@@ -20,3 +20,9 @@ Bug fix to allow multiple reruns.
 
 Version 2.6.3:
 Addition of a logo.
+
+Version 2.6.4:
+Performance improvements for scanning directories.
+Rewrite of scanning subdirectories.
+There is now an output of the results in a box.
+Removal of the full banner from the GUI.

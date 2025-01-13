@@ -8,7 +8,6 @@ from dlss_updater.logger import setup_logger
 logger = setup_logger()
 
 
-
 try:
     from dlss_updater import (
         update_dll,
@@ -42,6 +41,7 @@ def find_file_in_directory(directory, filename):
         if filename in files:
             return os.path.join(root, filename)
     return None
+
 
 def check_update_completion():
     update_log_path = os.path.join(os.path.dirname(sys.executable), "update_log.txt")
@@ -123,7 +123,11 @@ def extract_game_name(dll_path, launcher_name):
 def update_dlss_versions():
     logger.info(f"DLSS Updater version {__version__}")
     logger.info("Starting DLL search...")
-    # Wrap each major operation in its own try-except block
+    
+    updated_games = []
+    skipped_games = []
+    successful_backups = []
+
     try:
         logger.info("Checking for updates...")
         if auto_update is None:
@@ -135,23 +139,19 @@ def update_dlss_versions():
                     logger.info(
                         "The application will now close for the update. If the update does NOT automatically restart, please manually reboot it from the /update/ folder."
                     )
-                    return  # Exit here to allow the update process to take over
+                    return True, [], [], []  # Early return for auto-update
             except Exception as e:
                 logger.error(f"Error during update check: {e}")
                 import traceback
-
-                traceback.logger.info_exc()
+                traceback.print_exc()
 
         try:
             all_dll_paths = find_all_dlss_dlls()
             logger.info("DLL search completed.")
         except Exception as e:
             logger.error(f"Error finding DLLs: {e}")
-            return False
+            return False, [], [], []
 
-        updated_games = []
-        skipped_games = []
-        successful_backups = []
         processed_dlls = set()
 
         if any(all_dll_paths.values()):
@@ -162,54 +162,24 @@ def update_dlss_versions():
                     logger.info(f"{launcher}:")
                     for dll_path in dll_paths:
                         try:
-                            dll_path = (
-                                Path(dll_path)
-                                if isinstance(dll_path, str)
-                                else dll_path
-                            )
+                            dll_path = Path(dll_path) if isinstance(dll_path, str) else dll_path
                             if str(dll_path) not in processed_dlls:
-                                # Use process_single_dll function
                                 result = process_single_dll(dll_path, launcher)
                                 if result:
                                     success, backup_path, dll_type = result
                                     if success:
-                                        logger.info(
-                                            f"Successfully processed: {dll_path}"
-                                        )
-                                        updated_games.append(
-                                            (str(dll_path), launcher, dll_type)
-                                        )
+                                        logger.info(f"Successfully processed: {dll_path}")
+                                        updated_games.append((str(dll_path), launcher, dll_type))
                                         if backup_path:
-                                            successful_backups.append(
-                                                (str(dll_path), backup_path)
-                                            )
+                                            successful_backups.append((str(dll_path), backup_path))
                                     else:
-                                        if (
-                                                backup_path
-                                        ):  # If we have a backup path but success is False, it was attempted
-                                            skipped_games.append(
-                                                (
-                                                    str(dll_path),
-                                                    launcher,
-                                                    "Update failed",
-                                                    dll_type,
-                                                )
-                                            )
-                                        else:  # If no backup path, it was skipped for other reasons
-                                            skipped_games.append(
-                                                (
-                                                    str(dll_path),
-                                                    launcher,
-                                                    "Skipped",
-                                                    dll_type,
-                                                )
-                                            )
+                                        if backup_path:  # Attempted but failed
+                                            skipped_games.append((str(dll_path), launcher, "Update failed", dll_type))
+                                        else:  # Skipped for other reasons
+                                            skipped_games.append((str(dll_path), launcher, "Skipped", dll_type))
                                 processed_dlls.add(str(dll_path))
                         except Exception as e:
                             logger.error(f"Error processing DLL {dll_path}: {e}")
-                            import traceback
-
-                            logger.error(traceback.format_exc())
                             continue
 
             # Display summary after processing
@@ -225,9 +195,7 @@ def update_dlss_versions():
                 logger.info("\nSuccessful backups:")
                 for dll_path, backup_path in successful_backups:
                     game_name = extract_game_name(dll_path, "Unknown")
-                    dll_type = DLL_TYPE_MAP.get(
-                        Path(dll_path).name.lower(), "Unknown DLL type"
-                    )
+                    dll_type = DLL_TYPE_MAP.get(Path(dll_path).name.lower(), "Unknown DLL type")
                     logger.info(f" - {game_name}: {backup_path} ({dll_type})")
             else:
                 logger.info("\nNo backups were created.")
@@ -236,21 +204,18 @@ def update_dlss_versions():
                 logger.info("\nGames skipped:")
                 for dll_path, launcher, reason, dll_type in skipped_games:
                     game_name = extract_game_name(dll_path, launcher)
-                    logger.info(
-                        f" - {game_name} - {launcher} ({dll_type}) (Reason: {reason})"
-                    )
+                    logger.info(f" - {game_name} - {launcher} ({dll_type}) (Reason: {reason})")
         else:
             logger.info("No DLLs were found or processed.")
 
-        return True
+        return True, updated_games, skipped_games, successful_backups
 
     except Exception as e:
         import traceback
-
         trace = traceback.format_exc()
         logger.error(f"Critical error in update process: {e}")
         logger.error(f"Traceback:\n{trace}")
-        return False
+        return False, [], [], []
 
 
 def process_single_dll(dll_path, launcher):
