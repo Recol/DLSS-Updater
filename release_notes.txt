@@ -26,3 +26,7 @@ Performance improvements for scanning directories.
 Rewrite of scanning subdirectories.
 There is now an output of the results in a box.
 Removal of the full banner from the GUI.
+
+Version 2.6.5:
+Updates the DLSS files to DLSS 4.0.
+Use at your own discretion :).
