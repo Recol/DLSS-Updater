@@ -23,7 +23,7 @@ What if you could update all the DLSS DLLs for the games detected on your system
 - A GUI!
 - (Some) support for manual folder locations (just insert your manual folders in place of the launcher ones).
 
-The current supported DLL included is version 3.8.10.
+The current supported DLL included is DLSS 4.
 
 ## Whitelisted Games
 
