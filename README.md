@@ -7,6 +7,7 @@
 
 
 What if you could update all the DLSS DLLs for the games detected on your system?
+![image](https://github.com/user-attachments/assets/c2e35e47-5256-4590-872c-0829e780aae8)
 
 ## Features
 
