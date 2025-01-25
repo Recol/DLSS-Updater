@@ -51,7 +51,7 @@ The application automatically fetches this CSV when run, ensuring it always has 
 2. Extract the downloaded folder.
 3. Navigate to the `dist/DLSS_Updater` directory.
 4. Run the `DLSS_Updater.exe` executable.
-5. Follow the instructions in the terminal.
+5. The program will now boot.
 
 ## Chocolatey
 
@@ -64,7 +64,7 @@ If you prefer to build the application yourself, follow these steps:
 
 #### Prerequisites
 
-- Python 3.6 or higher
+- Python 3.12 or higher
 - Git
 - pip (Python package installer)
 
