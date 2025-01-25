@@ -6,7 +6,10 @@
     <title>DLSS Updater</title>
     <authors>Deco</authors>
     <projectUrl>https://github.com/Recol/DLSS-Updater</projectUrl>
+    <projectSourceUrl>https://github.com/Recol/DLSS-Updater/tree/main/dlss_updater</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/Recol/DLSS-Updater/issues</bugTrackerUrl>
     <licenseUrl>https://github.com/Recol/DLSS-Updater/blob/main/LICENSE</licenseUrl>
+    <docsUrl>https://github.com/Recol/DLSS-Updater?tab=readme-ov-file#execution-instructions</docsUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <packageSourceUrl>https://github.com/Recol/DLSS-Updater/releases</packageSourceUrl>
     <iconUrl>https://github.com/Recol/DLSS-Updater/blob/main/dlss_updater/icons/dlss_updater.png</iconUrl>
