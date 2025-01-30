@@ -30,3 +30,6 @@ Removal of the full banner from the GUI.
 Version 2.6.5:
 Updates the DLSS files to DLSS 4.0.
 Use at your own discretion :).
+
+Version 2.6.6:
+Bug fix for FG/RR DLL's being included in the skip for <2.0.0.
