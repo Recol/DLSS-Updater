@@ -33,3 +33,6 @@ Use at your own discretion :).
 
 Version 2.6.6:
 Bug fix for FG/RR DLL's being included in the skip for <2.0.0.
+
+Version 2.6.7:
+Updates to the DLL's to allow for profile K (refined version of profile J) to be the default for DLSS.
