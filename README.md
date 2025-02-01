@@ -51,7 +51,7 @@ The application automatically fetches this CSV when run, ensuring it always has 
 1. Download the latest release from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page.
 2. Extract the downloaded folder.
 3. Navigate to the `dist/DLSS_Updater` directory.
-4. Run the `DLSS_Updater.exe` executable.
+4. Run the `DLSS_Updater.exe` executable as an administrator.
 5. The program will now boot.
 
 ## Chocolatey
