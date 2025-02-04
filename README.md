@@ -26,9 +26,9 @@ What if you could update all the DLSS DLLs for the games detected on your system
 
 The current supported DLL included is DLSS 4.
 
-## Whitelisted Games
+## Blacklisted Games
 
-The list of games that are not supported (whitelisted) is now maintained in a separate repository as a CSV file. This allows for easier updates and potential future expansion of game-specific information without requiring changes to the main application. You can view the current list of whitelisted games here:
+The list of games that are not supported (blacklisted) is now maintained in a separate repository as a CSV file. This allows for easier updates and potential future expansion of game-specific information without requiring changes to the main application. You can view the current list of blacklisted games here:
 
 [DLSS-Updater-Blacklist](https://github.com/Recol/DLSS-Updater-Whitelist/blob/main/whitelist.csv)
 
