@@ -30,9 +30,9 @@ The current supported DLL included is DLSS 4.
 
 The list of games that are not supported (whitelisted) is now maintained in a separate repository as a CSV file. This allows for easier updates and potential future expansion of game-specific information without requiring changes to the main application. You can view the current list of whitelisted games here:
 
-[DLSS-Updater-Whitelist](https://github.com/Recol/DLSS-Updater-Whitelist/blob/main/whitelist.csv)
+[DLSS-Updater-Blacklist](https://github.com/Recol/DLSS-Updater-Whitelist/blob/main/whitelist.csv)
 
-The whitelist includes games that:
+The blacklist includes games that:
 - Use their own version of DLSS for testing (e.g., 3DMark)
 - Replace the DLL when the game is booted (e.g., Warframe)
 - Are using a DLSS version <2.0 (these are non-updatable)
