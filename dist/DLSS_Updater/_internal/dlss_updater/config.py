@@ -28,8 +28,8 @@ def resource_path(relative_path):
 
 LATEST_DLL_VERSIONS = {
     "nvngx_dlss.dll": "310.2.1.0",
-    "nvngx_dlssg.dll": "310.2.0.0",
-    "nvngx_dlssd.dll": "310.2.0.0",
+    "nvngx_dlssg.dll": "310.2.1.0",
+    "nvngx_dlssd.dll": "310.2.1.0",
 }
 
 LATEST_DLL_PATHS = {

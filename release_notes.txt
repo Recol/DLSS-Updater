@@ -36,3 +36,7 @@ Bug fix for FG/RR DLL's being included in the skip for <2.0.0.
 
 Version 2.6.7:
 Updates to the DLL's to allow for profile K (refined version of profile J) to be the default for DLSS.
+
+Version 2.6.8:
+Updates to the RR DLL to version 310.2.1.0.
+Updates the frame generation DLL to version 310.2.1.0.
