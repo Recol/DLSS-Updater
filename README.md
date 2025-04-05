@@ -7,7 +7,6 @@
 
 
 ![dlss_updater](https://github.com/user-attachments/assets/b7d7fb4d-e204-412d-8e92-61a7173abfaf)
-![image](https://github.com/user-attachments/assets/5cd37173-d96b-4e0f-b3fa-08702222d1b6)
 
 What if you could update all the DLSS/XeSS DLLs for the games detected on your system?
 ## Features
@@ -27,6 +26,9 @@ What if you could update all the DLSS/XeSS DLLs for the games detected on your s
 
 The current supported DLL included is DLSS 4.
 The current supported XESS DLL included is 2.0.1, please see the limitations [here](https://github.com/intel/xess/releases/tag/v2.0.1) for game support.
+
+## GUI
+![image](https://github.com/user-attachments/assets/5cd37173-d96b-4e0f-b3fa-08702222d1b6)
 
 ## Blacklisted Games
 
