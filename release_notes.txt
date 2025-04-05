@@ -1,26 +1,3 @@
-Version 2.6.0:
-Addition of iconography to the GUI.
-Migration to a new thread managing model to improve processing times.
-Addition of support for the Xbox game launcher.
-Refactoring of base code to cleanup and improve functional logic.
-Remork to the whitelist logic to prevent spamming of the console with what games are whitelisted repeatedly.
-
-Version 2.6.1:
-Hotfix to fix folders being unclickable.
-
-Version 2.6.2:
-Addition of a toggle logger button to the GUI.
-Coloured filtering for log events is now included.
-Cleanup of the launcher icons to be more presentable.
-Breakup of individual code components.
-Inclusion of a "Reset path" toggle for launchers.
-Inclusion of being able to view (these) release notes from inside the GUI.
-Fixes to thread management shenanigans.
-Bug fix to allow multiple reruns.
-
-Version 2.6.3:
-Addition of a logo.
-
 Version 2.6.4:
 Performance improvements for scanning directories.
 Rewrite of scanning subdirectories.
@@ -40,3 +17,12 @@ Updates to the DLL's to allow for profile K (refined version of profile J) to be
 Version 2.6.8:
 Updates to the RR DLL to version 310.2.1.0.
 Updates the frame generation DLL to version 310.2.1.0.
+
+Version 2.7.0:
+Added support for XeSS DLLs (libxess.dll and libxess_dx11.dll) - version 2.0.1.41.
+Added support for up to 4 custom game folders.
+Improved auto-updater to better handle update process and cleanup.
+Added ability to skip specific games in the blacklist.
+Enhanced UI with separated sections for launcher types.
+Fixed bug in game name extraction for better reporting.
+Introduction of animations for certain components, should be better for viewability.

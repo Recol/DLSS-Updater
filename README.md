@@ -22,9 +22,10 @@ What if you could update all the DLSS DLLs for the games detected on your system
 - A soft backup system for allowing restoration with [DLSS Swapper](https://github.com/beeradmoore/dlss-swapper).
 - Support for updating Ray Reconstruction and Frame Generation DLL's.
 - A GUI!
-- (Some) support for manual folder locations (just insert your manual folders in place of the launcher ones).
+- Support for manual folder locations.
 
 The current supported DLL included is DLSS 4.
+The current supported XESS DLL included is 2.0.1, please see the limitations [here](https://github.com/intel/xess/releases/tag/v2.0.1) for game support.
 
 ## Blacklisted Games
 
@@ -38,7 +39,7 @@ The blacklist includes games that:
 - Are using a DLSS version <2.0 (these are non-updatable)
 - Have specific compatibility issues with updated DLSS versions
 
-The application automatically fetches this CSV when run, ensuring it always has the most up-to-date information on which games to skip during the update process.
+The games that are blacklisted can be disabled manually by clicking the "Manage Blacklist" button in the GUI. This will allow you to skip games for whatever reason.
 
 ## Restoring modified DLL's
 - In order to do this, simply rename the **.dlsss** file of the respective DLL which you wish to restore to **.dll** and overwrite the original file. 
@@ -143,4 +144,6 @@ This project is licensed under the GNU Affero General Public License. See the LI
 
 ## Credits
 
-This project uses Nvidia's DLSS (Deep Learning Super Sampling) technology. Please refer to Nvidia's [DLSS page](https://www.nvidia.com/en-us/geforce/technologies/dlss/) for more information. Special thanks to all contributors of open-source libraries used in this project, including but not limited to pefile, psutil, and packaging. If any are not credited and should be, please inform the author and credit will be applied where required.
+This project uses Nvidia's DLSS (Deep Learning Super Sampling) technology. Please refer to Nvidia's [DLSS page](https://www.nvidia.com/en-us/geforce/technologies/dlss/) for more information. Special thanks to all contributors of open-source libraries used in this project, including but not limited to pefile, psutil, Pyinstaller and packaging. If any are not credited and should be, please inform the author and credit will be applied where required.
+
+This project also uses Intel's XESS (Xe Super Sampling) technology. Please refer to Intel's [XESS page](https://www.intel.com/content/www/us/en/content-details/726651/intel-xe-super-sampling-xess-an-ai-based-upscaling-for-real-time-rendering.html?wapkw=xess) for more information.

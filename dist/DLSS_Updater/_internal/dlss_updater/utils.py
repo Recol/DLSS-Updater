@@ -110,6 +110,9 @@ def extract_game_name(dll_path, launcher_name):
             return parts[parts.index("Games") + 1]
         elif "Battle.net" in parts:
             return parts[parts.index("Battle.net") + 1]
+        elif "Custom Path" in launcher_name:
+            # For custom paths, try to get parent directory name
+            return parts[-2]
         else:
             # If we can't determine the game name, use the parent directory name
             return parts[-2]
@@ -123,7 +126,7 @@ def extract_game_name(dll_path, launcher_name):
 def update_dlss_versions():
     logger.info(f"DLSS Updater version {__version__}")
     logger.info("Starting DLL search...")
-    
+
     updated_games = []
     skipped_games = []
     successful_backups = []
@@ -143,6 +146,7 @@ def update_dlss_versions():
             except Exception as e:
                 logger.error(f"Error during update check: {e}")
                 import traceback
+
                 traceback.print_exc()
 
         try:
@@ -162,21 +166,45 @@ def update_dlss_versions():
                     logger.info(f"{launcher}:")
                     for dll_path in dll_paths:
                         try:
-                            dll_path = Path(dll_path) if isinstance(dll_path, str) else dll_path
+                            dll_path = (
+                                Path(dll_path)
+                                if isinstance(dll_path, str)
+                                else dll_path
+                            )
                             if str(dll_path) not in processed_dlls:
                                 result = process_single_dll(dll_path, launcher)
                                 if result:
                                     success, backup_path, dll_type = result
                                     if success:
-                                        logger.info(f"Successfully processed: {dll_path}")
-                                        updated_games.append((str(dll_path), launcher, dll_type))
+                                        logger.info(
+                                            f"Successfully processed: {dll_path}"
+                                        )
+                                        updated_games.append(
+                                            (str(dll_path), launcher, dll_type)
+                                        )
                                         if backup_path:
-                                            successful_backups.append((str(dll_path), backup_path))
+                                            successful_backups.append(
+                                                (str(dll_path), backup_path)
+                                            )
                                     else:
                                         if backup_path:  # Attempted but failed
-                                            skipped_games.append((str(dll_path), launcher, "Update failed", dll_type))
+                                            skipped_games.append(
+                                                (
+                                                    str(dll_path),
+                                                    launcher,
+                                                    "Update failed",
+                                                    dll_type,
+                                                )
+                                            )
                                         else:  # Skipped for other reasons
-                                            skipped_games.append((str(dll_path), launcher, "Skipped", dll_type))
+                                            skipped_games.append(
+                                                (
+                                                    str(dll_path),
+                                                    launcher,
+                                                    "Skipped",
+                                                    dll_type,
+                                                )
+                                            )
                                 processed_dlls.add(str(dll_path))
                         except Exception as e:
                             logger.error(f"Error processing DLL {dll_path}: {e}")
@@ -195,7 +223,9 @@ def update_dlss_versions():
                 logger.info("\nSuccessful backups:")
                 for dll_path, backup_path in successful_backups:
                     game_name = extract_game_name(dll_path, "Unknown")
-                    dll_type = DLL_TYPE_MAP.get(Path(dll_path).name.lower(), "Unknown DLL type")
+                    dll_type = DLL_TYPE_MAP.get(
+                        Path(dll_path).name.lower(), "Unknown DLL type"
+                    )
                     logger.info(f" - {game_name}: {backup_path} ({dll_type})")
             else:
                 logger.info("\nNo backups were created.")
@@ -204,7 +234,9 @@ def update_dlss_versions():
                 logger.info("\nGames skipped:")
                 for dll_path, launcher, reason, dll_type in skipped_games:
                     game_name = extract_game_name(dll_path, launcher)
-                    logger.info(f" - {game_name} - {launcher} ({dll_type}) (Reason: {reason})")
+                    logger.info(
+                        f" - {game_name} - {launcher} ({dll_type}) (Reason: {reason})"
+                    )
         else:
             logger.info("No DLLs were found or processed.")
 
@@ -212,6 +244,7 @@ def update_dlss_versions():
 
     except Exception as e:
         import traceback
+
         trace = traceback.format_exc()
         logger.error(f"Critical error in update process: {e}")
         logger.error(f"Traceback:\n{trace}")
@@ -229,6 +262,9 @@ def process_single_dll(dll_path, launcher):
             return None
 
         if is_whitelisted(str(dll_path)):
+            logger.debug(
+                f"Game {game_name} is in whitelist, checking if it's on skip list..."
+            )
             return False, None, dll_type
 
         dll_name = dll_path.name.lower()

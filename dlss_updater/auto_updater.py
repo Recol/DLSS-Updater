@@ -41,7 +41,20 @@ def download_update(download_url):
     Returns path to new executable or None if download/extraction fails.
     """
     try:
-        update_dir = os.path.join(os.path.dirname(sys.executable), "update")
+        # Create a temporary update directory
+        base_dir = os.path.dirname(sys.executable)
+        update_dir = os.path.join(base_dir, "update")
+
+        # Remove old update directory if it exists
+        if os.path.exists(update_dir):
+            try:
+                shutil.rmtree(update_dir)
+                logger.info("Removed existing update directory")
+            except Exception as e:
+                logger.error(f"Failed to remove old update directory: {e}")
+                return None
+
+        # Create a fresh update directory
         os.makedirs(update_dir, exist_ok=True)
         update_zip = os.path.join(update_dir, "update.zip")
 
@@ -81,33 +94,64 @@ def update_script(current_exe, new_exe):
     """
     Perform the actual update by replacing the old executable with the new one.
     """
+    logger.info(f"Starting update process: from {current_exe} to {new_exe}")
+
     # Wait for the original process to exit
     time.sleep(2)
 
     try:
+        # Get the command line arguments to pass to the new executable
+        args = sys.argv[1:] if len(sys.argv) > 1 else []
+
+        # Create a backup of the current executable path for cleanup
+        current_dir = os.path.dirname(current_exe)
+        backup_path = os.path.join(current_dir, "old_exe_backup.txt")
+        with open(backup_path, "w") as f:
+            f.write(current_exe)
+
         # Replace the old executable with the new one
-        os.remove(current_exe)
+        if os.path.exists(current_exe):
+            os.chmod(current_exe, 0o777)  # Ensure we have write permission
+            os.remove(current_exe)
+            logger.info(f"Removed old executable: {current_exe}")
+
+        # Move the new executable to the location of the old one
         shutil.move(new_exe, current_exe)
+        logger.info(f"Moved new executable to: {current_exe}")
+
+        # Wait briefly to ensure the file is fully written
+        time.sleep(1)
+
+        # Ensure the new executable has appropriate permissions
+        os.chmod(current_exe, 0o755)
 
         # Clean up the update directory
         update_dir = os.path.dirname(new_exe)
-        shutil.rmtree(update_dir)
+        if os.path.exists(update_dir) and os.path.isdir(update_dir):
+            shutil.rmtree(update_dir)
+            logger.info(f"Cleaned up update directory: {update_dir}")
 
-        # Start the updated executable
-        subprocess.Popen([current_exe], creationflags=subprocess.CREATE_NEW_CONSOLE)
+        # Start the updated executable with original arguments
+        startup_args = [current_exe] + args
+        logger.info(f"Starting updated executable with args: {startup_args}")
+        subprocess.Popen(startup_args, creationflags=subprocess.CREATE_NEW_CONSOLE)
 
         # Log the update completion
         with open(
             os.path.join(os.path.dirname(current_exe), "update_log.txt"), "w"
         ) as f:
-            f.write(f"Update completed at {time.ctime()}. New executable started.")
+            f.write(
+                f"Update completed at {time.ctime()}. New executable started with args: {args}"
+            )
 
     except Exception as e:
         # Log the error
+        error_msg = f"Error during update process at {time.ctime()}: {str(e)}"
+        logger.error(error_msg)
         with open(
             os.path.join(os.path.dirname(current_exe), "update_error_log.txt"), "w"
         ) as f:
-            f.write(f"Error during update process at {time.ctime()}: {str(e)}")
+            f.write(error_msg)
 
 
 def perform_update(new_exe_path):
@@ -116,9 +160,20 @@ def perform_update(new_exe_path):
     """
     current_exe = sys.executable
 
+    logger.info(f"Preparing to update from {current_exe} to {new_exe_path}")
+
+    # Get command line arguments to pass to the updater
+    args = sys.argv[1:] if len(sys.argv) > 1 else []
+
+    # Create the update command
+    update_cmd = [sys.executable, __file__, "update", current_exe, new_exe_path]
+
+    # Add a log for debugging
+    logger.info(f"Starting update process with command: {update_cmd}")
+
     # Start the update process in a separate process
     subprocess.Popen(
-        [sys.executable, __file__, "update", current_exe, new_exe_path],
+        update_cmd,
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
@@ -150,6 +205,41 @@ def auto_update():
         logger.info("No updates available. You have the latest version.")
 
     return False
+
+
+def cleanup_old_update_files():
+    """
+    Clean up any leftover files from previous updates.
+    Should be called at application startup.
+    """
+    try:
+        base_dir = os.path.dirname(sys.executable)
+
+        # Check for old update directory
+        update_dir = os.path.join(base_dir, "update")
+        if os.path.exists(update_dir):
+            logger.info(f"Cleaning up old update directory: {update_dir}")
+            shutil.rmtree(update_dir)
+
+        # Check for backup file from previous update
+        backup_path = os.path.join(base_dir, "old_exe_backup.txt")
+        if os.path.exists(backup_path):
+            with open(backup_path, "r") as f:
+                old_exe = f.read().strip()
+
+            if os.path.exists(old_exe):
+                logger.info(f"Removing old executable from previous update: {old_exe}")
+                try:
+                    os.remove(old_exe)
+                except:
+                    logger.warning(f"Could not remove old executable: {old_exe}")
+
+            os.remove(backup_path)
+
+        return True
+    except Exception as e:
+        logger.error(f"Error cleaning up update files: {e}")
+        return False
 
 
 if __name__ == "__main__":

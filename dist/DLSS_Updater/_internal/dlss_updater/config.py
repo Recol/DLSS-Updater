@@ -30,12 +30,16 @@ LATEST_DLL_VERSIONS = {
     "nvngx_dlss.dll": "310.2.1.0",
     "nvngx_dlssg.dll": "310.2.1.0",
     "nvngx_dlssd.dll": "310.2.1.0",
+    "libxess.dll": "2.0.1.41",
+    "libxess_dx11.dll": "2.0.1.41",
 }
 
 LATEST_DLL_PATHS = {
     "nvngx_dlss.dll": resource_path(os.path.join("latest_dll", "nvngx_dlss.dll")),
     "nvngx_dlssg.dll": resource_path(os.path.join("latest_dll", "nvngx_dlssg.dll")),
     "nvngx_dlssd.dll": resource_path(os.path.join("latest_dll", "nvngx_dlssd.dll")),
+    "libxess.dll": resource_path(os.path.join("latest_dll", "libxess.dll")),
+    "libxess_dx11.dll": resource_path(os.path.join("latest_dll", "libxess_dx11.dll")),
 }
 
 
@@ -47,6 +51,10 @@ class LauncherPathName(StrEnum):
     UBISOFT = "UbisoftPath"
     BATTLENET = "BattleDotNetPath"
     XBOX = "XboxPath"
+    CUSTOM1 = "CustomPath1"
+    CUSTOM2 = "CustomPath2"
+    CUSTOM3 = "CustomPath3"
+    CUSTOM4 = "CustomPath4"
 
 
 class ConfigManager(configparser.ConfigParser):
@@ -63,7 +71,7 @@ class ConfigManager(configparser.ConfigParser):
             self.logger = setup_logger()
             self.config_path = get_config_path()
             self.read(self.config_path)
-            
+
             # Initialize sections
             sections = {
                 "LauncherPaths": {
@@ -74,6 +82,10 @@ class ConfigManager(configparser.ConfigParser):
                     LauncherPathName.UBISOFT: "",
                     LauncherPathName.BATTLENET: "",
                     LauncherPathName.XBOX: "",
+                    LauncherPathName.CUSTOM1: "",
+                    LauncherPathName.CUSTOM2: "",
+                    LauncherPathName.CUSTOM3: "",
+                    LauncherPathName.CUSTOM4: "",
                 },
                 "Settings": {
                     "CheckForUpdatesOnStart": "True",
@@ -83,20 +95,23 @@ class ConfigManager(configparser.ConfigParser):
                 "Updates": {
                     "LastUpdateCheck": "",
                     "CurrentDLSSVersion": LATEST_DLL_VERSIONS["nvngx_dlss.dll"],
-                }
+                },
+                "BlacklistSkips": {},  # Empty dict to store games to skip in the blacklist
             }
-            
+
             for section, values in sections.items():
                 if not self.has_section(section):
                     self.add_section(section)
                 for key, value in values.items():
                     if key not in self[section]:
                         self[section][key] = value
-            
+
             self.save()
             self.initialized = True
 
-    def update_launcher_path(self, path_to_update: LauncherPathName, new_launcher_path: str):
+    def update_launcher_path(
+        self, path_to_update: LauncherPathName, new_launcher_path: str
+    ):
         """Update launcher path in config"""
         self.logger.debug(f"Attempting to update path for {path_to_update}.")
         self["LauncherPaths"][path_to_update] = new_launcher_path
@@ -131,6 +146,42 @@ class ConfigManager(configparser.ConfigParser):
         """Update current DLSS version"""
         self["Updates"]["CurrentDLSSVersion"] = version
         self.save()
+
+    def add_blacklist_skip(self, game_name: str):
+        """Add a game name to skip in blacklist checks"""
+        if not self.has_section("BlacklistSkips"):
+            self.add_section("BlacklistSkips")
+        # Use a sanitized version of the game name as the key
+        safe_key = game_name.replace(" ", "_").replace(".", "_")
+        self["BlacklistSkips"][safe_key] = game_name
+        self.save()
+
+    def remove_blacklist_skip(self, game_name: str):
+        """Remove a game name from blacklist skips"""
+        if self.has_section("BlacklistSkips"):
+            safe_key = game_name.replace(" ", "_").replace(".", "_")
+            if safe_key in self["BlacklistSkips"]:
+                self["BlacklistSkips"].pop(safe_key)
+                self.save()
+
+    def is_blacklist_skipped(self, game_name: str) -> bool:
+        """Check if a game name should skip blacklist checks"""
+        if self.has_section("BlacklistSkips"):
+            safe_key = game_name.replace(" ", "_").replace(".", "_")
+            return safe_key in self["BlacklistSkips"]
+        return False
+
+    def get_all_blacklist_skips(self) -> list:
+        """Get all game names to skip in blacklist checks"""
+        if self.has_section("BlacklistSkips"):
+            return list(self["BlacklistSkips"].values())
+        return []
+
+    def clear_all_blacklist_skips(self):
+        """Clear all blacklist skips"""
+        if self.has_section("BlacklistSkips"):
+            self["BlacklistSkips"].clear()
+            self.save()
 
     def save(self):
         """Save configuration to disk"""

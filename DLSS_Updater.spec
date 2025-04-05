@@ -17,7 +17,9 @@ a = Analysis(
     datas=[
         ('latest_dll/nvngx_dlss.dll', 'latest_dll'),
         ('latest_dll/nvngx_dlssg.dll', 'latest_dll'),
-        ('latest_dll/nvngx_dlssd.dll', 'latest_dll'),  
+        ('latest_dll/nvngx_dlssd.dll', 'latest_dll'),
+        ('latest_dll/libxess.dll', 'latest_dll'),
+        ('latest_dll/libxess_dx11.dll', 'latest_dll'),
         ('dlss_updater', 'dlss_updater'),
         ('release_notes.txt', '.'),
         ('dlss_updater/icons/*.png', 'icons/'),
