@@ -179,11 +179,14 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 700, 500)  # Starting size
         self.setMinimumSize(700, 500)  # Minimum allowed size
 
-        # FIX: Limit maximum height more strictly to prevent excessive vertical space
-        self.setMaximumSize(1200, 650)  # Reduced maximum height from 800 to 650
+        # FIX: Limit maximum height more strictly to prevent excessive vertical space.
+        # In theory no longer needed, but kept here just in case.
+        # self.setMaximumSize(1200, 650)  # Reduced maximum height from 800 to 650
 
+        # Control variables used to keep track of app state.
         self.logger_expanded = False
         self.original_width = None
+        self.current_button_style = None
 
         # FIX: Keep track of active notifications for repositioning
         self.active_notifications = []
@@ -324,6 +327,8 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(self.logger_splitter)
         self.main_container.setLayout(main_layout)
+        self.main_container.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
+        self.logger_splitter.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
         self.setCentralWidget(self.main_container)
 
         # Create the loading overlay
@@ -417,12 +422,14 @@ class MainWindow(QMainWindow):
 
         # Define new event handlers
         def new_enter_event(event):
+            self.current_button_style = button.styleSheet()
             button.setStyleSheet(hover_style)
             if original_enter:
                 original_enter(event)
 
         def new_leave_event(event):
-            button.setStyleSheet(original_style)
+            if self.current_button_style:
+                button.setStyleSheet(self.current_button_style)
             if original_leave:
                 original_leave(event)
 
@@ -624,27 +631,17 @@ class MainWindow(QMainWindow):
         self.original_width = self.width()
         target_width = min(int(self.width() * 1.4), self.maximumWidth())
 
-        # Set the new width directly
-        self.setFixedWidth(target_width)
-
         # Set the splitter sizes directly
         self.logger_splitter.setSizes([target_width // 2, target_width // 2])
         self.logger_expanded = True
-
-        # Remove fixed width constraint after animation
-        QTimer.singleShot(300, lambda: self.setMinimumWidth(700))
 
     def toggle_logger_window(self):
         """Toggle logger window with proper sizing constraints"""
         try:
             if self.logger_expanded:
                 # Collapse logger
-                self.setFixedWidth(self.original_width)
                 self.logger_splitter.setSizes([self.original_width, 0])
                 self.logger_expanded = False
-
-                # Remove fixed width constraint after animation
-                QTimer.singleShot(300, lambda: self.setMinimumWidth(700))
                 return
 
             # Store original width before expanding
@@ -652,7 +649,6 @@ class MainWindow(QMainWindow):
             target_width = min(int(self.width() * 1.4), self.maximumWidth())
 
             # Expand logger
-            self.setFixedWidth(target_width)
             self.logger_splitter.setSizes([target_width // 2, target_width // 2])
             self.logger_expanded = True
 
@@ -929,13 +925,14 @@ class MainWindow(QMainWindow):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
 
         self.browse_buttons_container_widget = QWidget()
         self.browse_buttons_container_widget.setLayout(browse_buttons_layout)
 
         # Set size policy to ensure proper expansion
         self.browse_buttons_container_widget.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding
         )
 
         scroll_area.setWidget(self.browse_buttons_container_widget)
