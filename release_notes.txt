@@ -26,3 +26,9 @@ Added ability to skip specific games in the blacklist.
 Enhanced UI with separated sections for launcher types.
 Fixed bug in game name extraction for better reporting.
 Introduction of animations for certain components, should be better for viewability.
+
+Version 2.7.1:
+UI spacing fixes with the logger output.
+Hover bug mentioned in the prior release fixed.
+Removal of the maximum span width so it's possible to resize the GUI fully.
+Few other erronous colour fixes.
