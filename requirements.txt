@@ -5,3 +5,4 @@ pywin32
 appdirs
 PyQt6
 pyinstaller
+requests

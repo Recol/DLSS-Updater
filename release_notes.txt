@@ -32,3 +32,9 @@ UI spacing fixes with the logger output.
 Hover bug mentioned in the prior release fixed.
 Removal of the maximum span width so it's possible to resize the GUI fully.
 Few other erronous colour fixes.
+
+Version 2.7.2:
+Addition of DirectStorage.
+Offloading of the DLL's to a separate repository to strip down the file size.
+Addition of a checklist to allow selection on what is updated.
+Implemented DLL caching to check for new DLL's.

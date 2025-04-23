@@ -21,8 +21,10 @@ What if you could update all the DLSS/XeSS DLLs for the games detected on your s
   - Battle.net (Note for Battle.net: Please ensure that the launcher is **open** before updating this launcher (this does not apply if you are entering a custom folder))
 - A soft backup system for allowing restoration with [DLSS Swapper](https://github.com/beeradmoore/dlss-swapper).
 - Support for updating Ray Reconstruction and Frame Generation DLL's.
+- Support for updating XeSS and DirectStorage DLL's.
 - A GUI!
 - Support for manual folder locations.
+
 
 The current supported DLL included is DLSS 4.
 The current supported XESS DLL included is 2.0.1, please see the limitations [here](https://github.com/intel/xess/releases/tag/v2.0.1) for game support.

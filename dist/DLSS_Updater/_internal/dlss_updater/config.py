@@ -26,21 +26,19 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
+# Version information without paths (paths will be resolved at runtime)
 LATEST_DLL_VERSIONS = {
     "nvngx_dlss.dll": "310.2.1.0",
     "nvngx_dlssg.dll": "310.2.1.0",
     "nvngx_dlssd.dll": "310.2.1.0",
     "libxess.dll": "2.0.1.41",
     "libxess_dx11.dll": "2.0.1.41",
+    "dstorage.dll": "1.2.2504.401",
+    "dstoragecore.dll": "1.2.2504.401",
 }
 
-LATEST_DLL_PATHS = {
-    "nvngx_dlss.dll": resource_path(os.path.join("latest_dll", "nvngx_dlss.dll")),
-    "nvngx_dlssg.dll": resource_path(os.path.join("latest_dll", "nvngx_dlssg.dll")),
-    "nvngx_dlssd.dll": resource_path(os.path.join("latest_dll", "nvngx_dlssd.dll")),
-    "libxess.dll": resource_path(os.path.join("latest_dll", "libxess.dll")),
-    "libxess_dx11.dll": resource_path(os.path.join("latest_dll", "libxess_dx11.dll")),
-}
+# IMPORTANT: We'll initialize this later to avoid circular imports
+LATEST_DLL_PATHS = {}
 
 
 class LauncherPathName(StrEnum):
@@ -72,116 +70,96 @@ class ConfigManager(configparser.ConfigParser):
             self.config_path = get_config_path()
             self.read(self.config_path)
 
-            # Initialize sections
-            sections = {
-                "LauncherPaths": {
-                    LauncherPathName.STEAM: "",
-                    LauncherPathName.EA: "",
-                    LauncherPathName.EPIC: "",
-                    LauncherPathName.GOG: "",
-                    LauncherPathName.UBISOFT: "",
-                    LauncherPathName.BATTLENET: "",
-                    LauncherPathName.XBOX: "",
-                    LauncherPathName.CUSTOM1: "",
-                    LauncherPathName.CUSTOM2: "",
-                    LauncherPathName.CUSTOM3: "",
-                    LauncherPathName.CUSTOM4: "",
-                },
-                "Settings": {
-                    "CheckForUpdatesOnStart": "True",
-                    "AutoBackup": "True",
-                    "MinimizeToTray": "False",
-                },
-                "Updates": {
-                    "LastUpdateCheck": "",
-                    "CurrentDLSSVersion": LATEST_DLL_VERSIONS["nvngx_dlss.dll"],
-                },
-                "BlacklistSkips": {},  # Empty dict to store games to skip in the blacklist
-            }
+            # Initialize launcher paths section
+            if not self.has_section("LauncherPaths"):
+                self.add_section("LauncherPaths")
+                self["LauncherPaths"].update(
+                    {
+                        LauncherPathName.STEAM: "",
+                        LauncherPathName.EA: "",
+                        LauncherPathName.EPIC: "",
+                        LauncherPathName.GOG: "",
+                        LauncherPathName.UBISOFT: "",
+                        LauncherPathName.BATTLENET: "",
+                        LauncherPathName.XBOX: "",
+                        LauncherPathName.CUSTOM1: "",
+                        LauncherPathName.CUSTOM2: "",
+                        LauncherPathName.CUSTOM3: "",
+                        LauncherPathName.CUSTOM4: "",
+                    }
+                )
+                self.save()
 
-            for section, values in sections.items():
-                if not self.has_section(section):
-                    self.add_section(section)
-                for key, value in values.items():
-                    if key not in self[section]:
-                        self[section][key] = value
+            # Initialize update preferences section
+            if not self.has_section("UpdatePreferences"):
+                self.add_section("UpdatePreferences")
+                self["UpdatePreferences"].update(
+                    {
+                        "UpdateDLSS": "true",
+                        "UpdateDirectStorage": "true",
+                        "UpdateXeSS": "true",
+                    }
+                )
+                self.save()
 
-            self.save()
             self.initialized = True
 
     def update_launcher_path(
         self, path_to_update: LauncherPathName, new_launcher_path: str
     ):
-        """Update launcher path in config"""
         self.logger.debug(f"Attempting to update path for {path_to_update}.")
         self["LauncherPaths"][path_to_update] = new_launcher_path
         self.save()
         self.logger.debug(f"Updated path for {path_to_update}.")
 
     def check_path_value(self, path_to_check: LauncherPathName) -> str:
-        """Get launcher path from config"""
         return self["LauncherPaths"].get(path_to_check, "")
 
     def reset_launcher_path(self, path_to_reset: LauncherPathName):
-        """Reset launcher path to default empty value"""
-        self.logger.debug(f"Resetting path for {path_to_reset}")
+        self.logger.debug(f"Resetting path for {path_to_reset}.")
         self["LauncherPaths"][path_to_reset] = ""
         self.save()
+        self.logger.debug(f"Reset path for {path_to_reset}.")
 
-    def get_setting(self, setting_name: str, default_value: str = "") -> str:
-        """Get setting value with fallback"""
-        return self["Settings"].get(setting_name, default_value)
+    def get_update_preference(self, technology):
+        """Get update preference for a specific technology"""
+        return self["UpdatePreferences"].getboolean(f"Update{technology}", True)
 
-    def update_setting(self, setting_name: str, value: str):
-        """Update setting value"""
-        self["Settings"][setting_name] = value
+    def set_update_preference(self, technology, enabled):
+        """Set update preference for a specific technology"""
+        self["UpdatePreferences"][f"Update{technology}"] = str(enabled).lower()
         self.save()
 
-    def update_last_check_time(self, timestamp: str):
-        """Update last update check timestamp"""
-        self["Updates"]["LastUpdateCheck"] = timestamp
-        self.save()
-
-    def update_current_dlss_version(self, version: str):
-        """Update current DLSS version"""
-        self["Updates"]["CurrentDLSSVersion"] = version
-        self.save()
-
-    def add_blacklist_skip(self, game_name: str):
-        """Add a game name to skip in blacklist checks"""
+    def get_all_blacklist_skips(self):
+        """Get all games to skip in the blacklist"""
         if not self.has_section("BlacklistSkips"):
             self.add_section("BlacklistSkips")
-        # Use a sanitized version of the game name as the key
-        safe_key = game_name.replace(" ", "_").replace(".", "_")
-        self["BlacklistSkips"][safe_key] = game_name
+            self.save()
+        return [
+            game
+            for game, value in self["BlacklistSkips"].items()
+            if value.lower() == "true"
+        ]
+
+    def add_blacklist_skip(self, game_name):
+        """Add a game to skip in the blacklist"""
+        if not self.has_section("BlacklistSkips"):
+            self.add_section("BlacklistSkips")
+        self["BlacklistSkips"][game_name] = "true"
         self.save()
-
-    def remove_blacklist_skip(self, game_name: str):
-        """Remove a game name from blacklist skips"""
-        if self.has_section("BlacklistSkips"):
-            safe_key = game_name.replace(" ", "_").replace(".", "_")
-            if safe_key in self["BlacklistSkips"]:
-                self["BlacklistSkips"].pop(safe_key)
-                self.save()
-
-    def is_blacklist_skipped(self, game_name: str) -> bool:
-        """Check if a game name should skip blacklist checks"""
-        if self.has_section("BlacklistSkips"):
-            safe_key = game_name.replace(" ", "_").replace(".", "_")
-            return safe_key in self["BlacklistSkips"]
-        return False
-
-    def get_all_blacklist_skips(self) -> list:
-        """Get all game names to skip in blacklist checks"""
-        if self.has_section("BlacklistSkips"):
-            return list(self["BlacklistSkips"].values())
-        return []
 
     def clear_all_blacklist_skips(self):
         """Clear all blacklist skips"""
         if self.has_section("BlacklistSkips"):
-            self["BlacklistSkips"].clear()
+            self.remove_section("BlacklistSkips")
+            self.add_section("BlacklistSkips")
             self.save()
+
+    def is_blacklist_skipped(self, game_name):
+        """Check if a game is in the blacklist skip list"""
+        if not self.has_section("BlacklistSkips"):
+            return False
+        return self["BlacklistSkips"].getboolean(game_name, False)
 
     def save(self):
         """Save configuration to disk"""
@@ -190,3 +168,20 @@ class ConfigManager(configparser.ConfigParser):
 
 
 config_manager = ConfigManager()
+
+
+def initialize_dll_paths():
+    """Initialize the DLL paths after all modules are loaded"""
+    from .dll_repository import get_local_dll_path
+
+    global LATEST_DLL_PATHS
+    LATEST_DLL_PATHS = {
+        "nvngx_dlss.dll": get_local_dll_path("nvngx_dlss.dll"),
+        "nvngx_dlssg.dll": get_local_dll_path("nvngx_dlssg.dll"),
+        "nvngx_dlssd.dll": get_local_dll_path("nvngx_dlssd.dll"),
+        "libxess.dll": get_local_dll_path("libxess.dll"),
+        "libxess_dx11.dll": get_local_dll_path("libxess_dx11.dll"),
+        "dstorage.dll": get_local_dll_path("dstorage.dll"),
+        "dstoragecore.dll": get_local_dll_path("dstoragecore.dll"),
+    }
+    return LATEST_DLL_PATHS

@@ -150,10 +150,14 @@ def update_dlss_versions():
                 traceback.print_exc()
 
         try:
+            # Use the synchronous version of find_all_dlls
             all_dll_paths = find_all_dlss_dlls()
             logger.info("DLL search completed.")
         except Exception as e:
             logger.error(f"Error finding DLLs: {e}")
+            import traceback
+
+            logger.error(traceback.format_exc())
             return False, [], [], []
 
         processed_dlls = set()
@@ -254,20 +258,47 @@ def update_dlss_versions():
 def process_single_dll(dll_path, launcher):
     """Process a single DLL file"""
     try:
-        dll_type = DLL_TYPE_MAP.get(dll_path.name.lower(), "Unknown DLL type")
+        # Get the lowercase filename for consistency
+        dll_name = dll_path.name.lower()
+
+        # Directly check for known DLL types to avoid case sensitivity issues
+        if "nvngx_dlss.dll" == dll_name:
+            dll_type = "DLSS DLL"
+        elif "nvngx_dlssg.dll" == dll_name:
+            dll_type = "DLSS Frame Generation DLL"
+        elif "nvngx_dlssd.dll" == dll_name:
+            dll_type = "DLSS Ray Reconstruction DLL"
+        elif "libxess.dll" == dll_name:
+            dll_type = "XeSS DLL"
+        elif "libxess_dx11.dll" == dll_name:
+            dll_type = "XeSS DX11 DLL"
+        elif "dstorage.dll" == dll_name:
+            dll_type = "DirectStorage DLL"
+        elif "dstoragecore.dll" == dll_name:
+            dll_type = "DirectStorage Core DLL"
+        else:
+            dll_type = "Unknown DLL type"
+
         logger.info(f" - {dll_type}: {dll_path}")
 
         game_name = extract_game_name(str(dll_path), launcher)
         if "warframe" in game_name.lower():
             return None
 
-        if is_whitelisted(str(dll_path)):
+        # Check if whitelisted
+        import asyncio
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        whitelisted = loop.run_until_complete(is_whitelisted(str(dll_path)))
+        loop.close()
+
+        if whitelisted:
             logger.debug(
                 f"Game {game_name} is in whitelist, checking if it's on skip list..."
             )
             return False, None, dll_type
 
-        dll_name = dll_path.name.lower()
         if dll_name in LATEST_DLL_PATHS:
             latest_dll_path = LATEST_DLL_PATHS[dll_name]
             return update_dll(str(dll_path), latest_dll_path)

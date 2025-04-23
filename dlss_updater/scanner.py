@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 from .config import LauncherPathName, config_manager
 from .whitelist import is_whitelisted
+from .constants import DLL_GROUPS
+import asyncio
 from dlss_updater.logger import setup_logger
 import sys
 
@@ -52,20 +54,14 @@ def get_steam_libraries(steam_path):
                 logger.debug(f"Found Steam library: {library_path}")
                 libraries.append(library_path)
 
+    logger.debug(f"Found total Steam libraries: {len(libraries)}")
+    for lib in libraries:
+        logger.debug(f"Steam library path: {lib}")
     return libraries
 
 
-def find_dlss_dlls(library_paths, launcher_name):
-    """
-    Find DLSS and XeSS DLLs in the given list of library paths.
-    """
-    dll_names = [
-        "nvngx_dlss.dll",
-        "nvngx_dlssg.dll",
-        "nvngx_dlssd.dll",
-        "libxess.dll",
-        "libxess_dx11.dll",
-    ]
+async def find_dlls(library_paths, launcher_name, dll_names):
+    """Find DLLs from a filtered list of DLL names"""
     dll_paths = []
     logger.debug(f"Searching for DLLs in {launcher_name}")
 
@@ -77,7 +73,7 @@ def find_dlss_dlls(library_paths, launcher_name):
                     if dll_name.lower() in [f.lower() for f in files]:
                         dll_path = os.path.join(root, dll_name)
                         logger.debug(f"Found DLL: {dll_path}")
-                        if not is_whitelisted(dll_path):
+                        if not await is_whitelisted(dll_path):
                             logger.info(
                                 f"Found non-whitelisted DLL in {launcher_name}: {dll_path}"
                             )
@@ -86,41 +82,25 @@ def find_dlss_dlls(library_paths, launcher_name):
                             logger.info(
                                 f"Skipped whitelisted game in {launcher_name}: {dll_path}"
                             )
+                await asyncio.sleep(0)
         except Exception as e:
             logger.error(f"Error scanning {library_path}: {e}")
 
+    logger.debug(f"Found {len(dll_paths)} DLLs in {launcher_name}")
     return dll_paths
 
 
-def get_ea_games():
-    """
-    Find EA game directories and DLLs within the given path.
-    """
+def get_user_input(prompt):
+    user_input = input(prompt).strip()
+    return None if user_input.lower() in ["n/a", ""] else user_input
+
+
+async def get_ea_games():
     ea_path = config_manager.check_path_value(LauncherPathName.EA)
-    ea_games_paths = []
-    ea_dll_paths = []
-
-    if ea_path and ea_path != "":
-        for root, dirs, files in os.walk(ea_path):
-            for file in files:
-                if file.lower() in [
-                    "nvngx_dlss.dll",
-                    "nvngx_dlssg.dll",
-                    "nvngx_dlssd.dll",
-                    "libxess.dll",
-                    "libxess_dx11.dll",
-                ]:
-                    dll_path = os.path.join(root, file)
-                    ea_dll_paths.append(dll_path)
-                    logger.debug(f"Found EA DLL: {dll_path}")
-
-            for dir in dirs:
-                if dir.lower() == "ea games":
-                    games_path = os.path.join(root, dir)
-                    ea_games_paths.append(games_path)
-                    logger.debug(f"Found EA games directory: {games_path}")
-
-    return ea_games_paths, ea_dll_paths
+    if not ea_path or ea_path == "":
+        return []
+    ea_games_path = Path(ea_path)
+    return [ea_games_path] if ea_games_path.exists() else []
 
 
 def get_ubisoft_install_path():
@@ -134,194 +114,62 @@ def get_ubisoft_install_path():
         )
         value, _ = winreg.QueryValueEx(key, "InstallDir")
         config_manager.update_launcher_path(LauncherPathName.UBISOFT, str(value))
-        logger.debug(f"Ubisoft install path: {value}")
         return value
     except (FileNotFoundError, ImportError):
-        logger.error("Could not find Ubisoft install path")
         return None
 
 
-def get_ubisoft_games(ubisoft_path):
-    """
-    Find Ubisoft game directories and DLLs within the given path.
-    """
-    ubisoft_games_paths = []
-    ubisoft_dll_paths = []
-
-    for root, dirs, files in os.walk(ubisoft_path):
-        for file in files:
-            if file.lower() in [
-                "nvngx_dlss.dll",
-                "nvngx_dlssg.dll",
-                "nvngx_dlssd.dll",
-                "libxess.dll",
-                "libxess_dx11.dll",
-            ]:
-                dll_path = os.path.join(root, file)
-                ubisoft_dll_paths.append(dll_path)
-                logger.debug(f"Found Ubisoft DLL: {dll_path}")
-
-        for dir in dirs:
-            if dir.lower() == "games":
-                games_path = os.path.join(root, dir)
-                ubisoft_games_paths.append(games_path)
-                logger.debug(f"Found Ubisoft games directory: {games_path}")
-
-    return ubisoft_games_paths, ubisoft_dll_paths
+async def get_ubisoft_games(ubisoft_path):
+    ubisoft_games_path = Path(ubisoft_path) / "games"
+    if not ubisoft_games_path.exists():
+        return []
+    return [ubisoft_games_path]
 
 
-def get_xbox_games():
-    """
-    Find Xbox game directories and DLLs within the given path.
-    """
-    xbox_path = config_manager.check_path_value(LauncherPathName.XBOX)
-    xbox_games_paths = []
-    xbox_dll_paths = []
-
-    if xbox_path and xbox_path != "":
-        for root, dirs, files in os.walk(xbox_path):
-            for file in files:
-                if file.lower() in [
-                    "nvngx_dlss.dll",
-                    "nvngx_dlssg.dll",
-                    "nvngx_dlssd.dll",
-                    "libxess.dll",
-                    "libxess_dx11.dll",
-                ]:
-                    dll_path = os.path.join(root, file)
-                    xbox_dll_paths.append(dll_path)
-                    logger.debug(f"Found Xbox DLL: {dll_path}")
-
-            for dir in dirs:
-                if dir.lower() == "games":
-                    games_path = os.path.join(root, dir)
-                    xbox_games_paths.append(games_path)
-                    logger.debug(f"Found Xbox games directory: {games_path}")
-
-    return xbox_games_paths, xbox_dll_paths
-
-
-def get_epic_games():
-    """
-    Find Epic Games directories and DLLs within the given path.
-    """
+async def get_epic_games():
     epic_path = config_manager.check_path_value(LauncherPathName.EPIC)
-    epic_games_paths = []
-    epic_dll_paths = []
-
-    if epic_path and epic_path != "":
-        for root, dirs, files in os.walk(epic_path):
-            for file in files:
-                if file.lower() in [
-                    "nvngx_dlss.dll",
-                    "nvngx_dlssg.dll",
-                    "nvngx_dlssd.dll",
-                    "libxess.dll",
-                    "libxess_dx11.dll",
-                ]:
-                    dll_path = os.path.join(root, file)
-                    epic_dll_paths.append(dll_path)
-                    logger.debug(f"Found Epic Games DLL: {dll_path}")
-
-            for dir in dirs:
-                if dir.lower() == "games":
-                    games_path = os.path.join(root, dir)
-                    epic_games_paths.append(games_path)
-                    logger.debug(f"Found Epic Games directory: {games_path}")
-
-    return epic_games_paths, epic_dll_paths
+    if not epic_path or epic_path == "":
+        return []
+    epic_games_path = Path(epic_path)
+    return [epic_games_path] if epic_games_path.exists() else []
 
 
-def get_gog_games():
-    """
-    Find GOG game directories and DLLs within the given path.
-    """
+async def get_gog_games():
     gog_path = config_manager.check_path_value(LauncherPathName.GOG)
-    gog_games_paths = []
-    gog_dll_paths = []
-
-    if gog_path and gog_path != "":
-        for root, dirs, files in os.walk(gog_path):
-            for file in files:
-                if file.lower() in [
-                    "nvngx_dlss.dll",
-                    "nvngx_dlssg.dll",
-                    "nvngx_dlssd.dll",
-                    "libxess.dll",
-                    "libxess_dx11.dll",
-                ]:
-                    dll_path = os.path.join(root, file)
-                    gog_dll_paths.append(dll_path)
-                    logger.debug(f"Found GOG DLL: {dll_path}")
-
-            for dir in dirs:
-                if dir.lower() == "games":
-                    games_path = os.path.join(root, dir)
-                    gog_games_paths.append(games_path)
-                    logger.debug(f"Found GOG games directory: {games_path}")
-
-    return gog_games_paths, gog_dll_paths
+    if not gog_path or gog_path == "":
+        return []
+    gog_games_path = Path(gog_path)
+    return [gog_games_path] if gog_games_path.exists() else []
 
 
-def get_battlenet_games(battlenet_path):
-    """
-    Find Battle.net game directories and DLLs within the given path.
-    """
-    battlenet_games_paths = []
-    battlenet_dll_paths = []
-
-    for root, dirs, files in os.walk(battlenet_path):
-        for file in files:
-            if file.lower() in [
-                "nvngx_dlss.dll",
-                "nvngx_dlssg.dll",
-                "nvngx_dlssd.dll",
-                "libxess.dll",
-                "libxess_dx11.dll",
-            ]:
-                dll_path = os.path.join(root, file)
-                battlenet_dll_paths.append(dll_path)
-                logger.debug(f"Found Battle.net DLL: {dll_path}")
-
-        for dir in dirs:
-            if dir.lower() == "games":
-                games_path = os.path.join(root, dir)
-                battlenet_games_paths.append(games_path)
-                logger.debug(f"Found Battle.net games directory: {games_path}")
-
-    return battlenet_games_paths, battlenet_dll_paths
+async def get_battlenet_games():
+    battlenet_path = config_manager.check_path_value(LauncherPathName.BATTLENET)
+    if not battlenet_path or battlenet_path == "":
+        return []
+    battlenet_games_path = Path(battlenet_path)
+    return [battlenet_games_path] if battlenet_games_path.exists() else []
 
 
-def get_custom_games(path_enum):
-    """
-    Find DLLs in custom game directories.
-    """
-    custom_path = config_manager.check_path_value(path_enum)
-    custom_dll_paths = []
-
-    if custom_path and custom_path != "":
-        for root, _, files in os.walk(custom_path):
-            for file in [
-                f
-                for f in files
-                if f.lower()
-                in [
-                    "nvngx_dlss.dll",
-                    "nvngx_dlssg.dll",
-                    "nvngx_dlssd.dll",
-                    "libxess.dll",
-                    "libxess_dx11.dll",
-                ]
-            ]:
-                dll_path = os.path.join(root, file)
-                custom_dll_paths.append(dll_path)
-                logger.debug(f"Found DLL in custom path: {dll_path}")
-
-    return custom_dll_paths
+async def get_xbox_games():
+    xbox_path = config_manager.check_path_value(LauncherPathName.XBOX)
+    if not xbox_path or xbox_path == "":
+        return []
+    xbox_games_path = Path(xbox_path)
+    return [xbox_games_path] if xbox_games_path.exists() else []
 
 
-def find_all_dlss_dlls():
-    logger.info("Starting find_all_dlss_dlls function")
+async def get_custom_folder(folder_num):
+    custom_path = config_manager.check_path_value(
+        getattr(LauncherPathName, f"CUSTOM{folder_num}")
+    )
+    if not custom_path or custom_path == "":
+        return []
+    custom_path = Path(custom_path)
+    return [custom_path] if custom_path.exists() else []
+
+
+async def find_all_dlls():
+    logger.info("Starting find_all_dlls function")
     all_dll_paths = {
         "Steam": [],
         "EA Launcher": [],
@@ -330,65 +178,119 @@ def find_all_dlss_dlls():
         "GOG Launcher": [],
         "Battle.net Launcher": [],
         "Xbox Launcher": [],
-        "Custom Path 1": [],
-        "Custom Path 2": [],
-        "Custom Path 3": [],
-        "Custom Path 4": [],
+        "Custom Folder 1": [],
+        "Custom Folder 2": [],
+        "Custom Folder 3": [],
+        "Custom Folder 4": [],
     }
 
-    # Steam
+    # Get user preferences
+    update_dlss = config_manager.get_update_preference("DLSS")
+    update_ds = config_manager.get_update_preference("DirectStorage")
+    update_xess = config_manager.get_update_preference("XeSS")
+
+    # Build list of DLLs to search for based on preferences
+    dll_names = []
+    if update_dlss:
+        dll_names.extend(DLL_GROUPS["DLSS"])
+    if update_ds:
+        dll_names.extend(DLL_GROUPS["DirectStorage"])
+    if update_xess and DLL_GROUPS["XeSS"]:  # Only add if there are XeSS DLLs defined
+        dll_names.extend(DLL_GROUPS["XeSS"])
+
+    # Skip if no technologies selected
+    if not dll_names:
+        logger.info("No technologies selected for update, skipping scan")
+        return all_dll_paths
+
     steam_path = get_steam_install_path()
     if steam_path:
         steam_libraries = get_steam_libraries(steam_path)
-        all_dll_paths["Steam"] = find_dlss_dlls(steam_libraries, "Steam")
+        all_dll_paths["Steam"] = await find_dlls(steam_libraries, "Steam", dll_names)
 
-    # EA
-    ea_games, ea_dlls = get_ea_games()
+    ea_games = await get_ea_games()
     if ea_games:
+        ea_dlls = await find_dlls(ea_games, "EA Launcher", dll_names)
         all_dll_paths["EA Launcher"].extend(ea_dlls)
 
-    # Ubisoft
     ubisoft_path = get_ubisoft_install_path()
     if ubisoft_path:
-        ubisoft_games, ubisoft_dlls = get_ubisoft_games(ubisoft_path)
-        all_dll_paths["Ubisoft Launcher"].extend(ubisoft_dlls)
+        ubisoft_games = await get_ubisoft_games(ubisoft_path)
+        all_dll_paths["Ubisoft Launcher"] = await find_dlls(
+            ubisoft_games, "Ubisoft Launcher", dll_names
+        )
 
-    # Epic Games
-    epic_games, epic_dlls = get_epic_games()
+    epic_games = await get_epic_games()
     if epic_games:
-        all_dll_paths["Epic Games Launcher"].extend(epic_dlls)
+        all_dll_paths["Epic Games Launcher"] = await find_dlls(
+            epic_games, "Epic Games Launcher", dll_names
+        )
 
-    # Xbox
-    xbox_games, xbox_dlls = get_xbox_games()
-    if xbox_games:
-        all_dll_paths["Xbox Launcher"].extend(xbox_dlls)
-
-    # GOG
-    gog_games, gog_dlls = get_gog_games()
+    gog_games = await get_gog_games()
     if gog_games:
-        all_dll_paths["GOG Launcher"].extend(gog_dlls)
+        all_dll_paths["GOG Launcher"] = await find_dlls(
+            gog_games, "GOG Launcher", dll_names
+        )
 
-    # Battle.net
-    battlenet_path = config_manager.check_path_value(LauncherPathName.BATTLENET)
-    if battlenet_path:
-        battlenet_games, battlenet_dlls = get_battlenet_games(battlenet_path)
-        all_dll_paths["Battle.net Launcher"].extend(battlenet_dlls)
+    battlenet_games = await get_battlenet_games()
+    if battlenet_games:
+        all_dll_paths["Battle.net Launcher"] = await find_dlls(
+            battlenet_games, "Battle.net Launcher", dll_names
+        )
 
-    # Custom paths
-    custom_paths = [
-        (LauncherPathName.CUSTOM1, "Custom Path 1"),
-        (LauncherPathName.CUSTOM2, "Custom Path 2"),
-        (LauncherPathName.CUSTOM3, "Custom Path 3"),
-        (LauncherPathName.CUSTOM4, "Custom Path 4"),
-    ]
+    xbox_games = await get_xbox_games()
+    if xbox_games:
+        all_dll_paths["Xbox Launcher"] = await find_dlls(
+            xbox_games, "Xbox Launcher", dll_names
+        )
 
-    for path_enum, key in custom_paths:
-        custom_dlls = get_custom_games(path_enum)
-        if custom_dlls:
-            all_dll_paths[key].extend(custom_dlls)
+    # Add custom folders
+    for i in range(1, 5):
+        custom_folder = await get_custom_folder(i)
+        if custom_folder:
+            all_dll_paths[f"Custom Folder {i}"] = await find_dlls(
+                custom_folder, f"Custom Folder {i}", dll_names
+            )
 
     # Remove duplicates
+    unique_dlls = set()
     for launcher in all_dll_paths:
-        all_dll_paths[launcher] = list(set(all_dll_paths[launcher]))
+        all_dll_paths[launcher] = [
+            dll
+            for dll in all_dll_paths[launcher]
+            if str(dll) not in unique_dlls and not unique_dlls.add(str(dll))
+        ]
 
     return all_dll_paths
+
+
+def find_all_dlls_sync():
+    """Synchronous wrapper for find_all_dlls to use in non-async contexts"""
+    import asyncio
+
+    try:
+        # Use a new event loop to avoid conflicts with Qt
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(find_all_dlls())
+        loop.close()
+        return result
+    except Exception as e:
+        logger.error(f"Error in find_all_dlls_sync: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
+        # Return an empty dict as fallback
+        return {
+            "Steam": [],
+            "EA Launcher": [],
+            "Ubisoft Launcher": [],
+            "Epic Games Launcher": [],
+            "GOG Launcher": [],
+            "Battle.net Launcher": [],
+            "Xbox Launcher": [],
+            "Custom Folder 1": [],
+            "Custom Folder 2": [],
+            "Custom Folder 3": [],
+            "Custom Folder 4": [],
+        }

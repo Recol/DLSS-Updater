@@ -2,12 +2,15 @@ from dlss_updater.utils import *
 from dlss_updater.logger import setup_logger
 from dlss_updater.main_ui.main_window import MainWindow
 from dlss_updater.auto_updater import cleanup_old_update_files
+from dlss_updater.dll_repository import initialize_dll_cache
 from PyQt6.QtWidgets import QApplication
 import os
 import sys
 
-logger = setup_logger()
+# Global flag to track initialization state
+_dll_cache_initialized = False
 
+logger = setup_logger()
 
 # Add the directory containing the executable to sys.path
 if getattr(sys, "frozen", False):
@@ -17,6 +20,14 @@ if getattr(sys, "frozen", False):
 
 def main():
     try:
+        # Initialize DLL cache only once and only after admin rights are confirmed
+        global _dll_cache_initialized
+        if not _dll_cache_initialized:
+            logger.debug("Starting DLL cache initialization from main.py")
+            initialize_dll_cache()
+            _dll_cache_initialized = True
+            logger.debug("DLL cache initialization completed")
+
         if gui_mode:
             log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
             sys.stdout = sys.stderr = open(log_file, "w")
@@ -49,7 +60,11 @@ if __name__ == "__main__":
 
     if not check_dependencies():
         sys.exit(1)
+
+    # Check for admin rights and request if needed - BEFORE initializing DLL cache
     if not is_admin():
+        logger.info("Requesting administrator privileges...")
         run_as_admin()
+        sys.exit(0)  # Exit after requesting admin privileges
     else:
         main()

@@ -1,7 +1,7 @@
 import os
 import shutil
 import pefile
-from dlss_updater.config import LATEST_DLL_VERSIONS, LATEST_DLL_PATHS
+from .config import LATEST_DLL_VERSIONS, LATEST_DLL_PATHS
 from pathlib import Path
 import stat
 import time
@@ -14,9 +14,31 @@ logger = setup_logger()
 
 
 def parse_version(version_string):
-    # Replace commas with dots and remove any trailing zeros
-    cleaned_version = ".".join(version_string.replace(",", ".").split(".")[:3])
-    return version.parse(cleaned_version)
+    """
+    Parse a version string into a format that can be compared.
+    Handles both dot and comma-separated versions.
+    """
+    if not version_string:
+        return version.parse("0.0.0")
+
+    # Replace commas with dots
+    cleaned_version = version_string.replace(",", ".")
+
+    # Split by dots and take the first three components to standardize format
+    components = cleaned_version.split(".")
+    if len(components) >= 3:
+        # Use the first three components for comparison
+        standardized_version = ".".join(components[:3])
+    else:
+        # If less than three components, use what we have
+        standardized_version = cleaned_version
+
+    try:
+        return version.parse(standardized_version)
+    except Exception as e:
+        logger.error(f"Error parsing version '{version_string}': {e}")
+        # Return a very low version to encourage updates when parsing fails
+        return version.parse("0.0.0")
 
 
 def get_dll_version(dll_path):
@@ -123,7 +145,9 @@ def update_dll(dll_path, latest_dll_path):
                 f"Existing version: {existing_version}, Latest version: {latest_version}"
             )
             # Do not include FG/RR DLLs in the update check
-            if dll_type == "nvngx_dlss.dll" and existing_parsed < parse_version("2.0.0"):
+            if dll_type == "nvngx_dlss.dll" and existing_parsed < parse_version(
+                "2.0.0"
+            ):
                 logger.info(
                     f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated."
                 )

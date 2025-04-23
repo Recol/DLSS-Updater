@@ -30,28 +30,99 @@ def fetch_whitelist():
 WHITELISTED_GAMES = fetch_whitelist()
 
 
-def is_whitelisted(game_path):
-    """Check if a game path matches any whitelisted games"""
+async def is_whitelisted(game_path):
+    """
+    Check if a game path matches any whitelisted games.
+    Uses launcher pattern detection to find the actual game name.
+    """
     logger.debug(f"Checking game against whitelist: {game_path}")
-    path_parts = game_path.lower().split(os.path.sep)
-    game_name = (
-        path_parts[-2] if len(path_parts) > 2 else "Unknown"
-    )  # Usually parent folder is game name
 
+    # Extract path components
+    path_parts = [p for p in game_path.split(os.path.sep) if p]
+
+    # Skip if the path is too short
+    if len(path_parts) < 3:
+        return False
+
+    # Look for known launcher patterns to identify the game directory
+    game_dir = None
+
+    # Epic Games pattern: <drive>:\Epic Games\<GameName>\...
+    if "Epic Games" in path_parts:
+        epic_index = path_parts.index("Epic Games")
+        if epic_index + 1 < len(path_parts):
+            game_dir = path_parts[epic_index + 1]
+
+    # Steam pattern: <drive>:\<SteamLibrary>\steamapps\common\<GameName>\...
+    elif "steamapps" in path_parts and "common" in path_parts:
+        common_index = path_parts.index("common")
+        if common_index + 1 < len(path_parts):
+            game_dir = path_parts[common_index + 1]
+
+    # EA Games pattern: <drive>:\EA Games\<GameName>\...
+    elif "EA Games" in path_parts:
+        ea_index = path_parts.index("EA Games")
+        if ea_index + 1 < len(path_parts):
+            game_dir = path_parts[ea_index + 1]
+
+    # GOG pattern: <drive>:\GOG Games\<GameName>\... or <drive>:\GOG Galaxy\Games\<GameName>\...
+    elif "GOG Games" in path_parts:
+        gog_index = path_parts.index("GOG Games")
+        if gog_index + 1 < len(path_parts):
+            game_dir = path_parts[gog_index + 1]
+    elif "GOG Galaxy" in path_parts and "Games" in path_parts:
+        games_index = path_parts.index("Games")
+        if games_index + 1 < len(path_parts):
+            game_dir = path_parts[games_index + 1]
+
+    # Ubisoft pattern: <drive>:\Ubisoft\Ubisoft Game Launcher\games\<GameName>\...
+    elif "Ubisoft Game Launcher" in path_parts and "games" in path_parts:
+        games_index = path_parts.index("games")
+        if games_index + 1 < len(path_parts):
+            game_dir = path_parts[games_index + 1]
+
+    # Battle.net pattern: <drive>:\Battle.net\<GameName>\...
+    elif "Battle.net" in path_parts:
+        battlenet_index = path_parts.index("Battle.net")
+        if battlenet_index + 1 < len(path_parts):
+            game_dir = path_parts[battlenet_index + 1]
+
+    # Xbox pattern: <drive>:\Xbox\<GameName>\...
+    elif "Xbox" in path_parts:
+        xbox_index = path_parts.index("Xbox")
+        if xbox_index + 1 < len(path_parts):
+            game_dir = path_parts[xbox_index + 1]
+
+    # Fallback: Just use the parent directory if we couldn't identify the game
+    if not game_dir:
+        logger.debug(
+            "Could not identify game from path patterns, using parent directory"
+        )
+        game_dir = path_parts[-2]
+
+    logger.debug(f"Identified game directory: {game_dir}")
+
+    # Check for skip list first
     for game in WHITELISTED_GAMES:
-        game_words = game.lower().split()
-        if all(word in " ".join(path_parts).lower() for word in game_words):
-            # Check if this game is in the user's skip list
-            if config_manager.is_blacklist_skipped(game):
+        if config_manager.is_blacklist_skipped(game):
+            if game.lower() == game_dir.lower():
                 logger.info(
-                    f"Whitelist match found but user has chosen to ignore: {game_name} matches {game}"
+                    f"Game '{game_dir}' is in whitelist but also in skip list - allowing update"
                 )
                 return False
 
-            logger.info(f"Whitelist match found: {game_name} matches {game}")
+    # Now check against whitelist
+    for game in WHITELISTED_GAMES:
+        # Skip if in skip list (already handled)
+        if config_manager.is_blacklist_skipped(game):
+            continue
+
+        # Simple direct name comparison
+        if game.lower() == game_dir.lower():
+            logger.info(f"Whitelist match found: {game_dir}")
             return True
 
-    logger.debug(f"No whitelist match found for: {game_name}")
+    logger.debug(f"No whitelist match found for: {game_dir}")
     return False
 
 

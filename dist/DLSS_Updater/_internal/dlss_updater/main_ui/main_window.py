@@ -22,6 +22,8 @@ from PyQt6.QtWidgets import (
     QFrame,
     QProgressBar,
     QSizePolicy,
+    QMessageBox,
+    QCheckBox,
 )
 from dlss_updater.lib.threading_lib import ThreadManager
 from pathlib import Path
@@ -117,7 +119,6 @@ class NotificationWidget(QWidget):
 
     def __init__(self, message, parent=None):
         super().__init__(parent)
-
         # Setup widget
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -287,7 +288,8 @@ class MainWindow(QMainWindow):
             "⚙ Manage Blacklist", "settings.png", "Manage blacklisted games"
         )
         blacklist_button.clicked.connect(self.show_blacklist_manager)
-
+        self.preferences_button = self.create_styled_button("⚙ Update Preferences", "settings.png", "Configure which technologies to update")
+        self.preferences_button.clicked.connect(self.show_update_preferences)
         # Add hover effect to buttons
         for btn in [
             donate_button,
@@ -296,6 +298,7 @@ class MainWindow(QMainWindow):
             release_notes_button,
             view_logs_button,
             blacklist_button,
+            self.preferences_button,
         ]:
             self.add_button_hover_effect(btn)
 
@@ -305,6 +308,7 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(release_notes_button)
         button_layout.addWidget(view_logs_button)
         button_layout.addWidget(blacklist_button)
+        button_layout.addWidget(self.preferences_button)
         main_layout.addLayout(button_layout)
 
         # Original logger splitter setup
@@ -579,6 +583,120 @@ class MainWindow(QMainWindow):
             except ValueError:
                 # Already removed
                 pass
+
+    def show_update_preferences(self):
+        """Show dialog to configure update preferences"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Update Preferences")
+        dialog.setMinimumWidth(400)
+        
+        layout = QVBoxLayout()
+        
+        info_label = QLabel(
+            "Select which technologies you want to update:"
+        )
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet(
+            "margin-bottom: 10px; background-color: transparent; border: none;"
+        )
+        layout.addWidget(info_label)
+        
+        # Create checkboxes
+        self.dlss_checkbox = QCheckBox("DLSS (Deep Learning Super Sampling)")
+        self.dlss_checkbox.setChecked(config_manager.get_update_preference("DLSS"))
+        
+        self.ds_checkbox = QCheckBox("DirectStorage")
+        self.ds_checkbox.setChecked(config_manager.get_update_preference("DirectStorage"))
+        
+        self.xess_checkbox = QCheckBox("XeSS (Intel Xe Super Sampling)")
+        self.xess_checkbox.setChecked(config_manager.get_update_preference("XeSS"))
+        
+        # Apply styling to checkboxes
+        checkbox_style = """
+            QCheckBox {
+                color: white;
+                background-color: transparent;
+                padding: 5px;
+                font-size: 14px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+            }
+            QCheckBox::indicator:unchecked {
+                border: 1px solid #7F7F7F;
+                background-color: #3C3C3C;
+            }
+            QCheckBox::indicator:checked {
+                border: 1px solid #2D6E88;
+                background-color: #2D6E88;
+            }
+        """
+        self.dlss_checkbox.setStyleSheet(checkbox_style)
+        self.ds_checkbox.setStyleSheet(checkbox_style)
+        self.xess_checkbox.setStyleSheet(checkbox_style)
+        
+        # Add checkboxes to layout
+        layout.addWidget(self.dlss_checkbox)
+        layout.addWidget(self.ds_checkbox)
+        layout.addWidget(self.xess_checkbox)
+        
+        # Add description of each technology
+        help_text = QTextBrowser()
+        help_text.setMaximumHeight(150)
+        help_text.setHtml("""
+            <p><b>DLSS</b>: NVIDIA Deep Learning Super Sampling technology improves performance while maintaining high image quality. Updates DLLs:</p>
+            <ul>
+                <li>nvngx_dlss.dll</li>
+                <li>nvngx_dlssg.dll</li>
+                <li>nvngx_dlssd.dll</li>
+            </ul>
+            <p><b>DirectStorage</b>: Microsoft's DirectStorage API accelerates game loading times and texture streaming. Updates DLLs:</p>
+            <ul>
+                <li>dstorage.dll</li>
+                <li>dstoragecore.dll</li>
+            </ul>
+            <p><b>XeSS</b>: Intel's Xe Super Sampling technology provides performance improvements similar to DLSS for all GPU brands.</p>
+        """)
+        help_text.setStyleSheet("background-color: #3C3C3C; color: white; border: 1px solid #555;")
+        layout.addWidget(help_text)
+        
+        # Add note about requiring at least one selection
+        note_label = QLabel("Note: At least one technology must be selected for updates to function.")
+        note_label.setWordWrap(True)
+        note_label.setStyleSheet("color: #AAAAAA; font-style: italic; margin-top: 10px;")
+        layout.addWidget(note_label)
+        
+        # Add buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(lambda: self.validate_preferences(dialog))
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+        
+        dialog.setLayout(layout)
+        dialog.exec()
+
+    def validate_preferences(self, dialog):
+        """Validate that at least one preference is selected"""
+        if not (self.dlss_checkbox.isChecked() or self.ds_checkbox.isChecked() or self.xess_checkbox.isChecked()):
+            # Show warning if no technologies selected
+            warning_dialog = QMessageBox(self)
+            warning_dialog.setIcon(QMessageBox.Icon.Warning)
+            warning_dialog.setWindowTitle("Warning")
+            warning_dialog.setText("At least one technology must be selected.")
+            warning_dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
+            warning_dialog.exec()
+        else:
+            # Save preferences and close dialog
+            config_manager.set_update_preference("DLSS", self.dlss_checkbox.isChecked())
+            config_manager.set_update_preference("DirectStorage", self.ds_checkbox.isChecked())
+            config_manager.set_update_preference("XeSS", self.xess_checkbox.isChecked())
+            
+            self.logger.info("Updated technology preferences")
+            self.show_notification("Update preferences saved!")
+            dialog.accept()
 
     def show_release_notes(self):
         """Display release notes in a dialog"""
