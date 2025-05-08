@@ -35,7 +35,14 @@ LATEST_DLL_VERSIONS = {
     "libxess_dx11.dll": "2.0.1.41",
     "dstorage.dll": "1.2.2504.401",
     "dstoragecore.dll": "1.2.2504.401",
+    "sl.common.dll": "2.7.30.0",
+    "sl.dlss.dll": "2.7.30.0",
+    "sl.dlss_g.dll": "2.7.30.0",
+    "sl.interposer.dll": "2.7.30.0",
+    "sl.pcl.dll": "2.7.30.0",
+    "sl.reflex.dll": "2.7.30.0",
 }
+
 
 # IMPORTANT: We'll initialize this later to avoid circular imports
 LATEST_DLL_PATHS = {}
@@ -183,5 +190,11 @@ def initialize_dll_paths():
         "libxess_dx11.dll": get_local_dll_path("libxess_dx11.dll"),
         "dstorage.dll": get_local_dll_path("dstorage.dll"),
         "dstoragecore.dll": get_local_dll_path("dstoragecore.dll"),
+        "sl.common.dll": get_local_dll_path("sl.common.dll"),
+        "sl.dlss.dll": get_local_dll_path("sl.dlss.dll"),
+        "sl.dlss_g.dll": get_local_dll_path("sl.dlss_g.dll"),
+        "sl.interposer.dll": get_local_dll_path("sl.interposer.dll"),
+        "sl.pcl.dll": get_local_dll_path("sl.pcl.dll"),
+        "sl.reflex.dll": get_local_dll_path("sl.reflex.dll"),
     }
     return LATEST_DLL_PATHS

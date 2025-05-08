@@ -38,3 +38,6 @@ Addition of DirectStorage.
 Offloading of the DLL's to a separate repository to strip down the file size.
 Addition of a checklist to allow selection on what is updated.
 Implemented DLL caching to check for new DLL's.
+
+Version 2.7.3:
+Updated support for handling DLSS Streamline components (Reflex/DLSS Streamline/FG etc).

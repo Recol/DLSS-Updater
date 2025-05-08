@@ -20,7 +20,7 @@ What if you could update all the DLSS/XeSS DLLs for the games detected on your s
   - GOG Galaxy
   - Battle.net (Note for Battle.net: Please ensure that the launcher is **open** before updating this launcher (this does not apply if you are entering a custom folder))
 - A soft backup system for allowing restoration with [DLSS Swapper](https://github.com/beeradmoore/dlss-swapper).
-- Support for updating Ray Reconstruction and Frame Generation DLL's.
+- Support for updating Ray Reconstruction/Frame Generation/Streamline (Reflex Low Latency etc) DLL's.
 - Support for updating XeSS and DirectStorage DLL's.
 - A GUI!
 - Support for manual folder locations.

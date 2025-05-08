@@ -276,6 +276,19 @@ def process_single_dll(dll_path, launcher):
             dll_type = "DirectStorage DLL"
         elif "dstoragecore.dll" == dll_name:
             dll_type = "DirectStorage Core DLL"
+        # Add Streamline SDK DLL type detection
+        elif "sl.common.dll" == dll_name:
+            dll_type = "Streamline Shared Library DLL"
+        elif "sl.dlss.dll" == dll_name:
+            dll_type = "Streamline DLSS Super Resolution DLL"
+        elif "sl.dlss_g.dll" == dll_name:
+            dll_type = "Streamline DLSS Frame Generation DLL"
+        elif "sl.interposer.dll" == dll_name:
+            dll_type = "Streamline Graphics API Interception DLL"
+        elif "sl.pcl.dll" == dll_name:
+            dll_type = "Streamline Parameter/Platform Configuration DLL"
+        elif "sl.reflex.dll" == dll_name:
+            dll_type = "Streamline Reflex Low-Latency DLL"
         else:
             dll_type = "Unknown DLL type"
 
