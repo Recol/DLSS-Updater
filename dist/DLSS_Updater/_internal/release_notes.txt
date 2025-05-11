@@ -41,3 +41,7 @@ Implemented DLL caching to check for new DLL's.
 
 Version 2.7.3:
 Updated support for handling DLSS Streamline components (Reflex/DLSS Streamline/FG etc).
+
+Version 2.7.4:
+Introduced parallelism for allowing multiple DLL's to be upgraded at once.
+Bug fix for DLL cache initialisation to only happen once on booting.

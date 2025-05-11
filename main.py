@@ -2,13 +2,9 @@ from dlss_updater.utils import *
 from dlss_updater.logger import setup_logger
 from dlss_updater.main_ui.main_window import MainWindow
 from dlss_updater.auto_updater import cleanup_old_update_files
-from dlss_updater.dll_repository import initialize_dll_cache
 from PyQt6.QtWidgets import QApplication
 import os
 import sys
-
-# Global flag to track initialization state
-_dll_cache_initialized = False
 
 logger = setup_logger()
 
@@ -20,14 +16,6 @@ if getattr(sys, "frozen", False):
 
 def main():
     try:
-        # Initialize DLL cache only once and only after admin rights are confirmed
-        global _dll_cache_initialized
-        if not _dll_cache_initialized:
-            logger.debug("Starting DLL cache initialization from main.py")
-            initialize_dll_cache()
-            _dll_cache_initialized = True
-            logger.debug("DLL cache initialization completed")
-
         if gui_mode:
             log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
             sys.stdout = sys.stderr = open(log_file, "w")
@@ -61,10 +49,21 @@ if __name__ == "__main__":
     if not check_dependencies():
         sys.exit(1)
 
-    # Check for admin rights and request if needed - BEFORE initializing DLL cache
+    # Check for admin rights and request if needed
     if not is_admin():
         logger.info("Requesting administrator privileges...")
         run_as_admin()
         sys.exit(0)  # Exit after requesting admin privileges
     else:
+        # Initialize DLL cache and paths ONLY after we have admin privileges
+        logger.debug("Starting DLL cache initialization after admin check")
+        from dlss_updater.dll_repository import initialize_dll_cache
+        from dlss_updater.config import initialize_dll_paths
+        from dlss_updater import LATEST_DLL_PATHS
+
+        initialize_dll_cache()
+        # Update the global LATEST_DLL_PATHS
+        LATEST_DLL_PATHS.update(initialize_dll_paths())
+
+        logger.debug("DLL cache initialization completed")
         main()

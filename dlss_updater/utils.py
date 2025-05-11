@@ -1,11 +1,107 @@
 import os
+import concurrent.futures
+import threading
+from typing import List, Tuple, Dict
 import sys
 from pathlib import Path
 import ctypes
 from dlss_updater.logger import setup_logger
+from dlss_updater.config import config_manager
 
 
 logger = setup_logger()
+
+
+class ParallelProgressTracker:
+    """Track progress for parallel DLL processing"""
+
+    def __init__(self, total_dlls, logger):
+        self.total = total_dlls
+        self.completed = 0
+        self.lock = threading.Lock()
+        self.logger = logger
+
+    def increment(self, dll_info):
+        with self.lock:
+            self.completed += 1
+            progress = int((self.completed / self.total) * 100)
+            self.logger.info(f"Progress: {progress}% - Processed {dll_info}")
+            return progress
+
+
+def process_single_dll_thread_safe(dll_path, launcher, progress_tracker):
+    """Thread-safe version of process_single_dll"""
+    try:
+        result = process_single_dll(dll_path, launcher)
+        progress_tracker.increment(f"{dll_path.name} from {launcher}")
+        return result
+    except Exception as e:
+        logger.error(f"Error processing {dll_path}: {e}")
+        return False, None, str(e)
+
+
+def process_dlls_parallel(dll_tasks, max_workers=8):
+    """Process DLLs using a thread pool"""
+    results = {
+        "updated_games": [],
+        "skipped_games": [],
+        "successful_backups": [],
+        "errors": [],
+    }
+
+    # Create progress tracker
+    total_dlls = len(dll_tasks)
+    progress_tracker = ParallelProgressTracker(total_dlls, logger)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_dll = {
+            executor.submit(
+                process_single_dll_thread_safe, dll_path, launcher, progress_tracker
+            ): (dll_path, launcher)
+            for dll_path, launcher in dll_tasks
+        }
+
+        # Process results as they complete
+        for future in concurrent.futures.as_completed(future_to_dll):
+            dll_path, launcher = future_to_dll[future]
+            try:
+                result = future.result()
+                if result:
+                    success, backup_path, dll_type = result
+                    if success:
+                        results["updated_games"].append(
+                            (str(dll_path), launcher, dll_type)
+                        )
+                        if backup_path:
+                            results["successful_backups"].append(
+                                (str(dll_path), backup_path)
+                            )
+                    else:
+                        reason = (
+                            dll_type if isinstance(dll_type, str) else "Update failed"
+                        )
+                        results["skipped_games"].append(
+                            (str(dll_path), launcher, reason, dll_type)
+                        )
+            except Exception as e:
+                results["errors"].append((str(dll_path), launcher, str(e)))
+                logger.error(f"Thread error processing {dll_path}: {e}")
+
+    return results
+
+
+def aggregate_dll_tasks(all_dll_paths):
+    """Flatten all DLLs into a single list with launcher info"""
+    dll_tasks = []
+    for launcher, dll_paths in all_dll_paths.items():
+        for dll_path in dll_paths:
+            try:
+                dll_path = Path(dll_path) if isinstance(dll_path, str) else dll_path
+                dll_tasks.append((dll_path, launcher))
+            except Exception as e:
+                logger.error(f"Error processing path {dll_path}: {e}")
+    return dll_tasks
 
 
 try:
@@ -160,59 +256,30 @@ def update_dlss_versions():
             logger.error(traceback.format_exc())
             return False, [], [], []
 
-        processed_dlls = set()
+        # Aggregate all DLL tasks
+        dll_tasks = aggregate_dll_tasks(all_dll_paths)
 
-        if any(all_dll_paths.values()):
-            logger.info("\nFound DLLs in the following launchers:")
-            # Process each launcher
-            for launcher, dll_paths in all_dll_paths.items():
-                if dll_paths:
-                    logger.info(f"{launcher}:")
-                    for dll_path in dll_paths:
-                        try:
-                            dll_path = (
-                                Path(dll_path)
-                                if isinstance(dll_path, str)
-                                else dll_path
-                            )
-                            if str(dll_path) not in processed_dlls:
-                                result = process_single_dll(dll_path, launcher)
-                                if result:
-                                    success, backup_path, dll_type = result
-                                    if success:
-                                        logger.info(
-                                            f"Successfully processed: {dll_path}"
-                                        )
-                                        updated_games.append(
-                                            (str(dll_path), launcher, dll_type)
-                                        )
-                                        if backup_path:
-                                            successful_backups.append(
-                                                (str(dll_path), backup_path)
-                                            )
-                                    else:
-                                        if backup_path:  # Attempted but failed
-                                            skipped_games.append(
-                                                (
-                                                    str(dll_path),
-                                                    launcher,
-                                                    "Update failed",
-                                                    dll_type,
-                                                )
-                                            )
-                                        else:  # Skipped for other reasons
-                                            skipped_games.append(
-                                                (
-                                                    str(dll_path),
-                                                    launcher,
-                                                    "Skipped",
-                                                    dll_type,
-                                                )
-                                            )
-                                processed_dlls.add(str(dll_path))
-                        except Exception as e:
-                            logger.error(f"Error processing DLL {dll_path}: {e}")
-                            continue
+        if dll_tasks:
+            logger.info(f"\nFound {len(dll_tasks)} DLLs to process.")
+            logger.info("Processing DLLs in parallel...")
+
+            # Determine optimal thread count
+            max_workers = min(len(dll_tasks), config_manager.get_max_worker_threads())
+            logger.info(f"Using {max_workers} parallel workers")
+
+            # Process all DLLs in parallel
+            results = process_dlls_parallel(dll_tasks, max_workers)
+
+            # Extract results
+            updated_games = results["updated_games"]
+            skipped_games = results["skipped_games"]
+            successful_backups = results["successful_backups"]
+
+            # Handle any errors that occurred
+            for dll_path, launcher, error in results["errors"]:
+                game_name = extract_game_name(dll_path, launcher)
+                logger.error(f"Failed to process {game_name}: {error}")
+                skipped_games.append((dll_path, launcher, f"Error: {error}", "Unknown"))
 
             # Display summary after processing
             if updated_games:
