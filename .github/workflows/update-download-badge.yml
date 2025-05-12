@@ -29,11 +29,30 @@ jobs:
         import requests
 
         def get_total_downloads():
-            url = "https://api.github.com/repos/Recol/DLSS-Updater/releases"
-            headers = {"Authorization": f"token {os.environ['GITHUB_TOKEN']}"}
-            response = requests.get(url, headers=headers)
-            releases = response.json()
-            total_downloads = sum(asset['download_count'] for release in releases for asset in release['assets'])
+            total_downloads = 0
+            page = 1
+            
+            while True:
+                url = f"https://api.github.com/repos/Recol/DLSS-Updater/releases?page={page}&per_page=100"
+                headers = {"Authorization": f"token {os.environ['GITHUB_TOKEN']}"}
+                response = requests.get(url, headers=headers)
+                
+                if response.status_code != 200:
+                    print(f"Error fetching page {page}: {response.status_code}")
+                    break
+                    
+                releases = response.json()
+                
+                if not releases:  # No more releases
+                    break
+                
+                # Count downloads for this page
+                for release in releases:
+                    for asset in release.get('assets', []):
+                        total_downloads += asset.get('download_count', 0)
+                
+                page += 1
+            
             return total_downloads
 
         def update_readme(total_downloads):
