@@ -177,9 +177,9 @@ class ConfigManager(configparser.ConfigParser):
         """Get the maximum number of worker threads for parallel processing"""
         if not self.has_section("Performance"):
             self.add_section("Performance")
-            self["Performance"]["MaxWorkerThreads"] = "8"
+            self["Performance"]["MaxWorkerThreads"] = "16"
             self.save()
-        return int(self["Performance"].get("MaxWorkerThreads", "8"))
+        return int(self["Performance"].get("MaxWorkerThreads", "16"))
 
     def set_max_worker_threads(self, count):
         """Set the maximum number of worker threads"""

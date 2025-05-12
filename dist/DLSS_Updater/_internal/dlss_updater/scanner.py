@@ -4,6 +4,7 @@ from .config import LauncherPathName, config_manager
 from .whitelist import is_whitelisted
 from .constants import DLL_GROUPS
 import asyncio
+import concurrent.futures
 from dlss_updater.logger import setup_logger
 import sys
 
@@ -61,9 +62,12 @@ def get_steam_libraries(steam_path):
 
 
 async def find_dlls(library_paths, launcher_name, dll_names):
-    """Find DLLs from a filtered list of DLL names"""
+    """Find DLLs from a filtered list of DLL names using batch whitelist checking"""
     dll_paths = []
     logger.debug(f"Searching for DLLs in {launcher_name}")
+
+    # First, collect all potential DLL paths
+    potential_dlls = []
 
     for library_path in library_paths:
         logger.debug(f"Scanning directory: {library_path}")
@@ -72,19 +76,23 @@ async def find_dlls(library_paths, launcher_name, dll_names):
                 for dll_name in dll_names:
                     if dll_name.lower() in [f.lower() for f in files]:
                         dll_path = os.path.join(root, dll_name)
-                        logger.debug(f"Found DLL: {dll_path}")
-                        if not await is_whitelisted(dll_path):
-                            logger.info(
-                                f"Found non-whitelisted DLL in {launcher_name}: {dll_path}"
-                            )
-                            dll_paths.append(dll_path)
-                        else:
-                            logger.info(
-                                f"Skipped whitelisted game in {launcher_name}: {dll_path}"
-                            )
+                        potential_dlls.append(dll_path)
                 await asyncio.sleep(0)
         except Exception as e:
             logger.error(f"Error scanning {library_path}: {e}")
+
+    # Batch check whitelist status
+    if potential_dlls:
+        from .whitelist import check_whitelist_batch
+
+        whitelist_results = await check_whitelist_batch(potential_dlls)
+
+        for dll_path in potential_dlls:
+            if not whitelist_results.get(dll_path, True):  # Default to True if error
+                logger.info(f"Found non-whitelisted DLL in {launcher_name}: {dll_path}")
+                dll_paths.append(dll_path)
+            else:
+                logger.info(f"Skipped whitelisted game in {launcher_name}: {dll_path}")
 
     logger.debug(f"Found {len(dll_paths)} DLLs in {launcher_name}")
     return dll_paths
@@ -203,54 +211,100 @@ async def find_all_dlls():
         logger.info("No technologies selected for update, skipping scan")
         return all_dll_paths
 
-    steam_path = get_steam_install_path()
-    if steam_path:
-        steam_libraries = get_steam_libraries(steam_path)
-        all_dll_paths["Steam"] = await find_dlls(steam_libraries, "Steam", dll_names)
+    # Define async functions for each launcher
+    async def scan_steam():
+        steam_path = get_steam_install_path()
+        if steam_path:
+            steam_libraries = get_steam_libraries(steam_path)
+            # Use parallel library scanning for Steam
+            all_steam_dlls = scan_steam_libraries_parallel(steam_libraries, dll_names)
 
-    ea_games = await get_ea_games()
-    if ea_games:
-        ea_dlls = await find_dlls(ea_games, "EA Launcher", dll_names)
-        all_dll_paths["EA Launcher"].extend(ea_dlls)
+            # Now filter by whitelist
+            from .whitelist import check_whitelist_batch
 
-    ubisoft_path = get_ubisoft_install_path()
-    if ubisoft_path:
-        ubisoft_games = await get_ubisoft_games(ubisoft_path)
-        all_dll_paths["Ubisoft Launcher"] = await find_dlls(
-            ubisoft_games, "Ubisoft Launcher", dll_names
-        )
+            whitelist_results = await check_whitelist_batch(all_steam_dlls)
 
-    epic_games = await get_epic_games()
-    if epic_games:
-        all_dll_paths["Epic Games Launcher"] = await find_dlls(
-            epic_games, "Epic Games Launcher", dll_names
-        )
+            filtered_dlls = []
+            for dll_path in all_steam_dlls:
+                if not whitelist_results.get(dll_path, True):
+                    logger.info(f"Found non-whitelisted DLL in Steam: {dll_path}")
+                    filtered_dlls.append(dll_path)
+                else:
+                    logger.info(f"Skipped whitelisted game in Steam: {dll_path}")
 
-    gog_games = await get_gog_games()
-    if gog_games:
-        all_dll_paths["GOG Launcher"] = await find_dlls(
-            gog_games, "GOG Launcher", dll_names
-        )
+            return filtered_dlls
+        return []
 
-    battlenet_games = await get_battlenet_games()
-    if battlenet_games:
-        all_dll_paths["Battle.net Launcher"] = await find_dlls(
-            battlenet_games, "Battle.net Launcher", dll_names
-        )
+    async def scan_ea():
+        ea_games = await get_ea_games()
+        if ea_games:
+            return await find_dlls(ea_games, "EA Launcher", dll_names)
+        return []
 
-    xbox_games = await get_xbox_games()
-    if xbox_games:
-        all_dll_paths["Xbox Launcher"] = await find_dlls(
-            xbox_games, "Xbox Launcher", dll_names
-        )
+    async def scan_ubisoft():
+        ubisoft_path = get_ubisoft_install_path()
+        if ubisoft_path:
+            ubisoft_games = await get_ubisoft_games(ubisoft_path)
+            return await find_dlls(ubisoft_games, "Ubisoft Launcher", dll_names)
+        return []
 
-    # Add custom folders
-    for i in range(1, 5):
-        custom_folder = await get_custom_folder(i)
+    async def scan_epic():
+        epic_games = await get_epic_games()
+        if epic_games:
+            return await find_dlls(epic_games, "Epic Games Launcher", dll_names)
+        return []
+
+    async def scan_gog():
+        gog_games = await get_gog_games()
+        if gog_games:
+            return await find_dlls(gog_games, "GOG Launcher", dll_names)
+        return []
+
+    async def scan_battlenet():
+        battlenet_games = await get_battlenet_games()
+        if battlenet_games:
+            return await find_dlls(battlenet_games, "Battle.net Launcher", dll_names)
+        return []
+
+    async def scan_xbox():
+        xbox_games = await get_xbox_games()
+        if xbox_games:
+            return await find_dlls(xbox_games, "Xbox Launcher", dll_names)
+        return []
+
+    async def scan_custom(folder_num):
+        custom_folder = await get_custom_folder(folder_num)
         if custom_folder:
-            all_dll_paths[f"Custom Folder {i}"] = await find_dlls(
-                custom_folder, f"Custom Folder {i}", dll_names
+            return await find_dlls(
+                custom_folder, f"Custom Folder {folder_num}", dll_names
             )
+        return []
+
+    # Create tasks for all launchers
+    tasks = {
+        "Steam": asyncio.create_task(scan_steam()),
+        "EA Launcher": asyncio.create_task(scan_ea()),
+        "Ubisoft Launcher": asyncio.create_task(scan_ubisoft()),
+        "Epic Games Launcher": asyncio.create_task(scan_epic()),
+        "GOG Launcher": asyncio.create_task(scan_gog()),
+        "Battle.net Launcher": asyncio.create_task(scan_battlenet()),
+        "Xbox Launcher": asyncio.create_task(scan_xbox()),
+        "Custom Folder 1": asyncio.create_task(scan_custom(1)),
+        "Custom Folder 2": asyncio.create_task(scan_custom(2)),
+        "Custom Folder 3": asyncio.create_task(scan_custom(3)),
+        "Custom Folder 4": asyncio.create_task(scan_custom(4)),
+    }
+
+    # Wait for all tasks to complete and gather results
+    for launcher_name, task in tasks.items():
+        try:
+            dlls = await task
+            all_dll_paths[launcher_name] = dlls
+            if dlls:
+                logger.info(f"Found {len(dlls)} DLLs in {launcher_name}")
+        except Exception as e:
+            logger.error(f"Error scanning {launcher_name}: {e}")
+            all_dll_paths[launcher_name] = []
 
     # Remove duplicates
     unique_dlls = set()
@@ -260,6 +314,10 @@ async def find_all_dlls():
             for dll in all_dll_paths[launcher]
             if str(dll) not in unique_dlls and not unique_dlls.add(str(dll))
         ]
+
+    # Log summary
+    total_dlls = sum(len(dlls) for dlls in all_dll_paths.values())
+    logger.info(f"Scan complete. Found {total_dlls} total DLLs across all launchers")
 
     return all_dll_paths
 
@@ -294,3 +352,40 @@ def find_all_dlls_sync():
             "Custom Folder 3": [],
             "Custom Folder 4": [],
         }
+
+
+def scan_directory_for_dlls(directory, dll_names):
+    """Scan a single directory for DLLs"""
+    found_dlls = []
+    try:
+        for root, _, files in os.walk(directory):
+            for dll_name in dll_names:
+                if dll_name.lower() in [f.lower() for f in files]:
+                    dll_path = os.path.join(root, dll_name)
+                    found_dlls.append(dll_path)
+    except Exception as e:
+        logger.error(f"Error scanning directory {directory}: {e}")
+    return found_dlls
+
+
+def scan_steam_libraries_parallel(library_paths, dll_names, max_workers=4):
+    """Scan multiple Steam libraries in parallel"""
+    logger.info(f"Scanning {len(library_paths)} Steam libraries in parallel")
+    all_dlls = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_library = {
+            executor.submit(scan_directory_for_dlls, lib_path, dll_names): lib_path
+            for lib_path in library_paths
+        }
+
+        for future in concurrent.futures.as_completed(future_to_library):
+            lib_path = future_to_library[future]
+            try:
+                dlls = future.result()
+                all_dlls.extend(dlls)
+                logger.info(f"Found {len(dlls)} DLLs in {lib_path}")
+            except Exception as e:
+                logger.error(f"Error scanning library {lib_path}: {e}")
+
+    return all_dlls

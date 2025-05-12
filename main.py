@@ -1,7 +1,6 @@
 from dlss_updater.utils import *
 from dlss_updater.logger import setup_logger
 from dlss_updater.main_ui.main_window import MainWindow
-from dlss_updater.auto_updater import cleanup_old_update_files
 from PyQt6.QtWidgets import QApplication
 import os
 import sys
@@ -34,12 +33,8 @@ def main():
 
 
 if __name__ == "__main__":
-    # Clean up any files from previous updates
-    cleanup_old_update_files()
-
-    # Check for update completion or errors
-    check_update_completion()
-    check_update_error()
+    # Remove auto-update cleanup - no longer needed
+    # Remove check_update_completion and check_update_error calls
 
     gui_mode = "--gui" in sys.argv
     logger.debug("Python executable: %s", sys.executable)
@@ -55,7 +50,7 @@ if __name__ == "__main__":
         run_as_admin()
         sys.exit(0)  # Exit after requesting admin privileges
     else:
-        # Initialize DLL cache and paths ONLY after we have admin privileges
+        # Initialize DLL cache ONLY after we have admin privileges
         logger.debug("Starting DLL cache initialization after admin check")
         from dlss_updater.dll_repository import initialize_dll_cache
         from dlss_updater.config import initialize_dll_paths

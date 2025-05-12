@@ -67,9 +67,13 @@ jobs:
 
     - name: Commit and push if changed
       run: |
-        git config --global user.name 'GitHub Action'
-        git config --global user.email 'action@github.com'
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
         git add README.md
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Update download count badge")
-        git pull --rebase
-        git push
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update download count badge"
+          git pull --rebase origin main
+          git push
+        fi

@@ -52,7 +52,8 @@ class LoadingOverlay(QWidget):
         container_layout = QVBoxLayout(container)
 
         self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 0)  # Indeterminate progress
+        self.progress_bar.setRange(0, 100)  # Changed to percentage range
+        self.progress_bar.setValue(0)
         self.progress_bar.setFixedSize(250, 20)
         self.progress_bar.setStyleSheet(
             """
@@ -64,13 +65,12 @@ class LoadingOverlay(QWidget):
             }
             QProgressBar::chunk {
                 background-color: #2D6E88;
-                width: 10px;
-                margin: 0.5px;
+                border-radius: 3px;
             }
         """
         )
 
-        self.label = QLabel("Processing...")
+        self.label = QLabel("Processing: 0%")
         self.label.setStyleSheet(
             "color: white; background-color: transparent; font-size: 14px; padding: 10px;"
         )
@@ -88,6 +88,16 @@ class LoadingOverlay(QWidget):
 
         # Hide by default
         self.hide()
+
+    def set_progress(self, percentage):
+        """Update progress bar and label with percentage"""
+        self.progress_bar.setValue(percentage)
+        self.label.setText(f"Processing: {percentage}%")
+
+    def reset_progress(self):
+        """Reset progress to 0"""
+        self.progress_bar.setValue(0)
+        self.label.setText("Processing: 0%")
 
     def showEvent(self, event):
         # Position the overlay to cover the entire parent widget
@@ -171,6 +181,7 @@ class NotificationWidget(QWidget):
 class MainWindow(QMainWindow):
     # Define signals at the class level
     resized = pyqtSignal()
+    """Main application window for DLSS Updater"""
 
     def __init__(self, logger=None):
         super().__init__()
@@ -283,12 +294,28 @@ class MainWindow(QMainWindow):
         )
         view_logs_button.clicked.connect(self.toggle_logger_window)
 
+        # Add Check for Updates button before the Blacklist Manager button
+        check_updates_button = self.create_styled_button(
+            "🔄 Check for Updates", "Check for application updates"
+        )
+        check_updates_button.clicked.connect(self.check_for_updates)
+
+        # Add hover effect to the button
+        self.add_button_hover_effect(check_updates_button)
+
+        # Add it to the button layout before blacklist_button
+        button_layout.addWidget(check_updates_button)
+
         # Add Blacklist Manager button
         blacklist_button = self.create_styled_button(
             "⚙ Manage Blacklist", "settings.png", "Manage blacklisted games"
         )
         blacklist_button.clicked.connect(self.show_blacklist_manager)
-        self.preferences_button = self.create_styled_button("⚙ Update Preferences", "settings.png", "Configure which technologies to update")
+        self.preferences_button = self.create_styled_button(
+            "⚙ Update Preferences",
+            "settings.png",
+            "Configure which technologies to update",
+        )
         self.preferences_button.clicked.connect(self.show_update_preferences)
         # Add hover effect to buttons
         for btn in [
@@ -331,8 +358,12 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(self.logger_splitter)
         self.main_container.setLayout(main_layout)
-        self.main_container.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
-        self.logger_splitter.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
+        self.main_container.setSizePolicy(
+            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding
+        )
+        self.logger_splitter.setSizePolicy(
+            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding
+        )
         self.setCentralWidget(self.main_container)
 
         # Create the loading overlay
@@ -589,28 +620,28 @@ class MainWindow(QMainWindow):
         dialog = QDialog(self)
         dialog.setWindowTitle("Update Preferences")
         dialog.setMinimumWidth(400)
-        
+
         layout = QVBoxLayout()
-        
-        info_label = QLabel(
-            "Select which technologies you want to update:"
-        )
+
+        info_label = QLabel("Select which technologies you want to update:")
         info_label.setWordWrap(True)
         info_label.setStyleSheet(
             "margin-bottom: 10px; background-color: transparent; border: none;"
         )
         layout.addWidget(info_label)
-        
+
         # Create checkboxes
         self.dlss_checkbox = QCheckBox("DLSS (Deep Learning Super Sampling)")
         self.dlss_checkbox.setChecked(config_manager.get_update_preference("DLSS"))
-        
+
         self.ds_checkbox = QCheckBox("DirectStorage")
-        self.ds_checkbox.setChecked(config_manager.get_update_preference("DirectStorage"))
-        
+        self.ds_checkbox.setChecked(
+            config_manager.get_update_preference("DirectStorage")
+        )
+
         self.xess_checkbox = QCheckBox("XeSS (Intel Xe Super Sampling)")
         self.xess_checkbox.setChecked(config_manager.get_update_preference("XeSS"))
-        
+
         # Apply styling to checkboxes
         checkbox_style = """
             QCheckBox {
@@ -635,16 +666,17 @@ class MainWindow(QMainWindow):
         self.dlss_checkbox.setStyleSheet(checkbox_style)
         self.ds_checkbox.setStyleSheet(checkbox_style)
         self.xess_checkbox.setStyleSheet(checkbox_style)
-        
+
         # Add checkboxes to layout
         layout.addWidget(self.dlss_checkbox)
         layout.addWidget(self.ds_checkbox)
         layout.addWidget(self.xess_checkbox)
-        
+
         # Add description of each technology
         help_text = QTextBrowser()
         help_text.setMaximumHeight(150)
-        help_text.setHtml("""
+        help_text.setHtml(
+            """
             <p><b>DLSS</b>: NVIDIA Deep Learning Super Sampling technology improves performance while maintaining high image quality. Updates DLLs:</p>
             <ul>
                 <li>nvngx_dlss.dll</li>
@@ -657,16 +689,23 @@ class MainWindow(QMainWindow):
                 <li>dstoragecore.dll</li>
             </ul>
             <p><b>XeSS</b>: Intel's Xe Super Sampling technology provides performance improvements similar to DLSS for all GPU brands.</p>
-        """)
-        help_text.setStyleSheet("background-color: #3C3C3C; color: white; border: 1px solid #555;")
+        """
+        )
+        help_text.setStyleSheet(
+            "background-color: #3C3C3C; color: white; border: 1px solid #555;"
+        )
         layout.addWidget(help_text)
-        
+
         # Add note about requiring at least one selection
-        note_label = QLabel("Note: At least one technology must be selected for updates to function.")
+        note_label = QLabel(
+            "Note: At least one technology must be selected for updates to function."
+        )
         note_label.setWordWrap(True)
-        note_label.setStyleSheet("color: #AAAAAA; font-style: italic; margin-top: 10px;")
+        note_label.setStyleSheet(
+            "color: #AAAAAA; font-style: italic; margin-top: 10px;"
+        )
         layout.addWidget(note_label)
-        
+
         # Add buttons
         button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -674,13 +713,17 @@ class MainWindow(QMainWindow):
         button_box.accepted.connect(lambda: self.validate_preferences(dialog))
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
-        
+
         dialog.setLayout(layout)
         dialog.exec()
 
     def validate_preferences(self, dialog):
         """Validate that at least one preference is selected"""
-        if not (self.dlss_checkbox.isChecked() or self.ds_checkbox.isChecked() or self.xess_checkbox.isChecked()):
+        if not (
+            self.dlss_checkbox.isChecked()
+            or self.ds_checkbox.isChecked()
+            or self.xess_checkbox.isChecked()
+        ):
             # Show warning if no technologies selected
             warning_dialog = QMessageBox(self)
             warning_dialog.setIcon(QMessageBox.Icon.Warning)
@@ -691,12 +734,70 @@ class MainWindow(QMainWindow):
         else:
             # Save preferences and close dialog
             config_manager.set_update_preference("DLSS", self.dlss_checkbox.isChecked())
-            config_manager.set_update_preference("DirectStorage", self.ds_checkbox.isChecked())
+            config_manager.set_update_preference(
+                "DirectStorage", self.ds_checkbox.isChecked()
+            )
             config_manager.set_update_preference("XeSS", self.xess_checkbox.isChecked())
-            
+
             self.logger.info("Updated technology preferences")
             self.show_notification("Update preferences saved!")
             dialog.accept()
+
+    def check_for_updates(self):
+        """Check for application updates"""
+        from dlss_updater.auto_updater import check_for_updates, get_releases_url
+        from PyQt6.QtWidgets import QMessageBox
+
+        # Show loading
+        self.loading_overlay.set_message("Checking for updates...")
+        self.loading_overlay.show()
+
+        try:
+            latest_version, update_available = check_for_updates()
+
+            # Hide loading
+            self.loading_overlay.hideWithAnimation()
+
+            if latest_version and update_available:
+                # Show update available dialog
+                reply = QMessageBox.question(
+                    self,
+                    "Update Available",
+                    f"A new version ({latest_version}) is available!\n"
+                    f"Current version: {__version__}\n\n"
+                    "Would you like to download it?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+
+                if reply == QMessageBox.StandardButton.Yes:
+                    # Open GitHub releases page
+                    QDesktopServices.openUrl(QUrl(get_releases_url()))
+            elif latest_version:
+                # No update available
+                QMessageBox.information(
+                    self,
+                    "No Updates",
+                    f"You are running the latest version ({__version__}).",
+                    QMessageBox.StandardButton.Ok,
+                )
+            else:
+                # Error checking for updates
+                QMessageBox.warning(
+                    self,
+                    "Update Check Failed",
+                    "Could not check for updates. Please check your internet connection.",
+                    QMessageBox.StandardButton.Ok,
+                )
+        except Exception as e:
+            self.logger.error(f"Error checking for updates: {e}")
+            self.loading_overlay.hideWithAnimation()
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"An error occurred while checking for updates: {str(e)}",
+                QMessageBox.StandardButton.Ok,
+            )
 
     def show_release_notes(self):
         """Display release notes in a dialog"""
@@ -1043,7 +1144,9 @@ class MainWindow(QMainWindow):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_area.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
+        scroll_area.setSizePolicy(
+            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding
+        )
 
         self.browse_buttons_container_widget = QWidget()
         self.browse_buttons_container_widget.setLayout(browse_buttons_layout)
@@ -1056,6 +1159,19 @@ class MainWindow(QMainWindow):
         scroll_area.setWidget(self.browse_buttons_container_widget)
         self.browse_buttons_container_widget = scroll_area
 
+    def update_dlss_with_progress(self):
+        """Wrapper for update_dlss_versions that emits progress signals"""
+        from dlss_updater.utils import ParallelProgressTracker
+
+        # Store reference to the thread's signal emitter
+        if hasattr(self.thread_manager.current_worker, "signals"):
+            self.progress_tracker = ParallelProgressTracker(1, self.logger)
+            self.progress_tracker.progress_updated.connect(
+                self.thread_manager.current_worker.signals.progress.emit
+            )
+
+        return update_dlss_versions()
+
     def call_threaded_update(self):
         """Start the update process in a separate thread."""
         try:
@@ -1064,10 +1180,8 @@ class MainWindow(QMainWindow):
             self.logger.info("Starting update process in thread...")
 
             # Show loading overlay
-            self.loading_overlay.set_message("Starting update process...")
-            self.loading_overlay.setGeometry(
-                self.main_container.rect()
-            )  # Ensure correct position
+            self.loading_overlay.reset_progress()
+            self.loading_overlay.set_progress(0)
             self.loading_overlay.show()
 
             # Clear any previous signal connections
@@ -1077,36 +1191,24 @@ class MainWindow(QMainWindow):
                     self.thread_manager.signals.finished.disconnect()
                     self.thread_manager.signals.result.disconnect()
                     self.thread_manager.signals.error.disconnect()
+                    self.thread_manager.signals.progress.disconnect()
                 except TypeError:
                     # Ignore errors if signals were not connected
                     pass
 
-            # Assign the update function
-            self.thread_manager.assign_function(update_dlss_versions)
+            # Assign the update function with progress signal
+            self.thread_manager.assign_function(
+                update_dlss_versions, progress_signal=None  # Will be set by Worker
+            )
 
             # Connect new signals
             self.thread_manager.signals.finished.connect(self.handle_update_finished)
             self.thread_manager.signals.result.connect(self.handle_update_result)
             self.thread_manager.signals.error.connect(self.handle_update_error)
+            self.thread_manager.signals.progress.connect(self.update_progress)
 
             # Run the thread
             self.thread_manager.run()
-
-            # Simulate progress updates with timer (since we don't have real progress data)
-            self.progress_messages = [
-                "Scanning for DLLs...",
-                "Looking for DLSS files...",
-                "Checking XeSS files...",
-                "Creating backups...",
-                "Updating DLL files...",
-                "Finalizing updates...",
-            ]
-            self.message_index = 0
-
-            # Keep original timer interval for stability
-            self.progress_timer = QTimer()
-            self.progress_timer.timeout.connect(self.update_loading_message)
-            self.progress_timer.start(800)  # Original timing: 800ms
 
         except Exception as e:
             self.logger.error(f"Error starting update thread: {e}")
@@ -1116,19 +1218,9 @@ class MainWindow(QMainWindow):
             # Ensure button is re-enabled in case of an error
             self.start_update_button.setEnabled(True)
             self.loading_overlay.hideWithAnimation()
-            if hasattr(self, "progress_timer") and self.progress_timer.isActive():
-                self.progress_timer.stop()
 
-    def update_loading_message(self):
-        """Update the loading message with next progress text"""
-        if hasattr(self, "message_index") and self.message_index < len(
-            self.progress_messages
-        ):
-            self.loading_overlay.set_message(self.progress_messages[self.message_index])
-            self.message_index += 1
-        else:
-            # Reset to first message if we've gone through all messages
-            self.message_index = 0
+    def update_progress(self, progress):
+        self.loading_overlay.set_progress(progress)
 
     def handle_update_error(self, error):
         """

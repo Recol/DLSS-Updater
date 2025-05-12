@@ -5,6 +5,7 @@ from typing import List, Tuple, Dict
 import sys
 from pathlib import Path
 import ctypes
+from PyQt6.QtCore import QObject, pyqtSignal
 from dlss_updater.logger import setup_logger
 from dlss_updater.config import config_manager
 
@@ -12,10 +13,13 @@ from dlss_updater.config import config_manager
 logger = setup_logger()
 
 
-class ParallelProgressTracker:
-    """Track progress for parallel DLL processing"""
+class ParallelProgressTracker(QObject):
+    """Track progress for parallel DLL processing with Qt signals"""
+
+    progress_updated = pyqtSignal(int)  # Signal for progress percentage
 
     def __init__(self, total_dlls, logger):
+        super().__init__()
         self.total = total_dlls
         self.completed = 0
         self.lock = threading.Lock()
@@ -26,6 +30,7 @@ class ParallelProgressTracker:
             self.completed += 1
             progress = int((self.completed / self.total) * 100)
             self.logger.info(f"Progress: {progress}% - Processed {dll_info}")
+            self.progress_updated.emit(progress)
             return progress
 
 
@@ -40,8 +45,53 @@ def process_single_dll_thread_safe(dll_path, launcher, progress_tracker):
         return False, None, str(e)
 
 
-def process_dlls_parallel(dll_tasks, max_workers=8):
-    """Process DLLs using a thread pool"""
+def process_single_dll_with_backup(dll_path, launcher, backup_path, progress_tracker):
+    """Process a single DLL with pre-created backup"""
+    try:
+        # Get DLL type and other info
+        dll_name = dll_path.name.lower()
+        dll_type = DLL_TYPE_MAP.get(dll_name, "Unknown DLL type")
+
+        logger.info(f"Processing {dll_type}: {dll_path}")
+
+        # Check version and other logic
+        game_name = extract_game_name(str(dll_path), launcher)
+        if "warframe" in game_name.lower():
+            return None
+
+        # Check if whitelisted
+        import asyncio
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        whitelisted = loop.run_until_complete(is_whitelisted(str(dll_path)))
+        loop.close()
+
+        if whitelisted:
+            logger.debug(f"Game {game_name} is in whitelist")
+            return False, None, dll_type
+
+        # Update DLL with pre-created backup
+        if dll_name in LATEST_DLL_PATHS:
+            latest_dll_path = LATEST_DLL_PATHS[dll_name]
+            # Pass the backup path to update_dll
+            from dlss_updater.updater import update_dll_with_backup
+
+            success, _, dll_type = update_dll_with_backup(
+                str(dll_path), latest_dll_path, backup_path
+            )
+
+            progress_tracker.increment(f"{dll_path.name} from {launcher}")
+            return success, backup_path, dll_type
+
+        return False, None, dll_type
+    except Exception as e:
+        logger.error(f"Error processing DLL {dll_path}: {e}")
+        return False, None, "Error"
+
+
+def process_dlls_parallel(dll_tasks, max_workers=16, progress_signal=None):
+    """Process DLLs using a thread pool with progress tracking"""
     results = {
         "updated_games": [],
         "skipped_games": [],
@@ -51,13 +101,23 @@ def process_dlls_parallel(dll_tasks, max_workers=8):
 
     # Create progress tracker
     total_dlls = len(dll_tasks)
-    progress_tracker = ParallelProgressTracker(total_dlls, logger)
+    completed = 0
+    completed_lock = threading.Lock()
+
+    def update_progress():
+        nonlocal completed
+        with completed_lock:
+            completed += 1
+            if progress_signal:
+                percentage = int((completed / total_dlls) * 100)
+                progress_signal.emit(percentage)
+                logger.info(f"Progress: {percentage}% ({completed}/{total_dlls})")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
         future_to_dll = {
             executor.submit(
-                process_single_dll_thread_safe, dll_path, launcher, progress_tracker
+                process_single_dll_with_progress, dll_path, launcher, update_progress
             ): (dll_path, launcher)
             for dll_path, launcher in dll_tasks
         }
@@ -91,6 +151,18 @@ def process_dlls_parallel(dll_tasks, max_workers=8):
     return results
 
 
+def process_single_dll_with_progress(dll_path, launcher, progress_callback):
+    """Process a single DLL and update progress"""
+    try:
+        result = process_single_dll(dll_path, launcher)
+        progress_callback()  # Update progress after processing
+        return result
+    except Exception as e:
+        logger.error(f"Error processing {dll_path}: {e}")
+        progress_callback()  # Update progress even on error
+        return False, None, str(e)
+
+
 def aggregate_dll_tasks(all_dll_paths):
     """Flatten all DLLs into a single list with launcher info"""
     dll_tasks = []
@@ -112,7 +184,6 @@ try:
         LATEST_DLL_PATHS,
         DLL_TYPE_MAP,
         find_all_dlss_dlls,
-        auto_update,
         resource_path,
     )
 except ImportError as e:
@@ -219,7 +290,7 @@ def extract_game_name(dll_path, launcher_name):
         return "Unknown Game"
 
 
-def update_dlss_versions():
+def update_dlss_versions(progress_signal=None):
     logger.info(f"DLSS Updater version {__version__}")
     logger.info("Starting DLL search...")
 
@@ -228,22 +299,8 @@ def update_dlss_versions():
     successful_backups = []
 
     try:
-        logger.info("Checking for updates...")
-        if auto_update is None:
-            logger.info("No updates were found.")
-        else:
-            try:
-                update_available = auto_update()
-                if update_available:
-                    logger.info(
-                        "The application will now close for the update. If the update does NOT automatically restart, please manually reboot it from the /update/ folder."
-                    )
-                    return True, [], [], []  # Early return for auto-update
-            except Exception as e:
-                logger.error(f"Error during update check: {e}")
-                import traceback
-
-                traceback.print_exc()
+        # Remove auto-update check - now handled manually through GUI
+        logger.info("Starting DLL update process...")
 
         try:
             # Use the synchronous version of find_all_dlls
@@ -264,11 +321,11 @@ def update_dlss_versions():
             logger.info("Processing DLLs in parallel...")
 
             # Determine optimal thread count
-            max_workers = min(len(dll_tasks), config_manager.get_max_worker_threads())
+            max_workers = min(len(dll_tasks), 8)  # Fixed thread count
             logger.info(f"Using {max_workers} parallel workers")
 
-            # Process all DLLs in parallel
-            results = process_dlls_parallel(dll_tasks, max_workers)
+            # Process all DLLs in parallel with progress signal
+            results = process_dlls_parallel(dll_tasks, max_workers, progress_signal)
 
             # Extract results
             updated_games = results["updated_games"]

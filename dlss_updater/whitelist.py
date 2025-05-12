@@ -1,6 +1,7 @@
 import os
 import csv
 from io import StringIO
+import asyncio
 from urllib.request import urlopen
 from urllib.error import URLError
 from dlss_updater.logger import setup_logger
@@ -129,3 +130,20 @@ async def is_whitelisted(game_path):
 def get_all_blacklisted_games():
     """Return the list of all blacklisted games for UI display"""
     return list(WHITELISTED_GAMES)
+
+async def check_whitelist_batch(game_paths):
+    """Check multiple game paths against whitelist in parallel"""
+    tasks = []
+    for path in game_paths:
+        task = asyncio.create_task(is_whitelisted(path))
+        tasks.append((path, task))
+    
+    results = {}
+    for path, task in tasks:
+        try:
+            results[path] = await task
+        except Exception as e:
+            logger.error(f"Error checking whitelist for {path}: {e}")
+            results[path] = False
+    
+    return results

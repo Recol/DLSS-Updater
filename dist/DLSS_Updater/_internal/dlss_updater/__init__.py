@@ -8,7 +8,6 @@ from .updater import update_dll
 from .whitelist import is_whitelisted
 from .version import __version__
 from .config import resource_path, initialize_dll_paths, config_manager
-from .auto_updater import auto_update
 from .logger import setup_logger
 from .constants import DLL_TYPE_MAP
 from .lib.threading_lib import ThreadManager, WorkerSignals
@@ -33,7 +32,6 @@ __all__ = [
     "__version__",
     "LATEST_DLL_PATHS",
     "resource_path",
-    "auto_update",
     "setup_logger",
     "DLL_TYPE_MAP",
     "ThreadManager",

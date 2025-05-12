@@ -45,3 +45,9 @@ Updated support for handling DLSS Streamline components (Reflex/DLSS Streamline/
 Version 2.7.4:
 Introduced parallelism for allowing multiple DLL's to be upgraded at once.
 Bug fix for DLL cache initialisation to only happen once on booting.
+
+Version 2.7.5:
+Added concurrency for parallel backups at once for multiple DLL's.
+Removal of auto-upgrades as a deprecated feature to cleanup code, added a "Check for update" button in the GUI.
+Parallelism for scanning Steam directories.
+Introduction of custom animations to properly track the update % correctly.

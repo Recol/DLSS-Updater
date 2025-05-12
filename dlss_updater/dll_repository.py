@@ -1,10 +1,9 @@
 import os
 import json
 import requests
-import shutil
-from pathlib import Path
-from packaging import version
 from .logger import setup_logger
+import concurrent.futures
+from .config import initialize_dll_paths
 
 logger = setup_logger()
 
@@ -179,16 +178,12 @@ _cache_initialized = False
 
 
 def initialize_dll_cache():
-    """Initialize the DLL cache on application startup"""
+    """Initialize the DLL cache on application startup - parallel version"""
     global _cache_initialized
 
-    # Skip if already initialized
     if _cache_initialized:
         logger.debug("DLL cache already initialized, skipping")
         return
-
-    # Ensure we initialize the DLL paths
-    from .config import initialize_dll_paths
 
     logger.info("Initializing DLL cache")
     ensure_cache_dir()
@@ -198,20 +193,32 @@ def initialize_dll_cache():
     if manifest:
         update_cached_manifest(manifest)
 
-        # Check all DLLs for updates
-        for dll_name in manifest:
-            if check_for_dll_update(dll_name):
-                logger.info(
-                    f"Updating {dll_name} to version {manifest[dll_name]['version']}"
-                )
-                download_latest_dll(dll_name)
-            else:
-                logger.info(f"{dll_name} is up to date")
+        # Check all DLLs for updates in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_dll = {}
+
+            for dll_name in manifest:
+                if check_for_dll_update(dll_name):
+                    logger.info(
+                        f"Updating {dll_name} to version {manifest[dll_name]['version']}"
+                    )
+                    future = executor.submit(download_latest_dll, dll_name)
+                    future_to_dll[future] = dll_name
+                else:
+                    logger.info(f"{dll_name} is up to date")
+
+            # Wait for all downloads to complete
+            for future in concurrent.futures.as_completed(future_to_dll):
+                dll_name = future_to_dll[future]
+                try:
+                    success = future.result()
+                    if not success:
+                        logger.error(f"Failed to download {dll_name}")
+                except Exception as e:
+                    logger.error(f"Error downloading {dll_name}: {e}")
     else:
         logger.warning("Using cached manifest, updates may not be available")
 
     # Initialize DLL paths after cache initialization
     initialize_dll_paths()
-
-    # Mark as initialized
     _cache_initialized = True

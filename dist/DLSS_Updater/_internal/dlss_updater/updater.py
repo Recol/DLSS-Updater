@@ -3,6 +3,7 @@ import shutil
 import pefile
 from .config import LATEST_DLL_VERSIONS, LATEST_DLL_PATHS
 from pathlib import Path
+import concurrent.futures
 import stat
 import time
 import psutil
@@ -228,3 +229,146 @@ def update_dll(dll_path, latest_dll_path):
         logger.error(f"Error updating {dll_path}: {e}")
         restore_permissions(dll_path, original_permissions)
         return False, None, dll_type
+
+
+def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=None):
+    """Update DLL with pre-created backup path"""
+    dll_path = Path(normalize_path(dll_path)).resolve()
+    latest_dll_path = Path(normalize_path(latest_dll_path)).resolve()
+    logger.info(f"Checking DLL at {dll_path}...")
+
+    dll_type = DLL_TYPE_MAP.get(dll_path.name.lower(), "Unknown DLL type")
+    original_permissions = os.stat(dll_path).st_mode
+
+    try:
+        existing_version = get_dll_version(dll_path)
+        latest_version = get_dll_version(latest_dll_path)
+
+        if existing_version and latest_version:
+            existing_parsed = parse_version(existing_version)
+            latest_parsed = parse_version(latest_version)
+
+            logger.info(
+                f"Existing version: {existing_version}, Latest version: {latest_version}"
+            )
+            # Do not include FG/RR DLLs in the update check
+            if dll_type == "nvngx_dlss.dll" and existing_parsed < parse_version(
+                "2.0.0"
+            ):
+                logger.info(
+                    f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated."
+                )
+                return False, None, dll_type
+
+            if existing_parsed >= latest_parsed:
+                logger.info(
+                    f"{dll_path} is already up-to-date (version {existing_version})."
+                )
+                return False, None, dll_type
+
+        if not dll_path.exists():
+            logger.error(f"Error: Target DLL path does not exist: {dll_path}")
+            return False, None, dll_type
+
+        if not latest_dll_path.exists():
+            logger.error(f"Error: Latest DLL path does not exist: {latest_dll_path}")
+            return False, None, dll_type
+
+        if not os.access(dll_path.parent, os.W_OK):
+            logger.error(
+                f"Error: No write permission to the directory: {dll_path.parent}"
+            )
+            return False, None, dll_type
+
+        # Use pre-created backup path if provided, otherwise create backup
+        backup_path = pre_created_backup_path
+        if not backup_path:
+            backup_path = create_backup(dll_path)
+            if not backup_path:
+                return False, None, dll_type
+        else:
+            # Validate pre-created backup exists
+            backup_path = Path(backup_path)
+            if not backup_path.exists():
+                logger.error(f"Pre-created backup does not exist: {backup_path}")
+                # Try to create a new backup
+                backup_path = create_backup(dll_path)
+                if not backup_path:
+                    return False, None, dll_type
+
+        remove_read_only(dll_path)
+
+        retry_count = 3
+        while retry_count > 0:
+            if not is_file_in_use(str(dll_path)):
+                break
+            logger.info(
+                f"File is in use. Retrying in 2 seconds... (Attempts left: {retry_count})"
+            )
+            time.sleep(2)
+            retry_count -= 1
+
+        if retry_count == 0:
+            logger.info(
+                f"File {dll_path} is still in use after multiple attempts. Cannot update."
+            )
+            restore_permissions(dll_path, original_permissions)
+            return False, None, dll_type
+
+        try:
+            os.remove(dll_path)
+            shutil.copyfile(latest_dll_path, dll_path)
+            restore_permissions(dll_path, original_permissions)
+
+            # Verify update
+            new_version = get_dll_version(dll_path)
+            if new_version == latest_version:
+                logger.info(
+                    f"Successfully updated {dll_path} from version {existing_version} to {latest_version}."
+                )
+                return True, backup_path, dll_type
+            else:
+                logger.error(
+                    f"Version verification failed - Expected: {latest_version}, Got: {new_version}"
+                )
+                return False, backup_path, dll_type
+
+        except Exception as e:
+            logger.error(f"File update operation failed: {e}")
+            if backup_path and backup_path.exists():
+                try:
+                    shutil.copyfile(backup_path, dll_path)
+                    logger.info("Restored backup after failed update")
+                except Exception as restore_error:
+                    logger.error(f"Failed to restore backup: {restore_error}")
+            return False, backup_path, dll_type
+
+    except Exception as e:
+        logger.error(f"Error updating {dll_path}: {e}")
+        restore_permissions(dll_path, original_permissions)
+        return False, None, dll_type
+
+
+def create_backups_parallel(dll_paths, max_workers=4):
+    """Create backups for multiple DLLs in parallel"""
+    backup_results = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_dll = {
+            executor.submit(create_backup, Path(dll_path)): dll_path
+            for dll_path in dll_paths
+        }
+
+        for future in concurrent.futures.as_completed(future_to_dll):
+            dll_path = future_to_dll[future]
+            try:
+                backup_path = future.result()
+                if backup_path:
+                    backup_results.append((dll_path, backup_path))
+                    logger.info(f"Created backup for {dll_path}")
+                else:
+                    logger.warning(f"Failed to create backup for {dll_path}")
+            except Exception as e:
+                logger.error(f"Error creating backup for {dll_path}: {e}")
+
+    return backup_results
