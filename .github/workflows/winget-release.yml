@@ -21,59 +21,69 @@ jobs:
         
         echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         echo "URL=$zipUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        echo "TAG=$($latest_release.tag_name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
     
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '6.0.x'
+        dotnet-version: '8.0.x'
     
-    - name: Download and Install WingetCreate
+    - name: Install and run WingetCreate
       run: |
-        # Download the MSI installer instead
-        $installerUrl = "https://github.com/microsoft/winget-create/releases/latest/download/wingetcreate.msixbundle"
+        # Install wingetcreate as a global tool
+        dotnet tool install -g Microsoft.WingetCreate
         
-        # Download installer
-        Invoke-WebRequest -Uri $installerUrl -OutFile "wingetcreate.msixbundle"
+        # Get the actual path to the tool
+        $toolPath = "$env:USERPROFILE\.dotnet\tools"
+        $wingetCreatePath = Join-Path $toolPath "wingetcreate.exe"
         
-        # Install using Add-AppxPackage
-        Add-AppxPackage -Path ".\wingetcreate.msixbundle"
-        
-        # Find the installed location
-        $package = Get-AppxPackage -Name "Microsoft.WindowsPackageManagerManifestCreator"
-        $wingetCreatePath = Join-Path $package.InstallLocation "wingetcreate.exe"
+        Write-Host "Tool path: $toolPath"
+        Write-Host "WingetCreate path: $wingetCreatePath"
         
         # Verify it exists
         if (Test-Path $wingetCreatePath) {
           Write-Host "Found wingetcreate at: $wingetCreatePath"
+          
+          # Run version check
           & $wingetCreatePath version
-        } else {
-          Write-Error "Could not find wingetcreate.exe after installation"
-          exit 1
+          
+          # Run the update command
+          & $wingetCreatePath update `
+            --id Recol.DLSSUpdater `
+            --name "DLSS Updater" `
+            --version "${{ steps.release_info.outputs.VERSION }}" `
+            --urls "${{ steps.release_info.outputs.URL }}" `
+            --publisher "Recol" `
+            --moniker "dlss-updater" `
+            --submit `
+            --token "${{ secrets.WINGET_TOKEN }}"
         }
-      shell: pwsh
-    
-    - name: Update Winget Package
-      run: |
-        # Use wingetcreate directly (now in PATH)
-        wingetcreate update `
-          --id Recol.DLSSUpdater `
-          --name "DLSS Updater" `
-          --version "${{ steps.release_info.outputs.VERSION }}" `
-          --urls "${{ steps.release_info.outputs.URL }}" `
-          --publisher "Recol" `
-          --license "GNU Affero General Public License v3.0" `
-          --license-url "https://github.com/Recol/DLSS-Updater/blob/main/LICENSE" `
-          --description "A tool to update DLSS, XeSS, and DirectStorage DLLs for various games and launchers" `
-          --home-page "https://github.com/Recol/DLSS-Updater" `
-          --support-url "https://github.com/Recol/DLSS-Updater/issues" `
-          --moniker "dlss-updater" `
-          --tags "dlss,nvidia,gaming,update-tool,xess,directstorage" `
-          --installer-type "zip" `
-          --architecture "x64" `
-          --scope "machine" `
-          --silent-switch "/S" `
-          --interactive-switch "/I" `
-          --submit `
-          --token "${{ secrets.WINGET_TOKEN }}"
+        else {
+          # Try alternative path
+          $altPath = "$env:ProgramData\dotnet\tools\wingetcreate.exe"
+          Write-Host "Checking alternative path: $altPath"
+          
+          if (Test-Path $altPath) {
+            & $altPath update `
+              --id Recol.DLSSUpdater `
+              --name "DLSS Updater" `
+              --version "${{ steps.release_info.outputs.VERSION }}" `
+              --urls "${{ steps.release_info.outputs.URL }}" `
+              --publisher "Recol" `
+              --moniker "dlss-updater" `
+              --submit `
+              --token "${{ secrets.WINGET_TOKEN }}"
+          }
+          else {
+            Write-Error "Could not find wingetcreate.exe in expected locations"
+            
+            # List all locations to debug
+            Write-Host "Checking directories:"
+            Get-ChildItem "$env:USERPROFILE\.dotnet" -Recurse -Filter "wingetcreate.exe" | ForEach-Object { $_.FullName }
+            Get-ChildItem "$env:ProgramData\dotnet" -Recurse -Filter "wingetcreate.exe" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+            
+            exit 1
+          }
+        }
       shell: pwsh
