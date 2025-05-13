@@ -38,78 +38,68 @@ jobs:
         New-Item -Path $manifestDir -ItemType Directory -Force
         
         # Create version manifest
-        $versionContent = @"
-PackageIdentifier: Recol.DLSSUpdater
-PackageVersion: $version
-DefaultLocale: en-US
-ManifestType: version
-ManifestVersion: 1.6.0
-"@
+        $versionContent = "PackageIdentifier: Recol.DLSSUpdater`nPackageVersion: $version`nDefaultLocale: en-US`nManifestType: version`nManifestVersion: 1.6.0"
         
         $versionPath = Join-Path $manifestDir "Recol.DLSSUpdater.yaml"
         $versionContent | Out-File -FilePath $versionPath -Encoding UTF8 -NoNewline
         
         # Create installer manifest with administrative privileges
-        $installerContent = @"
-PackageIdentifier: Recol.DLSSUpdater
-PackageVersion: $version
-MinimumOSVersion: 10.0.0.0
-Platform:
-- Windows.Desktop
-InstallModes:
-- interactive
-- silent
-Installers:
-- Architecture: x64
-  InstallerType: zip
-  NestedInstallerType: portable
-  NestedInstallerFiles:
-  - RelativeFilePath: DLSS_Updater\DLSS_Updater.exe
-    PortableCommandAlias: dlss-updater
-  InstallerUrl: ${{ steps.release_info.outputs.URL }}
-  InstallerSha256: ${{ steps.release_info.outputs.HASH }}
-  UpgradeBehavior: install
-  AppsAndFeaturesEntries:
-  - DisplayName: DLSS Updater
-    Publisher: Recol
-    ProductCode: DLSSUpdater
-ManifestType: installer
-ManifestVersion: 1.6.0
-"@
+        $installerContent = "PackageIdentifier: Recol.DLSSUpdater`n"
+        $installerContent += "PackageVersion: $version`n"
+        $installerContent += "MinimumOSVersion: 10.0.0.0`n"
+        $installerContent += "Platform:`n"
+        $installerContent += "- Windows.Desktop`n"
+        $installerContent += "InstallModes:`n"
+        $installerContent += "- interactive`n"
+        $installerContent += "- silent`n"
+        $installerContent += "Installers:`n"
+        $installerContent += "- Architecture: x64`n"
+        $installerContent += "  InstallerType: zip`n"
+        $installerContent += "  NestedInstallerType: portable`n"
+        $installerContent += "  NestedInstallerFiles:`n"
+        $installerContent += "  - RelativeFilePath: DLSS_Updater\DLSS_Updater.exe`n"
+        $installerContent += "    PortableCommandAlias: dlss-updater`n"
+        $installerContent += "  InstallerUrl: ${{ steps.release_info.outputs.URL }}`n"
+        $installerContent += "  InstallerSha256: ${{ steps.release_info.outputs.HASH }}`n"
+        $installerContent += "  UpgradeBehavior: install`n"
+        $installerContent += "  AppsAndFeaturesEntries:`n"
+        $installerContent += "  - DisplayName: DLSS Updater`n"
+        $installerContent += "    Publisher: Recol`n"
+        $installerContent += "    ProductCode: DLSSUpdater`n"
+        $installerContent += "ManifestType: installer`n"
+        $installerContent += "ManifestVersion: 1.6.0"
         
         $installerPath = Join-Path $manifestDir "Recol.DLSSUpdater.installer.yaml"
         $installerContent | Out-File -FilePath $installerPath -Encoding UTF8 -NoNewline
         
         # Create locale manifest with administrative note
-        $localeContent = @"
-PackageIdentifier: Recol.DLSSUpdater
-PackageVersion: $version
-PackageLocale: en-US
-Publisher: Recol
-PublisherUrl: https://github.com/Recol
-PublisherSupportUrl: https://github.com/Recol/DLSS-Updater/issues
-Author: Deco
-PackageName: DLSS Updater
-PackageUrl: https://github.com/Recol/DLSS-Updater
-License: AGPL-3.0
-LicenseUrl: https://github.com/Recol/DLSS-Updater/blob/main/LICENSE
-ShortDescription: A tool to update DLSS/XeSS DLLs for various games
-Description: |
-  DLSS Updater is a utility that automatically updates DLSS (Deep Learning Super Sampling), XeSS (Intel Xe Super Sampling), and DirectStorage DLLs for games across multiple platforms including Steam, EA Play, Ubisoft, Epic Games, GOG, and Battle.net.
-  
-  Note: This application requires administrative privileges to run.
-Tags:
-- dlss
-- nvidia
-- gaming
-- xess
-- directstorage
-- game-optimization
-ReleaseNotes: https://github.com/Recol/DLSS-Updater/releases/tag/v$version
-ReleaseNotesUrl: https://github.com/Recol/DLSS-Updater/releases/tag/v$version
-ManifestType: defaultLocale
-ManifestVersion: 1.6.0
-"@
+        $localeContent = "PackageIdentifier: Recol.DLSSUpdater`n"
+        $localeContent += "PackageVersion: $version`n"
+        $localeContent += "PackageLocale: en-US`n"
+        $localeContent += "Publisher: Recol`n"
+        $localeContent += "PublisherUrl: https://github.com/Recol`n"
+        $localeContent += "PublisherSupportUrl: https://github.com/Recol/DLSS-Updater/issues`n"
+        $localeContent += "Author: Deco`n"
+        $localeContent += "PackageName: DLSS Updater`n"
+        $localeContent += "PackageUrl: https://github.com/Recol/DLSS-Updater`n"
+        $localeContent += "License: AGPL-3.0`n"
+        $localeContent += "LicenseUrl: https://github.com/Recol/DLSS-Updater/blob/main/LICENSE`n"
+        $localeContent += "ShortDescription: A tool to update DLSS/XeSS DLLs for various games`n"
+        $localeContent += "Description: |`n"
+        $localeContent += "  DLSS Updater is a utility that automatically updates DLSS (Deep Learning Super Sampling), XeSS (Intel Xe Super Sampling), and DirectStorage DLLs for games across multiple platforms including Steam, EA Play, Ubisoft, Epic Games, GOG, and Battle.net.`n"
+        $localeContent += "  `n"
+        $localeContent += "  Note: This application requires administrative privileges to run.`n"
+        $localeContent += "Tags:`n"
+        $localeContent += "- dlss`n"
+        $localeContent += "- nvidia`n"
+        $localeContent += "- gaming`n"
+        $localeContent += "- xess`n"
+        $localeContent += "- directstorage`n"
+        $localeContent += "- game-optimization`n"
+        $localeContent += "ReleaseNotes: https://github.com/Recol/DLSS-Updater/releases/tag/v$version`n"
+        $localeContent += "ReleaseNotesUrl: https://github.com/Recol/DLSS-Updater/releases/tag/v$version`n"
+        $localeContent += "ManifestType: defaultLocale`n"
+        $localeContent += "ManifestVersion: 1.6.0"
         
         $localePath = Join-Path $manifestDir "Recol.DLSSUpdater.locale.en-US.yaml"
         $localeContent | Out-File -FilePath $localePath -Encoding UTF8 -NoNewline
@@ -120,6 +110,14 @@ ManifestVersion: 1.6.0
         
         # Output the base manifest directory for next step
         echo "MANIFEST_DIR=manifests\r\Recol\DLSSUpdater\$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      shell: pwsh
+    
+    - name: Install GitHub CLI
+      run: |
+        # Install GitHub CLI for PR management
+        Invoke-WebRequest -Uri "https://github.com/cli/cli/releases/latest/download/gh_2.46.0_windows_amd64.msi" -OutFile "gh.msi"
+        Start-Process msiexec.exe -Wait -ArgumentList '/I gh.msi /quiet'
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
       shell: pwsh
     
     - name: Update existing PR
