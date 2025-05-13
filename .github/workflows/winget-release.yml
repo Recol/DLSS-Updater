@@ -28,16 +28,29 @@ jobs:
       with:
         dotnet-version: '6.0.x'
     
-    - name: Install WingetCreate via dotnet
+    - name: Download and Install WingetCreate
       run: |
-        # Install wingetcreate as a .NET tool instead of downloading the exe
-        dotnet tool install -g Microsoft.WingetCreate
+        # Download the MSI installer instead
+        $installerUrl = "https://github.com/microsoft/winget-create/releases/latest/download/wingetcreate.msixbundle"
         
-        # Refresh PATH
-        $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+        # Download installer
+        Invoke-WebRequest -Uri $installerUrl -OutFile "wingetcreate.msixbundle"
         
-        # Verify installation
-        wingetcreate version
+        # Install using Add-AppxPackage
+        Add-AppxPackage -Path ".\wingetcreate.msixbundle"
+        
+        # Find the installed location
+        $package = Get-AppxPackage -Name "Microsoft.WindowsPackageManagerManifestCreator"
+        $wingetCreatePath = Join-Path $package.InstallLocation "wingetcreate.exe"
+        
+        # Verify it exists
+        if (Test-Path $wingetCreatePath) {
+          Write-Host "Found wingetcreate at: $wingetCreatePath"
+          & $wingetCreatePath version
+        } else {
+          Write-Error "Could not find wingetcreate.exe after installation"
+          exit 1
+        }
       shell: pwsh
     
     - name: Update Winget Package
