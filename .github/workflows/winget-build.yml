@@ -85,15 +85,26 @@ jobs:
         
         Write-Host "Updating existing PR #${{ steps.check_pr.outputs.PR_NUMBER }}"
         
-        # Update the existing PR - use correct syntax for update command
-        # Use the update command with --replace flag to update existing PR
-        .\wingetcreate.exe update `
+        # For updating an existing PR, you need to clone the PR first
+        git clone https://github.com/microsoft/winget-pkgs.git
+        cd winget-pkgs
+        git checkout -b "Recol.DLSSUpdater-${{ steps.release_info.outputs.VERSION }}"
+        
+        # Update the manifest
+        ..\wingetcreate.exe update `
             Recol.DLSSUpdater `
             --version "${{ steps.release_info.outputs.VERSION }}" `
             --urls "${{ steps.release_info.outputs.URL }}" `
-            --interactive false `
-            --token "${{ secrets.WINGET_TOKEN }}" `
-            --replace "${{ steps.check_pr.outputs.PR_NUMBER }}"
+            --out "manifests\r\Recol\DLSSUpdater\${{ steps.release_info.outputs.VERSION }}" `
+            --interactive false
+        
+        # Commit and push changes
+        git add .
+        git commit -m "Update Recol.DLSSUpdater to version ${{ steps.release_info.outputs.VERSION }}"
+        git push origin "Recol.DLSSUpdater-${{ steps.release_info.outputs.VERSION }}"
+        
+        # Use GitHub CLI to update the PR
+        gh pr edit "${{ steps.check_pr.outputs.PR_NUMBER }}" --title "Update Recol.DLSSUpdater to version ${{ steps.release_info.outputs.VERSION }}"
       shell: pwsh
     
     - name: Create new PR
