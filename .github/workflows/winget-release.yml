@@ -1,21 +1,66 @@
-- name: Download WingetCreate (Alternative)
+name: Winget Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  winget:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Get release info
+      id: release_info
       run: |
-        # Use direct GitHub release URL instead of aka.ms redirect
-        $releaseUrl = "https://api.github.com/repos/microsoft/winget-create/releases/latest"
-        $release = Invoke-RestMethod -Uri $releaseUrl
+        $latest_release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest"
+        $version = $latest_release.tag_name -replace '^[vV]', ''
         
-        # Find the wingetcreate.exe asset
-        $asset = $release.assets | Where-Object { $_.name -eq "wingetcreate.exe" }
+        # Match the actual ZIP file naming format
+        $zipUrl = "https://github.com/${{ github.repository }}/releases/download/$($latest_release.tag_name)/DLSS.Updater.$version.zip"
         
-        if ($asset) {
-          Write-Host "Downloading from: $($asset.browser_download_url)"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "wingetcreate.exe"
-          
-          # Verify download
-          $fileInfo = Get-Item "wingetcreate.exe"
-          Write-Host "Downloaded: $($fileInfo.Name), Size: $($fileInfo.Length) bytes"
-        } else {
-          Write-Error "Could not find wingetcreate.exe in latest release"
-          exit 1
-        }
+        echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        echo "URL=$zipUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      shell: pwsh
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '6.0.x'
+    
+    - name: Install WingetCreate via dotnet
+      run: |
+        # Install wingetcreate as a .NET tool instead of downloading the exe
+        dotnet tool install -g Microsoft.WingetCreate
+        
+        # Refresh PATH
+        $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+        
+        # Verify installation
+        wingetcreate version
+      shell: pwsh
+    
+    - name: Update Winget Package
+      run: |
+        # Use wingetcreate directly (now in PATH)
+        wingetcreate update `
+          --id Recol.DLSSUpdater `
+          --name "DLSS Updater" `
+          --version "${{ steps.release_info.outputs.VERSION }}" `
+          --urls "${{ steps.release_info.outputs.URL }}" `
+          --publisher "Recol" `
+          --license "GNU Affero General Public License v3.0" `
+          --license-url "https://github.com/Recol/DLSS-Updater/blob/main/LICENSE" `
+          --description "A tool to update DLSS, XeSS, and DirectStorage DLLs for various games and launchers" `
+          --home-page "https://github.com/Recol/DLSS-Updater" `
+          --support-url "https://github.com/Recol/DLSS-Updater/issues" `
+          --moniker "dlss-updater" `
+          --tags "dlss,nvidia,gaming,update-tool,xess,directstorage" `
+          --installer-type "zip" `
+          --architecture "x64" `
+          --scope "machine" `
+          --silent-switch "/S" `
+          --interactive-switch "/I" `
+          --submit `
+          --token "${{ secrets.WINGET_TOKEN }}"
       shell: pwsh
