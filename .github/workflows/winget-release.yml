@@ -1,0 +1,46 @@
+name: Winget Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  winget:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Get release info
+      id: release_info
+      run: |
+        $latest_release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest"
+        $version = $latest_release.tag_name -replace '^[vV]', ''
+        
+        # Match the actual ZIP file naming format
+        $zipUrl = "https://github.com/${{ github.repository }}/releases/download/$($latest_release.tag_name)/DLSS.Updater.$version.zip"
+        
+        echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        echo "URL=$zipUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        
+        # Download and calculate hash
+        Invoke-WebRequest -Uri $zipUrl -OutFile "DLSS.Updater.$version.zip"
+        $sha256 = (Get-FileHash -Path "DLSS.Updater.$version.zip" -Algorithm SHA256).Hash
+        echo "SHA256=$sha256" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      shell: pwsh
+    
+    - name: Update Winget Package
+      run: |
+        # Download WingetCreate
+        Invoke-WebRequest -Uri https://aka.ms/winget-create -OutFile wingetcreate.exe
+        
+        # Update existing package or create new one
+        .\wingetcreate.exe update `
+          --id Recol.DLSSUpdater `
+          --name "DLSS Updater" `
+          --version "${{ steps.release_info.outputs.VERSION }}" `
+          --urls "${{ steps.release_info.outputs.URL }}" `
+          --publisher "Recol" `
+          --moniker "dlss-updater" `
+          --submit `
+          --token "${{ secrets.WINGET_TOKEN }}"
+      shell: pwsh
