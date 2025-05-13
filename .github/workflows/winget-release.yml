@@ -40,26 +40,40 @@ jobs:
             $fileInfo = Get-Item ".\wingetcreate.exe"
             Write-Host "Downloaded wingetcreate.exe: $($fileInfo.Length) bytes"
             
-            # Run version check
-            .\wingetcreate.exe version
+            # Check if package already exists
+            $checkUrl = "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/r/Recol/DLSSUpdater"
+            $existingPackage = $false
             
-            # Run the update
-            .\wingetcreate.exe update `
-              Recol.DLSSUpdater `
-              --version "${{ steps.release_info.outputs.VERSION }}" `
-              --urls "${{ steps.release_info.outputs.URL }}" `
-              --submit `
-              --token "${{ secrets.WINGET_TOKEN }}"
+            try {
+              $response = Invoke-RestMethod -Uri $checkUrl -ErrorAction Stop
+              $existingPackage = $true
+              Write-Host "Package already exists, using update command"
+            }
+            catch {
+              Write-Host "Package doesn't exist yet, using new command"
+            }
+            
+            if ($existingPackage) {
+              # Update existing package
+              .\wingetcreate.exe update `
+                Recol.DLSSUpdater `
+                --version "${{ steps.release_info.outputs.VERSION }}" `
+                --urls "${{ steps.release_info.outputs.URL }}" `
+                --submit `
+                --token "${{ secrets.WINGET_TOKEN }}"
+            }
+            else {
+              # Create new package
+              .\wingetcreate.exe new `
+                --id Recol.DLSSUpdater `
+                --name "DLSS Updater" `
+                --version "${{ steps.release_info.outputs.VERSION }}" `
+                --publisher "Recol" `
+                --license "AGPL-3.0" `
+                --url "${{ steps.release_info.outputs.URL }}" `
+                --submit `
+                --token "${{ secrets.WINGET_TOKEN }}"
+            }
           }
-          else {
-            Write-Error "Failed to download wingetcreate.exe"
-            exit 1
-          }
-        }
-        else {
-          Write-Error "Could not find wingetcreate.exe in release assets"
-          Write-Host "Available assets:"
-          $wingetCreateRelease.assets | ForEach-Object { Write-Host " - $($_.name)" }
-          exit 1
         }
       shell: pwsh
