@@ -88,14 +88,30 @@ jobs:
       run: |
         $version = "${{ steps.release_info.outputs.VERSION }}"
         $exePath = "${{ steps.release_info.outputs.RELATIVE_EXE_PATH }}"
-        $prBranch = "${{ steps.check_pr.outputs.PR_BRANCH }}"
+        $prNumber = "${{ steps.check_pr.outputs.PR_NUMBER }}"
+        
+        # Get PR details to find the correct fork
+        $headers = @{
+            "Authorization" = "Bearer ${{ secrets.GITHUB_TOKEN }}"
+            "Accept" = "application/vnd.github.v3+json"
+        }
+        
+        $prDetailsUrl = "https://api.github.com/repos/microsoft/winget-pkgs/pulls/$prNumber"
+        $prDetails = Invoke-RestMethod -Uri $prDetailsUrl -Headers $headers -Method Get
+        
+        # Get the fork URL and branch name
+        $forkCloneUrl = $prDetails.head.repo.clone_url
+        $prBranch = $prDetails.head.ref
+        
+        Write-Host "Cloning from fork: $forkCloneUrl"
+        Write-Host "Branch name: $prBranch"
         
         # Configure git
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git config --global user.name "github-actions[bot]"
         
-        # Clone the fork and checkout the PR branch
-        git clone https://github.com/vedantmgoyal9/winget-pkgs.git winget-pkgs
+        # Clone the correct fork and checkout the PR branch
+        git clone $forkCloneUrl winget-pkgs
         cd winget-pkgs
         git checkout $prBranch
         
