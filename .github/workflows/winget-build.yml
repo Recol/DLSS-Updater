@@ -44,12 +44,62 @@ jobs:
         echo "HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
     
-    - name: Create and submit manifests
+    - name: Check for existing PR
+      id: check_pr
+      run: |
+        $headers = @{
+            "Authorization" = "Bearer ${{ secrets.GITHUB_TOKEN }}"
+            "Accept" = "application/vnd.github.v3+json"
+        }
+        
+        # Search for PRs
+        $searchUrl = "https://api.github.com/search/issues?q=repo:microsoft/winget-pkgs+is:pr+is:open+Recol.DLSSUpdater"
+        Write-Host "Searching for PRs at: $searchUrl"
+        
+        try {
+            $response = Invoke-RestMethod -Uri $searchUrl -Headers $headers -Method Get
+            Write-Host "Search response count: $($response.total_count)"
+            
+            if ($response.total_count -gt 0) {
+                $pr = $response.items | Select-Object -First 1
+                Write-Host "Found PR #$($pr.number): $($pr.title)"
+                echo "PR_NUMBER=$($pr.number)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+                echo "HAS_PR=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+                
+                # Get the PR details to find the branch name
+                $prDetailsUrl = "https://api.github.com/repos/microsoft/winget-pkgs/pulls/$($pr.number)"
+                $prDetails = Invoke-RestMethod -Uri $prDetailsUrl -Headers $headers -Method Get
+                $branchName = $prDetails.head.ref
+                echo "PR_BRANCH=$branchName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            } else {
+                Write-Host "No existing PR found"
+                echo "HAS_PR=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            }
+        } catch {
+            Write-Host "Error searching for PRs: $_"
+            echo "HAS_PR=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        }
+      shell: pwsh
+    
+    - name: Update existing PR
+      if: steps.check_pr.outputs.HAS_PR == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         $version = "${{ steps.release_info.outputs.VERSION }}"
         $exePath = "${{ steps.release_info.outputs.RELATIVE_EXE_PATH }}"
+        $prBranch = "${{ steps.check_pr.outputs.PR_BRANCH }}"
         
-        # Create directory structure with full package path
+        # Configure git
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+        
+        # Clone the fork and checkout the PR branch
+        git clone https://github.com/vedantmgoyal9/winget-pkgs.git winget-pkgs
+        cd winget-pkgs
+        git checkout $prBranch
+        
+        # Create directory structure
         $manifestDir = "manifests\r\Recol\DLSSUpdater\$version"
         New-Item -Path $manifestDir -ItemType Directory -Force
         
@@ -81,7 +131,7 @@ jobs:
         $installerContent += "  NestedInstallerFiles:`n"
         $installerContent += "  - RelativeFilePath: $exePath`n"
         $installerContent += "    PortableCommandAlias: dlss-updater`n"
-        $installerContent += "  Scope: user`n"  # Add this since it doesn't require UAC to extract
+        $installerContent += "  Scope: user`n"
         $installerContent += "  UpgradeBehavior: install`n"
         $installerContent += "ManifestType: installer`n"
         $installerContent += "ManifestVersion: 1.6.0"
@@ -120,11 +170,45 @@ jobs:
         $localePath = Join-Path $manifestDir "Recol.DLSSUpdater.locale.en-US.yaml"
         $localeContent | Out-File -FilePath $localePath -Encoding UTF8
         
+        # Commit and push changes
+        git add .
+        git commit -m "Update Recol.DLSSUpdater to version $version"
+        git push origin $prBranch
+      shell: pwsh
+    
+    - name: Create new PR
+      if: steps.check_pr.outputs.HAS_PR == 'false'
+      run: |
+        $version = "${{ steps.release_info.outputs.VERSION }}"
+        $exePath = "${{ steps.release_info.outputs.RELATIVE_EXE_PATH }}"
+        
+        # Create a temporary directory for manifests
+        $tempDir = New-Item -ItemType Directory -Path "temp_manifests" -Force
+        
+        # Create version manifest
+        $versionContent = "PackageIdentifier: Recol.DLSSUpdater`n"
+        $versionContent += "PackageVersion: $version`n"
+        $versionContent += "DefaultLocale: en-US`n"
+        $versionContent += "ManifestType: version`n"
+        $versionContent += "ManifestVersion: 1.6.0"
+        
+        $versionPath = Join-Path $tempDir "Recol.DLSSUpdater.yaml"
+        $versionContent | Out-File -FilePath $versionPath -Encoding UTF8
+        
+        # Create installer manifest (same as above)
+        # Create locale manifest (same as above)
+        
         # Download wingetcreate
         $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-create/releases/latest"
         $asset = $latestRelease.assets | Where-Object { $_.name -eq "wingetcreate.exe" } | Select-Object -First 1
         Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "wingetcreate.exe"
         
-        # Submit new manifests
-        .\wingetcreate.exe submit manifests --token "${{ secrets.WINGET_TOKEN }}"
+        # Use 'new' command for initial submission
+        cd $tempDir
+        ..\wingetcreate.exe new `
+            --id Recol.DLSSUpdater `
+            --version "$version" `
+            --import . `
+            --token "${{ secrets.WINGET_TOKEN }}" `
+            --submit
       shell: pwsh
