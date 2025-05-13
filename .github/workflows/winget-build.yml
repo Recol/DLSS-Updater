@@ -19,18 +19,9 @@ jobs:
         $version = $latest_release.tag_name -replace '^[vV]', ''
         $zipUrl = "https://github.com/${{ github.repository }}/releases/download/$($latest_release.tag_name)/DLSS.Updater.$version.zip"
         
-        # Download ZIP to calculate hash and inspect structure
+        # Download ZIP to calculate hash
         Invoke-WebRequest -Uri $zipUrl -OutFile "DLSS.Updater.zip"
         $hash = (Get-FileHash -Path "DLSS.Updater.zip" -Algorithm SHA256).Hash
-        
-        # Inspect ZIP structure
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        $zip = [System.IO.Compression.ZipFile]::OpenRead("DLSS.Updater.zip")
-        Write-Host "ZIP contents:"
-        foreach ($entry in $zip.Entries) {
-            Write-Host "  $($entry.FullName)"
-        }
-        $zip.Dispose()
         
         # Extract ZIP to check actual structure
         Expand-Archive -Path "DLSS.Updater.zip" -DestinationPath "extracted" -Force
@@ -59,9 +50,8 @@ jobs:
         $version = "${{ steps.release_info.outputs.VERSION }}"
         $exePath = "${{ steps.release_info.outputs.RELATIVE_EXE_PATH }}"
         
-        # Create directory structure as expected by winget
-        $manifestDir = "manifests\r\Recol\DLSSUpdater\$version"
-        New-Item -Path $manifestDir -ItemType Directory -Force
+        # Create directory structure - wingetcreate expects files in root, not subdirectories
+        New-Item -Path "manifests" -ItemType Directory -Force
         
         # Create version manifest
         $versionContent = "PackageIdentifier: Recol.DLSSUpdater`n"
@@ -70,8 +60,8 @@ jobs:
         $versionContent += "ManifestType: version`n"
         $versionContent += "ManifestVersion: 1.6.0"
         
-        $versionPath = Join-Path $manifestDir "Recol.DLSSUpdater.yaml"
-        $versionContent | Out-File -FilePath $versionPath -Encoding UTF8 -NoNewline
+        $versionPath = Join-Path "manifests" "Recol.DLSSUpdater.yaml"
+        $versionContent | Out-File -FilePath $versionPath -Encoding UTF8
         
         # Create installer manifest
         $installerContent = "PackageIdentifier: Recol.DLSSUpdater`n"
@@ -79,16 +69,9 @@ jobs:
         $installerContent += "MinimumOSVersion: 10.0.0.0`n"
         $installerContent += "Platform:`n"
         $installerContent += "- Windows.Desktop`n"
-        $installerContent += "Dependencies:`n"
-        $installerContent += "  WindowsFeatures:`n"
-        $installerContent += "  - Microsoft-Windows-Subsystem-Linux`n"
-        $installerContent += "InstallerSwitches:`n"
-        $installerContent += "  Silent: /S`n"
-        $installerContent += "  SilentWithProgress: /S`n"
         $installerContent += "InstallModes:`n"
         $installerContent += "- interactive`n"
         $installerContent += "- silent`n"
-        $installerContent += "- silentWithProgress`n"
         $installerContent += "Commands:`n"
         $installerContent += "- dlss-updater`n"
         $installerContent += "Installers:`n"
@@ -100,22 +83,13 @@ jobs:
         $installerContent += "  NestedInstallerFiles:`n"
         $installerContent += "  - RelativeFilePath: $exePath`n"
         $installerContent += "    PortableCommandAlias: dlss-updater`n"
-        $installerContent += "  ExpectedReturnCodes:`n"
-        $installerContent += "  - InstallerReturnCode: 0`n"
-        $installerContent += "    ReturnResponse: installInProgress`n"
-        $installerContent += "  UpgradeBehavior: uninstallPrevious`n"
+        $installerContent += "  UpgradeBehavior: install`n"
         $installerContent += "  ReleaseDate: $(Get-Date -Format 'yyyy-MM-dd')`n"
-        $installerContent += "  AppsAndFeaturesEntries:`n"
-        $installerContent += "  - DisplayName: DLSS Updater`n"
-        $installerContent += "    Publisher: Recol`n"
-        $installerContent += "    DisplayVersion: $version`n"
-        $installerContent += "    ProductCode: '{6E5F9D8C-B7A1-4D2F-8E3A-F2C9B8D1E5A3}'`n"
-        $installerContent += "    InstallerType: portable`n"
         $installerContent += "ManifestType: installer`n"
         $installerContent += "ManifestVersion: 1.6.0"
         
-        $installerPath = Join-Path $manifestDir "Recol.DLSSUpdater.installer.yaml"
-        $installerContent | Out-File -FilePath $installerPath -Encoding UTF8 -NoNewline
+        $installerPath = Join-Path "manifests" "Recol.DLSSUpdater.installer.yaml"
+        $installerContent | Out-File -FilePath $installerPath -Encoding UTF8
         
         # Create locale manifest
         $localeContent = "PackageIdentifier: Recol.DLSSUpdater`n"
@@ -129,17 +103,10 @@ jobs:
         $localeContent += "PackageUrl: https://github.com/Recol/DLSS-Updater`n"
         $localeContent += "License: AGPL-3.0`n"
         $localeContent += "LicenseUrl: https://github.com/Recol/DLSS-Updater/blob/main/LICENSE`n"
+        $localeContent += "Copyright: Copyright (c) 2024 Recol`n"
         $localeContent += "ShortDescription: A tool to update DLSS, XeSS, and DirectStorage DLLs for various games`n"
         $localeContent += "Description: |`n"
-        $localeContent += "  DLSS Updater is a utility that automatically updates DLSS (Deep Learning Super Sampling), XeSS (Intel Xe Super Sampling), and DirectStorage DLLs for games across multiple platforms.`n"
-        $localeContent += "  `n"
-        $localeContent += "  Features:`n"
-        $localeContent += "  - Updates DLSS, DLSS Frame Generation, and DLSS Ray Reconstruction DLLs`n"
-        $localeContent += "  - Updates Intel XeSS DLLs`n"
-        $localeContent += "  - Updates Microsoft DirectStorage DLLs`n"
-        $localeContent += "  - Supports multiple game launchers including Steam, EA Play, Ubisoft, Epic Games, GOG, and Battle.net`n"
-        $localeContent += "  - Creates automatic backups of original DLLs`n"
-        $localeContent += "  - GUI interface for easy management`n"
+        $localeContent += "  DLSS Updater is a utility that automatically updates DLSS (Deep Learning Super Sampling), XeSS (Intel Xe Super Sampling), and DirectStorage DLLs for games across multiple platforms including Steam, EA Play, Ubisoft, Epic Games, GOG, and Battle.net.`n"
         $localeContent += "  `n"
         $localeContent += "  Note: This application requires administrative privileges to modify game files.`n"
         $localeContent += "Tags:`n"
@@ -148,68 +115,53 @@ jobs:
         $localeContent += "- gaming`n"
         $localeContent += "- xess`n"
         $localeContent += "- directstorage`n"
-        $localeContent += "- game-optimization`n"
-        $localeContent += "- dll-updater`n"
-        $localeContent += "- frame-generation`n"
-        $localeContent += "- ray-reconstruction`n"
         $localeContent += "ReleaseNotes: https://github.com/Recol/DLSS-Updater/releases/tag/v$version`n"
         $localeContent += "ReleaseNotesUrl: https://github.com/Recol/DLSS-Updater/releases/tag/v$version`n"
         $localeContent += "ManifestType: defaultLocale`n"
         $localeContent += "ManifestVersion: 1.6.0"
         
-        $localePath = Join-Path $manifestDir "Recol.DLSSUpdater.locale.en-US.yaml"
-        $localeContent | Out-File -FilePath $localePath -Encoding UTF8 -NoNewline
+        $localePath = Join-Path "manifests" "Recol.DLSSUpdater.locale.en-US.yaml"
+        $localeContent | Out-File -FilePath $localePath -Encoding UTF8
         
         # List contents to verify
         Write-Host "Created manifest files:"
-        Get-ChildItem $manifestDir -Recurse | ForEach-Object {
+        Get-ChildItem "manifests" -Recurse | ForEach-Object {
             Write-Host $_.FullName
-            Get-Content $_.FullName | Write-Host
-            Write-Host "---"
         }
         
-        # Output the base manifest directory for next step
         echo "MANIFEST_DIR=manifests" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
     
-    - name: Install GitHub CLI
-      run: |
-        # Install GitHub CLI for PR management
-        $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/cli/cli/releases/latest"
-        $asset = $latestRelease.assets | Where-Object { $_.name -like "*windows_amd64.msi" } | Select-Object -First 1
-        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "gh.msi"
-        Start-Process msiexec.exe -Wait -ArgumentList '/I gh.msi /quiet'
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
-      shell: pwsh
-    
-    - name: Check for existing PRs
+    - name: Check for existing PR using API
       id: check_pr
       run: |
-        # Configure GitHub CLI
-        gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+        $headers = @{
+            "Authorization" = "Bearer ${{ secrets.GITHUB_TOKEN }}"
+            "Accept" = "application/vnd.github.v3+json"
+        }
         
-        # Check for existing PRs
-        $searchQuery = "repo:microsoft/winget-pkgs is:pr is:open Recol.DLSSUpdater"
-        Write-Host "Searching for PRs with query: $searchQuery"
+        # Search for PRs
+        $searchUrl = "https://api.github.com/search/issues?q=repo:microsoft/winget-pkgs+is:pr+is:open+Recol.DLSSUpdater"
+        Write-Host "Searching for PRs at: $searchUrl"
         
-        $prs = gh pr list --repo microsoft/winget-pkgs --search "Recol.DLSSUpdater" --state open --json number,title,author
-        Write-Host "Found PRs: $prs"
-        
-        $prData = $prs | ConvertFrom-Json
-        $existingPR = $prData | Where-Object { $_.title -like "*Recol.DLSSUpdater*" } | Select-Object -First 1
-        
-        if ($existingPR) {
-            Write-Host "Found existing PR #$($existingPR.number)"
-            echo "PR_NUMBER=$($existingPR.number)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            echo "HAS_PR=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-        } else {
-            Write-Host "No existing PR found"
+        try {
+            $response = Invoke-RestMethod -Uri $searchUrl -Headers $headers -Method Get
+            Write-Host "Search response count: $($response.total_count)"
+            
+            if ($response.total_count -gt 0) {
+                $pr = $response.items | Select-Object -First 1
+                Write-Host "Found PR #$($pr.number): $($pr.title)"
+                echo "PR_NUMBER=$($pr.number)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+                echo "HAS_PR=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            } else {
+                Write-Host "No existing PR found"
+                echo "HAS_PR=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            }
+        } catch {
+            Write-Host "Error searching for PRs: $_"
             echo "HAS_PR=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         }
       shell: pwsh
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      continue-on-error: true
     
     - name: Submit or Update PR
       run: |
@@ -218,17 +170,27 @@ jobs:
         $asset = $latestRelease.assets | Where-Object { $_.name -eq "wingetcreate.exe" } | Select-Object -First 1
         Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "wingetcreate.exe"
         
+        # Set up git configuration
+        git config --global user.email "action@github.com"
+        git config --global user.name "GitHub Action"
+        
         if ("${{ steps.check_pr.outputs.HAS_PR }}" -eq "true") {
             Write-Host "Updating existing PR #${{ steps.check_pr.outputs.PR_NUMBER }}"
+            
+            # Use update command with PR number
             .\wingetcreate.exe update "Recol.DLSSUpdater" `
                 --version "${{ steps.release_info.outputs.VERSION }}" `
                 --urls "${{ steps.release_info.outputs.URL }}" `
                 --submit `
-                --token "${{ secrets.WINGET_TOKEN }}" `
-                --skipValidation
+                --prnumber "${{ steps.check_pr.outputs.PR_NUMBER }}" `
+                --token "${{ secrets.WINGET_TOKEN }}"
         } else {
             Write-Host "Creating new PR"
-            .\wingetcreate.exe submit "${{ steps.create_manifests.outputs.MANIFEST_DIR }}" `
+            
+            # Submit new manifests
+            .\wingetcreate.exe submit manifests `
                 --token "${{ secrets.WINGET_TOKEN }}"
         }
       shell: pwsh
+      env:
+        WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
