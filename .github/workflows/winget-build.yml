@@ -151,7 +151,6 @@ jobs:
         $installerContent += "  NestedInstallerFiles:`n"
         $installerContent += "  - RelativeFilePath: $exePath`n"
         $installerContent += "    PortableCommandAlias: dlss-updater`n"
-        $installerContent += "  Scope: user`n"
         $installerContent += "  UpgradeBehavior: install`n"
         $installerContent += "ManifestType: installer`n"
         $installerContent += "ManifestVersion: 1.6.0"
