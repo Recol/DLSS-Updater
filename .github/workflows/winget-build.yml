@@ -44,80 +44,16 @@ jobs:
         echo "HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
     
-    - name: Check for existing PR using API
-      id: check_pr
-      run: |
-        $headers = @{
-            "Authorization" = "Bearer ${{ secrets.GITHUB_TOKEN }}"
-            "Accept" = "application/vnd.github.v3+json"
-        }
-        
-        # Search for PRs
-        $searchUrl = "https://api.github.com/search/issues?q=repo:microsoft/winget-pkgs+is:pr+is:open+Recol.DLSSUpdater"
-        Write-Host "Searching for PRs at: $searchUrl"
-        
-        try {
-            $response = Invoke-RestMethod -Uri $searchUrl -Headers $headers -Method Get
-            Write-Host "Search response count: $($response.total_count)"
-            
-            if ($response.total_count -gt 0) {
-                $pr = $response.items | Select-Object -First 1
-                Write-Host "Found PR #$($pr.number): $($pr.title)"
-                echo "PR_NUMBER=$($pr.number)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-                echo "HAS_PR=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            } else {
-                Write-Host "No existing PR found"
-                echo "HAS_PR=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            }
-        } catch {
-            Write-Host "Error searching for PRs: $_"
-            echo "HAS_PR=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-        }
-      shell: pwsh
-    
-    - name: Download and update PR
-      if: steps.check_pr.outputs.HAS_PR == 'true'
+    - name: Submit to Winget
       run: |
         # Download wingetcreate
         $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-create/releases/latest"
         $asset = $latestRelease.assets | Where-Object { $_.name -eq "wingetcreate.exe" } | Select-Object -First 1
         Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "wingetcreate.exe"
         
-        Write-Host "Updating existing PR #${{ steps.check_pr.outputs.PR_NUMBER }}"
+        Write-Host "Submitting version ${{ steps.release_info.outputs.VERSION }}"
         
-        # For updating an existing PR, you need to clone the PR first
-        git clone https://github.com/microsoft/winget-pkgs.git
-        cd winget-pkgs
-        git checkout -b "Recol.DLSSUpdater-${{ steps.release_info.outputs.VERSION }}"
-        
-        # Update the manifest
-        ..\wingetcreate.exe update `
-            Recol.DLSSUpdater `
-            --version "${{ steps.release_info.outputs.VERSION }}" `
-            --urls "${{ steps.release_info.outputs.URL }}" `
-            --out "manifests\r\Recol\DLSSUpdater\${{ steps.release_info.outputs.VERSION }}" `
-            --interactive false
-        
-        # Commit and push changes
-        git add .
-        git commit -m "Update Recol.DLSSUpdater to version ${{ steps.release_info.outputs.VERSION }}"
-        git push origin "Recol.DLSSUpdater-${{ steps.release_info.outputs.VERSION }}"
-        
-        # Use GitHub CLI to update the PR
-        gh pr edit "${{ steps.check_pr.outputs.PR_NUMBER }}" --title "Update Recol.DLSSUpdater to version ${{ steps.release_info.outputs.VERSION }}"
-      shell: pwsh
-    
-    - name: Create new PR
-      if: steps.check_pr.outputs.HAS_PR != 'true'
-      run: |
-        # Download wingetcreate
-        $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-create/releases/latest"
-        $asset = $latestRelease.assets | Where-Object { $_.name -eq "wingetcreate.exe" } | Select-Object -First 1
-        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "wingetcreate.exe"
-        
-        Write-Host "Creating new PR for version ${{ steps.release_info.outputs.VERSION }}"
-        
-        # Update/create manifest and submit new PR
+        # Use update with --submit, which will handle existing PRs automatically
         .\wingetcreate.exe update `
             Recol.DLSSUpdater `
             --version "${{ steps.release_info.outputs.VERSION }}" `
