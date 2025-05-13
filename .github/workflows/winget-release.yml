@@ -23,31 +23,43 @@ jobs:
         echo "URL=$zipUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
     
-    - name: Install WingetCreate
+    - name: Download and Run WingetCreate
       run: |
-        # Install using the official installer
-        Invoke-WebRequest -Uri "https://github.com/microsoft/winget-create/releases/latest/download/wingetcreate-self-contained.exe" -OutFile "wingetcreate.exe"
+        # Get the latest release info for winget-create
+        $wingetCreateRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-create/releases/latest"
         
-        # Verify download
-        if (Test-Path ".\wingetcreate.exe") {
-          $fileInfo = Get-Item ".\wingetcreate.exe"
-          Write-Host "Downloaded wingetcreate.exe: $($fileInfo.Length) bytes"
+        # Find the self-contained exe in the assets
+        $exeAsset = $wingetCreateRelease.assets | Where-Object { $_.name -like "*self-contained*" -or $_.name -eq "wingetcreate.exe" }
+        
+        if ($exeAsset) {
+          Write-Host "Downloading from: $($exeAsset.browser_download_url)"
+          Invoke-WebRequest -Uri $exeAsset.browser_download_url -OutFile "wingetcreate.exe"
           
-          # Test execution
-          .\wingetcreate.exe version
+          # Verify download
+          if (Test-Path ".\wingetcreate.exe") {
+            $fileInfo = Get-Item ".\wingetcreate.exe"
+            Write-Host "Downloaded wingetcreate.exe: $($fileInfo.Length) bytes"
+            
+            # Run version check
+            .\wingetcreate.exe version
+            
+            # Run the update
+            .\wingetcreate.exe update `
+              Recol.DLSSUpdater `
+              --version "${{ steps.release_info.outputs.VERSION }}" `
+              --urls "${{ steps.release_info.outputs.URL }}" `
+              --submit `
+              --token "${{ secrets.WINGET_TOKEN }}"
+          }
+          else {
+            Write-Error "Failed to download wingetcreate.exe"
+            exit 1
+          }
         }
         else {
-          Write-Error "Failed to download wingetcreate.exe"
+          Write-Error "Could not find wingetcreate.exe in release assets"
+          Write-Host "Available assets:"
+          $wingetCreateRelease.assets | ForEach-Object { Write-Host " - $($_.name)" }
           exit 1
         }
-      shell: pwsh
-    
-    - name: Update Winget Package
-      run: |
-        .\wingetcreate.exe update `
-          Recol.DLSSUpdater `
-          --version "${{ steps.release_info.outputs.VERSION }}" `
-          --urls "${{ steps.release_info.outputs.URL }}" `
-          --submit `
-          --token "${{ secrets.WINGET_TOKEN }}"
       shell: pwsh
