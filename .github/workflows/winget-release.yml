@@ -29,66 +29,72 @@ jobs:
       shell: pwsh
     
     - name: Create manifest files
+      id: create_manifests
       run: |
         $version = "${{ steps.release_info.outputs.VERSION }}"
-        $manifestDir = "manifests\r\Recol\DLSSUpdater\$version"
+        
+        # Create simpler directory structure in current directory
+        $manifestDir = "$version"
         New-Item -Path $manifestDir -ItemType Directory -Force
         
-        # Create version manifest
-        $versionContent = @'
-        PackageIdentifier: Recol.DLSSUpdater
-        PackageVersion: {0}
-        DefaultLocale: en-US
-        ManifestType: version
-        ManifestVersion: 1.6.0
-        '@ -f $version
+        # Create version manifest without leading spaces
+        $versionContent = @"
+PackageIdentifier: Recol.DLSSUpdater
+PackageVersion: $version
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0
+"@
         
         $versionContent | Out-File -FilePath "$manifestDir\Recol.DLSSUpdater.yaml" -Encoding UTF8
         
         # Create installer manifest
-        $installerContent = @'
-        PackageIdentifier: Recol.DLSSUpdater
-        PackageVersion: {0}
-        MinimumOSVersion: 10.0.0.0
-        Installers:
-        - Architecture: x64
-          InstallerType: zip
-          NestedInstallerType: portable
-          NestedInstallerFiles:
-          - RelativeFilePath: DLSS_Updater\DLSS_Updater.exe
-            PortableCommandAlias: dlss-updater
-          InstallerUrl: {1}
-          InstallerSha256: {2}
-        ManifestType: installer
-        ManifestVersion: 1.6.0
-        '@ -f $version, "${{ steps.release_info.outputs.URL }}", "${{ steps.release_info.outputs.HASH }}"
+        $installerContent = @"
+PackageIdentifier: Recol.DLSSUpdater
+PackageVersion: $version
+MinimumOSVersion: 10.0.0.0
+Installers:
+- Architecture: x64
+  InstallerType: zip
+  NestedInstallerType: portable
+  NestedInstallerFiles:
+  - RelativeFilePath: DLSS_Updater\DLSS_Updater.exe
+    PortableCommandAlias: dlss-updater
+  InstallerUrl: ${{ steps.release_info.outputs.URL }}
+  InstallerSha256: ${{ steps.release_info.outputs.HASH }}
+ManifestType: installer
+ManifestVersion: 1.6.0
+"@
         
         $installerContent | Out-File -FilePath "$manifestDir\Recol.DLSSUpdater.installer.yaml" -Encoding UTF8
         
         # Create locale manifest
-        $localeContent = @'
-        PackageIdentifier: Recol.DLSSUpdater
-        PackageVersion: {0}
-        PackageLocale: en-US
-        Publisher: Recol
-        PublisherUrl: https://github.com/Recol
-        Author: Deco
-        PackageName: DLSS Updater
-        PackageUrl: https://github.com/Recol/DLSS-Updater
-        License: AGPL-3.0
-        LicenseUrl: https://github.com/Recol/DLSS-Updater/blob/main/LICENSE
-        ShortDescription: A tool to update DLSS/XeSS DLLs for various games
-        Description: DLSS Updater is a utility that automatically updates DLSS, XeSS, and DirectStorage DLLs for games across multiple platforms.
-        Tags:
-        - dlss
-        - nvidia
-        - gaming
-        - xess
-        ManifestType: defaultLocale
-        ManifestVersion: 1.6.0
-        '@ -f $version
+        $localeContent = @"
+PackageIdentifier: Recol.DLSSUpdater
+PackageVersion: $version
+PackageLocale: en-US
+Publisher: Recol
+PublisherUrl: https://github.com/Recol
+Author: Deco
+PackageName: DLSS Updater
+PackageUrl: https://github.com/Recol/DLSS-Updater
+License: AGPL-3.0
+LicenseUrl: https://github.com/Recol/DLSS-Updater/blob/main/LICENSE
+ShortDescription: A tool to update DLSS/XeSS DLLs for various games
+Description: DLSS Updater is a utility that automatically updates DLSS, XeSS, and DirectStorage DLLs for games across multiple platforms.
+Tags:
+- dlss
+- nvidia
+- gaming
+- xess
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
+"@
         
         $localeContent | Out-File -FilePath "$manifestDir\Recol.DLSSUpdater.locale.en-US.yaml" -Encoding UTF8
+        
+        # List contents to verify
+        Get-ChildItem $manifestDir
         
         # Output the manifest directory for next step
         echo "MANIFEST_DIR=$manifestDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -100,6 +106,6 @@ jobs:
         Invoke-WebRequest -Uri "https://github.com/microsoft/winget-create/releases/latest/download/wingetcreate.exe" -OutFile "wingetcreate.exe"
         
         # Submit the specific manifest directory
-        .\wingetcreate.exe submit "${{ steps.create_manifest_files.outputs.MANIFEST_DIR }}" `
+        .\wingetcreate.exe submit "${{ steps.create_manifests.outputs.MANIFEST_DIR }}" `
           --token "${{ secrets.WINGET_TOKEN }}"
       shell: pwsh
