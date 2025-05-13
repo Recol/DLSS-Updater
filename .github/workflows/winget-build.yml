@@ -46,7 +46,8 @@ ManifestType: version
 ManifestVersion: 1.6.0
 "@
         
-        $versionContent | Out-File -FilePath "$manifestDir\Recol.DLSSUpdater.yaml" -Encoding UTF8
+        $versionPath = Join-Path $manifestDir "Recol.DLSSUpdater.yaml"
+        $versionContent | Out-File -FilePath $versionPath -Encoding UTF8
         
         # Create installer manifest
         $installerContent = @"
@@ -66,7 +67,8 @@ ManifestType: installer
 ManifestVersion: 1.6.0
 "@
         
-        $installerContent | Out-File -FilePath "$manifestDir\Recol.DLSSUpdater.installer.yaml" -Encoding UTF8
+        $installerPath = Join-Path $manifestDir "Recol.DLSSUpdater.installer.yaml"
+        $installerContent | Out-File -FilePath $installerPath -Encoding UTF8
         
         # Create locale manifest
         $localeContent = @"
@@ -91,7 +93,8 @@ ManifestType: defaultLocale
 ManifestVersion: 1.6.0
 "@
         
-        $localeContent | Out-File -FilePath "$manifestDir\Recol.DLSSUpdater.locale.en-US.yaml" -Encoding UTF8
+        $localePath = Join-Path $manifestDir "Recol.DLSSUpdater.locale.en-US.yaml"
+        $localeContent | Out-File -FilePath $localePath -Encoding UTF8
         
         # List contents to verify
         Get-ChildItem $manifestDir
