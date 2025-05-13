@@ -10,6 +10,8 @@ jobs:
     runs-on: windows-latest
     
     steps:
+    - uses: actions/checkout@v4
+    
     - name: Get release info
       id: release_info
       run: |
@@ -17,20 +19,90 @@ jobs:
         $version = $latest_release.tag_name -replace '^[vV]', ''
         $zipUrl = "https://github.com/${{ github.repository }}/releases/download/$($latest_release.tag_name)/DLSS.Updater.$version.zip"
         
+        # Download ZIP to calculate hash
+        Invoke-WebRequest -Uri $zipUrl -OutFile "DLSS.Updater.zip"
+        $hash = (Get-FileHash -Path "DLSS.Updater.zip" -Algorithm SHA256).Hash
+        
         echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         echo "URL=$zipUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        echo "HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
     
-    - name: Update existing PR
+    - name: Create manifest files
+      id: create_manifests
       run: |
-        # Download wingetcreate
+        $version = "${{ steps.release_info.outputs.VERSION }}"
+        
+        # Create simpler directory structure in current directory
+        $manifestDir = "$version"
+        New-Item -Path $manifestDir -ItemType Directory -Force
+        
+        # Create version manifest using string concatenation
+        $versionContent = "PackageIdentifier: Recol.DLSSUpdater`n"
+        $versionContent += "PackageVersion: $version`n"
+        $versionContent += "DefaultLocale: en-US`n"
+        $versionContent += "ManifestType: version`n"
+        $versionContent += "ManifestVersion: 1.6.0"
+        
+        $versionPath = Join-Path $manifestDir "Recol.DLSSUpdater.yaml"
+        $versionContent | Out-File -FilePath $versionPath -Encoding UTF8
+        
+        # Create installer manifest
+        $installerContent = "PackageIdentifier: Recol.DLSSUpdater`n"
+        $installerContent += "PackageVersion: $version`n"
+        $installerContent += "MinimumOSVersion: 10.0.0.0`n"
+        $installerContent += "Installers:`n"
+        $installerContent += "- Architecture: x64`n"
+        $installerContent += "  InstallerType: zip`n"
+        $installerContent += "  NestedInstallerType: portable`n"
+        $installerContent += "  NestedInstallerFiles:`n"
+        $installerContent += "  - RelativeFilePath: DLSS_Updater\DLSS_Updater.exe`n"
+        $installerContent += "    PortableCommandAlias: dlss-updater`n"
+        $installerContent += "  InstallerUrl: ${{ steps.release_info.outputs.URL }}`n"
+        $installerContent += "  InstallerSha256: ${{ steps.release_info.outputs.HASH }}`n"
+        $installerContent += "ManifestType: installer`n"
+        $installerContent += "ManifestVersion: 1.6.0"
+        
+        $installerPath = Join-Path $manifestDir "Recol.DLSSUpdater.installer.yaml"
+        $installerContent | Out-File -FilePath $installerPath -Encoding UTF8
+        
+        # Create locale manifest
+        $localeContent = "PackageIdentifier: Recol.DLSSUpdater`n"
+        $localeContent += "PackageVersion: $version`n"
+        $localeContent += "PackageLocale: en-US`n"
+        $localeContent += "Publisher: Recol`n"
+        $localeContent += "PublisherUrl: https://github.com/Recol`n"
+        $localeContent += "Author: Deco`n"
+        $localeContent += "PackageName: DLSS Updater`n"
+        $localeContent += "PackageUrl: https://github.com/Recol/DLSS-Updater`n"
+        $localeContent += "License: AGPL-3.0`n"
+        $localeContent += "LicenseUrl: https://github.com/Recol/DLSS-Updater/blob/main/LICENSE`n"
+        $localeContent += "ShortDescription: A tool to update DLSS/XeSS DLLs for various games`n"
+        $localeContent += "Description: DLSS Updater is a utility that automatically updates DLSS, XeSS, and DirectStorage DLLs for games across multiple platforms.`n"
+        $localeContent += "Tags:`n"
+        $localeContent += "- dlss`n"
+        $localeContent += "- nvidia`n"
+        $localeContent += "- gaming`n"
+        $localeContent += "- xess`n"
+        $localeContent += "ManifestType: defaultLocale`n"
+        $localeContent += "ManifestVersion: 1.6.0"
+        
+        $localePath = Join-Path $manifestDir "Recol.DLSSUpdater.locale.en-US.yaml"
+        $localeContent | Out-File -FilePath $localePath -Encoding UTF8
+        
+        # List contents to verify
+        Get-ChildItem $manifestDir
+        
+        # Output the manifest directory for next step
+        echo "MANIFEST_DIR=$manifestDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      shell: pwsh
+    
+    - name: Submit manifests
+      run: |
+        # Download wingetcreate for submission
         Invoke-WebRequest -Uri "https://github.com/microsoft/winget-create/releases/latest/download/wingetcreate.exe" -OutFile "wingetcreate.exe"
         
-        # Update the existing package - this will update the existing PR
-        .\wingetcreate.exe update `
-          Recol.DLSSUpdater `
-          --version "${{ steps.release_info.outputs.VERSION }}" `
-          --urls "${{ steps.release_info.outputs.URL }}" `
-          --submit `
+        # Submit the specific manifest directory
+        .\wingetcreate.exe submit "${{ steps.create_manifests.outputs.MANIFEST_DIR }}" `
           --token "${{ secrets.WINGET_TOKEN }}"
       shell: pwsh
