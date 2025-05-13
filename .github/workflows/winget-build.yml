@@ -37,61 +37,55 @@ jobs:
         $manifestDir = "$version"
         New-Item -Path $manifestDir -ItemType Directory -Force
         
-        # Create version manifest without leading spaces
-        $versionContent = @"
-PackageIdentifier: Recol.DLSSUpdater
-PackageVersion: $version
-DefaultLocale: en-US
-ManifestType: version
-ManifestVersion: 1.6.0
-"@
+        # Create version manifest using string concatenation
+        $versionContent = "PackageIdentifier: Recol.DLSSUpdater`n"
+        $versionContent += "PackageVersion: $version`n"
+        $versionContent += "DefaultLocale: en-US`n"
+        $versionContent += "ManifestType: version`n"
+        $versionContent += "ManifestVersion: 1.6.0"
         
         $versionPath = Join-Path $manifestDir "Recol.DLSSUpdater.yaml"
         $versionContent | Out-File -FilePath $versionPath -Encoding UTF8
         
         # Create installer manifest
-        $installerContent = @"
-PackageIdentifier: Recol.DLSSUpdater
-PackageVersion: $version
-MinimumOSVersion: 10.0.0.0
-Installers:
-- Architecture: x64
-  InstallerType: zip
-  NestedInstallerType: portable
-  NestedInstallerFiles:
-  - RelativeFilePath: DLSS_Updater\DLSS_Updater.exe
-    PortableCommandAlias: dlss-updater
-  InstallerUrl: ${{ steps.release_info.outputs.URL }}
-  InstallerSha256: ${{ steps.release_info.outputs.HASH }}
-ManifestType: installer
-ManifestVersion: 1.6.0
-"@
+        $installerContent = "PackageIdentifier: Recol.DLSSUpdater`n"
+        $installerContent += "PackageVersion: $version`n"
+        $installerContent += "MinimumOSVersion: 10.0.0.0`n"
+        $installerContent += "Installers:`n"
+        $installerContent += "- Architecture: x64`n"
+        $installerContent += "  InstallerType: zip`n"
+        $installerContent += "  NestedInstallerType: portable`n"
+        $installerContent += "  NestedInstallerFiles:`n"
+        $installerContent += "  - RelativeFilePath: DLSS_Updater\DLSS_Updater.exe`n"
+        $installerContent += "    PortableCommandAlias: dlss-updater`n"
+        $installerContent += "  InstallerUrl: ${{ steps.release_info.outputs.URL }}`n"
+        $installerContent += "  InstallerSha256: ${{ steps.release_info.outputs.HASH }}`n"
+        $installerContent += "ManifestType: installer`n"
+        $installerContent += "ManifestVersion: 1.6.0"
         
         $installerPath = Join-Path $manifestDir "Recol.DLSSUpdater.installer.yaml"
         $installerContent | Out-File -FilePath $installerPath -Encoding UTF8
         
         # Create locale manifest
-        $localeContent = @"
-PackageIdentifier: Recol.DLSSUpdater
-PackageVersion: $version
-PackageLocale: en-US
-Publisher: Recol
-PublisherUrl: https://github.com/Recol
-Author: Deco
-PackageName: DLSS Updater
-PackageUrl: https://github.com/Recol/DLSS-Updater
-License: AGPL-3.0
-LicenseUrl: https://github.com/Recol/DLSS-Updater/blob/main/LICENSE
-ShortDescription: A tool to update DLSS/XeSS DLLs for various games
-Description: DLSS Updater is a utility that automatically updates DLSS, XeSS, and DirectStorage DLLs for games across multiple platforms.
-Tags:
-- dlss
-- nvidia
-- gaming
-- xess
-ManifestType: defaultLocale
-ManifestVersion: 1.6.0
-"@
+        $localeContent = "PackageIdentifier: Recol.DLSSUpdater`n"
+        $localeContent += "PackageVersion: $version`n"
+        $localeContent += "PackageLocale: en-US`n"
+        $localeContent += "Publisher: Recol`n"
+        $localeContent += "PublisherUrl: https://github.com/Recol`n"
+        $localeContent += "Author: Deco`n"
+        $localeContent += "PackageName: DLSS Updater`n"
+        $localeContent += "PackageUrl: https://github.com/Recol/DLSS-Updater`n"
+        $localeContent += "License: AGPL-3.0`n"
+        $localeContent += "LicenseUrl: https://github.com/Recol/DLSS-Updater/blob/main/LICENSE`n"
+        $localeContent += "ShortDescription: A tool to update DLSS/XeSS DLLs for various games`n"
+        $localeContent += "Description: DLSS Updater is a utility that automatically updates DLSS, XeSS, and DirectStorage DLLs for games across multiple platforms.`n"
+        $localeContent += "Tags:`n"
+        $localeContent += "- dlss`n"
+        $localeContent += "- nvidia`n"
+        $localeContent += "- gaming`n"
+        $localeContent += "- xess`n"
+        $localeContent += "ManifestType: defaultLocale`n"
+        $localeContent += "ManifestVersion: 1.6.0"
         
         $localePath = Join-Path $manifestDir "Recol.DLSSUpdater.locale.en-US.yaml"
         $localeContent | Out-File -FilePath $localePath -Encoding UTF8
