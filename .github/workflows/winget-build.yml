@@ -118,7 +118,14 @@ jobs:
         $authenticatedUrl = $forkCloneUrl -replace 'https://', "https://${{ secrets.WINGET_TOKEN }}@"
         git clone $authenticatedUrl winget-pkgs
         cd winget-pkgs
-        git checkout $prBranch
+        
+        # Ensure we're on the correct branch
+        git fetch origin $prBranch
+        git checkout -B $prBranch origin/$prBranch
+        
+        # Verify we're on the correct branch
+        $currentBranch = git rev-parse --abbrev-ref HEAD
+        Write-Host "Current branch: $currentBranch"
         
         # Create directory structure
         $manifestDir = "manifests\r\Recol\DLSSUpdater\$version"
