@@ -37,8 +37,7 @@ jobs:
           
           # Verify download
           if (Test-Path ".\wingetcreate.exe") {
-            $fileInfo = Get-Item ".\wingetcreate.exe"
-            Write-Host "Downloaded wingetcreate.exe: $($fileInfo.Length) bytes"
+            Write-Host "Downloaded wingetcreate.exe"
             
             # Check if package already exists
             $checkUrl = "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/r/Recol/DLSSUpdater"
@@ -63,16 +62,19 @@ jobs:
                 --token "${{ secrets.WINGET_TOKEN }}"
             }
             else {
-              # Create new package
-              .\wingetcreate.exe new `
-                --id Recol.DLSSUpdater `
-                --name "DLSS Updater" `
-                --version "${{ steps.release_info.outputs.VERSION }}" `
-                --publisher "Recol" `
-                --license "AGPL-3.0" `
-                --url "${{ steps.release_info.outputs.URL }}" `
-                --submit `
-                --token "${{ secrets.WINGET_TOKEN }}"
+              # Create new package using interactive mode
+              Write-Host "Creating new package..."
+              
+              # First, create the manifest without submission
+              .\wingetcreate.exe new "${{ steps.release_info.outputs.URL }}" `
+                --out "./manifests" `
+                --version "${{ steps.release_info.outputs.VERSION }}"
+              
+              # Then submit the created manifest
+              if (Test-Path "./manifests") {
+                .\wingetcreate.exe submit "./manifests" `
+                  --token "${{ secrets.WINGET_TOKEN }}"
+              }
             }
           }
         }
