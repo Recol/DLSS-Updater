@@ -23,24 +23,84 @@ jobs:
         echo "URL=$zipUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         
         # Download and calculate hash
-        Invoke-WebRequest -Uri $zipUrl -OutFile "DLSS.Updater.$version.zip"
-        $sha256 = (Get-FileHash -Path "DLSS.Updater.$version.zip" -Algorithm SHA256).Hash
-        echo "SHA256=$sha256" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        try {
+          Invoke-WebRequest -Uri $zipUrl -OutFile "DLSS.Updater.$version.zip" -ErrorAction Stop
+          $sha256 = (Get-FileHash -Path "DLSS.Updater.$version.zip" -Algorithm SHA256).Hash
+          echo "SHA256=$sha256" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        } catch {
+          Write-Error "Failed to download release ZIP: $_"
+          exit 1
+        }
+      shell: pwsh
+    
+    - name: Download and verify WingetCreate
+      run: |
+        # Download WingetCreate with error handling
+        $maxRetries = 3
+        $retryCount = 0
+        $downloadSuccess = $false
+        
+        while ($retryCount -lt $maxRetries -and -not $downloadSuccess) {
+          try {
+            Write-Host "Attempting to download wingetcreate.exe (attempt $($retryCount + 1))"
+            Invoke-WebRequest -Uri "https://aka.ms/wingetcreate" -OutFile "wingetcreate.exe" -ErrorAction Stop
+            
+            # Verify the file exists and has content
+            if (Test-Path "wingetcreate.exe") {
+              $fileInfo = Get-Item "wingetcreate.exe"
+              if ($fileInfo.Length -gt 0) {
+                Write-Host "Successfully downloaded wingetcreate.exe (Size: $($fileInfo.Length) bytes)"
+                $downloadSuccess = $true
+              } else {
+                Write-Error "Downloaded file is empty"
+              }
+            } else {
+              Write-Error "Downloaded file not found"
+            }
+          } catch {
+            Write-Warning "Download attempt $($retryCount + 1) failed: $_"
+            $retryCount++
+            if ($retryCount -lt $maxRetries) {
+              Start-Sleep -Seconds 5
+            }
+          }
+        }
+        
+        if (-not $downloadSuccess) {
+          Write-Error "Failed to download wingetcreate.exe after $maxRetries attempts"
+          exit 1
+        }
+        
+        # Make sure it's executable
+        $fileInfo = Get-Item "wingetcreate.exe"
+        Write-Host "File details: $($fileInfo.FullName), Size: $($fileInfo.Length)"
       shell: pwsh
     
     - name: Update Winget Package
       run: |
-        # Download WingetCreate
-        Invoke-WebRequest -Uri https://aka.ms/winget-create -OutFile wingetcreate.exe
+        # Verify wingetcreate.exe exists before running
+        if (-not (Test-Path ".\wingetcreate.exe")) {
+          Write-Error "wingetcreate.exe not found in current directory"
+          Get-ChildItem -Path . | Format-Table Name, Length, LastWriteTime
+          exit 1
+        }
         
-        # Update existing package or create new one
-        .\wingetcreate.exe update `
-          --id Recol.DLSSUpdater `
-          --name "DLSS Updater" `
-          --version "${{ steps.release_info.outputs.VERSION }}" `
-          --urls "${{ steps.release_info.outputs.URL }}" `
-          --publisher "Recol" `
-          --moniker "dlss-updater" `
-          --submit `
-          --token "${{ secrets.WINGET_TOKEN }}"
+        try {
+          # Run wingetcreate with full path
+          $wingetPath = (Get-Item ".\wingetcreate.exe").FullName
+          Write-Host "Running: $wingetPath"
+          
+          & $wingetPath update `
+            --id Recol.DLSSUpdater `
+            --name "DLSS Updater" `
+            --version "${{ steps.release_info.outputs.VERSION }}" `
+            --urls "${{ steps.release_info.outputs.URL }}" `
+            --publisher "Recol" `
+            --moniker "dlss-updater" `
+            --submit `
+            --token "${{ secrets.WINGET_TOKEN }}"
+        } catch {
+          Write-Error "Failed to run wingetcreate: $_"
+          exit 1
+        }
       shell: pwsh
