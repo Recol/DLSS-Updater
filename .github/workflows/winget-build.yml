@@ -17,6 +17,7 @@ jobs:
       run: |
         $latest_release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest"
         $version = $latest_release.tag_name -replace '^[vV]', ''
+        $tagName = $latest_release.tag_name  # Save the actual tag name
         $zipUrl = "https://github.com/${{ github.repository }}/releases/download/$($latest_release.tag_name)/DLSS.Updater.$version.zip"
         
         # Download ZIP to calculate hash
@@ -40,6 +41,7 @@ jobs:
         }
         
         echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        echo "TAG_NAME=$tagName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         echo "URL=$zipUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         echo "HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
@@ -181,8 +183,8 @@ jobs:
         $localeContent += "- gaming`r`n"
         $localeContent += "- xess`r`n"
         $localeContent += "- directstorage`r`n"
-        $localeContent += "ReleaseNotes: https://github.com/Recol/DLSS-Updater/releases/tag/v$version`r`n"
-        $localeContent += "ReleaseNotesUrl: https://github.com/Recol/DLSS-Updater/releases/tag/v$version`r`n"
+        $localeContent += "ReleaseNotes: https://github.com/Recol/DLSS-Updater/releases/tag/${{ steps.release_info.outputs.TAG_NAME }}`r`n"
+        $localeContent += "ReleaseNotesUrl: https://github.com/Recol/DLSS-Updater/releases/tag/${{ steps.release_info.outputs.TAG_NAME }}`r`n"
         $localeContent += "ManifestType: defaultLocale`r`n"
         $localeContent += "ManifestVersion: 1.6.0"
         
