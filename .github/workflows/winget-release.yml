@@ -89,6 +89,9 @@ jobs:
         '@ -f $version
         
         $localeContent | Out-File -FilePath "$manifestDir\Recol.DLSSUpdater.locale.en-US.yaml" -Encoding UTF8
+        
+        # Output the manifest directory for next step
+        echo "MANIFEST_DIR=$manifestDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
     
     - name: Submit manifests
@@ -96,7 +99,7 @@ jobs:
         # Download wingetcreate for submission
         Invoke-WebRequest -Uri "https://github.com/microsoft/winget-create/releases/latest/download/wingetcreate.exe" -OutFile "wingetcreate.exe"
         
-        # Submit the manifests
-        .\wingetcreate.exe submit manifests `
+        # Submit the specific manifest directory
+        .\wingetcreate.exe submit "${{ steps.create_manifest_files.outputs.MANIFEST_DIR }}" `
           --token "${{ secrets.WINGET_TOKEN }}"
       shell: pwsh
