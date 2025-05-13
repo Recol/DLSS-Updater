@@ -102,22 +102,26 @@ jobs:
         # Get the fork URL and branch name
         $forkCloneUrl = $prDetails.head.repo.clone_url
         $prBranch = $prDetails.head.ref
+        $forkOwner = $prDetails.head.repo.owner.login
         
         Write-Host "Cloning from fork: $forkCloneUrl"
         Write-Host "Branch name: $prBranch"
+        Write-Host "Fork owner: $forkOwner"
         
         # Configure git
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git config --global user.name "github-actions[bot]"
         
-        # Clone the correct fork and checkout the PR branch
-        git clone $forkCloneUrl winget-pkgs
+        # Clone the correct fork with authentication
+        $authenticatedUrl = $forkCloneUrl -replace 'https://', "https://${{ secrets.WINGET_TOKEN }}@"
+        git clone $authenticatedUrl winget-pkgs
         cd winget-pkgs
         git checkout $prBranch
         
         # Create directory structure
         $manifestDir = "manifests\r\Recol\DLSSUpdater\$version"
         New-Item -Path $manifestDir -ItemType Directory -Force
+    
         
         # Create version manifest
         $versionContent = "PackageIdentifier: Recol.DLSSUpdater`n"
