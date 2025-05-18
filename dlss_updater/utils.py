@@ -90,7 +90,7 @@ def process_single_dll_with_backup(dll_path, launcher, backup_path, progress_tra
         return False, None, "Error"
 
 
-def process_dlls_parallel(dll_tasks, max_workers=16, progress_signal=None):
+def process_dlls_parallel(dll_tasks, max_workers=32, progress_signal=None):
     """Process DLLs using a thread pool with progress tracking"""
     results = {
         "updated_games": [],
@@ -413,6 +413,10 @@ def process_single_dll(dll_path, launcher):
             dll_type = "Streamline Parameter/Platform Configuration DLL"
         elif "sl.reflex.dll" == dll_name:
             dll_type = "Streamline Reflex Low-Latency DLL"
+        elif "amd_fidelityfx_vk.dll" == dll_name:
+            dll_type = "AMD FidelityFX Super Resolution (FSR) Vulkan DLL"
+        elif "amd_fidelityfx_dx12.dll" == dll_name:
+            dll_type = "AMD FidelityFX Super Resolution (FSR) DirectX 12 DLL"
         else:
             dll_type = "Unknown DLL type"
 

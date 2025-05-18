@@ -211,5 +211,7 @@ def initialize_dll_paths():
         "sl.interposer.dll": get_local_dll_path("sl.interposer.dll"),
         "sl.pcl.dll": get_local_dll_path("sl.pcl.dll"),
         "sl.reflex.dll": get_local_dll_path("sl.reflex.dll"),
+        "amd_fidelityfx_vk.dll": get_local_dll_path("amd_fidelityfx_vk.dll"),
+        "amd_fidelityfx_dx12.dll": get_local_dll_path("amd_fidelityfx_dx12.dll"),
     }
     return LATEST_DLL_PATHS

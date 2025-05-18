@@ -88,7 +88,7 @@ class ThreadManager:
         self.thread_pool = QThreadPool()
 
         # Set up maximum thread count (adjust as needed)
-        self.thread_pool.setMaxThreadCount(1)
+        self.thread_pool.setMaxThreadCount(8)
 
         # Store the current worker
         self.current_worker = None

@@ -51,3 +51,7 @@ Added concurrency for parallel backups at once for multiple DLL's.
 Removal of auto-upgrades as a deprecated feature to cleanup code, added a "Check for update" button in the GUI.
 Parallelism for scanning Steam directories.
 Introduction of custom animations to properly track the update % correctly.
+
+Version 2.7.6:
+Added support for updating FSR 3.1.1+ games to 3.1.4.
+Increases to maximum thread pool allocations.

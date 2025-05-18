@@ -642,6 +642,10 @@ class MainWindow(QMainWindow):
         self.xess_checkbox = QCheckBox("XeSS (Intel Xe Super Sampling)")
         self.xess_checkbox.setChecked(config_manager.get_update_preference("XeSS"))
 
+        # Add FSR checkbox
+        self.fsr_checkbox = QCheckBox("FSR (AMD FidelityFX Super Resolution)")
+        self.fsr_checkbox.setChecked(config_manager.get_update_preference("FSR"))
+
         # Apply styling to checkboxes
         checkbox_style = """
             QCheckBox {
@@ -666,13 +670,15 @@ class MainWindow(QMainWindow):
         self.dlss_checkbox.setStyleSheet(checkbox_style)
         self.ds_checkbox.setStyleSheet(checkbox_style)
         self.xess_checkbox.setStyleSheet(checkbox_style)
+        self.fsr_checkbox.setStyleSheet(checkbox_style)
 
         # Add checkboxes to layout
         layout.addWidget(self.dlss_checkbox)
         layout.addWidget(self.ds_checkbox)
         layout.addWidget(self.xess_checkbox)
+        layout.addWidget(self.fsr_checkbox)
 
-        # Add description of each technology
+        # Update help text to include FSR
         help_text = QTextBrowser()
         help_text.setMaximumHeight(150)
         help_text.setHtml(
@@ -682,6 +688,7 @@ class MainWindow(QMainWindow):
                 <li>nvngx_dlss.dll</li>
                 <li>nvngx_dlssg.dll</li>
                 <li>nvngx_dlssd.dll</li>
+                <li>sl.*.dll (Streamline components)</li>
             </ul>
             <p><b>DirectStorage</b>: Microsoft's DirectStorage API accelerates game loading times and texture streaming. Updates DLLs:</p>
             <ul>
@@ -689,7 +696,8 @@ class MainWindow(QMainWindow):
                 <li>dstoragecore.dll</li>
             </ul>
             <p><b>XeSS</b>: Intel's Xe Super Sampling technology provides performance improvements similar to DLSS for all GPU brands.</p>
-        """
+            <p><b>FSR</b>: AMD's FidelityFX Super Resolution technology improves performance while maintaining visual quality across all GPU brands. Note: Only FSR 3.1.1 and later can be updated.</p>
+            """
         )
         help_text.setStyleSheet(
             "background-color: #3C3C3C; color: white; border: 1px solid #555;"
@@ -723,6 +731,7 @@ class MainWindow(QMainWindow):
             self.dlss_checkbox.isChecked()
             or self.ds_checkbox.isChecked()
             or self.xess_checkbox.isChecked()
+            or self.fsr_checkbox.isChecked()  # Add FSR checkbox check
         ):
             # Show warning if no technologies selected
             warning_dialog = QMessageBox(self)
@@ -738,6 +747,7 @@ class MainWindow(QMainWindow):
                 "DirectStorage", self.ds_checkbox.isChecked()
             )
             config_manager.set_update_preference("XeSS", self.xess_checkbox.isChecked())
+            config_manager.set_update_preference("FSR", self.fsr_checkbox.isChecked())
 
             self.logger.info("Updated technology preferences")
             self.show_notification("Update preferences saved!")

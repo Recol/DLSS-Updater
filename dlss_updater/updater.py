@@ -145,10 +145,9 @@ def update_dll(dll_path, latest_dll_path):
             logger.info(
                 f"Existing version: {existing_version}, Latest version: {latest_version}"
             )
-            # Do not include FG/RR DLLs in the update check
-            if dll_type == "nvngx_dlss.dll" and existing_parsed < parse_version(
-                "2.0.0"
-            ):
+
+            # Do not include DLSS DLLs in the update check if version < 2.0.0
+            if dll_type == "DLSS DLL" and existing_parsed < parse_version("2.0.0"):
                 logger.info(
                     f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated."
                 )
