@@ -60,6 +60,10 @@ The games that are blacklisted can be disabled manually by clicking the "Manage 
 4. Run the `DLSS_Updater.exe` executable as an administrator.
 5. The program will now boot.
 
+## Winget
+
+1. Download DLSS Updater using ``winget install DLSS-Updater``.
+
 ## Chocolatey
 
 1. Download DLSS Updater from [here](https://community.chocolatey.org/packages/dlss-updater/).
