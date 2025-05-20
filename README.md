@@ -62,7 +62,7 @@ The games that are blacklisted can be disabled manually by clicking the "Manage 
 
 ## Winget
 
-1. Download DLSS Updater using ``winget install DLSS-Updater``.
+1. Download DLSS Updater using ``winget install DLSS Updater``.
 
 ## Chocolatey
 
