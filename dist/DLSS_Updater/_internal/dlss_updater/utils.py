@@ -274,7 +274,14 @@ def extract_game_name(dll_path, launcher_name):
         elif "Epic Games" in parts:
             return parts[parts.index("Epic Games") + 2]
         elif "GOG Galaxy" in parts:
-            return parts[parts.index("Games") + 1]
+            gog_index = parts.index("GOG Galaxy")
+            if "Games" in parts:
+                # Pattern: D:\GOG Galaxy\Games\<GameName>\...
+                return parts[parts.index("Games") + 1]
+            else:
+                # Pattern: D:\GOG Galaxy\<GameName>\...
+                if gog_index + 1 < len(parts):
+                    return parts[gog_index + 1]
         elif "Battle.net" in parts:
             return parts[parts.index("Battle.net") + 1]
         elif "Custom Path" in launcher_name:

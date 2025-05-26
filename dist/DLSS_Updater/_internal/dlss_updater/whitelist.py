@@ -71,10 +71,17 @@ async def is_whitelisted(game_path):
         gog_index = path_parts.index("GOG Games")
         if gog_index + 1 < len(path_parts):
             game_dir = path_parts[gog_index + 1]
-    elif "GOG Galaxy" in path_parts and "Games" in path_parts:
-        games_index = path_parts.index("Games")
-        if games_index + 1 < len(path_parts):
-            game_dir = path_parts[games_index + 1]
+    elif "GOG Galaxy" in path_parts:
+        gog_index = path_parts.index("GOG Galaxy")
+        if "Games" in path_parts:
+            # Pattern: D:\GOG Galaxy\Games\<GameName>\...
+            games_index = path_parts.index("Games") 
+            if games_index + 1 < len(path_parts):
+                game_dir = path_parts[games_index + 1]
+        else:
+            # Pattern: D:\GOG Galaxy\<GameName>\...
+            if gog_index + 1 < len(path_parts):
+                game_dir = path_parts[gog_index + 1]
 
     # Ubisoft pattern: <drive>:\Ubisoft\Ubisoft Game Launcher\games\<GameName>\...
     elif "Ubisoft Game Launcher" in path_parts and "games" in path_parts:

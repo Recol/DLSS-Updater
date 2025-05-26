@@ -55,3 +55,6 @@ Introduction of custom animations to properly track the update % correctly.
 Version 2.7.6:
 Added support for updating FSR 3.1.1+ games to 3.1.4.
 Increases to maximum thread pool allocations.
+
+Version 2.7.7:
+Update to address GOG Galaxy paths being erronous for some games.
