@@ -195,6 +195,7 @@ async def find_all_dlls():
     # Get user preferences
     update_dlss = config_manager.get_update_preference("DLSS")
     update_ds = config_manager.get_update_preference("DirectStorage")
+    update_streamline = config_manager.get_update_preference("Streamline")
     update_xess = config_manager.get_update_preference("XeSS")
     update_fsr = config_manager.get_update_preference("FSR")
 
@@ -202,6 +203,9 @@ async def find_all_dlls():
     dll_names = []
     if update_dlss:
         dll_names.extend(DLL_GROUPS["DLSS"])
+    if update_streamline:
+        dll_names.extend(DLL_GROUPS["Streamline"])
+    # DirectStorage DLLs are optional, so only add if requested
     if update_ds:
         dll_names.extend(DLL_GROUPS["DirectStorage"])
     if update_xess and DLL_GROUPS["XeSS"]:  # Only add if there are XeSS DLLs defined

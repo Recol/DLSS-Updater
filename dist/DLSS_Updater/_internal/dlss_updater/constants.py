@@ -22,6 +22,8 @@ DLL_GROUPS = {
         "nvngx_dlss.dll",
         "nvngx_dlssg.dll",
         "nvngx_dlssd.dll",
+    ],
+    "Streamline": [
         "sl.common.dll",
         "sl.dlss.dll",
         "sl.dlss_g.dll",

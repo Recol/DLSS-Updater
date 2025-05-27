@@ -105,9 +105,16 @@ class ConfigManager(configparser.ConfigParser):
                         "UpdateDLSS": "true",
                         "UpdateDirectStorage": "true",
                         "UpdateXeSS": "true",
+                        "UpdateFSR": "true",
+                        "UpdateStreamline": "false",  # Default to false
                     }
                 )
                 self.save()
+            else:
+                # Add Streamline preference if it doesn't exist (for existing configs)
+                if "UpdateStreamline" not in self["UpdatePreferences"]:
+                    self["UpdatePreferences"]["UpdateStreamline"] = "false"
+                    self.save()
 
             self.initialized = True
 
