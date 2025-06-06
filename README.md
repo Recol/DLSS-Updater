@@ -8,7 +8,7 @@
 
 ![dlss_updater](https://github.com/user-attachments/assets/b7d7fb4d-e204-412d-8e92-61a7173abfaf)
 
-What if you could update all the DLSS/XeSS DLLs for the games detected on your system?
+What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on your system?
 ## Features
 
 - Supports updating games from the following launchers:
