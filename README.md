@@ -26,7 +26,7 @@ What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on yo
 - Support for manual folder locations.
 
 
-The current supported DLL included is DLSS 4.
+The current supported DLL included is DLSS 4 (version 3.10.3).
 The current supported XESS DLL included is 2.0.1, please see the limitations [here](https://github.com/intel/xess/releases/tag/v2.0.1) for game support.
 
 ## GUI
