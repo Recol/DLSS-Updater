@@ -61,3 +61,6 @@ Update to address GOG Galaxy paths being erronous for some games.
 
 Version 2.7.8:
 Update to separate out Streamline DLL's to be their own components, and to be switched off by default due to incompatibility with some games.
+
+Version 2.7.9:
+Integration for some missing streamline components.

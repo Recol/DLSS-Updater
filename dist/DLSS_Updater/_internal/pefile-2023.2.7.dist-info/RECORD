@@ -1,9 +1,9 @@
-__pycache__/pefile.cpython-313.pyc,,
-__pycache__/peutils.cpython-313.pyc,,
+__pycache__/pefile.cpython-312.pyc,,
+__pycache__/peutils.cpython-312.pyc,,
 ordlookup/__init__.py,sha256=qV325Dvqk9HYGlF2BXkjSAU8NiAqGk9wg6bcGA7DMCY,784
-ordlookup/__pycache__/__init__.cpython-313.pyc,,
-ordlookup/__pycache__/oleaut32.cpython-313.pyc,,
-ordlookup/__pycache__/ws2_32.cpython-313.pyc,,
+ordlookup/__pycache__/__init__.cpython-312.pyc,,
+ordlookup/__pycache__/oleaut32.cpython-312.pyc,,
+ordlookup/__pycache__/ws2_32.cpython-312.pyc,,
 ordlookup/oleaut32.py,sha256=g0bNcHLRuH_nW75xqZbtZZNWTrOVBbdEV8W7vxz0Ouc,10877
 ordlookup/ws2_32.py,sha256=gy-Vnrt6yVmzN8sbqLQESaNwFnZ2ojh4LsiAq5IDruA,3265
 pefile-2023.2.7.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4

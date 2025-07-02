@@ -41,6 +41,9 @@ LATEST_DLL_VERSIONS = {
     "sl.interposer.dll": "2.7.30.0",
     "sl.pcl.dll": "2.7.30.0",
     "sl.reflex.dll": "2.7.30.0",
+    "sl.directsr.dll": "2.8.0.0",
+    "sl.dlss_d.dll": "2.8.0.0",
+    "sl.nis.dll": "2.8.0.0",
 }
 
 
@@ -220,5 +223,8 @@ def initialize_dll_paths():
         "sl.reflex.dll": get_local_dll_path("sl.reflex.dll"),
         "amd_fidelityfx_vk.dll": get_local_dll_path("amd_fidelityfx_vk.dll"),
         "amd_fidelityfx_dx12.dll": get_local_dll_path("amd_fidelityfx_dx12.dll"),
+        "sl.directsr.dll": get_local_dll_path("sl.directsr.dll"),
+        "sl.dlss_d.dll": get_local_dll_path("sl.dlss_d.dll"),
+        "sl.nis.dll": get_local_dll_path("sl.nis.dll"),
     }
     return LATEST_DLL_PATHS
