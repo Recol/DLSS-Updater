@@ -1,7 +1,7 @@
 pefile
 psutil
 packaging
-pywin32
+pywin32; platform_system == "Windows"
 appdirs
 PyQt6
 pyinstaller
