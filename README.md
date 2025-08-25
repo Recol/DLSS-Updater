@@ -2,7 +2,7 @@
 
 [![CodeQL](https://github.com/Recol/DLSS-Updater/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/Recol/DLSS-Updater/actions?query=workflow%3ACodeQL)
 ![Version](./version.svg)
-![Downloads](https://img.shields.io/badge/Downloads-52557-blue)
+![Downloads](https://img.shields.io/badge/Downloads-52592-blue)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-donate-yellow.svg)](https://buymeacoffee.com/decouk)
 
 
