@@ -44,6 +44,9 @@ LATEST_DLL_VERSIONS = {
     "sl.directsr.dll": "2.8.0.0",
     "sl.dlss_d.dll": "2.8.0.0",
     "sl.nis.dll": "2.8.0.0",
+    "amd_fidelityfx_upscaler_dx12.dll": "4.0.2.0",
+    "amd_fidelityfx_framegeneration_dx12.dll": "4.0.2.0",
+    "amd_fidelityfx_loader_dx12.dll": "4.0.2.0",
 }
 
 
@@ -110,6 +113,7 @@ class ConfigManager(configparser.ConfigParser):
                         "UpdateXeSS": "true",
                         "UpdateFSR": "true",
                         "UpdateStreamline": "false",  # Default to false
+                        "CreateBackups": "true",  # Default to true for safety
                     }
                 )
                 self.save()
@@ -117,6 +121,10 @@ class ConfigManager(configparser.ConfigParser):
                 # Add Streamline preference if it doesn't exist (for existing configs)
                 if "UpdateStreamline" not in self["UpdatePreferences"]:
                     self["UpdatePreferences"]["UpdateStreamline"] = "false"
+                    self.save()
+                # Add CreateBackups preference if it doesn't exist (for existing configs)
+                if "CreateBackups" not in self["UpdatePreferences"]:
+                    self["UpdatePreferences"]["CreateBackups"] = "true"
                     self.save()
 
             self.initialized = True
@@ -145,6 +153,15 @@ class ConfigManager(configparser.ConfigParser):
     def set_update_preference(self, technology, enabled):
         """Set update preference for a specific technology"""
         self["UpdatePreferences"][f"Update{technology}"] = str(enabled).lower()
+        self.save()
+
+    def get_backup_preference(self):
+        """Get backup creation preference"""
+        return self["UpdatePreferences"].getboolean("CreateBackups", True)
+
+    def set_backup_preference(self, enabled):
+        """Set backup creation preference"""
+        self["UpdatePreferences"]["CreateBackups"] = str(enabled).lower()
         self.save()
 
     def get_all_blacklist_skips(self):
@@ -223,6 +240,9 @@ def initialize_dll_paths():
         "sl.reflex.dll": get_local_dll_path("sl.reflex.dll"),
         "amd_fidelityfx_vk.dll": get_local_dll_path("amd_fidelityfx_vk.dll"),
         "amd_fidelityfx_dx12.dll": get_local_dll_path("amd_fidelityfx_dx12.dll"),
+        "amd_fidelityfx_upscaler_dx12.dll": get_local_dll_path("amd_fidelityfx_upscaler_dx12.dll"),
+        "amd_fidelityfx_framegeneration_dx12.dll": get_local_dll_path("amd_fidelityfx_framegeneration_dx12.dll"),
+        "amd_fidelityfx_loader_dx12.dll": get_local_dll_path("amd_fidelityfx_loader_dx12.dll"),
         "sl.directsr.dll": get_local_dll_path("sl.directsr.dll"),
         "sl.dlss_d.dll": get_local_dll_path("sl.dlss_d.dll"),
         "sl.nis.dll": get_local_dll_path("sl.nis.dll"),

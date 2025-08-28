@@ -14,6 +14,9 @@ DLL_TYPE_MAP = {
     "sl.reflex.dll": "Streamline Reflex Low-Latency DLL",
     "amd_fidelityfx_vk.dll": "AMD FidelityFX Super Resolution (FSR) Vulkan DLL",
     "amd_fidelityfx_dx12.dll": "AMD FidelityFX Super Resolution (FSR) DirectX 12 DLL",
+    "amd_fidelityfx_upscaler_dx12.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Upscaler DLL",
+    "amd_fidelityfx_framegeneration_dx12.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Frame Generation DLL",
+    "amd_fidelityfx_loader_dx12.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Loader DLL",
 }
 
 
@@ -42,5 +45,14 @@ DLL_GROUPS = {
     "FSR": [
         "amd_fidelityfx_vk.dll",
         "amd_fidelityfx_dx12.dll",
+        "amd_fidelityfx_upscaler_dx12.dll",
+        "amd_fidelityfx_framegeneration_dx12.dll",
+        "amd_fidelityfx_loader_dx12.dll",
     ],
+}
+
+
+# FSR4 DLL rename mapping - source DLL name -> target DLL name
+FSR4_DLL_RENAME_MAP = {
+    "amd_fidelityfx_loader_dx12.dll": "amd_fidelityfx_dx12.dll"
 }

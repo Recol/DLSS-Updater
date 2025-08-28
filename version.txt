@@ -20,7 +20,7 @@ VSVersionInfo(
         StringStruct(u'LegalCopyright', u'Copyright (c) Deco'),
         StringStruct(u'OriginalFilename', u'DLSS_Updater.exe'),
         StringStruct(u'ProductName', u'DLSS Updater'),
-        StringStruct(u'ProductVersion', u'2.7.9')])
+        StringStruct(u'ProductVersion', u'2.7.8')])
       ]),
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]

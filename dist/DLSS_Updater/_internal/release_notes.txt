@@ -64,3 +64,7 @@ Update to separate out Streamline DLL's to be their own components, and to be sw
 
 Version 2.7.9:
 Integration for some missing streamline components.
+
+Version 2.8.0:
+Addition of FSR4 support.
+Addition of the ability to switch off backups.

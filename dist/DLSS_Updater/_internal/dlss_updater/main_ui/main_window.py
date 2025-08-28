@@ -241,7 +241,7 @@ class MainWindow(QMainWindow):
 
         # Custom folders info
         info_label = QLabel(
-            "Note: Streamline is now OFF by default - go to Update Preferences to enable it, beware that some games may not work well with it."
+            "Note: FS4 support is experimental, and relies on the driver reading games correctly."
         )
         info_label.setWordWrap(True)
         info_label.setStyleSheet(
@@ -676,12 +676,49 @@ class MainWindow(QMainWindow):
             self.xess_checkbox.setStyleSheet(checkbox_style)
             self.fsr_checkbox.setStyleSheet(checkbox_style)
 
+            # Add separator
+            separator = QLabel("")
+            separator.setStyleSheet("border-top: 1px solid #555; margin: 10px 0px;")
+            separator.setMaximumHeight(1)
+
+            # Add backup preference checkbox
+            self.backup_checkbox = QCheckBox("Create DLL backups before updating")
+            self.backup_checkbox.setChecked(config_manager.get_backup_preference())
+            self.backup_checkbox.setToolTip("When enabled, original DLL files are backed up with .dlsss extension before being updated. Disable to save disk space.")
+            
+            # Style backup checkbox with warning color for disabled state
+            backup_checkbox_style = """
+                QCheckBox {
+                    color: white;
+                    background-color: transparent;
+                    padding: 5px;
+                    font-size: 14px;
+                }
+                QCheckBox::indicator {
+                    width: 16px;
+                    height: 16px;
+                }
+                QCheckBox::indicator:unchecked {
+                    border: 1px solid #7F7F7F;
+                    background-color: #3C3C3C;
+                }
+                QCheckBox::indicator:checked {
+                    border: 1px solid #2D6E88;
+                    background-color: #2D6E88;
+                }
+            """
+            self.backup_checkbox.setStyleSheet(backup_checkbox_style)
+
             # Add checkboxes to layout
             layout.addWidget(self.dlss_checkbox)
             layout.addWidget(self.streamline_checkbox)
             layout.addWidget(self.ds_checkbox)
             layout.addWidget(self.xess_checkbox)
             layout.addWidget(self.fsr_checkbox)
+            
+            # Add separator and backup checkbox
+            layout.addWidget(separator)
+            layout.addWidget(self.backup_checkbox)
 
             # Update help text to include Streamline
             help_text = QTextBrowser()
@@ -709,7 +746,8 @@ class MainWindow(QMainWindow):
                     <li>dstoragecore.dll</li>
                 </ul>
                 <p><b>XeSS</b>: Intel's Xe Super Sampling technology provides performance improvements similar to DLSS for all GPU brands.</p>
-                <p><b>FSR</b>: AMD's FidelityFX Super Resolution technology improves performance while maintaining visual quality across all GPU brands. Note: Only FSR 3.1.1 and later can be updated.</p>
+                <p><b>FSR</b>: AMD's FidelityFX Super Resolution technology improves performance while maintaining visual quality across all GPU brands. Supports FSR 3.x and FSR4 (requires version 3.1+).</p>
+                <p><b>Backup Creation</b>: When enabled, original DLL files are backed up with .dlsss extension before updates. Backups allow for easy restoration if issues occur. Disable to save disk space if you prefer to manage backups manually.</p>
                 """
             )
             help_text.setStyleSheet(
@@ -763,8 +801,11 @@ class MainWindow(QMainWindow):
             )
             config_manager.set_update_preference("XeSS", self.xess_checkbox.isChecked())
             config_manager.set_update_preference("FSR", self.fsr_checkbox.isChecked())
+            
+            # Save backup preference
+            config_manager.set_backup_preference(self.backup_checkbox.isChecked())
 
-            self.logger.info("Updated technology preferences")
+            self.logger.info("Updated technology and backup preferences")
             self.show_notification("Update preferences saved!")
             dialog.accept()
 
