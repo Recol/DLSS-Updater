@@ -10,7 +10,7 @@ jobs:
   pyre:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Run Pyre Action
         uses: facebook/pyre-action@v0.0.2
