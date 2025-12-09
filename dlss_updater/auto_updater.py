@@ -1,5 +1,5 @@
 import sys
-import json
+import msgspec
 from urllib import request
 from urllib.error import URLError
 from packaging import version
@@ -11,6 +11,9 @@ logger = setup_logger()
 GITHUB_API_URL = "https://api.github.com/repos/Recol/DLSS-Updater/releases/latest"
 GITHUB_RELEASES_URL = "https://github.com/Recol/DLSS-Updater/releases/latest"
 
+# msgspec decoder for better performance
+_json_decoder = msgspec.json.Decoder()
+
 
 def check_for_updates():
     """
@@ -20,7 +23,7 @@ def check_for_updates():
     try:
         logger.info("Checking for updates...")
         with request.urlopen(GITHUB_API_URL) as response:
-            latest_release = json.loads(response.read().decode())
+            latest_release = _json_decoder.decode(response.read())
         latest_version = latest_release["tag_name"].lstrip("Vv")
 
         if version.parse(latest_version) > version.parse(__version__):

@@ -1,0 +1,295 @@
+"""
+Game Card Component
+Individual game card with Steam image, DLL badges, and action buttons
+"""
+
+import asyncio
+from pathlib import Path
+from typing import Optional, List
+import flet as ft
+
+from dlss_updater.database import GameDLL
+from dlss_updater.steam_integration import fetch_steam_image
+from dlss_updater.ui_flet.theme.colors import Shadows
+
+
+class GameCard(ft.Card):
+    """Individual game card with image, DLL info, and actions"""
+
+    def __init__(self, game, dlls: List[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None):
+        super().__init__()
+        self.game = game
+        self.dlls = dlls
+        self.page = page
+        self.logger = logger
+        self.on_update_callback = on_update
+        self.on_view_backups_callback = on_view_backups
+
+        # Card styling optimized for grid layout
+        self.elevation = 2
+        self.surface_tint_color = "#2D6E88"
+        self.margin = ft.margin.all(0)  # ResponsiveRow handles spacing
+        self.shadow = Shadows.LEVEL_2
+        self.width = None  # Let ResponsiveRow control width
+        self.expand = True  # Fill available space in grid cell
+
+        # Animation
+        self.animate = ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+        self.animate_scale = ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+
+        # Hover callback
+        self.on_hover = self._on_hover
+
+        # Build content
+        self._build_card_content()
+
+    def _create_skeleton_loader(self):
+        """Create animated skeleton loader for image placeholder"""
+        return ft.Container(
+            width=None,  # Full width
+            height=140,  # Match image height
+            gradient=ft.LinearGradient(
+                begin=ft.alignment.center_left,
+                end=ft.alignment.center_right,
+                colors=["#1E1E1E", "#2E2E2E", "#1E1E1E"],
+            ),
+            border_radius=8,
+            content=ft.Icon(
+                ft.Icons.VIDEOGAME_ASSET,
+                size=48,
+                color=ft.Colors.with_opacity(0.3, ft.Colors.GREY),
+            ),
+            alignment=ft.alignment.center,
+        )
+
+    def _build_card_content(self):
+        """Build card content layout"""
+        # Image container with skeleton loader (responsive for grid)
+        self.image_widget = ft.Image(
+            src="/assets/placeholder_game.png",
+            width=None,  # Full card width
+            height=140,  # Slightly taller for better aspect ratio in grid
+            fit=ft.ImageFit.COVER,
+            border_radius=ft.border_radius.all(8),
+            error_content=ft.Icon(ft.Icons.VIDEOGAME_ASSET, size=48, color=ft.Colors.GREY),
+        )
+
+        self.image_container = ft.Container(
+            content=self._create_skeleton_loader(),  # Start with skeleton
+            width=140,  # Constrain image width for proper layout
+            height=140,  # Match image height
+            border_radius=8,
+            bgcolor="#1E1E1E",
+            alignment=ft.alignment.center,
+        )
+
+        # Game name and launcher
+        game_info = ft.Column(
+            controls=[
+                ft.Text(
+                    self.game.name,
+                    size=16,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.WHITE,
+                    max_lines=2,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                    no_wrap=False,  # Allow wrapping for long names
+                ),
+                ft.Text(
+                    self.game.launcher,
+                    size=12,
+                    color="#888888",
+                    no_wrap=True,
+                ),
+            ],
+            spacing=4,
+            tight=True,
+        )
+
+        # DLL badges
+        dll_badges = self._create_dll_badges()
+
+        # Action buttons
+        action_buttons = ft.Row(
+            controls=[
+                ft.TextButton(
+                    "Update",
+                    icon=ft.Icons.UPDATE,
+                    on_click=self._on_update_clicked,
+                    style=ft.ButtonStyle(
+                        color="#2D6E88",
+                    ),
+                ),
+                ft.TextButton(
+                    "View Backups",
+                    icon=ft.Icons.RESTORE,
+                    on_click=self._on_view_backups_clicked,
+                    style=ft.ButtonStyle(
+                        color="#888888",
+                    ),
+                ),
+            ],
+            spacing=8,
+            wrap=True,
+        )
+
+        # Right side content
+        right_content = ft.Column(
+            controls=[
+                game_info,
+                dll_badges,
+                action_buttons,
+            ],
+            spacing=8,
+            expand=True,
+            tight=True,
+        )
+
+        # Card content layout
+        self.content = ft.Container(
+            content=ft.Row(
+                controls=[
+                    self.image_container,
+                    right_content,
+                ],
+                spacing=16,
+            ),
+            padding=12,
+        )
+
+    def _create_dll_badges(self) -> ft.Row:
+        """Create DLL type badges with version info using Material Design 3 Chips"""
+        badges = []
+
+        dll_colors = {
+            "DLSS": "#76B900",  # NVIDIA green
+            "XeSS": "#0071C5",  # Intel blue
+            "FSR": "#ED1C24",   # AMD red
+            "DLSS-G": "#76B900",  # NVIDIA green
+            "DLSS-D": "#76B900",  # NVIDIA green
+            "Streamline": "#76B900",
+            "DirectStorage": "#FFB900",  # Windows yellow
+        }
+
+        for dll in self.dlls[:4]:  # Show max 4 badges
+            color = dll_colors.get(dll.dll_type, "#888888")
+
+            chip = ft.Chip(
+                label=ft.Column(
+                    controls=[
+                        ft.Text(
+                            dll.dll_type,
+                            size=10,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.WHITE,
+                            no_wrap=True,
+                        ),
+                        ft.Text(
+                            dll.current_version[:8] if dll.current_version else "Unknown",
+                            size=8,
+                            color=ft.Colors.WHITE,
+                            no_wrap=True,
+                        ),
+                    ],
+                    spacing=2,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    tight=True,
+                ),
+                bgcolor=color,
+                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                leading=ft.Icon(
+                    ft.Icons.CHECK_CIRCLE if dll.current_version else ft.Icons.HELP_OUTLINE,
+                    size=14,
+                    color=ft.Colors.WHITE,
+                ),
+            )
+            badges.append(chip)
+
+        if len(self.dlls) > 4:
+            badges.append(
+                ft.Chip(
+                    label=ft.Text(
+                        f"+{len(self.dlls) - 4}",
+                        size=10,
+                        color=ft.Colors.WHITE,
+                        no_wrap=True,
+                    ),
+                    bgcolor="#888888",
+                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                )
+            )
+
+        return ft.Row(
+            controls=badges,
+            spacing=6,
+            wrap=True,
+            tight=True,
+        )
+
+    async def load_image(self):
+        """Async load Steam image with fade-in animation"""
+        if not self.game.steam_app_id:
+            self.logger.debug(f"No Steam app ID for {self.game.name}, skipping image")
+            return
+
+        try:
+            from dlss_updater.database import db_manager
+
+            # Check cache first
+            cached_path = await db_manager.get_cached_image_path(self.game.steam_app_id)
+
+            if cached_path and Path(cached_path).exists():
+                await self._fade_in_image(cached_path)
+                self.logger.debug(f"Loaded cached image for {self.game.name}")
+                return
+
+            # Fetch from Steam CDN
+            self.logger.info(f"Fetching Steam image for {self.game.name} (app_id: {self.game.steam_app_id})")
+            image_path = await fetch_steam_image(self.game.steam_app_id)
+
+            if image_path and image_path.exists():
+                await self._fade_in_image(str(image_path))
+                self.logger.info(f"Successfully loaded image for {self.game.name}")
+            else:
+                self.logger.debug(f"No image available for {self.game.name}")
+
+        except Exception as e:
+            self.logger.error(f"Error loading image for {self.game.name}: {e}", exc_info=True)
+
+    async def _fade_in_image(self, image_path: str):
+        """Fade in image smoothly"""
+        # Update image source
+        self.image_widget.src = image_path
+
+        # Prepare for fade-in
+        self.image_container.opacity = 0
+        self.image_container.animate_opacity = ft.Animation(300, ft.AnimationCurve.EASE_IN)
+        self.image_container.content = self.image_widget
+        self.page.update()
+
+        # Small delay then fade in
+        await asyncio.sleep(0.05)
+        self.image_container.opacity = 1
+        self.page.update()
+
+    def _on_hover(self, e):
+        """Handle hover effect with multi-layer shadow"""
+        if e.data == "true":
+            self.elevation = 8
+            self.shadow = Shadows.LEVEL_3  # Multi-layer with glow
+            self.scale = 1.02
+        else:
+            self.elevation = 2
+            self.shadow = Shadows.LEVEL_2
+            self.scale = 1.0
+        self.update()
+
+    def _on_update_clicked(self, e):
+        """Handle update button click"""
+        if self.on_update_callback:
+            self.on_update_callback(self.game)
+
+    def _on_view_backups_clicked(self, e):
+        """Handle view backups button click"""
+        if self.on_view_backups_callback:
+            self.on_view_backups_callback(self.game)

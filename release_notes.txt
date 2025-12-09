@@ -68,3 +68,9 @@ Integration for some missing streamline components.
 Version 2.8.0:
 Addition of FSR4 support.
 Addition of the ability to switch off backups.
+
+Version 2.9.0:
+UI update overhaul of the application.
+Support for scanning games, this will now report back all the games found on the system, including what specific DLL's are found there.
+Restorative backups of individual games (called self healing) that have had their DLL's updated.
+Significant performance upgrades to backend initiations.

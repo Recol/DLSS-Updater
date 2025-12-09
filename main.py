@@ -1,64 +1,138 @@
-from dlss_updater.utils import *
-from dlss_updater.logger import setup_logger
-from dlss_updater.main_ui.main_window import MainWindow
-from PyQt6.QtWidgets import QApplication
-import os
+"""
+DLSS Updater - Flet UI Entry Point
+Async/await-based modern Material Design interface
+"""
+
 import sys
+import asyncio
+import logging
+import flet as ft
 
-logger = setup_logger()
-
-# Add the directory containing the executable to sys.path
-if getattr(sys, "frozen", False):
-    application_path = os.path.dirname(sys.executable)
-    sys.path.insert(0, application_path)
+# Core imports
+from dlss_updater.logger import setup_logger
+from dlss_updater.utils import check_dependencies, is_admin, run_as_admin
+from dlss_updater.ui_flet.views.main_view import MainView
 
 
-def main():
+async def main(page: ft.Page):
+    """
+    Main async entry point for the Flet application
+
+    Args:
+        page: The Flet page instance
+    """
+    # Configure page
+    page.title = "DLSS Updater"
+    page.window.width = 900
+    page.window.height = 700
+    page.window.min_width = 700
+    page.window.min_height = 500
+    page.padding = 0
+    page.spacing = 0
+
+    # Set theme to dark by default
+    page.theme_mode = ft.ThemeMode.DARK
+    page.bgcolor = "#2E2E2E"
+
+    # Create Material 3 theme with custom colors
+    page.theme = ft.Theme(
+        color_scheme_seed="#2D6E88",  # Primary teal blue
+        use_material3=True,
+    )
+
+    page.dark_theme = ft.Theme(
+        color_scheme_seed="#2D6E88",
+        use_material3=True,
+    )
+
+    # Get logger instance
+    logger = logging.getLogger("DLSSUpdater")
+    logger.info("DLSS Updater (Flet) starting...")
+
+    # Initialize database
     try:
-        if gui_mode:
-            log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
-            sys.stdout = sys.stderr = open(log_file, "w")
-        # Run the application with Qt GUI
-        main_ui = QApplication(sys.argv)
-        main_window = MainWindow(logger)
-        main_window.show()
-        main_window.get_current_settings()
-        sys.exit(main_ui.exec())
-    except Exception as e:
-        logger.error(f"Critical error starting application: {e}")
-        import traceback
+        from dlss_updater.database import db_manager
+        logger.info("Initializing database...")
+        await db_manager.initialize()
+        logger.info("Database initialized successfully")
 
-        logger.error(traceback.format_exc())
-        input("Press Enter to exit...")  # Wait for user input before exiting
+        # Clean up any duplicate backup entries (one-time cleanup)
+        try:
+            cleaned = await db_manager.cleanup_duplicate_backups()
+            if cleaned > 0:
+                logger.info(f"Cleaned up {cleaned} duplicate backup entries on startup")
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to cleanup duplicate backups: {cleanup_error}")
+            # Non-critical, continue
+
+        # Clean up any duplicate game entries (one-time cleanup)
+        try:
+            cleaned = await db_manager.cleanup_duplicate_games()
+            if cleaned > 0:
+                logger.info(f"Cleaned up {cleaned} duplicate game entries on startup")
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to cleanup duplicate games: {cleanup_error}")
+            # Non-critical, continue
+
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}", exc_info=True)
+        # Continue without database - app should still work
+
+    # Update Steam app list if needed (in background)
+    try:
+        from dlss_updater.steam_integration import update_steam_app_list_if_needed
+        asyncio.create_task(update_steam_app_list_if_needed())
+    except Exception as e:
+        logger.warning(f"Failed to update Steam app list: {e}")
+        # Non-critical, continue
+
+    # Create and add main view
+    main_view = MainView(page, logger)
+    await main_view.initialize()
+
+    # Add to page
+    page.add(main_view)
+    page.update()
+
+    logger.info("UI initialized successfully")
+
+
+def check_prerequisites():
+    """Check dependencies and admin privileges before launching UI"""
+    logger = setup_logger()
+
+    # Check dependencies
+    logger.info("Checking dependencies...")
+    if not check_dependencies():
+        logger.error("Dependency check failed")
+        sys.exit(1)
+
+    # Check admin privileges
+    if not is_admin():
+        logger.warning("Application requires administrator privileges")
+        logger.info("Attempting to restart with admin rights...")
+        run_as_admin()
+        sys.exit(0)
+
+    logger.info("Admin privileges confirmed")
+
+    # Initialize DLL cache after admin check (avoid circular imports)
+    try:
+        from dlss_updater.dll_repository import initialize_dll_cache
+
+        logger.info("Initializing DLL cache...")
+        initialize_dll_cache()
+        logger.info("DLL cache initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize DLL cache: {e}", exc_info=True)
+        sys.exit(1)
+
+    return logger
 
 
 if __name__ == "__main__":
-    # Remove auto-update cleanup - no longer needed
-    # Remove check_update_completion and check_update_error calls
+    # Check prerequisites before launching UI
+    check_prerequisites()
 
-    gui_mode = "--gui" in sys.argv
-    logger.debug("Python executable: %s", sys.executable)
-    logger.debug("sys.path: %s", sys.path)
-    logger.info("DLSS Updater started")
-
-    if not check_dependencies():
-        sys.exit(1)
-
-    # Check for admin rights and request if needed
-    if not is_admin():
-        logger.info("Requesting administrator privileges...")
-        run_as_admin()
-        sys.exit(0)  # Exit after requesting admin privileges
-    else:
-        # Initialize DLL cache ONLY after we have admin privileges
-        logger.debug("Starting DLL cache initialization after admin check")
-        from dlss_updater.dll_repository import initialize_dll_cache
-        from dlss_updater.config import initialize_dll_paths
-        from dlss_updater import LATEST_DLL_PATHS
-
-        initialize_dll_cache()
-        # Update the global LATEST_DLL_PATHS
-        LATEST_DLL_PATHS.update(initialize_dll_paths())
-
-        logger.debug("DLL cache initialization completed")
-        main()
+    # Launch Flet app with async main
+    ft.app(target=main)

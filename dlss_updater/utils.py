@@ -1,37 +1,17 @@
 import os
+import asyncio
 import concurrent.futures
 import threading
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 import sys
 from pathlib import Path
 import ctypes
-from PyQt6.QtCore import QObject, pyqtSignal
 from dlss_updater.logger import setup_logger
 from dlss_updater.config import config_manager
+from dlss_updater.models import ProcessedDLLResult
 
 
 logger = setup_logger()
-
-
-class ParallelProgressTracker(QObject):
-    """Track progress for parallel DLL processing with Qt signals"""
-
-    progress_updated = pyqtSignal(int)  # Signal for progress percentage
-
-    def __init__(self, total_dlls, logger):
-        super().__init__()
-        self.total = total_dlls
-        self.completed = 0
-        self.lock = threading.Lock()
-        self.logger = logger
-
-    def increment(self, dll_info):
-        with self.lock:
-            self.completed += 1
-            progress = int((self.completed / self.total) * 100)
-            self.logger.info(f"Progress: {progress}% - Processed {dll_info}")
-            self.progress_updated.emit(progress)
-            return progress
 
 
 def process_single_dll_thread_safe(dll_path, launcher, progress_tracker):
@@ -42,11 +22,11 @@ def process_single_dll_thread_safe(dll_path, launcher, progress_tracker):
         return result
     except Exception as e:
         logger.error(f"Error processing {dll_path}: {e}")
-        return False, None, str(e)
+        return ProcessedDLLResult(success=False, dll_type=str(e))
 
 
-def process_single_dll_with_backup(dll_path, launcher, backup_path, progress_tracker):
-    """Process a single DLL with pre-created backup"""
+async def process_single_dll_with_backup(dll_path, launcher, backup_path, progress_tracker):
+    """Process a single DLL with pre-created backup (async version)"""
     try:
         # Get DLL type and other info
         dll_name = dll_path.name.lower()
@@ -59,39 +39,38 @@ def process_single_dll_with_backup(dll_path, launcher, backup_path, progress_tra
         if "warframe" in game_name.lower():
             return None
 
-        # Check if whitelisted
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        whitelisted = loop.run_until_complete(is_whitelisted(str(dll_path)))
-        loop.close()
+        # Check if whitelisted (using async/await properly)
+        whitelisted = await is_whitelisted(str(dll_path))
 
         if whitelisted:
             logger.debug(f"Game {game_name} is in whitelist")
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         # Update DLL with pre-created backup
-        if dll_name in LATEST_DLL_PATHS:
-            latest_dll_path = LATEST_DLL_PATHS[dll_name]
+        if dll_name in config.LATEST_DLL_PATHS:
+            latest_dll_path = config.LATEST_DLL_PATHS[dll_name]
             # Pass the backup path to update_dll
             from dlss_updater.updater import update_dll_with_backup
 
-            success, _, dll_type = update_dll_with_backup(
+            # Run file I/O in thread pool to avoid blocking
+            result = await asyncio.to_thread(
+                update_dll_with_backup,
                 str(dll_path), latest_dll_path, backup_path
             )
 
             progress_tracker.increment(f"{dll_path.name} from {launcher}")
-            return success, backup_path, dll_type
+            return result
 
-        return False, None, dll_type
+        return ProcessedDLLResult(success=False, dll_type=dll_type)
     except Exception as e:
         logger.error(f"Error processing DLL {dll_path}: {e}")
-        return False, None, "Error"
+        return ProcessedDLLResult(success=False, dll_type="Error")
 
 
-def process_dlls_parallel(dll_tasks, max_workers=32, progress_signal=None):
-    """Process DLLs using a thread pool with progress tracking"""
+async def process_dlls_parallel(dll_tasks, max_workers=32, progress_callback=None):
+    """Process DLLs using asyncio with progress tracking (fully async version)"""
+    import asyncio
+
     results = {
         "updated_games": [],
         "skipped_games": [],
@@ -102,51 +81,70 @@ def process_dlls_parallel(dll_tasks, max_workers=32, progress_signal=None):
     # Create progress tracker
     total_dlls = len(dll_tasks)
     completed = 0
-    completed_lock = threading.Lock()
+    completed_lock = asyncio.Lock()
 
-    def update_progress():
+    async def update_progress():
         nonlocal completed
-        with completed_lock:
+        async with completed_lock:
             completed += 1
-            if progress_signal:
-                percentage = int((completed / total_dlls) * 100)
-                progress_signal.emit(percentage)
-                logger.info(f"Progress: {percentage}% ({completed}/{total_dlls})")
+            if progress_callback:
+                # Call with (current, total, message) signature for async_updater compatibility
+                progress_callback(completed, total_dlls, f"Processing DLL {completed}/{total_dlls}")
+                logger.info(f"Progress: {completed}/{total_dlls}")
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
-        future_to_dll = {
-            executor.submit(
-                process_single_dll_with_progress, dll_path, launcher, update_progress
-            ): (dll_path, launcher)
-            for dll_path, launcher in dll_tasks
-        }
+    async def process_with_progress(dll_path, launcher):
+        """Process single DLL and update progress"""
+        try:
+            result = await process_single_dll(dll_path, launcher)
+            await update_progress()
+            return result, dll_path, launcher
+        except Exception as e:
+            logger.error(f"Error processing {dll_path}: {e}")
+            await update_progress()
+            return ProcessedDLLResult(success=False, dll_type=str(e)), dll_path, launcher
 
-        # Process results as they complete
-        for future in concurrent.futures.as_completed(future_to_dll):
-            dll_path, launcher = future_to_dll[future]
-            try:
-                result = future.result()
-                if result:
-                    success, backup_path, dll_type = result
-                    if success:
-                        results["updated_games"].append(
-                            (str(dll_path), launcher, dll_type)
-                        )
-                        if backup_path:
-                            results["successful_backups"].append(
-                                (str(dll_path), backup_path)
-                            )
-                    else:
-                        reason = (
-                            dll_type if isinstance(dll_type, str) else "Update failed"
-                        )
-                        results["skipped_games"].append(
-                            (str(dll_path), launcher, reason, dll_type)
-                        )
-            except Exception as e:
-                results["errors"].append((str(dll_path), launcher, str(e)))
-                logger.error(f"Thread error processing {dll_path}: {e}")
+    # Process all DLLs concurrently using asyncio.gather
+    # Use semaphore to limit concurrency (similar to max_workers in ThreadPoolExecutor)
+    semaphore = asyncio.Semaphore(max_workers)
+
+    async def process_with_semaphore(dll_path, launcher):
+        async with semaphore:
+            return await process_with_progress(dll_path, launcher)
+
+    # Create tasks for all DLLs
+    tasks = [
+        process_with_semaphore(dll_path, launcher)
+        for dll_path, launcher in dll_tasks
+    ]
+
+    # Wait for all tasks to complete
+    task_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Process results
+    for task_result in task_results:
+        if isinstance(task_result, Exception):
+            logger.error(f"Task error: {task_result}")
+            results["errors"].append(("Unknown", "Unknown", str(task_result)))
+            continue
+
+        result, dll_path, launcher = task_result
+        if result:
+            # result is now a ProcessedDLLResult object
+            if result.success:
+                results["updated_games"].append(
+                    (str(dll_path), launcher, result.dll_type)
+                )
+                if result.backup_path:
+                    results["successful_backups"].append(
+                        (str(dll_path), result.backup_path)
+                    )
+            else:
+                reason = (
+                    result.dll_type if isinstance(result.dll_type, str) else "Update failed"
+                )
+                results["skipped_games"].append(
+                    (str(dll_path), launcher, reason, result.dll_type)
+                )
 
     return results
 
@@ -160,7 +158,7 @@ def process_single_dll_with_progress(dll_path, launcher, progress_callback):
     except Exception as e:
         logger.error(f"Error processing {dll_path}: {e}")
         progress_callback()  # Update progress even on error
-        return False, None, str(e)
+        return ProcessedDLLResult(success=False, dll_type=str(e))
 
 
 def aggregate_dll_tasks(all_dll_paths):
@@ -177,15 +175,13 @@ def aggregate_dll_tasks(all_dll_paths):
 
 
 try:
-    from dlss_updater import (
-        update_dll,
-        is_whitelisted,
-        __version__,
-        LATEST_DLL_PATHS,
-        DLL_TYPE_MAP,
-        find_all_dlss_dlls,
-        resource_path,
-    )
+    # Import directly from modules to avoid circular dependency through __init__.py
+    from dlss_updater.updater import update_dll
+    from dlss_updater.whitelist import is_whitelisted
+    from dlss_updater.version import __version__
+    from dlss_updater import config  # Import module, not variable
+    from dlss_updater.constants import DLL_TYPE_MAP
+    # Note: find_dlls import moved to function level to avoid circular dependency
 except ImportError as e:
     logger.error(f"Error importing dlss_updater modules: {e}")
     logger.error("Current sys.path:")
@@ -262,6 +258,113 @@ def is_admin():
         return False
 
 
+def find_game_root(dll_path: Path, launcher: str) -> Path:
+    """
+    Find the game root directory by walking upward from DLL location
+
+    Handles cases where DLLs are in subdirectories:
+    - Arc Raiders/bin/nvngx_dlss.dll → Arc Raiders/
+    - Arc Raiders/engine/nvngx_dlss.dll → Arc Raiders/
+    - Arc Raiders/plugins/nvngx_dlss.dll → Arc Raiders/
+
+    Args:
+        dll_path: Path to the DLL file
+        launcher: Launcher name (Steam, Epic Games Launcher, etc.)
+
+    Returns:
+        Path to the game root directory
+    """
+    current = dll_path.parent
+
+    # For Steam: Always use steamapps/common/<GameName>
+    if launcher == "Steam":
+        parts = current.parts
+        try:
+            if "common" in parts:
+                common_idx = parts.index("common")
+                if common_idx + 1 < len(parts):
+                    # Return one level after "common" - the game root
+                    game_root_parts = parts[:common_idx + 2]
+                    return Path(*game_root_parts)
+        except (ValueError, IndexError):
+            pass
+
+    # For other launchers: Walk up with stricter heuristics
+    max_depth = 5  # Increased from 3 for better detection
+    for _ in range(max_depth):
+        # Strong indicators of game root
+        has_exe = list(current.glob("*.exe"))
+        has_bin = (current / "bin").exists() or (current / "Binaries").exists()
+        has_engine = (current / "engine").exists() or (current / "Engine").exists()
+        has_data = (current / "data").exists() or (current / "Data").exists()
+        has_content = (current / "Content").exists()
+
+        # Count strong indicators
+        indicators = [
+            len(has_exe) > 0,
+            has_bin,
+            has_engine,
+            has_data,
+            has_content
+        ]
+
+        # If we have 2+ indicators, this is likely the root
+        if sum(indicators) >= 2:
+            return current
+
+        # Move up one level
+        if current.parent == current:  # Reached filesystem root
+            break
+        current = current.parent
+
+    # Fallback: return parent of dll_path (original behavior)
+    return dll_path.parent
+
+
+def get_dll_technology_group(dll_name):
+    """
+    Get the technology group (DLSS, Streamline, etc.) for a DLL filename
+
+    Args:
+        dll_name: DLL filename (lowercase)
+
+    Returns:
+        Technology group name or None if not found
+    """
+    from dlss_updater.constants import DLL_GROUPS
+
+    for group_name, dll_list in DLL_GROUPS.items():
+        if dll_name in [dll.lower() for dll in dll_list]:
+            return group_name
+    return None
+
+
+def is_dll_update_enabled(dll_name):
+    """
+    Check if updates are enabled for this DLL type based on user preferences
+
+    Args:
+        dll_name: DLL filename (lowercase)
+
+    Returns:
+        True if updates are enabled, False otherwise
+    """
+    # Get the technology group for this DLL
+    tech_group = get_dll_technology_group(dll_name)
+
+    if tech_group is None:
+        logger.warning(f"Unknown DLL type: {dll_name}, skipping")
+        return False
+
+    # Check if this technology is enabled in preferences
+    is_enabled = config_manager.get_update_preference(tech_group)
+
+    if not is_enabled:
+        logger.info(f"Skipping {dll_name} - {tech_group} updates are disabled in preferences")
+
+    return is_enabled
+
+
 def extract_game_name(dll_path, launcher_name):
     parts = Path(dll_path).parts
     try:
@@ -297,9 +400,23 @@ def extract_game_name(dll_path, launcher_name):
         return "Unknown Game"
 
 
-def update_dlss_versions(progress_signal=None):
+async def update_dlss_versions(dll_dict=None, settings=None, progress_callback=None):
+    """
+    Update DLSS versions across all games (fully async version)
+
+    Args:
+        dll_dict: Pre-scanned dictionary of DLLs, or None to scan
+        settings: Update settings
+        progress_callback: Progress callback function
+
+    Returns:
+        Dict with updated_games, skipped_games, successful_backups, errors
+    """
     logger.info(f"DLSS Updater version {__version__}")
-    logger.info("Starting DLL search...")
+    logger.info(f"LATEST_DLL_PATHS status: {len(config.LATEST_DLL_PATHS)} DLLs available")
+    if len(config.LATEST_DLL_PATHS) == 0:
+        logger.error("CRITICAL: LATEST_DLL_PATHS is empty! DLL cache may not be initialized.")
+        logger.error("Please check for errors during 'Initializing DLL cache' at startup.")
 
     updated_games = []
     skipped_games = []
@@ -309,16 +426,31 @@ def update_dlss_versions(progress_signal=None):
         # Remove auto-update check - now handled manually through GUI
         logger.info("Starting DLL update process...")
 
-        try:
-            # Use the synchronous version of find_all_dlls
-            all_dll_paths = find_all_dlss_dlls()
-            logger.info("DLL search completed.")
-        except Exception as e:
-            logger.error(f"Error finding DLLs: {e}")
-            import traceback
+        # If dll_dict not provided, scan for DLLs
+        if dll_dict is None:
+            logger.info("Starting DLL search...")
+            try:
+                # Lazy import to avoid circular dependency (scanner imports from utils)
+                from dlss_updater.scanner import find_all_dlls
+                # Use the async version of find_all_dlls
+                all_dll_paths = await find_all_dlls()
+                logger.info("DLL search completed.")
+            except Exception as e:
+                logger.error(f"Error finding DLLs: {e}")
+                import traceback
 
-            logger.error(traceback.format_exc())
-            return False, [], [], []
+                trace = traceback.format_exc()
+                logger.error(trace)
+                return {
+                    "updated_games": [],
+                    "skipped_games": [],
+                    "successful_backups": [],
+                    "errors": [{"message": str(e), "traceback": trace}]
+                }
+        else:
+            # Use provided dll_dict
+            logger.info("Using pre-scanned DLL dictionary...")
+            all_dll_paths = dll_dict
 
         # Aggregate all DLL tasks
         dll_tasks = aggregate_dll_tasks(all_dll_paths)
@@ -327,12 +459,12 @@ def update_dlss_versions(progress_signal=None):
             logger.info(f"\nFound {len(dll_tasks)} DLLs to process.")
             logger.info("Processing DLLs in parallel...")
 
-            # Determine optimal thread count
-            max_workers = min(len(dll_tasks), 8)  # Fixed thread count
+            # Determine optimal concurrency count
+            max_workers = min(len(dll_tasks), 8)  # Fixed concurrency limit
             logger.info(f"Using {max_workers} parallel workers")
 
-            # Process all DLLs in parallel with progress signal
-            results = process_dlls_parallel(dll_tasks, max_workers, progress_signal)
+            # Process all DLLs in parallel with progress callback (now async)
+            results = await process_dlls_parallel(dll_tasks, max_workers, progress_callback)
 
             # Extract results
             updated_games = results["updated_games"]
@@ -375,7 +507,13 @@ def update_dlss_versions(progress_signal=None):
         else:
             logger.info("No DLLs were found or processed.")
 
-        return True, updated_games, skipped_games, successful_backups
+        # Return dict format for async_updater compatibility
+        return {
+            "updated_games": updated_games,
+            "skipped_games": skipped_games,
+            "successful_backups": successful_backups,
+            "errors": []  # Errors are already merged into skipped_games
+        }
 
     except Exception as e:
         import traceback
@@ -383,14 +521,25 @@ def update_dlss_versions(progress_signal=None):
         trace = traceback.format_exc()
         logger.error(f"Critical error in update process: {e}")
         logger.error(f"Traceback:\n{trace}")
-        return False, [], [], []
+        # Return dict format for consistency
+        return {
+            "updated_games": [],
+            "skipped_games": [],
+            "successful_backups": [],
+            "errors": [{"message": str(e), "traceback": trace}]
+        }
 
 
-def process_single_dll(dll_path, launcher):
-    """Process a single DLL file"""
+async def process_single_dll(dll_path, launcher):
+    """Process a single DLL file (async version)"""
     try:
         # Get the lowercase filename for consistency
         dll_name = dll_path.name.lower()
+
+        # Check if updates are enabled for this DLL type
+        if not is_dll_update_enabled(dll_name):
+            dll_type = DLL_TYPE_MAP.get(dll_name, "Unknown DLL type")
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         # Directly check for known DLL types to avoid case sensitivity issues
         if "nvngx_dlss.dll" == dll_name:
@@ -433,28 +582,26 @@ def process_single_dll(dll_path, launcher):
         if "warframe" in game_name.lower():
             return None
 
-        # Check if whitelisted
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        whitelisted = loop.run_until_complete(is_whitelisted(str(dll_path)))
-        loop.close()
+        # Check if whitelisted (now using async/await properly)
+        whitelisted = await is_whitelisted(str(dll_path))
 
         if whitelisted:
             logger.debug(
                 f"Game {game_name} is in whitelist, checking if it's on skip list..."
             )
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
-        if dll_name in LATEST_DLL_PATHS:
-            latest_dll_path = LATEST_DLL_PATHS[dll_name]
-            return update_dll(str(dll_path), latest_dll_path)
+        if dll_name in config.LATEST_DLL_PATHS:
+            latest_dll_path = config.LATEST_DLL_PATHS[dll_name]
+            logger.debug(f"Found {dll_name} in LATEST_DLL_PATHS, latest_dll_path: {latest_dll_path}")
+            # Run file I/O in thread pool to avoid blocking
+            return await asyncio.to_thread(update_dll, str(dll_path), latest_dll_path)
 
-        return False, None, dll_type
+        logger.debug(f"DLL {dll_name} not in LATEST_DLL_PATHS (available: {list(config.LATEST_DLL_PATHS.keys())[:5]}...)")
+        return ProcessedDLLResult(success=False, dll_type=dll_type)
     except Exception as e:
         logger.error(f"Error processing DLL {dll_path}: {e}")
-        return False, None, "Error"
+        return ProcessedDLLResult(success=False, dll_type="Error")
 
 
 def display_update_summary(updated_games, skipped_games, successful_backups):

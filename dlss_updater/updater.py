@@ -11,6 +11,7 @@ from packaging import version
 from .logger import setup_logger
 from .constants import DLL_TYPE_MAP, FSR4_DLL_RENAME_MAP
 from .config import config_manager
+from .models import ProcessedDLLResult
 
 logger = setup_logger()
 
@@ -95,35 +96,152 @@ def normalize_path(path):
     return os.path.normpath(path)
 
 
+def record_update_history_sync(dll_path, from_version, to_version, success):
+    """Record update history in database (synchronous wrapper for async operation)"""
+    try:
+        import asyncio
+        from dlss_updater.database import db_manager
+
+        # Use asyncio.run() for thread-safe async execution
+        async def _record():
+            game_dll = await db_manager.get_game_dll_by_path(str(dll_path))
+            if game_dll:
+                await db_manager.record_update_history({
+                    'game_dll_id': game_dll.id,
+                    'from_version': from_version,
+                    'to_version': to_version,
+                    'success': success
+                })
+                logger.debug(f"Recorded update history for {dll_path.name}")
+
+        asyncio.run(_record())
+    except Exception as e:
+        logger.warning(f"Failed to record update history: {e}")
+        # Don't fail update if history recording fails
+
+
 def create_backup(dll_path):
     backup_path = dll_path.with_suffix(".dlsss")
     try:
-        logger.info(f"Attempting to create backup at: {backup_path}")
+        logger.info(f"[BACKUP] Attempting to create backup at: {backup_path}")
+
+        # Pre-flight check 1: Verify write permission to directory
+        if not os.access(dll_path.parent, os.W_OK):
+            logger.error(f"[BACKUP] No write permission to directory: {dll_path.parent}")
+            return None
+
+        # Pre-flight check 2: Verify sufficient disk space (need 2x DLL size for safety)
+        try:
+            dll_size = dll_path.stat().st_size
+            disk_stat = shutil.disk_usage(dll_path.parent)
+            required_space = dll_size * 2
+
+            if disk_stat.free < required_space:
+                logger.error(
+                    f"[BACKUP] Insufficient disk space. "
+                    f"Available: {disk_stat.free / (1024**2):.1f}MB, "
+                    f"Required: {required_space / (1024**2):.1f}MB"
+                )
+                return None
+
+            logger.debug(f"[BACKUP] Disk space check passed. Available: {disk_stat.free / (1024**2):.1f}MB")
+        except Exception as e:
+            logger.warning(f"[BACKUP] Could not check disk space: {e}")
+            # Continue anyway - not critical
+
+        # Remove old backup if exists
         if backup_path.exists():
-            logger.info("Previous backup exists, removing...")
+            logger.info(f"[BACKUP] Previous backup exists, removing...")
             try:
                 os.chmod(backup_path, stat.S_IWRITE)
                 os.remove(backup_path)
-                logger.info("Successfully removed old backup")
+                logger.info(f"[BACKUP] Successfully removed old backup")
             except Exception as e:
-                logger.error(f"Failed to remove old backup: {e}")
+                logger.error(f"[BACKUP] Failed to remove old backup: {e}", exc_info=True)
                 return None
 
-        dir_path = os.path.dirname(backup_path)
-        os.chmod(dir_path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+        # Set directory permissions
+        try:
+            dir_path = os.path.dirname(backup_path)
+            os.chmod(dir_path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+        except Exception as e:
+            logger.warning(f"[BACKUP] Could not set directory permissions: {e}")
+            # Continue anyway - not always critical
 
+        # Perform backup copy
         shutil.copy2(dll_path, backup_path)
 
-        if backup_path.exists():
-            os.chmod(backup_path, stat.S_IWRITE | stat.S_IREAD)
-            logger.info(f"Successfully created backup at: {backup_path}")
-            return backup_path
-        else:
-            logger.error("Backup file not created")
+        # Verification 1: Check backup file exists
+        if not backup_path.exists():
+            logger.error(f"[BACKUP] Backup file not created at {backup_path}")
             return None
+
+        # Verification 2: Check backup file size matches original
+        try:
+            original_size = dll_path.stat().st_size
+            backup_size = backup_path.stat().st_size
+
+            if original_size != backup_size:
+                logger.error(
+                    f"[BACKUP] Size mismatch! Original: {original_size} bytes, "
+                    f"Backup: {backup_size} bytes"
+                )
+                # Delete corrupted backup
+                try:
+                    backup_path.unlink()
+                    logger.info(f"[BACKUP] Deleted corrupted backup file")
+                except Exception:
+                    pass
+                return None
+
+            logger.debug(f"[BACKUP] Size verification passed: {original_size} bytes")
+        except Exception as e:
+            logger.warning(f"[BACKUP] Could not verify backup size: {e}")
+            # Continue anyway - file exists at least
+
+        # Set backup file permissions
+        try:
+            os.chmod(backup_path, stat.S_IWRITE | stat.S_IREAD)
+        except Exception as e:
+            logger.warning(f"[BACKUP] Could not set backup file permissions: {e}")
+
+        logger.info(f"[BACKUP] Successfully created and verified backup at: {backup_path}")
+
+        # Record backup metadata in database (fixed asyncio event loop handling)
+        try:
+            import asyncio
+            from dlss_updater.backup_manager import record_backup_metadata
+
+            # Use existing event loop instead of creating new one
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Non-blocking: schedule as task to run later
+                    asyncio.create_task(record_backup_metadata(dll_path, backup_path))
+                    logger.debug(f"[BACKUP] Scheduled metadata recording as async task")
+                else:
+                    # If no loop running, use asyncio.run()
+                    asyncio.run(record_backup_metadata(dll_path, backup_path))
+                    logger.debug(f"[BACKUP] Recorded metadata synchronously")
+            except RuntimeError as e:
+                # If we can't get loop or create task, fall back to asyncio.run()
+                logger.debug(f"[BACKUP] Falling back to asyncio.run() for metadata: {e}")
+                asyncio.run(record_backup_metadata(dll_path, backup_path))
+        except Exception as e:
+            logger.warning(f"[BACKUP] Failed to record backup metadata: {e}", exc_info=True)
+            # Don't fail backup creation if metadata recording fails
+
+        return backup_path
+
+    except PermissionError as e:
+        logger.error(f"[BACKUP] Permission denied creating backup for {dll_path}: {e}")
+        return None
+    except OSError as e:
+        logger.error(f"[BACKUP] OS error creating backup for {dll_path}: {e}")
+        return None
     except Exception as e:
-        logger.error(f"Failed to create backup for {dll_path}: {e}")
-        logger.error(f"Error type: {type(e)}")
+        logger.error(f"[BACKUP] Unexpected error creating backup for {dll_path}: {e}", exc_info=True)
+        logger.error(f"[BACKUP] Error type: {type(e).__name__}")
         return None
 
 
@@ -152,34 +270,34 @@ def update_dll(dll_path, latest_dll_path):
                 logger.info(
                     f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated."
                 )
-                return False, None, dll_type
+                return ProcessedDLLResult(success=False, dll_type=dll_type)
 
             if existing_parsed >= latest_parsed:
                 logger.info(
                     f"{dll_path} is already up-to-date (version {existing_version})."
                 )
-                return False, None, dll_type
+                return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if not dll_path.exists():
             logger.error(f"Error: Target DLL path does not exist: {dll_path}")
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if not latest_dll_path.exists():
             logger.error(f"Error: Latest DLL path does not exist: {latest_dll_path}")
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if not os.access(dll_path.parent, os.W_OK):
             logger.error(
                 f"Error: No write permission to the directory: {dll_path.parent}"
             )
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         backup_path = None
         if config_manager.get_backup_preference():
             backup_path = create_backup(dll_path)
             if not backup_path:
                 logger.error(f"Failed to create backup for {dll_path}")
-                return False, None, dll_type
+                return ProcessedDLLResult(success=False, dll_type=dll_type)
         else:
             logger.info(f"Backup creation disabled by user preference for {dll_path}")
 
@@ -200,7 +318,7 @@ def update_dll(dll_path, latest_dll_path):
                 f"File {dll_path} is still in use after multiple attempts. Cannot update."
             )
             restore_permissions(dll_path, original_permissions)
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         try:
             os.remove(dll_path)
@@ -213,12 +331,16 @@ def update_dll(dll_path, latest_dll_path):
                 logger.info(
                     f"Successfully updated {dll_path} from version {existing_version} to {latest_version}."
                 )
-                return True, backup_path, dll_type
+                # Record successful update in database
+                record_update_history_sync(dll_path, existing_version, latest_version, True)
+                return ProcessedDLLResult(success=True, backup_path=str(backup_path), dll_type=dll_type)
             else:
                 logger.error(
                     f"Version verification failed - Expected: {latest_version}, Got: {new_version}"
                 )
-                return False, backup_path, dll_type
+                # Record failed update in database
+                record_update_history_sync(dll_path, existing_version, latest_version, False)
+                return ProcessedDLLResult(success=False, backup_path=str(backup_path), dll_type=dll_type)
 
         except Exception as e:
             logger.error(f"File update operation failed: {e}")
@@ -228,12 +350,12 @@ def update_dll(dll_path, latest_dll_path):
                     logger.info("Restored backup after failed update")
                 except Exception as restore_error:
                     logger.error(f"Failed to restore backup: {restore_error}")
-            return False, backup_path, dll_type
+            return ProcessedDLLResult(success=False, backup_path=str(backup_path), dll_type=dll_type)
 
     except Exception as e:
         logger.error(f"Error updating {dll_path}: {e}")
         restore_permissions(dll_path, original_permissions)
-        return False, None, dll_type
+        return ProcessedDLLResult(success=False, dll_type=dll_type)
 
 
 def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=None):
@@ -263,27 +385,27 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
                 logger.info(
                     f"Skipping update for {dll_path}: Version {existing_version} is less than 2.0.0 and cannot be updated."
                 )
-                return False, None, dll_type
+                return ProcessedDLLResult(success=False, dll_type=dll_type)
 
             if existing_parsed >= latest_parsed:
                 logger.info(
                     f"{dll_path} is already up-to-date (version {existing_version})."
                 )
-                return False, None, dll_type
+                return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if not dll_path.exists():
             logger.error(f"Error: Target DLL path does not exist: {dll_path}")
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if not latest_dll_path.exists():
             logger.error(f"Error: Latest DLL path does not exist: {latest_dll_path}")
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if not os.access(dll_path.parent, os.W_OK):
             logger.error(
                 f"Error: No write permission to the directory: {dll_path.parent}"
             )
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         # Use pre-created backup path if provided, otherwise create backup conditionally
         backup_path = pre_created_backup_path
@@ -292,7 +414,7 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
                 backup_path = create_backup(dll_path)
                 if not backup_path:
                     logger.error(f"Failed to create backup for {dll_path}")
-                    return False, None, dll_type
+                    return ProcessedDLLResult(success=False, dll_type=dll_type)
             else:
                 logger.info(f"Backup creation disabled by user preference for {dll_path}")
         else:
@@ -304,7 +426,7 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
                 if config_manager.get_backup_preference():
                     backup_path = create_backup(dll_path)
                     if not backup_path:
-                        return False, None, dll_type
+                        return ProcessedDLLResult(success=False, dll_type=dll_type)
                 else:
                     backup_path = None
 
@@ -325,7 +447,7 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
                 f"File {dll_path} is still in use after multiple attempts. Cannot update."
             )
             restore_permissions(dll_path, original_permissions)
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         try:
             os.remove(dll_path)
@@ -338,12 +460,16 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
                 logger.info(
                     f"Successfully updated {dll_path} from version {existing_version} to {latest_version}."
                 )
-                return True, backup_path, dll_type
+                # Record successful update in database
+                record_update_history_sync(dll_path, existing_version, latest_version, True)
+                return ProcessedDLLResult(success=True, backup_path=str(backup_path), dll_type=dll_type)
             else:
                 logger.error(
                     f"Version verification failed - Expected: {latest_version}, Got: {new_version}"
                 )
-                return False, backup_path, dll_type
+                # Record failed update in database
+                record_update_history_sync(dll_path, existing_version, latest_version, False)
+                return ProcessedDLLResult(success=False, backup_path=str(backup_path), dll_type=dll_type)
 
         except Exception as e:
             logger.error(f"File update operation failed: {e}")
@@ -353,17 +479,26 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
                     logger.info("Restored backup after failed update")
                 except Exception as restore_error:
                     logger.error(f"Failed to restore backup: {restore_error}")
-            return False, backup_path, dll_type
+            return ProcessedDLLResult(success=False, backup_path=str(backup_path), dll_type=dll_type)
 
     except Exception as e:
         logger.error(f"Error updating {dll_path}: {e}")
         restore_permissions(dll_path, original_permissions)
-        return False, None, dll_type
+        return ProcessedDLLResult(success=False, dll_type=dll_type)
 
 
-def create_backups_parallel(dll_paths, max_workers=4):
-    """Create backups for multiple DLLs in parallel"""
+def create_backups_parallel(dll_paths, max_workers=4, progress_callback=None):
+    """
+    Create backups for multiple DLLs in parallel
+
+    Args:
+        dll_paths: List of DLL paths to back up
+        max_workers: Maximum number of parallel workers
+        progress_callback: Optional callback(current, total, message) for progress
+    """
     backup_results = []
+    total_dlls = len(dll_paths)
+    completed = 0
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_dll = {
@@ -382,6 +517,10 @@ def create_backups_parallel(dll_paths, max_workers=4):
                     logger.warning(f"Failed to create backup for {dll_path}")
             except Exception as e:
                 logger.error(f"Error creating backup for {dll_path}: {e}")
+
+            completed += 1
+            if progress_callback:
+                progress_callback(completed, total_dlls, f"Backed up {completed}/{total_dlls} files")
 
     return backup_results
 
@@ -440,12 +579,12 @@ def update_fsr4_dll_with_rename(source_dll_path, target_dll_path, latest_dll_pat
 
         if not latest_version:
             logger.error(f"Could not determine version of latest FSR4 DLL: {latest_dll_path}")
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         # Validate FSR version meets minimum requirements (3.1+)
         if not validate_fsr_version(latest_version, "3.1.0"):
             logger.error(f"FSR4 DLL version {latest_version} does not meet minimum requirement (3.1.0)")
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if existing_version and latest_version:
             existing_parsed = parse_version(existing_version)
@@ -455,15 +594,15 @@ def update_fsr4_dll_with_rename(source_dll_path, target_dll_path, latest_dll_pat
 
             if existing_parsed >= latest_parsed:
                 logger.info(f"{target_dll_path} is already up-to-date (version {existing_version}).")
-                return False, None, dll_type
+                return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if not latest_dll_path.exists():
             logger.error(f"Error: Latest DLL path does not exist: {latest_dll_path}")
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if target_dll_path.exists() and not os.access(target_dll_path.parent, os.W_OK):
             logger.error(f"Error: No write permission to the directory: {target_dll_path.parent}")
-            return False, None, dll_type
+            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         # Handle backup creation for target DLL (if it exists)
         backup_path = pre_created_backup_path
@@ -473,7 +612,7 @@ def update_fsr4_dll_with_rename(source_dll_path, target_dll_path, latest_dll_pat
                     backup_path = create_backup(target_dll_path)
                     if not backup_path:
                         logger.error(f"Failed to create backup for {target_dll_path}")
-                        return False, None, dll_type
+                        return ProcessedDLLResult(success=False, dll_type=dll_type)
                 else:
                     logger.info(f"Backup creation disabled by user preference for {target_dll_path}")
             else:
@@ -485,7 +624,7 @@ def update_fsr4_dll_with_rename(source_dll_path, target_dll_path, latest_dll_pat
                     if config_manager.get_backup_preference():
                         backup_path = create_backup(target_dll_path)
                         if not backup_path:
-                            return False, None, dll_type
+                            return ProcessedDLLResult(success=False, dll_type=dll_type)
                     else:
                         backup_path = None
 
@@ -505,7 +644,7 @@ def update_fsr4_dll_with_rename(source_dll_path, target_dll_path, latest_dll_pat
             if retry_count == 0:
                 logger.info(f"File {target_dll_path} is still in use after multiple attempts. Cannot update.")
                 restore_permissions(target_dll_path, original_permissions)
-                return False, None, dll_type
+                return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         try:
             # Remove existing file if it exists
@@ -520,10 +659,10 @@ def update_fsr4_dll_with_rename(source_dll_path, target_dll_path, latest_dll_pat
             new_version = get_dll_version(target_dll_path)
             if new_version == latest_version:
                 logger.info(f"Successfully updated {target_dll_path} from version {existing_version or 'N/A'} to {latest_version} (FSR4 rename)")
-                return True, backup_path, dll_type
+                return ProcessedDLLResult(success=True, backup_path=str(backup_path), dll_type=dll_type)
             else:
                 logger.error(f"Version verification failed - Expected: {latest_version}, Got: {new_version}")
-                return False, backup_path, dll_type
+                return ProcessedDLLResult(success=False, backup_path=str(backup_path), dll_type=dll_type)
 
         except Exception as e:
             logger.error(f"File update operation failed: {e}")
@@ -534,10 +673,10 @@ def update_fsr4_dll_with_rename(source_dll_path, target_dll_path, latest_dll_pat
                     logger.info("Restored backup after failed FSR4 update")
                 except Exception as restore_error:
                     logger.error(f"Failed to restore backup: {restore_error}")
-            return False, backup_path, dll_type
+            return ProcessedDLLResult(success=False, backup_path=str(backup_path), dll_type=dll_type)
 
     except Exception as e:
         logger.error(f"Error updating FSR4 DLL {target_dll_path}: {e}")
         if target_dll_path.exists():
             restore_permissions(target_dll_path, original_permissions)
-        return False, None, dll_type
+        return ProcessedDLLResult(success=False, dll_type=dll_type)
