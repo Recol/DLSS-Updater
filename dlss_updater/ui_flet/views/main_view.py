@@ -577,32 +577,32 @@ class MainView(ft.Column):
         )
 
     def _create_theme_toggle_item(self) -> ft.Container:
-        """Create theme toggle menu item with dynamic state"""
-        from dlss_updater.ui_flet.theme.colors import MD3Colors
-        is_dark = self.theme_manager.is_dark
-        theme_mode = "Dark Mode" if self.theme_manager.is_dark_mode() else "Light Mode"
-
+        """Create theme toggle menu item - currently disabled due to light theme issues"""
+        # Theme toggle is disabled due to issues with light theme
         self.theme_toggle_menu_item = ft.ListTile(
             leading=ft.Icon(
-                self.theme_manager.get_icon(),
-                color=MD3Colors.get_on_surface(is_dark),
+                ft.Icons.BRIGHTNESS_6,
+                color="#666666",  # Grayed out
                 size=20,
             ),
             title=ft.Text(
-                f"Theme: {theme_mode}",
-                color=MD3Colors.get_on_surface(is_dark),
+                "Theme: Dark Mode",
+                color="#666666",  # Grayed out
                 size=14,
             ),
-            on_click=self._toggle_theme_from_menu,
-            hover_color="rgba(255, 255, 255, 0.08)",
+            subtitle=ft.Text(
+                "Disabled (light theme has issues)",
+                color="#888888",
+                size=10,
+            ),
+            on_click=None,  # Disabled
             dense=True,
             content_padding=ft.padding.symmetric(horizontal=16, vertical=4),
         )
 
         return ft.Container(
             content=self.theme_toggle_menu_item,
-            tooltip=f"Switch to {'Light' if self.theme_manager.is_dark_mode() else 'Dark'} mode",
-            animate_scale=ft.Animation(100, ft.AnimationCurve.EASE_OUT),
+            tooltip="Theme switching is temporarily disabled due to light theme issues",
         )
 
     def _toggle_app_menu(self, e):
@@ -858,7 +858,7 @@ class MainView(ft.Column):
             # Show success notification with accurate counts
             total_games = len(unique_games)
             total_dlls = sum(len(dlls) for dlls in dll_dict.values())
-            await self._show_snackbar(f"Scan complete: {total_games} games, {total_dlls} DLLs found")
+            await self._show_snackbar(f"Scan complete: {total_games} games, {total_dlls} DLLs found, you can now find them in the Games tab",)
 
         except Exception as ex:
             self.logger.error(f"Scan failed: {ex}", exc_info=True)

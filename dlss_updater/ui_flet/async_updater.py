@@ -5,12 +5,14 @@ Bridges Flet UI with existing scanner/updater modules using async patterns
 
 import asyncio
 import logging
-from typing import Callable, Optional, Dict, List
+from pathlib import Path
+from typing import Callable, Optional, Dict, List, Any
 
 from dlss_updater.scanner import find_all_dlls
-from dlss_updater.utils import update_dlss_versions
+from dlss_updater.utils import update_dlss_versions, process_single_dll
 from dlss_updater.config import config_manager, get_current_settings
 from dlss_updater.models import UpdateProgress, UpdateResult
+from dlss_updater.database import db_manager
 
 
 class AsyncUpdateCoordinator:
@@ -219,6 +221,136 @@ class AsyncUpdateCoordinator:
         result = await self.update_games(dll_dict, progress_callback)
 
         return result
+
+    async def update_single_game(
+        self,
+        game_id: int,
+        game_name: str,
+        progress_callback: Optional[Callable[[UpdateProgress], None]] = None
+    ) -> Dict[str, Any]:
+        """
+        Update DLLs for a single game
+
+        Args:
+            game_id: Database ID of the game to update
+            game_name: Name of the game (for logging)
+            progress_callback: Optional callback for progress updates
+
+        Returns:
+            Dict with 'updated', 'skipped', 'errors' lists and 'success' bool
+        """
+        self.logger.info(f"Starting single-game update for: {game_name} (id: {game_id})")
+        self._progress_callback = progress_callback
+
+        results: Dict[str, Any] = {
+            'updated': [],
+            'skipped': [],
+            'errors': [],
+            'success': False
+        }
+
+        try:
+            # Get DLLs for this game from database
+            game_dlls = await db_manager.get_dlls_for_game(game_id)
+
+            if not game_dlls:
+                self.logger.warning(f"No DLLs found for game: {game_name}")
+                results['errors'].append({
+                    'message': 'No DLLs found for this game',
+                    'dll_type': None
+                })
+                return results
+
+            total_dlls = len(game_dlls)
+            processed = 0
+
+            # Report initial progress
+            if progress_callback:
+                await progress_callback(UpdateProgress(
+                    current=0,
+                    total=total_dlls,
+                    message=f"Preparing to update {total_dlls} DLL(s)...",
+                    percentage=0
+                ))
+
+            # Process each DLL
+            for game_dll in game_dlls:
+                dll_path = Path(game_dll.dll_path)
+
+                # Report progress for current DLL
+                if progress_callback:
+                    await progress_callback(UpdateProgress(
+                        current=processed,
+                        total=total_dlls,
+                        message=f"Updating {game_dll.dll_type}...",
+                        percentage=int((processed / total_dlls) * 100) if total_dlls > 0 else 0
+                    ))
+
+                try:
+                    # Use existing process_single_dll which handles all update logic
+                    # Pass game's launcher as the second parameter
+                    result = await process_single_dll(dll_path, "Single Game Update")
+
+                    if result and result.success:
+                        results['updated'].append({
+                            'dll_type': game_dll.dll_type,
+                            'dll_path': str(dll_path),
+                            'backup_path': getattr(result, 'backup_path', None)
+                        })
+                        # Update version in database
+                        from dlss_updater.updater import get_dll_version
+                        new_version = await asyncio.to_thread(get_dll_version, dll_path)
+                        if new_version:
+                            await db_manager.update_game_dll_version(game_dll.id, new_version)
+                    elif result is None:
+                        # Warframe or other skipped game
+                        results['skipped'].append({
+                            'dll_type': game_dll.dll_type,
+                            'dll_path': str(dll_path),
+                            'reason': 'Game is in skip list'
+                        })
+                    else:
+                        # DLL was not updated (already up-to-date or disabled)
+                        reason = getattr(result, 'dll_type', 'Already up-to-date or update disabled')
+                        results['skipped'].append({
+                            'dll_type': game_dll.dll_type,
+                            'dll_path': str(dll_path),
+                            'reason': reason
+                        })
+
+                except Exception as e:
+                    self.logger.error(f"Error updating {dll_path}: {e}")
+                    results['errors'].append({
+                        'dll_type': game_dll.dll_type,
+                        'dll_path': str(dll_path),
+                        'message': str(e)
+                    })
+
+                processed += 1
+
+            # Final progress
+            if progress_callback:
+                await progress_callback(UpdateProgress(
+                    current=total_dlls,
+                    total=total_dlls,
+                    message="Update complete",
+                    percentage=100
+                ))
+
+            results['success'] = len(results['updated']) > 0
+            self.logger.info(
+                f"Single-game update complete for {game_name}: "
+                f"{len(results['updated'])} updated, "
+                f"{len(results['skipped'])} skipped, "
+                f"{len(results['errors'])} errors"
+            )
+
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Single-game update failed for {game_name}: {e}", exc_info=True)
+            results['errors'].append({'message': str(e), 'dll_type': None})
+            return results
 
     def cancel(self):
         """Request cancellation of current operation"""

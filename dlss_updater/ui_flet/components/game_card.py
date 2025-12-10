@@ -25,6 +25,14 @@ class GameCard(ft.Card):
         self.on_update_callback = on_update
         self.on_view_backups_callback = on_view_backups
 
+        # Update button reference for loading state
+        self.update_button: Optional[ft.TextButton] = None
+        self.is_updating = False
+
+        # Reference to dll_badges for refresh
+        self.dll_badges_container: Optional[ft.Row] = None
+        self.right_content: Optional[ft.Column] = None
+
         # Card styling optimized for grid layout
         self.elevation = 2
         self.surface_tint_color = "#2D6E88"
@@ -107,19 +115,21 @@ class GameCard(ft.Card):
         )
 
         # DLL badges
-        dll_badges = self._create_dll_badges()
+        self.dll_badges_container = self._create_dll_badges()
 
-        # Action buttons
+        # Action buttons - store reference to update button for loading state
+        self.update_button = ft.TextButton(
+            "Update",
+            icon=ft.Icons.UPDATE,
+            on_click=self._on_update_clicked,
+            style=ft.ButtonStyle(
+                color="#2D6E88",
+            ),
+        )
+
         action_buttons = ft.Row(
             controls=[
-                ft.TextButton(
-                    "Update",
-                    icon=ft.Icons.UPDATE,
-                    on_click=self._on_update_clicked,
-                    style=ft.ButtonStyle(
-                        color="#2D6E88",
-                    ),
-                ),
+                self.update_button,
                 ft.TextButton(
                     "View Backups",
                     icon=ft.Icons.RESTORE,
@@ -134,10 +144,10 @@ class GameCard(ft.Card):
         )
 
         # Right side content
-        right_content = ft.Column(
+        self.right_content = ft.Column(
             controls=[
                 game_info,
-                dll_badges,
+                self.dll_badges_container,
                 action_buttons,
             ],
             spacing=8,
@@ -150,7 +160,7 @@ class GameCard(ft.Card):
             content=ft.Row(
                 controls=[
                     self.image_container,
-                    right_content,
+                    self.right_content,
                 ],
                 spacing=16,
             ),
@@ -286,6 +296,8 @@ class GameCard(ft.Card):
 
     def _on_update_clicked(self, e):
         """Handle update button click"""
+        if self.is_updating:
+            return  # Prevent double-clicks during update
         if self.on_update_callback:
             self.on_update_callback(self.game)
 
@@ -293,3 +305,36 @@ class GameCard(ft.Card):
         """Handle view backups button click"""
         if self.on_view_backups_callback:
             self.on_view_backups_callback(self.game)
+
+    def set_updating(self, is_updating: bool):
+        """Set updating state - shows spinner and disables button"""
+        self.is_updating = is_updating
+        if self.update_button:
+            if is_updating:
+                self.update_button.text = "Updating..."
+                self.update_button.icon = ft.Icons.HOURGLASS_TOP
+                self.update_button.disabled = True
+                self.update_button.style = ft.ButtonStyle(
+                    color="#888888",
+                )
+            else:
+                self.update_button.text = "Update"
+                self.update_button.icon = ft.Icons.UPDATE
+                self.update_button.disabled = False
+                self.update_button.style = ft.ButtonStyle(
+                    color="#2D6E88",
+                )
+            self.update_button.update()
+
+    def refresh_dlls(self, new_dlls: List[GameDLL]):
+        """Refresh DLL badges with new data after update"""
+        self.dlls = new_dlls
+
+        # Rebuild the DLL badges
+        new_badges = self._create_dll_badges()
+
+        # Replace the old badges in right_content
+        if self.right_content and len(self.right_content.controls) >= 2:
+            self.right_content.controls[1] = new_badges
+            self.dll_badges_container = new_badges
+            self.right_content.update()

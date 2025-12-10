@@ -359,6 +359,9 @@ class DatabaseManager:
                 INSERT INTO game_dlls (game_id, dll_type, dll_filename, dll_path, current_version)
                 VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(dll_path) DO UPDATE SET
+                    game_id = excluded.game_id,
+                    dll_type = excluded.dll_type,
+                    dll_filename = excluded.dll_filename,
                     current_version = excluded.current_version,
                     detected_at = CURRENT_TIMESTAMP
                 RETURNING *
@@ -476,7 +479,7 @@ class DatabaseManager:
             cursor.execute("""
                 SELECT id, game_id, dll_type, dll_filename, dll_path, current_version, detected_at
                 FROM game_dlls
-                WHERE dll_path = ? AND is_active = 1
+                WHERE dll_path = ?
             """, (dll_path,))
 
             row = cursor.fetchone()

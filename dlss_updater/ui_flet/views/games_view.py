@@ -4,12 +4,14 @@ Games View - Display all games organized by launcher with Steam images
 
 import asyncio
 import math
-from typing import Dict, List
+from typing import Dict, List, Optional, Any
 import flet as ft
 
 from dlss_updater.database import db_manager, Game
 from dlss_updater.ui_flet.components.game_card import GameCard
 from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator
+from dlss_updater.config import is_dll_cache_ready
 
 
 class GamesView(ft.Column):
@@ -26,6 +28,10 @@ class GamesView(ft.Column):
         self.games_by_launcher: Dict[str, List[Game]] = {}
         self.is_loading = False
         self.refresh_button_ref = ft.Ref[ft.IconButton]()
+
+        # Game card tracking for single-game updates
+        self.game_cards: Dict[int, GameCard] = {}  # game_id -> GameCard
+        self.update_coordinator: Optional[AsyncUpdateCoordinator] = None
 
         # Build initial UI
         self._build_ui()
@@ -47,7 +53,7 @@ class GamesView(ft.Column):
                         expand=True,
                     ),
                     ft.ElevatedButton(
-                        "Delete All Games",
+                        "Delete Database",
                         icon=ft.Icons.DELETE_SWEEP,
                         on_click=self._on_delete_all_clicked,
                         style=ft.ButtonStyle(
@@ -178,6 +184,9 @@ class GamesView(ft.Column):
         """Build tabs for each launcher with games"""
         tabs = []
 
+        # Clear existing game cards tracking
+        self.game_cards.clear()
+
         # Launcher icons mapping
         launcher_icons = {
             "Steam": ft.Icons.VIDEOGAME_ASSET,
@@ -212,6 +221,9 @@ class GamesView(ft.Column):
                     on_update=self._on_game_update,
                     on_view_backups=self._on_view_backups,
                 )
+
+                # Track card for single-game updates
+                self.game_cards[game.id] = card
 
                 # Set initial opacity for staggered animation
                 card.opacity = 0
@@ -438,20 +450,182 @@ class GamesView(ft.Column):
             self.page.open(error_dialog)
 
     def _on_game_update(self, game):
-        """Handle game update button click"""
+        """Handle game update button click - launches async update"""
         self.logger.info(f"Update requested for game: {game.name}")
-        # TODO: Implement update for individual game
-        # This would trigger the update process for just this game's DLLs
+        # Launch the async update using Flet's page.run_task for proper event loop handling
         if self.page:
-            self.page.open(
-                ft.AlertDialog(
-                    title=ft.Text("Update Game"),
-                    content=ft.Text(f"Update functionality for {game.name} will be implemented soon.\n\nFor now, use 'Start Update' in the Launchers view."),
-                    actions=[
-                        ft.TextButton("OK", on_click=lambda e: self.page.close(e.control.parent) if self.page else None),
-                    ],
-                )
+            self.page.run_task(self._perform_game_update, game)
+
+    async def _perform_game_update(self, game):
+        """Perform the single-game DLL update"""
+        self.logger.info(f"Starting update for game: {game.name} (id: {game.id})")
+
+        # Check if DLL cache is ready
+        if not is_dll_cache_ready():
+            self.logger.warning("Update attempted before DLL cache initialized")
+            await self._show_error_dialog(
+                "Please Wait",
+                "DLL cache is still initializing. Please wait a moment and try again.",
+                ft.Colors.ORANGE
             )
+            return
+
+        # Find the game card to update its state
+        game_card = self.game_cards.get(game.id)
+
+        # Create and show progress dialog
+        progress_dialog = self._create_update_progress_dialog(game.name)
+        self.page.open(progress_dialog)
+
+        # Set card to updating state
+        if game_card:
+            game_card.set_updating(True)
+
+        try:
+            # Create coordinator if not exists
+            if not self.update_coordinator:
+                self.update_coordinator = AsyncUpdateCoordinator(self.logger)
+
+            # Progress callback to update dialog
+            async def on_progress(progress):
+                self._update_progress_dialog(progress_dialog, progress)
+
+            # Run update
+            result = await self.update_coordinator.update_single_game(
+                game.id,
+                game.name,
+                progress_callback=on_progress
+            )
+
+            # Close progress dialog
+            self.page.close(progress_dialog)
+
+            # Show results
+            await self._show_update_results_dialog(game.name, result)
+
+            # Refresh the game card's DLL badges if update succeeded
+            if result['success'] and game_card:
+                new_dlls = await db_manager.get_dlls_for_game(game.id)
+                game_card.refresh_dlls(new_dlls)
+
+        except Exception as ex:
+            self.logger.error(f"Update failed for {game.name}: {ex}", exc_info=True)
+            self.page.close(progress_dialog)
+            await self._show_error_dialog(
+                "Update Failed",
+                f"Failed to update {game.name}: {str(ex)}",
+                ft.Colors.RED
+            )
+        finally:
+            # Reset card state
+            if game_card:
+                game_card.set_updating(False)
+
+    def _create_update_progress_dialog(self, game_name: str) -> ft.AlertDialog:
+        """Create progress dialog for single-game update"""
+        self._progress_ring = ft.ProgressRing(width=40, height=40)
+        self._progress_text = ft.Text("Preparing update...", size=14)
+        self._progress_detail = ft.Text("", size=12, color="#888888")
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(f"Updating {game_name}"),
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[self._progress_ring],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                        ),
+                        self._progress_text,
+                        self._progress_detail,
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=12,
+                    tight=True,
+                ),
+                width=300,
+                padding=20,
+            ),
+        )
+        return dialog
+
+    def _update_progress_dialog(self, dialog: ft.AlertDialog, progress):
+        """Update progress dialog with current progress"""
+        if hasattr(self, '_progress_text') and self._progress_text:
+            self._progress_text.value = progress.message
+        if hasattr(self, '_progress_detail') and self._progress_detail:
+            self._progress_detail.value = f"{progress.current}/{progress.total} DLLs processed"
+        if self.page:
+            self.page.update()
+
+    async def _show_update_results_dialog(self, game_name: str, result: Dict[str, Any]):
+        """Show results dialog after single-game update"""
+        # Build result content
+        content_controls = []
+
+        if result['updated']:
+            content_controls.append(ft.Text("Updated:", weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN))
+            for item in result['updated']:
+                content_controls.append(ft.Text(f"  - {item['dll_type']}", size=12))
+
+        if result['skipped']:
+            if content_controls:
+                content_controls.append(ft.Container(height=8))
+            content_controls.append(ft.Text("Skipped:", weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE))
+            for item in result['skipped']:
+                reason = item.get('reason', 'Already up to date')
+                content_controls.append(ft.Text(f"  - {item['dll_type']}: {reason}", size=12))
+
+        if result['errors']:
+            if content_controls:
+                content_controls.append(ft.Container(height=8))
+            content_controls.append(ft.Text("Errors:", weight=ft.FontWeight.BOLD, color=ft.Colors.RED))
+            for item in result['errors']:
+                dll_type = item.get('dll_type', 'Unknown')
+                content_controls.append(ft.Text(f"  - {dll_type}: {item['message']}", size=12))
+
+        if not content_controls:
+            content_controls.append(ft.Text("No DLLs were processed.", color="#888888"))
+
+        # Determine title and icon based on results
+        if result['success']:
+            title = ft.Text(f"Update Complete - {game_name}", color=ft.Colors.GREEN)
+            icon = ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN, size=48)
+        elif result['errors']:
+            title = ft.Text(f"Update Failed - {game_name}", color=ft.Colors.RED)
+            icon = ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED, size=48)
+        else:
+            title = ft.Text(f"No Updates - {game_name}", color=ft.Colors.ORANGE)
+            icon = ft.Icon(ft.Icons.INFO, color=ft.Colors.ORANGE, size=48)
+
+        # Create dialog without actions first
+        results_dialog = ft.AlertDialog(
+            title=title,
+            content=ft.Column(
+                controls=[icon] + content_controls,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
+                tight=True,
+                scroll=ft.ScrollMode.AUTO,
+            ),
+        )
+        # Add actions after dialog exists
+        results_dialog.actions = [
+            ft.TextButton("OK", on_click=lambda e: self.page.close(results_dialog)),
+        ]
+        self.page.open(results_dialog)
+
+    async def _show_error_dialog(self, title: str, message: str, color=ft.Colors.RED):
+        """Show error dialog"""
+        error_dialog = ft.AlertDialog(
+            title=ft.Text(title, color=color),
+            content=ft.Text(message),
+        )
+        error_dialog.actions = [
+            ft.TextButton("OK", on_click=lambda e: self.page.close(error_dialog)),
+        ]
+        self.page.open(error_dialog)
 
     def _on_view_backups(self, game):
         """Handle view backups button click"""
