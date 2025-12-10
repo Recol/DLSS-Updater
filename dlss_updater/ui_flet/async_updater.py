@@ -109,22 +109,27 @@ class AsyncUpdateCoordinator:
         try:
             # Create progress wrapper that calls our async callback
             processed_count = 0
+            # Store pending progress tasks to ensure they complete
+            _pending_progress_tasks = []
 
             def sync_progress_callback(current, total, message):
                 """Synchronous progress callback for compatibility"""
-                nonlocal processed_count
+                nonlocal processed_count, _pending_progress_tasks
                 processed_count = current
                 percentage = int((current / total * 100)) if total > 0 else 0
 
                 # Call async callback directly (we're in async context now)
                 if self._progress_callback:
-                    # Schedule as a task to avoid blocking
-                    asyncio.create_task(self._progress_callback(UpdateProgress(
+                    # Schedule as a task and track it for completion
+                    task = asyncio.create_task(self._progress_callback(UpdateProgress(
                         current=current,
                         total=total,
                         message=message,
                         percentage=percentage
                     )))
+                    _pending_progress_tasks.append(task)
+                    # Clean up completed tasks to avoid memory growth
+                    _pending_progress_tasks[:] = [t for t in _pending_progress_tasks if not t.done()]
 
             # Call async update_dlss_versions directly (no thread pool)
             result = await update_dlss_versions(

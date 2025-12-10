@@ -49,44 +49,68 @@ async def main(page: ft.Page):
     logger = logging.getLogger("DLSSUpdater")
     logger.info("DLSS Updater (Flet) starting...")
 
-    # Initialize database
-    try:
-        from dlss_updater.database import db_manager
-        logger.info("Initializing database...")
-        await db_manager.initialize()
-        logger.info("Database initialized successfully")
-
-        # Clean up any duplicate backup entries (one-time cleanup)
+    # Run database and DLL cache initialization in parallel
+    async def init_database():
+        """Initialize database asynchronously"""
         try:
-            cleaned = await db_manager.cleanup_duplicate_backups()
-            if cleaned > 0:
-                logger.info(f"Cleaned up {cleaned} duplicate backup entries on startup")
-        except Exception as cleanup_error:
-            logger.warning(f"Failed to cleanup duplicate backups: {cleanup_error}")
+            from dlss_updater.database import db_manager
+            logger.info("Initializing database...")
+            await db_manager.initialize()
+            logger.info("Database initialized successfully")
+
+            # Run cleanup operations in parallel
+            cleanup_tasks = []
+            cleanup_tasks.append(db_manager.cleanup_duplicate_backups())
+            cleanup_tasks.append(db_manager.cleanup_duplicate_games())
+
+            results = await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    logger.warning(f"Cleanup task {i} failed: {result}")
+                elif result and result > 0:
+                    task_name = "backup" if i == 0 else "game"
+                    logger.info(f"Cleaned up {result} duplicate {task_name} entries on startup")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize database: {e}", exc_info=True)
+            # Continue without database - app should still work
+
+    async def init_dll_cache():
+        """Initialize DLL cache asynchronously with progress notification"""
+        snackbar = main_view.get_dll_cache_snackbar()
+
+        try:
+            from dlss_updater.dll_repository import initialize_dll_cache_async
+
+            await snackbar.show_initializing()
+            logger.info("Initializing DLL cache (async)...")
+
+            async def on_progress(current, total, message):
+                await snackbar.update_progress(current, total, message)
+
+            await initialize_dll_cache_async(progress_callback=on_progress)
+
+            logger.info("DLL cache initialized successfully")
+            await snackbar.show_complete()
+
+        except Exception as e:
+            logger.error(f"Failed to initialize DLL cache: {e}", exc_info=True)
+            await snackbar.show_error(f"Cache init failed: {str(e)[:40]}")
+
+    async def update_steam_list():
+        """Update Steam app list in background"""
+        try:
+            from dlss_updater.steam_integration import update_steam_app_list_if_needed
+            await update_steam_app_list_if_needed()
+        except Exception as e:
+            logger.warning(f"Failed to update Steam app list: {e}")
             # Non-critical, continue
 
-        # Clean up any duplicate game entries (one-time cleanup)
-        try:
-            cleaned = await db_manager.cleanup_duplicate_games()
-            if cleaned > 0:
-                logger.info(f"Cleaned up {cleaned} duplicate game entries on startup")
-        except Exception as cleanup_error:
-            logger.warning(f"Failed to cleanup duplicate games: {cleanup_error}")
-            # Non-critical, continue
+    # Initialize database first (fast operation, needed before UI)
+    await init_database()
 
-    except Exception as e:
-        logger.error(f"Failed to initialize database: {e}", exc_info=True)
-        # Continue without database - app should still work
-
-    # Update Steam app list if needed (in background)
-    try:
-        from dlss_updater.steam_integration import update_steam_app_list_if_needed
-        asyncio.create_task(update_steam_app_list_if_needed())
-    except Exception as e:
-        logger.warning(f"Failed to update Steam app list: {e}")
-        # Non-critical, continue
-
-    # Create and add main view
+    # Create and add main view (show UI immediately)
     main_view = MainView(page, logger)
     await main_view.initialize()
 
@@ -95,6 +119,11 @@ async def main(page: ft.Page):
     page.update()
 
     logger.info("UI initialized successfully")
+
+    # Now initialize DLL cache and Steam list in background (after UI is visible)
+    # This allows the user to see the app immediately while heavy init happens
+    asyncio.create_task(init_dll_cache())
+    asyncio.create_task(update_steam_list())
 
 
 def check_prerequisites():
@@ -116,16 +145,9 @@ def check_prerequisites():
 
     logger.info("Admin privileges confirmed")
 
-    # Initialize DLL cache after admin check (avoid circular imports)
-    try:
-        from dlss_updater.dll_repository import initialize_dll_cache
-
-        logger.info("Initializing DLL cache...")
-        initialize_dll_cache()
-        logger.info("DLL cache initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize DLL cache: {e}", exc_info=True)
-        sys.exit(1)
+    # DLL cache initialization is now done asynchronously after UI loads
+    # to avoid blocking the window from appearing
+    logger.info("DLL cache will be initialized after UI loads...")
 
     return logger
 

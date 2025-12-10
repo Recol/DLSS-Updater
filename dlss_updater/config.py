@@ -305,6 +305,11 @@ def get_current_settings():
     }
 
 
+def is_dll_cache_ready():
+    """Check if the DLL cache has been initialized"""
+    return len(LATEST_DLL_PATHS) > 0
+
+
 def initialize_dll_paths():
     """Initialize the DLL paths after all modules are loaded"""
     from .dll_repository import get_local_dll_path

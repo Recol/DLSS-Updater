@@ -25,8 +25,13 @@ def ensure_cache_dir():
     os.makedirs(LOCAL_DLL_CACHE_DIR, exist_ok=True)
 
 
-def get_local_dll_path(dll_name):
-    """Get path to cached DLL, download if newer version exists"""
+def get_local_dll_path(dll_name, skip_update_check=False):
+    """Get path to cached DLL, download if newer version exists
+
+    Args:
+        dll_name: Name of the DLL file
+        skip_update_check: If True, skip version comparison (used after cache init)
+    """
     ensure_cache_dir()
     local_path = os.path.join(LOCAL_DLL_CACHE_DIR, dll_name)
 
@@ -38,9 +43,10 @@ def get_local_dll_path(dll_name):
             logger.error(f"Failed to download {dll_name} and no local copy exists")
             return None
 
-    # Check for updates
-    if check_for_dll_update(dll_name):
-        download_latest_dll(dll_name)
+    # Skip update check if cache is already initialized or explicitly skipped
+    if not skip_update_check and not _cache_initialized:
+        if check_for_dll_update(dll_name):
+            download_latest_dll(dll_name)
 
     return local_path
 
@@ -196,6 +202,31 @@ def download_latest_dll(dll_name, progress_callback=None):
 _cache_initialized = False
 
 
+async def initialize_dll_cache_async(progress_callback=None):
+    """
+    Async wrapper for initialize_dll_cache - runs in thread pool to avoid blocking UI
+
+    Args:
+        progress_callback: Optional async callback(current, total, message) for progress updates
+    """
+    import asyncio
+
+    # Capture the running event loop before entering the thread pool
+    loop = asyncio.get_running_loop()
+
+    def sync_progress_wrapper(current, total, message):
+        """Wrap async callback for sync use - schedules on main event loop"""
+        if progress_callback:
+            # Use run_coroutine_threadsafe to schedule async callback from thread
+            asyncio.run_coroutine_threadsafe(
+                progress_callback(current, total, message),
+                loop
+            )
+
+    # Run synchronous init in thread pool
+    await asyncio.to_thread(initialize_dll_cache, sync_progress_wrapper if progress_callback else None)
+
+
 def initialize_dll_cache(progress_callback=None):
     """
     Initialize the DLL cache on application startup - parallel version
@@ -291,9 +322,12 @@ def initialize_dll_cache(progress_callback=None):
         if progress_callback:
             progress_callback(100, 100, "Using cached manifest")
 
+    # Mark cache as initialized BEFORE calling initialize_dll_paths
+    # This prevents get_local_dll_path from doing redundant version checks
+    _cache_initialized = True
+
     # Initialize DLL paths after cache initialization
     initialize_dll_paths()
-    _cache_initialized = True
 
     if progress_callback:
         progress_callback(100, 100, "DLL cache initialized")

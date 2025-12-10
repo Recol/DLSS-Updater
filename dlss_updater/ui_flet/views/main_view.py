@@ -28,6 +28,7 @@ from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdatePro
 from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
 from dlss_updater.ui_flet.components.navigation_drawer import CustomNavigationDrawer
+from dlss_updater.ui_flet.components.dll_cache_snackbar import DLLCacheProgressSnackbar
 from dlss_updater.version import __version__
 from dlss_updater.utils import find_game_root
 
@@ -63,6 +64,9 @@ class MainView(ft.Column):
         # Theme manager
         self.theme_manager = ThemeManager(page)
         self.theme_toggle_btn = None  # Will be created in _create_app_bar
+
+        # DLL cache progress snackbar
+        self.dll_cache_snackbar: Optional[DLLCacheProgressSnackbar] = None
 
         # Menu state
         self.menu_expanded = False
@@ -104,6 +108,10 @@ class MainView(ft.Column):
         # Add file picker to page overlay
         self.page.overlay.append(self.file_picker)
         self.page.overlay.append(self.loading_overlay)
+
+        # Create DLL cache progress notification and add wrapper to overlay
+        self.dll_cache_snackbar = DLLCacheProgressSnackbar(self.page)
+        self.page.overlay.append(self.dll_cache_snackbar.get_wrapper())
 
         # Load cached scan results if available
         await self._load_scan_cache()
@@ -806,6 +814,11 @@ class MainView(ft.Column):
         """Handle scan button click - scans for games and populates cards"""
         self.logger.info("Scan button clicked")
 
+        # Check if DLL cache is ready (warn but don't block - scanning works without it)
+        from dlss_updater.config import is_dll_cache_ready
+        if not is_dll_cache_ready():
+            self.logger.warning("Scanning before DLL cache initialized - version info may be incomplete")
+
         try:
             # Show loading overlay
             self.loading_overlay.show(self.page, "Scanning for games...")
@@ -1000,6 +1013,24 @@ class MainView(ft.Column):
         """Handle update button click - updates already-scanned games"""
         self.logger.info("Update button clicked")
 
+        # Check if DLL cache is ready
+        from dlss_updater.config import is_dll_cache_ready
+        if not is_dll_cache_ready():
+            self.logger.warning("Update attempted before DLL cache initialized")
+            error_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Please Wait", color=ft.Colors.ORANGE),
+                content=ft.Text("DLL cache is still initializing. Please wait a moment and try again."),
+                actions=[
+                    ft.FilledButton(
+                        "OK",
+                        on_click=lambda e: self.page.close(error_dialog)
+                    ),
+                ],
+            )
+            self.page.open(error_dialog)
+            return
+
         # Check if scan has been run
         if not self.last_scan_results:
             self.logger.warning("Update attempted without prior scan")
@@ -1107,27 +1138,35 @@ class MainView(ft.Column):
 
     async def _load_scan_cache(self):
         """Load cached scan results from disk if available"""
-        try:
+        def _read_cache_file():
+            """Blocking file read - run in thread pool"""
             if self.scan_cache_path.exists():
                 with open(self.scan_cache_path, 'rb') as f:
-                    cache = decode_json(f.read(), type=ScanCacheData)
-                    self.last_scan_results = cache.scan_results
-                    self.last_scan_timestamp = cache.timestamp
+                    return f.read()
+            return None
 
-                    if self.last_scan_results:
-                        total_games = sum(len(dlls) for dlls in self.last_scan_results.values())
-                        scan_time = datetime.fromisoformat(self.last_scan_timestamp)
-                        age = datetime.now() - scan_time
-                        hours_ago = age.total_seconds() / 3600
+        try:
+            # Use thread pool for blocking file I/O
+            cache_data = await asyncio.to_thread(_read_cache_file)
+            if cache_data:
+                cache = decode_json(cache_data, type=ScanCacheData)
+                self.last_scan_results = cache.scan_results
+                self.last_scan_timestamp = cache.timestamp
 
-                        if hours_ago < 1:
-                            time_str = f"{int(age.total_seconds() / 60)} minutes ago"
-                        elif hours_ago < 24:
-                            time_str = f"{int(hours_ago)} hours ago"
-                        else:
-                            time_str = f"{int(hours_ago / 24)} days ago"
+                if self.last_scan_results:
+                    total_games = sum(len(dlls) for dlls in self.last_scan_results.values())
+                    scan_time = datetime.fromisoformat(self.last_scan_timestamp)
+                    age = datetime.now() - scan_time
+                    hours_ago = age.total_seconds() / 3600
 
-                        self.logger.info(f"Loaded cached scan results: {total_games} games (scanned {time_str})")
+                    if hours_ago < 1:
+                        time_str = f"{int(age.total_seconds() / 60)} minutes ago"
+                    elif hours_ago < 24:
+                        time_str = f"{int(hours_ago)} hours ago"
+                    else:
+                        time_str = f"{int(hours_ago / 24)} days ago"
+
+                    self.logger.info(f"Loaded cached scan results: {total_games} games (scanned {time_str})")
         except Exception as e:
             self.logger.warning(f"Failed to load scan cache: {e}")
             self.last_scan_results = None
@@ -1135,15 +1174,21 @@ class MainView(ft.Column):
 
     async def _save_scan_cache(self):
         """Save scan results to disk for persistence across app restarts"""
+        def _write_cache_file(path, data):
+            """Blocking file write - run in thread pool"""
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, 'wb') as f:
+                f.write(data)
+
         try:
             timestamp = datetime.now().isoformat()
             cache = ScanCacheData(
                 scan_results=self.last_scan_results,
                 timestamp=timestamp
             )
-            self.scan_cache_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.scan_cache_path, 'wb') as f:
-                f.write(format_json(encode_json(cache)))
+            cache_data = format_json(encode_json(cache))
+            # Use thread pool for blocking file I/O
+            await asyncio.to_thread(_write_cache_file, self.scan_cache_path, cache_data)
             self.last_scan_timestamp = timestamp
             self.logger.info(f"Saved scan cache to {self.scan_cache_path}")
         except Exception as e:
@@ -1159,3 +1204,7 @@ class MainView(ft.Column):
         self.page.overlay.append(snackbar)
         snackbar.open = True
         self.page.update()
+
+    def get_dll_cache_snackbar(self) -> DLLCacheProgressSnackbar:
+        """Get the DLL cache progress snackbar for external use"""
+        return self.dll_cache_snackbar
