@@ -652,15 +652,17 @@ class MainView(ft.Column):
             expand=True,
         )
 
-        # Create max-width container for centering on large screens
-        max_width_content = ft.Container(
-            content=launcher_column,
-            width=900,  # Max width for launcher cards
+        # Create responsive container that centers on large screens
+        # Using ResponsiveRow to handle different window sizes
+        responsive_content = ft.Column(
+            controls=[launcher_column],
+            col={"xs": 12, "sm": 12, "md": 10, "lg": 8, "xl": 7},
+            expand=True,
         )
 
         return ft.Container(
-            content=ft.Row(
-                controls=[max_width_content],
+            content=ft.ResponsiveRow(
+                controls=[responsive_content],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
             padding=ft.padding.all(16),
