@@ -341,6 +341,7 @@ class MainView(ft.Column):
             on_click=on_click,
             tooltip=tooltip,
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+            animate_rotation=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=4,
@@ -434,13 +435,15 @@ class MainView(ft.Column):
         # Create the new AppMenuSelector component
         self.app_menu_selector = self._create_app_menu()
 
-        # Create expandable menu container
+        # Create expandable menu container with slide animation
         self.app_menu_container = ft.Container(
             content=self.app_menu_selector,
             height=0,
             opacity=0,
+            offset=ft.Offset(0, -0.1),  # Start slightly above
             animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT_CUBIC),
-            animate_opacity=ft.Animation(150, ft.AnimationCurve.EASE_IN),
+            animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+            animate_offset=ft.Animation(300, ft.AnimationCurve.EASE_OUT_CUBIC),
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
         )
 
@@ -462,18 +465,23 @@ class MainView(ft.Column):
         )
 
     def _toggle_app_menu(self, e):
-        """Toggle menu visibility"""
+        """Toggle menu visibility with smooth animations"""
+        import math
         self.menu_expanded = not self.menu_expanded
 
         if self.menu_expanded:
             self.app_menu_container.height = None
             self.app_menu_container.opacity = 1
-            # Change icon to indicate menu is open (update the icon inside the container)
+            self.app_menu_container.offset = ft.Offset(0, 0)  # Slide to position
+            # Rotate button 180° and change icon
+            self.more_menu_btn.rotate = ft.Rotate(angle=math.pi)
             self.more_menu_btn.content.name = ft.Icons.EXPAND_LESS
         else:
             self.app_menu_container.height = 0
             self.app_menu_container.opacity = 0
-            # Change icon back to default
+            self.app_menu_container.offset = ft.Offset(0, -0.1)  # Slide up
+            # Reset rotation and change icon back
+            self.more_menu_btn.rotate = ft.Rotate(angle=0)
             self.more_menu_btn.content.name = ft.Icons.MORE_VERT
 
         self.page.update()
