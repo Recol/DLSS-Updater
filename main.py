@@ -49,6 +49,25 @@ async def main(page: ft.Page):
     logger = logging.getLogger("DLSSUpdater")
     logger.info("DLSS Updater (Flet) starting...")
 
+    # Create startup loading overlay
+    from dlss_updater.ui_flet.theme.colors import MD3Colors
+    startup_overlay = ft.Container(
+        content=ft.Column(
+            controls=[
+                ft.ProgressRing(color=MD3Colors.PRIMARY, width=50, height=50),
+                ft.Text("Loading...", size=16, color=MD3Colors.get_on_surface(True)),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=20,
+        ),
+        expand=True,
+        alignment=ft.alignment.center,
+        bgcolor=MD3Colors.get_background(True),
+    )
+    page.add(startup_overlay)
+    page.update()
+
     # Run database and DLL cache initialization in parallel
     async def init_database():
         """Initialize database asynchronously"""
@@ -109,6 +128,10 @@ async def main(page: ft.Page):
 
     # Initialize database first (fast operation, needed before UI)
     await init_database()
+
+    # Clear startup overlay and show main UI
+    page.controls.clear()
+    page.update()
 
     # Create and add main view (show UI immediately)
     main_view = MainView(page, logger)

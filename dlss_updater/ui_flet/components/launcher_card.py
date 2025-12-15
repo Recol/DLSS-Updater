@@ -11,7 +11,7 @@ import flet as ft
 
 from dlss_updater.config import LauncherPathName
 from dlss_updater.models import GameCardData, DLLInfo
-from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.theme.colors import MD3Colors, LauncherColors
 
 
 class LauncherCard(ft.ExpansionTile):
@@ -81,14 +81,49 @@ class LauncherCard(ft.ExpansionTile):
         """Property for backward compatibility - returns the launcher name"""
         return self.name_str
 
+    def _create_launcher_icon_circle(
+        self,
+        icon: str,
+        color: str,
+        size: int = 44,
+        icon_size: int = 24,
+    ) -> ft.Container:
+        """
+        Create a colored circular container with launcher icon inside.
+        Follows AppMenuSelector pattern for visual consistency.
+        """
+        return ft.Container(
+            content=ft.Icon(
+                icon,
+                size=icon_size,
+                color=ft.Colors.WHITE,
+            ),
+            width=size,
+            height=size,
+            bgcolor=color,
+            border_radius=size // 2,  # Perfect circle
+            alignment=ft.alignment.center,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=4,
+                offset=ft.Offset(0, 2),
+                color=f"{color}40",  # 25% opacity of the brand color
+            ),
+            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+        )
+
     def _build_components(self, is_dark: bool):
         """Build the UI components for the ExpansionTile"""
 
-        # Leading: Launcher icon
-        self.launcher_icon = ft.Icon(
+        # Get launcher brand color
+        self.brand_color = LauncherColors.get_color(self.launcher_enum.name)
+
+        # Leading: Launcher icon in colored circle
+        self.launcher_icon = self._create_launcher_icon_circle(
             self.icon_name,
-            size=40,
-            color=MD3Colors.PRIMARY
+            self.brand_color,
+            size=44,
+            icon_size=24,
         )
 
         # Title: Launcher name with no wrapping

@@ -166,3 +166,37 @@ class Shadows:
             color="rgba(0, 0, 0, 0.16)",
         ),
     ]
+
+
+class LauncherColors:
+    """Brand colors for each game launcher"""
+
+    # Launcher brand colors
+    STEAM = "#1b2838"           # Steam dark blue
+    EA = "#FF4500"              # EA orange
+    EPIC = "#2F2D2E"            # Epic dark gray
+    UBISOFT = "#0070FF"         # Ubisoft blue
+    GOG = "#86328A"             # GOG purple
+    BATTLENET = "#00AEFF"       # Battle.net blue
+    XBOX = "#107C10"            # Xbox green
+    CUSTOM = "#2D6E88"          # Primary teal for custom folders
+
+    # Mapping for enum lookup
+    _MAPPING = {
+        "STEAM": STEAM,
+        "EA": EA,
+        "EPIC": EPIC,
+        "UBISOFT": UBISOFT,
+        "GOG": GOG,
+        "BATTLENET": BATTLENET,
+        "XBOX": XBOX,
+        "CUSTOM1": CUSTOM,
+        "CUSTOM2": CUSTOM,
+        "CUSTOM3": CUSTOM,
+        "CUSTOM4": CUSTOM,
+    }
+
+    @classmethod
+    def get_color(cls, launcher_name: str) -> str:
+        """Get brand color for a launcher by name"""
+        return cls._MAPPING.get(launcher_name.upper(), cls.CUSTOM)

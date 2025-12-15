@@ -29,6 +29,7 @@ from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
 from dlss_updater.ui_flet.components.navigation_drawer import CustomNavigationDrawer
 from dlss_updater.ui_flet.components.dll_cache_snackbar import DLLCacheProgressSnackbar
+from dlss_updater.ui_flet.components.app_menu_selector import AppMenuSelector, MenuCategory, MenuItem
 from dlss_updater.version import __version__
 from dlss_updater.utils import find_game_root
 
@@ -70,7 +71,7 @@ class MainView(ft.Column):
 
         # Menu state
         self.menu_expanded = False
-        self.theme_toggle_menu_item = None
+        self.app_menu_selector = None  # Will be created in _create_app_bar
 
         # Navigation state
         self.current_view_index = 0  # 0=Launchers, 1=Games, 2=Backups
@@ -178,8 +179,81 @@ class MainView(ft.Column):
             self.logger_panel,
         ]
 
+    def _create_action_button(
+        self,
+        label: str,
+        icon: str,
+        color: str,
+        on_click,
+    ) -> ft.Container:
+        """
+        Create an action button with icon in colored circle.
+        Follows AppMenuSelector menu item pattern.
+        """
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+
+        is_dark = self.theme_manager.is_dark
+
+        # Icon circle
+        icon_circle = ft.Container(
+            content=ft.Icon(icon, size=20, color=ft.Colors.WHITE),
+            width=40,
+            height=40,
+            bgcolor=color,
+            border_radius=20,
+            alignment=ft.alignment.center,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=4,
+                offset=ft.Offset(0, 2),
+                color=f"{color}40",
+            ),
+        )
+
+        # Label text
+        label_text = ft.Text(
+            label,
+            size=14,
+            weight=ft.FontWeight.W_600,
+            color=MD3Colors.get_on_surface(is_dark),
+        )
+
+        # Button container - store reference for hover effect
+        button_container = ft.Container(
+            content=ft.Row(
+                controls=[icon_circle, label_text],
+                spacing=12,
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
+            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+            border_radius=12,
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
+            border=ft.border.all(1, MD3Colors.get_outline(is_dark)),
+            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+            on_click=on_click,
+        )
+
+        # Add hover effect
+        def on_hover(e):
+            if e.data == "true":
+                button_container.bgcolor = f"{color}15"
+                button_container.border = ft.border.all(1, f"{color}30")
+            else:
+                button_container.bgcolor = MD3Colors.get_surface_variant(is_dark)
+                button_container.border = ft.border.all(1, MD3Colors.get_outline(is_dark))
+            if self.page:
+                button_container.update()
+
+        button_container.on_hover = on_hover
+
+        return button_container
+
     async def _create_launchers_view(self):
         """Create the launchers view with cards and action buttons"""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+
+        is_dark = self.theme_manager.is_dark
+
         # Create launcher cards
         launcher_list = await self._create_launcher_list()
 
@@ -187,12 +261,27 @@ class MainView(ft.Column):
         self.last_scan_info_text = ft.Text(
             "",
             size=12,
-            color="#888888",
+            color=MD3Colors.get_on_surface_variant(is_dark),
             ref=ft.Ref[ft.Text]()
         )
         self._update_scan_info_text()
 
-        # Create action buttons (scan and update)
+        # Create styled action buttons with icon circles
+        scan_button = self._create_action_button(
+            label="Scan for Games",
+            icon=ft.Icons.SEARCH,
+            color="#2D6E88",  # Teal
+            on_click=self._on_scan_clicked,
+        )
+
+        update_button = self._create_action_button(
+            label="Start Update",
+            icon=ft.Icons.DOWNLOAD,
+            color="#2D5A88",  # Blue
+            on_click=self._on_update_clicked,
+        )
+
+        # Create action buttons container with dark surface style
         action_buttons = ft.Container(
             content=ft.Column(
                 controls=[
@@ -200,36 +289,14 @@ class MainView(ft.Column):
                     ft.Container(
                         content=self.last_scan_info_text,
                         alignment=ft.alignment.center,
-                        padding=ft.padding.only(bottom=8),
+                        padding=ft.padding.only(bottom=12),
                     ),
                     # Buttons row
                     ft.Row(
                         controls=[
-                            ft.ElevatedButton(
-                                "Scan for Games",
-                                icon=ft.Icons.SEARCH,
-                                on_click=self._on_scan_clicked,
-                                style=ft.ButtonStyle(
-                                    bgcolor="#2D6E88",
-                                    color=ft.Colors.WHITE,
-                                    padding=ft.padding.symmetric(horizontal=24, vertical=12),
-                                ),
-                                height=50,
-                                animate_scale=ft.Animation(100, ft.AnimationCurve.EASE_OUT),
-                            ),
+                            scan_button,
                             ft.Container(width=16),  # Spacer
-                            ft.ElevatedButton(
-                                "Start Update",
-                                icon=ft.Icons.DOWNLOAD,
-                                on_click=self._on_update_clicked,
-                                style=ft.ButtonStyle(
-                                    bgcolor="#2D5A88",
-                                    color=ft.Colors.WHITE,
-                                    padding=ft.padding.symmetric(horizontal=32, vertical=16),
-                                ),
-                                height=50,
-                                animate_scale=ft.Animation(100, ft.AnimationCurve.EASE_OUT),
-                            ),
+                            update_button,
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
@@ -237,30 +304,63 @@ class MainView(ft.Column):
                 spacing=0,
             ),
             padding=ft.padding.all(16),
-            bgcolor="#2E2E2E",
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
+            border=ft.border.only(top=ft.BorderSide(1, MD3Colors.get_outline(is_dark))),
         )
 
         # Return launchers view as a Column
         return ft.Column(
             controls=[
                 launcher_list,
-                ft.Divider(height=1, color="#5A5A5A"),
                 action_buttons,
             ],
             expand=True,
             spacing=0,
         )
 
+    def _create_header_icon_button(
+        self,
+        icon: str,
+        color: str,
+        tooltip: str,
+        on_click,
+        size: int = 40,
+        icon_size: int = 20,
+    ) -> ft.Container:
+        """
+        Create a header button with colored icon circle.
+        Follows AppMenuSelector pattern for visual consistency.
+        """
+        return ft.Container(
+            content=ft.Icon(icon, size=icon_size, color=ft.Colors.WHITE),
+            width=size,
+            height=size,
+            bgcolor=color,
+            border_radius=size // 2,
+            alignment=ft.alignment.center,
+            on_click=on_click,
+            tooltip=tooltip,
+            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=4,
+                offset=ft.Offset(0, 2),
+                color=f"{color}40",  # 25% opacity glow
+            ),
+        )
+
     async def _create_app_bar(self) -> ft.Container:
         """Create the application bar with hamburger menu and ExpansionTiles"""
-        # Create hamburger button for navigation drawer
-        hamburger_btn = ft.IconButton(
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+
+        is_dark = self.theme_manager.is_dark
+
+        # Create hamburger button with colored circle
+        hamburger_btn = self._create_header_icon_button(
             icon=ft.Icons.MENU,
-            icon_color="#FFFFFF",
-            on_click=self._open_navigation_drawer,
+            color=MD3Colors.PRIMARY,  # Teal
             tooltip="Navigation Menu",
-            splash_radius=24,
-            hover_color="rgba(255, 255, 255, 0.08)",
+            on_click=self._open_navigation_drawer,
         )
 
         # Badge for hamburger button (shown when updates available)
@@ -285,53 +385,20 @@ class MainView(ft.Column):
             height=48,
         )
 
-        # Create update badge for right side
-        self.update_badge_dot = ft.Container(
-            width=10,
-            height=10,
-            bgcolor=ft.Colors.RED,
-            border_radius=5,
-            visible=False,
-        )
-
-        self.update_badge = ft.Stack(
-            controls=[
-                ft.IconButton(
-                    icon=ft.Icons.SYSTEM_UPDATE,
-                    icon_color="#FFFFFF",
-                    on_click=self._on_check_updates_clicked,
-                    splash_radius=24,
-                    hover_color="rgba(255, 255, 255, 0.08)",
-                    tooltip="Check for App Updates",
-                ),
-                ft.Container(
-                    content=self.update_badge_dot,
-                    right=0,
-                    top=0,
-                ),
-            ],
-            width=48,
-            height=48,
-        )
-
-        # Create Support Development button
-        support_btn = ft.IconButton(
+        # Create Support Development button with colored circle
+        support_btn = self._create_header_icon_button(
             icon=ft.Icons.FAVORITE,
-            icon_color="#FFFFFF",
-            on_click=lambda _: webbrowser.open("https://buymeacoffee.com/decouk"),
-            splash_radius=24,
-            hover_color="rgba(255, 255, 255, 0.08)",
+            color="#E91E63",  # Pink
             tooltip="Support Development - Buy me a coffee",
+            on_click=lambda _: webbrowser.open("https://buymeacoffee.com/decouk"),
         )
 
-        # Create More menu button (opens ExpansionTile menu)
-        self.more_menu_btn = ft.IconButton(
+        # Create More menu button with colored circle
+        self.more_menu_btn = self._create_header_icon_button(
             icon=ft.Icons.MORE_VERT,
-            icon_color="#FFFFFF",
-            on_click=self._toggle_app_menu,
-            splash_radius=24,
-            hover_color="rgba(255, 255, 255, 0.08)",
+            color=MD3Colors.PRIMARY,  # Teal
             tooltip="More Options",
+            on_click=self._toggle_app_menu,
         )
 
         # Compact top bar
@@ -344,12 +411,12 @@ class MainView(ft.Column):
                             "DLSS Updater",
                             size=24,
                             weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.WHITE,
+                            color=MD3Colors.get_on_surface(is_dark),
                         ),
                         ft.Text(
                             f"Version {__version__}",
                             size=12,
-                            color="#B0B0B0",
+                            color=MD3Colors.get_on_surface_variant(is_dark),
                             weight=ft.FontWeight.W_400,
                             opacity=0.9,
                         ),
@@ -357,17 +424,19 @@ class MainView(ft.Column):
                     spacing=2,
                     expand=True,
                 ),
-                # Right side buttons: Update, Support, More menu
-                self.update_badge,
+                # Right side buttons: Support, More menu
                 support_btn,
                 self.more_menu_btn,
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
 
+        # Create the new AppMenuSelector component
+        self.app_menu_selector = self._create_app_menu()
+
         # Create expandable menu container
         self.app_menu_container = ft.Container(
-            content=self._create_menu_expansion_tiles(),
+            content=self.app_menu_selector,
             height=0,
             opacity=0,
             animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT_CUBIC),
@@ -375,234 +444,21 @@ class MainView(ft.Column):
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
         )
 
-        # Return app bar with menu in a Column
+        # Return app bar with dark surface style (full width, no border)
         return ft.Container(
             content=ft.Column(
                 controls=[
-                    top_bar,
+                    ft.Container(
+                        content=top_bar,
+                        padding=ft.padding.symmetric(horizontal=16),
+                    ),
                     self.app_menu_container,
                 ],
                 spacing=0,
             ),
-            padding=ft.padding.all(16),
-            gradient=ft.LinearGradient(
-                begin=ft.alignment.top_left,
-                end=ft.alignment.bottom_right,
-                colors=["#2D6E88", "#245A72"],
-            ),
-            shadow=ft.BoxShadow(
-                spread_radius=0,
-                blur_radius=8,
-                offset=ft.Offset(0, 2),
-                color="rgba(0, 0, 0, 0.24)",
-            ),
-        )
-
-    def _create_menu_expansion_tiles(self) -> ft.Column:
-        """Create all ExpansionTile groups for the menu"""
-        # Import MD3Colors for theme-aware colors
-        from dlss_updater.ui_flet.theme.colors import MD3Colors
-        is_dark = self.theme_manager.is_dark
-
-        # Help & Support ExpansionTile
-        help_support_tile = ft.ExpansionTile(
-            title=ft.Text("Help & Support", weight=ft.FontWeight.W_500),
-            leading=ft.Icon(ft.Icons.HELP_OUTLINE, color=MD3Colors.get_on_surface(is_dark)),
-            bgcolor="transparent",
-            collapsed_bgcolor="transparent",
-            icon_color=MD3Colors.get_on_surface(is_dark),
-            collapsed_icon_color=MD3Colors.get_on_surface_variant(is_dark),
-            text_color=MD3Colors.get_on_surface(is_dark),
-            collapsed_text_color=MD3Colors.get_on_surface_variant(is_dark),
-            tile_padding=ft.padding.symmetric(horizontal=16, vertical=8),
-            controls_padding=ft.padding.only(left=40, right=16, bottom=8),
-            maintain_state=True,
-            controls=[
-                self._create_menu_item(
-                    ft.Icons.COFFEE,
-                    "Support Development",
-                    "Buy me a coffee",
-                    lambda _: webbrowser.open("https://buymeacoffee.com/decouk"),
-                ),
-                self._create_menu_item(
-                    ft.Icons.BUG_REPORT,
-                    "Report Bug",
-                    "Submit an issue on GitHub",
-                    lambda _: webbrowser.open("https://github.com/Recol/DLSS-Updater/issues"),
-                ),
-                # Contact nested submenu
-                ft.ExpansionTile(
-                    title=ft.Text("Contact", size=14),
-                    leading=ft.Icon(ft.Icons.CONTACTS, size=20, color=MD3Colors.get_on_surface(is_dark)),
-                    bgcolor="transparent",
-                    collapsed_bgcolor="transparent",
-                    icon_color=MD3Colors.get_on_surface(is_dark),
-                    collapsed_icon_color=MD3Colors.get_on_surface_variant(is_dark),
-                    text_color=MD3Colors.get_on_surface(is_dark),
-                    collapsed_text_color=MD3Colors.get_on_surface_variant(is_dark),
-                    dense=True,
-                    controls_padding=ft.padding.only(left=40, right=16, bottom=8),
-                    controls=[
-                        self._create_menu_item(
-                            ft.Icons.TAG,
-                            "Twitter",
-                            "Follow on Twitter",
-                            lambda _: webbrowser.open("https://x.com/iDeco_UK"),
-                        ),
-                        self._create_menu_item(
-                            ft.Icons.CHAT,
-                            "Discord",
-                            "Message on Discord",
-                            lambda _: webbrowser.open("https://discord.com/users/162568099839606784"),
-                        ),
-                    ],
-                ),
-                self._create_menu_item(
-                    ft.Icons.ARTICLE,
-                    "Release Notes",
-                    "View changelog",
-                    self._on_release_notes_clicked,
-                ),
-            ],
-        )
-
-        # Settings ExpansionTile
-        settings_tile = ft.ExpansionTile(
-            title=ft.Text("Settings", weight=ft.FontWeight.W_500),
-            leading=ft.Icon(ft.Icons.SETTINGS_OUTLINED, color=MD3Colors.get_on_surface(is_dark)),
-            bgcolor="transparent",
-            collapsed_bgcolor="transparent",
-            icon_color=MD3Colors.get_on_surface(is_dark),
-            collapsed_icon_color=MD3Colors.get_on_surface_variant(is_dark),
-            text_color=MD3Colors.get_on_surface(is_dark),
-            collapsed_text_color=MD3Colors.get_on_surface_variant(is_dark),
-            tile_padding=ft.padding.symmetric(horizontal=16, vertical=8),
-            controls_padding=ft.padding.only(left=40, right=16, bottom=8),
-            maintain_state=True,
-            controls=[
-                self._create_menu_item(
-                    ft.Icons.SETTINGS,
-                    "Update Preferences",
-                    "Configure update settings",
-                    self._on_settings_clicked,
-                ),
-                self._create_menu_item(
-                    ft.Icons.BLOCK,
-                    "Manage Blacklist",
-                    "Exclude specific games",
-                    self._on_blacklist_clicked,
-                ),
-                self._create_theme_toggle_item(),
-            ],
-        )
-
-        # Application ExpansionTile
-        application_tile = ft.ExpansionTile(
-            title=ft.Text("Application", weight=ft.FontWeight.W_500),
-            leading=ft.Icon(ft.Icons.APP_SETTINGS_ALT, color=MD3Colors.get_on_surface(is_dark)),
-            bgcolor="transparent",
-            collapsed_bgcolor="transparent",
-            icon_color=MD3Colors.get_on_surface(is_dark),
-            collapsed_icon_color=MD3Colors.get_on_surface_variant(is_dark),
-            text_color=MD3Colors.get_on_surface(is_dark),
-            collapsed_text_color=MD3Colors.get_on_surface_variant(is_dark),
-            tile_padding=ft.padding.symmetric(horizontal=16, vertical=8),
-            controls_padding=ft.padding.only(left=40, right=16, bottom=8),
-            maintain_state=True,
-            controls=[
-                self._create_menu_item(
-                    ft.Icons.SYSTEM_UPDATE,
-                    "Check for Updates",
-                    "Check for app updates",
-                    self._on_check_updates_clicked,
-                    trailing_badge=True,
-                ),
-            ],
-        )
-
-        return ft.Column(
-            controls=[
-                help_support_tile,
-                settings_tile,
-                application_tile,
-            ],
-            spacing=4,
-        )
-
-    def _create_menu_item(
-        self,
-        icon: str,
-        text: str,
-        tooltip: str,
-        on_click,
-        trailing_badge: bool = False
-    ) -> ft.Container:
-        """Create a styled menu item"""
-        from dlss_updater.ui_flet.theme.colors import MD3Colors
-        is_dark = self.theme_manager.is_dark
-
-        item = ft.ListTile(
-            leading=ft.Icon(icon, color=MD3Colors.get_on_surface(is_dark), size=20),
-            title=ft.Text(text, color=MD3Colors.get_on_surface(is_dark), size=14),
-            on_click=on_click,
-            hover_color="rgba(255, 255, 255, 0.08)",
-            dense=True,
-            content_padding=ft.padding.symmetric(horizontal=16, vertical=4),
-        )
-
-        if trailing_badge:
-            # Add badge indicator for update menu item
-            self.update_menu_badge_dot = ft.Container(
-                width=8,
-                height=8,
-                bgcolor=ft.Colors.RED,
-                border_radius=4,
-                visible=False,
-            )
-            item = ft.Stack(
-                controls=[
-                    item,
-                    ft.Container(
-                        content=self.update_menu_badge_dot,
-                        right=16,
-                        top=8,
-                    )
-                ]
-            )
-
-        return ft.Container(
-            content=item,
-            tooltip=tooltip,
-            animate_scale=ft.Animation(100, ft.AnimationCurve.EASE_OUT),
-        )
-
-    def _create_theme_toggle_item(self) -> ft.Container:
-        """Create theme toggle menu item - currently disabled due to light theme issues"""
-        # Theme toggle is disabled due to issues with light theme
-        self.theme_toggle_menu_item = ft.ListTile(
-            leading=ft.Icon(
-                ft.Icons.BRIGHTNESS_6,
-                color="#666666",  # Grayed out
-                size=20,
-            ),
-            title=ft.Text(
-                "Theme: Dark Mode",
-                color="#666666",  # Grayed out
-                size=14,
-            ),
-            subtitle=ft.Text(
-                "Disabled (light theme has issues)",
-                color="#888888",
-                size=10,
-            ),
-            on_click=None,  # Disabled
-            dense=True,
-            content_padding=ft.padding.symmetric(horizontal=16, vertical=4),
-        )
-
-        return ft.Container(
-            content=self.theme_toggle_menu_item,
-            tooltip="Theme switching is temporarily disabled due to light theme issues",
+            padding=ft.padding.symmetric(vertical=16, horizontal=0),
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
+            shadow=Shadows.LEVEL_2,
         )
 
     def _toggle_app_menu(self, e):
@@ -612,16 +468,123 @@ class MainView(ft.Column):
         if self.menu_expanded:
             self.app_menu_container.height = None
             self.app_menu_container.opacity = 1
-            # Change icon to indicate menu is open
-            self.more_menu_btn.icon = ft.Icons.EXPAND_LESS
+            # Change icon to indicate menu is open (update the icon inside the container)
+            self.more_menu_btn.content.name = ft.Icons.EXPAND_LESS
         else:
             self.app_menu_container.height = 0
             self.app_menu_container.opacity = 0
             # Change icon back to default
-            self.more_menu_btn.icon = ft.Icons.MORE_VERT
+            self.more_menu_btn.content.name = ft.Icons.MORE_VERT
 
         self.page.update()
         self.logger.info(f"Menu {'expanded' if self.menu_expanded else 'collapsed'}")
+
+    def _create_app_menu(self) -> AppMenuSelector:
+        """Create the AppMenuSelector with all categories"""
+        categories = [
+            MenuCategory(
+                id="community",
+                title="Community & Support",
+                icon=ft.Icons.FAVORITE,
+                color="#E91E63",  # Pink
+                items=[
+                    MenuItem(
+                        id="support",
+                        title="Support Development",
+                        description="Buy me a coffee",
+                        icon=ft.Icons.COFFEE,
+                        on_click=lambda _: webbrowser.open("https://buymeacoffee.com/decouk"),
+                        tooltip="Support the developer",
+                    ),
+                    MenuItem(
+                        id="bug_report",
+                        title="Report Bug",
+                        description="Submit an issue on GitHub",
+                        icon=ft.Icons.BUG_REPORT,
+                        on_click=lambda _: webbrowser.open("https://github.com/Recol/DLSS-Updater/issues"),
+                    ),
+                    MenuItem(
+                        id="twitter",
+                        title="Twitter",
+                        description="Follow on Twitter",
+                        icon=ft.Icons.TAG,
+                        on_click=lambda _: webbrowser.open("https://x.com/iDeco_UK"),
+                    ),
+                    MenuItem(
+                        id="discord",
+                        title="Discord",
+                        description="Message on Discord",
+                        icon=ft.Icons.CHAT,
+                        on_click=lambda _: webbrowser.open("https://discord.com/users/162568099839606784"),
+                    ),
+                    MenuItem(
+                        id="release_notes",
+                        title="Release Notes",
+                        description="View changelog",
+                        icon=ft.Icons.ARTICLE,
+                        on_click=self._on_release_notes_clicked,
+                    ),
+                ],
+            ),
+            MenuCategory(
+                id="preferences",
+                title="Preferences",
+                icon=ft.Icons.TUNE,
+                color="#FF9800",  # Orange
+                items=[
+                    MenuItem(
+                        id="update_prefs",
+                        title="Update Preferences",
+                        description="Configure update settings",
+                        icon=ft.Icons.SETTINGS,
+                        on_click=self._on_settings_clicked,
+                    ),
+                    MenuItem(
+                        id="blacklist",
+                        title="Manage Blacklist",
+                        description="Exclude specific games",
+                        icon=ft.Icons.BLOCK,
+                        on_click=self._on_blacklist_clicked,
+                    ),
+                    MenuItem(
+                        id="theme",
+                        title="Theme: Dark Mode",
+                        description="Disabled (light theme has issues)",
+                        icon=ft.Icons.BRIGHTNESS_6,
+                        is_disabled=True,
+                        tooltip="Theme switching is temporarily disabled",
+                    ),
+                ],
+            ),
+            MenuCategory(
+                id="application",
+                title="Application",
+                icon=ft.Icons.APPS,
+                color="#2196F3",  # Blue
+                items=[
+                    MenuItem(
+                        id="check_updates",
+                        title="Check for Updates",
+                        description="Check for app updates",
+                        icon=ft.Icons.SYSTEM_UPDATE,
+                        on_click=self._on_check_updates_clicked,
+                        show_badge=False,
+                    ),
+                ],
+            ),
+        ]
+
+        return AppMenuSelector(
+            page=self.page,
+            categories=categories,
+            on_item_selected=self._on_menu_item_selected,
+            initially_expanded=False,
+            is_dark=self.theme_manager.is_dark,
+        )
+
+    def _on_menu_item_selected(self, item_id: str):
+        """Handle menu item selection callback"""
+        self.logger.debug(f"Menu item selected: {item_id}")
 
     async def _toggle_theme_from_menu(self, e):
         """Handle theme toggle from menu"""
@@ -634,8 +597,9 @@ class MainView(ft.Column):
 
     async def _rebuild_expansion_menu(self):
         """Rebuild expansion menu with updated colors after theme change"""
-        # Rebuild the menu expansion tiles with new theme colors
-        self.app_menu_container.content = self._create_menu_expansion_tiles()
+        # Rebuild the AppMenuSelector with new theme colors
+        self.app_menu_selector = self._create_app_menu()
+        self.app_menu_container.content = self.app_menu_selector
         self.page.update()
 
     async def _create_launcher_list(self) -> ft.Container:
@@ -774,17 +738,16 @@ class MainView(ft.Column):
 
     def show_update_badge(self, show: bool = True):
         """
-        Show or hide update available badge on app update button and hamburger menu
+        Show or hide update available badge on hamburger menu
 
         Args:
             show: True to display red badge indicator, False to hide it
         """
-        if hasattr(self, 'update_badge_dot'):
-            self.update_badge_dot.visible = show
         if hasattr(self, 'hamburger_badge_dot'):
             self.hamburger_badge_dot.visible = show
-        if hasattr(self, 'update_menu_badge_dot'):
-            self.update_menu_badge_dot.visible = show
+        # Use new AppMenuSelector API for menu badge
+        if hasattr(self, 'app_menu_selector'):
+            self.app_menu_selector.set_badge_visible("check_updates", show)
         if self.page:
             self.page.update()
             self.logger.info(f"Update badge {'shown' if show else 'hidden'}")
