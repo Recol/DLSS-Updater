@@ -53,7 +53,7 @@ class LauncherCard(ft.ExpansionTile):
 
         # Initialize ExpansionTile with Material Design 3 styling
         super().__init__(
-            leading=self.launcher_icon,
+            leading=self.leading_row,
             title=self.title_text,
             subtitle=self.subtitle_column,
             trailing=self.trailing_row,
@@ -190,12 +190,22 @@ class LauncherCard(ft.ExpansionTile):
             height=36,
         )
 
-        # Trailing: Row with Browse, Reset, and Status icon buttons
+        # Leading: Row with status icon + launcher icon for visual symmetry
+        self.leading_row = ft.Row(
+            controls=[
+                self.status_icon,
+                self.launcher_icon,
+            ],
+            spacing=8,
+            tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        # Trailing: Row with action buttons only (status moved to leading)
         self.trailing_row = ft.Row(
             controls=[
                 self.browse_btn,
                 self.reset_btn,
-                self.status_icon,
             ],
             spacing=8,
             tight=True,

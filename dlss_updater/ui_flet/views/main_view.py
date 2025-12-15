@@ -652,8 +652,17 @@ class MainView(ft.Column):
             expand=True,
         )
 
-        return ft.Container(
+        # Create max-width container for centering on large screens
+        max_width_content = ft.Container(
             content=launcher_column,
+            width=900,  # Max width for launcher cards
+        )
+
+        return ft.Container(
+            content=ft.Row(
+                controls=[max_width_content],
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
             padding=ft.padding.all(16),
             expand=True,
         )
