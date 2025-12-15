@@ -1,76 +1,7 @@
-Version 2.6.4:
-Performance improvements for scanning directories.
-Rewrite of scanning subdirectories.
-There is now an output of the results in a box.
-Removal of the full banner from the GUI.
-
-Version 2.6.5:
-Updates the DLSS files to DLSS 4.0.
-Use at your own discretion :).
-
-Version 2.6.6:
-Bug fix for FG/RR DLL's being included in the skip for <2.0.0.
-
-Version 2.6.7:
-Updates to the DLL's to allow for profile K (refined version of profile J) to be the default for DLSS.
-
-Version 2.6.8:
-Updates to the RR DLL to version 310.2.1.0.
-Updates the frame generation DLL to version 310.2.1.0.
-
-Version 2.7.0:
-Added support for XeSS DLLs (libxess.dll and libxess_dx11.dll) - version 2.0.1.41.
-Added support for up to 4 custom game folders.
-Improved auto-updater to better handle update process and cleanup.
-Added ability to skip specific games in the blacklist.
-Enhanced UI with separated sections for launcher types.
-Fixed bug in game name extraction for better reporting.
-Introduction of animations for certain components, should be better for viewability.
-
-Version 2.7.1:
-UI spacing fixes with the logger output.
-Hover bug mentioned in the prior release fixed.
-Removal of the maximum span width so it's possible to resize the GUI fully.
-Few other erronous colour fixes.
-
-Version 2.7.2:
-Addition of DirectStorage.
-Offloading of the DLL's to a separate repository to strip down the file size.
-Addition of a checklist to allow selection on what is updated.
-Implemented DLL caching to check for new DLL's.
-
-Version 2.7.3:
-Updated support for handling DLSS Streamline components (Reflex/DLSS Streamline/FG etc).
-
-Version 2.7.4:
-Introduced parallelism for allowing multiple DLL's to be upgraded at once.
-Bug fix for DLL cache initialisation to only happen once on booting.
-
-Version 2.7.5:
-Added concurrency for parallel backups at once for multiple DLL's.
-Removal of auto-upgrades as a deprecated feature to cleanup code, added a "Check for update" button in the GUI.
-Parallelism for scanning Steam directories.
-Introduction of custom animations to properly track the update % correctly.
-
-Version 2.7.6:
-Added support for updating FSR 3.1.1+ games to 3.1.4.
-Increases to maximum thread pool allocations.
-
-Version 2.7.7:
-Update to address GOG Galaxy paths being erronous for some games.
-
-Version 2.7.8:
-Update to separate out Streamline DLL's to be their own components, and to be switched off by default due to incompatibility with some games.
-
-Version 2.7.9:
-Integration for some missing streamline components.
-
-Version 2.8.0:
-Addition of FSR4 support.
-Addition of the ability to switch off backups.
-
 Version 2.9.0:
 UI update overhaul of the application.
 Support for scanning games, this will now report back all the games found on the system, including what specific DLL's are found there.
 Restorative backups of individual games (called self healing) that have had their DLL's updated.
 Significant performance upgrades to backend initiations.
+Added a pre loading phase spinner.
+Header section overhaul, animations, a Games section etc.
