@@ -24,6 +24,7 @@ from dlss_updater.ui_flet.dialogs.blacklist_dialog import BlacklistDialog
 from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDialog
 from dlss_updater.ui_flet.dialogs.release_notes_dialog import ReleaseNotesDialog
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
+from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
 from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
@@ -555,6 +556,13 @@ class MainView(ft.Column):
                         on_click=self._on_blacklist_clicked,
                     ),
                     MenuItem(
+                        id="dlss_overlay",
+                        title="DLSS Debug Overlay",
+                        description="Toggle in-game DLSS indicator",
+                        icon=ft.Icons.BUG_REPORT,
+                        on_click=self._on_dlss_overlay_clicked,
+                    ),
+                    MenuItem(
                         id="theme",
                         title="Theme: Dark Mode",
                         description="Disabled (light theme has issues)",
@@ -773,6 +781,11 @@ class MainView(ft.Column):
     async def _on_blacklist_clicked(self, e):
         """Handle blacklist button click"""
         dialog = BlacklistDialog(self.page, self.logger)
+        await dialog.show()
+
+    async def _on_dlss_overlay_clicked(self, e):
+        """Handle DLSS overlay settings button click"""
+        dialog = DLSSOverlayDialog(self.page, self.logger)
         await dialog.show()
 
     async def _on_settings_clicked(self, e):
