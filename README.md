@@ -24,6 +24,7 @@ What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on yo
 - Support for updating XeSS/FSR/DirectStorage DLL's.
 - A GUI!
 - Support for manual folder locations.
+- Backups of updated games to be restored.
 
 
 The current supported DLL included is DLSS 4 (version 3.10.4).
@@ -31,7 +32,8 @@ The current supported DLL included is FSR 4 (version 4.0.2.0).
 The current supported XESS DLL included is 2.0.1, please see the limitations [here](https://github.com/intel/xess/releases/tag/v2.0.1) for game support.
 
 ## GUI
-![image](https://github.com/user-attachments/assets/5cd37173-d96b-4e0f-b3fa-08702222d1b6)
+<img width="1303" height="674" alt="2781" src="https://github.com/user-attachments/assets/342016ce-8584-488d-817e-09e7d8272dcf" />
+
 
 ## Blacklisted Games
 
