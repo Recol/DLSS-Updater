@@ -32,7 +32,8 @@ The current supported DLL included is FSR 4 (version 4.0.2.0).
 The current supported XESS DLL included is 2.0.1, please see the limitations [here](https://github.com/intel/xess/releases/tag/v2.0.1) for game support.
 
 ## GUI
-<img width="1303" height="674" alt="2781" src="https://github.com/user-attachments/assets/342016ce-8584-488d-817e-09e7d8272dcf" />
+<img width="2605" height="1348" alt="image" src="https://github.com/user-attachments/assets/960e4168-7f55-4cf2-813b-476fbc06d8fe" />
+
 
 
 ## Blacklisted Games
