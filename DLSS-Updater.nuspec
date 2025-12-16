@@ -26,8 +26,7 @@ This package does not contain malware, it is a limitation of Pyinstaller with th
     </dependencies>
   </metadata>
   <files>
-    <file src="dist\DLSS_Updater\**" target="tools" />
+    <file src="dist\DLSS_Updater.exe" target="tools" />
     <file src="VERIFICATION.txt" target="tools" />
-    <file src="dist\DLSS_Updater\_internal\dlss_updater\icons\dlss_updater.png" target="tools" />
   </files>
 </package>
