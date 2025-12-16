@@ -27,7 +27,9 @@ This package does not contain malware, it is a limitation of Pyinstaller with th
   </metadata>
   <files>
     <file src="dist\DLSS_Updater.exe" target="tools" />
-    <file src="VERIFICATION.txt" target="tools" />
+    <file src="tools\chocolateyInstall.ps1" target="tools" />
+    <file src="tools\chocolateyUninstall.ps1" target="tools" />
+    <file src="VERIFICATION.TXT" target="tools" />
     <file src="LICENSE" target="tools\LICENSE.txt" />
   </files>
 </package>
