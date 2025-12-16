@@ -1,64 +1,183 @@
-from dlss_updater.utils import *
-from dlss_updater.logger import setup_logger
-from dlss_updater.main_ui.main_window import MainWindow
-from PyQt6.QtWidgets import QApplication
-import os
+"""
+DLSS Updater - Flet UI Entry Point
+Async/await-based modern Material Design interface
+"""
+
 import sys
+import asyncio
+import logging
+import flet as ft
 
-logger = setup_logger()
-
-# Add the directory containing the executable to sys.path
-if getattr(sys, "frozen", False):
-    application_path = os.path.dirname(sys.executable)
-    sys.path.insert(0, application_path)
+# Core imports
+from dlss_updater.logger import setup_logger
+from dlss_updater.utils import check_dependencies, is_admin, run_as_admin
+from dlss_updater.ui_flet.views.main_view import MainView
 
 
-def main():
-    try:
-        if gui_mode:
-            log_file = os.path.join(os.path.dirname(sys.executable), "dlss_updater.log")
-            sys.stdout = sys.stderr = open(log_file, "w")
-        # Run the application with Qt GUI
-        main_ui = QApplication(sys.argv)
-        main_window = MainWindow(logger)
-        main_window.show()
-        main_window.get_current_settings()
-        sys.exit(main_ui.exec())
-    except Exception as e:
-        logger.error(f"Critical error starting application: {e}")
-        import traceback
+async def main(page: ft.Page):
+    """
+    Main async entry point for the Flet application
 
-        logger.error(traceback.format_exc())
-        input("Press Enter to exit...")  # Wait for user input before exiting
+    Args:
+        page: The Flet page instance
+    """
+    # Configure page
+    page.title = "DLSS Updater"
+    page.window.width = 900
+    page.window.height = 700
+    page.window.min_width = 700
+    page.window.min_height = 500
+    page.padding = 0
+    page.spacing = 0
+
+    # Set theme to dark by default
+    page.theme_mode = ft.ThemeMode.DARK
+    page.bgcolor = "#2E2E2E"
+
+    # Create Material 3 theme with custom colors
+    page.theme = ft.Theme(
+        color_scheme_seed="#2D6E88",  # Primary teal blue
+        use_material3=True,
+    )
+
+    page.dark_theme = ft.Theme(
+        color_scheme_seed="#2D6E88",
+        use_material3=True,
+    )
+
+    # Get logger instance
+    logger = logging.getLogger("DLSSUpdater")
+    logger.info("DLSS Updater (Flet) starting...")
+
+    # Create startup loading overlay
+    from dlss_updater.ui_flet.theme.colors import MD3Colors
+    startup_overlay = ft.Container(
+        content=ft.Column(
+            controls=[
+                ft.ProgressRing(color=MD3Colors.PRIMARY, width=50, height=50),
+                ft.Text("Loading...", size=16, color=MD3Colors.get_on_surface(True)),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=20,
+        ),
+        expand=True,
+        alignment=ft.alignment.center,
+        bgcolor=MD3Colors.get_background(True),
+    )
+    page.add(startup_overlay)
+    page.update()
+
+    # Run database and DLL cache initialization in parallel
+    async def init_database():
+        """Initialize database asynchronously"""
+        try:
+            from dlss_updater.database import db_manager
+            logger.info("Initializing database...")
+            await db_manager.initialize()
+            logger.info("Database initialized successfully")
+
+            # Run cleanup operations in parallel
+            cleanup_tasks = []
+            cleanup_tasks.append(db_manager.cleanup_duplicate_backups())
+            cleanup_tasks.append(db_manager.cleanup_duplicate_games())
+
+            results = await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    logger.warning(f"Cleanup task {i} failed: {result}")
+                elif result and result > 0:
+                    task_name = "backup" if i == 0 else "game"
+                    logger.info(f"Cleaned up {result} duplicate {task_name} entries on startup")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize database: {e}", exc_info=True)
+            # Continue without database - app should still work
+
+    async def init_dll_cache():
+        """Initialize DLL cache asynchronously with progress notification"""
+        snackbar = main_view.get_dll_cache_snackbar()
+
+        try:
+            from dlss_updater.dll_repository import initialize_dll_cache_async
+
+            await snackbar.show_initializing()
+            logger.info("Initializing DLL cache (async)...")
+
+            async def on_progress(current, total, message):
+                await snackbar.update_progress(current, total, message)
+
+            await initialize_dll_cache_async(progress_callback=on_progress)
+
+            logger.info("DLL cache initialized successfully")
+            await snackbar.show_complete()
+
+        except Exception as e:
+            logger.error(f"Failed to initialize DLL cache: {e}", exc_info=True)
+            await snackbar.show_error(f"Cache init failed: {str(e)[:40]}")
+
+    async def update_steam_list():
+        """Update Steam app list in background"""
+        try:
+            from dlss_updater.steam_integration import update_steam_app_list_if_needed
+            await update_steam_app_list_if_needed()
+        except Exception as e:
+            logger.warning(f"Failed to update Steam app list: {e}")
+            # Non-critical, continue
+
+    # Initialize database first (fast operation, needed before UI)
+    await init_database()
+
+    # Clear startup overlay and show main UI
+    page.controls.clear()
+    page.update()
+
+    # Create and add main view (show UI immediately)
+    main_view = MainView(page, logger)
+    await main_view.initialize()
+
+    # Add to page
+    page.add(main_view)
+    page.update()
+
+    logger.info("UI initialized successfully")
+
+    # Now initialize DLL cache and Steam list in background (after UI is visible)
+    # This allows the user to see the app immediately while heavy init happens
+    asyncio.create_task(init_dll_cache())
+    asyncio.create_task(update_steam_list())
+
+
+def check_prerequisites():
+    """Check dependencies and admin privileges before launching UI"""
+    logger = setup_logger()
+
+    # Check dependencies
+    logger.info("Checking dependencies...")
+    if not check_dependencies():
+        logger.error("Dependency check failed")
+        sys.exit(1)
+
+    # Check admin privileges
+    if not is_admin():
+        logger.warning("Application requires administrator privileges")
+        logger.info("Attempting to restart with admin rights...")
+        run_as_admin()
+        sys.exit(0)
+
+    logger.info("Admin privileges confirmed")
+
+    # DLL cache initialization is now done asynchronously after UI loads
+    # to avoid blocking the window from appearing
+    logger.info("DLL cache will be initialized after UI loads...")
+
+    return logger
 
 
 if __name__ == "__main__":
-    # Remove auto-update cleanup - no longer needed
-    # Remove check_update_completion and check_update_error calls
+    # Check prerequisites before launching UI
+    check_prerequisites()
 
-    gui_mode = "--gui" in sys.argv
-    logger.debug("Python executable: %s", sys.executable)
-    logger.debug("sys.path: %s", sys.path)
-    logger.info("DLSS Updater started")
-
-    if not check_dependencies():
-        sys.exit(1)
-
-    # Check for admin rights and request if needed
-    if not is_admin():
-        logger.info("Requesting administrator privileges...")
-        run_as_admin()
-        sys.exit(0)  # Exit after requesting admin privileges
-    else:
-        # Initialize DLL cache ONLY after we have admin privileges
-        logger.debug("Starting DLL cache initialization after admin check")
-        from dlss_updater.dll_repository import initialize_dll_cache
-        from dlss_updater.config import initialize_dll_paths
-        from dlss_updater import LATEST_DLL_PATHS
-
-        initialize_dll_cache()
-        # Update the global LATEST_DLL_PATHS
-        LATEST_DLL_PATHS.update(initialize_dll_paths())
-
-        logger.debug("DLL cache initialization completed")
-        main()
+    # Launch Flet app with async main
+    ft.app(target=main)

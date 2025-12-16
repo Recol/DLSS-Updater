@@ -3,6 +3,8 @@ psutil
 packaging
 pywin32; platform_system == "Windows"
 appdirs
-PyQt6
-pyinstaller
+flet>=0.28.3
 requests
+pyinstaller
+msgspec>=0.18.0
+aiohttp

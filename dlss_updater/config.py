@@ -4,6 +4,7 @@ import configparser
 from enum import StrEnum
 import appdirs
 from .logger import setup_logger
+from .models import UpdatePreferencesConfig, LauncherPathsConfig, PerformanceConfig
 
 logger = setup_logger()
 
@@ -195,6 +196,74 @@ class ConfigManager(configparser.ConfigParser):
             return False
         return self["BlacklistSkips"].getboolean(game_name, False)
 
+    def get_update_preferences_struct(self) -> UpdatePreferencesConfig:
+        """Get update preferences as validated msgspec struct"""
+        return UpdatePreferencesConfig(
+            update_dlss=self.get_update_preference("DLSS"),
+            update_direct_storage=self.get_update_preference("DirectStorage"),
+            update_xess=self.get_update_preference("XeSS"),
+            update_fsr=self.get_update_preference("FSR"),
+            update_streamline=self.get_update_preference("Streamline"),
+            create_backups=self.get_backup_preference()
+        )
+
+    def save_update_preferences_struct(self, prefs: UpdatePreferencesConfig):
+        """Save update preferences from msgspec struct to INI"""
+        if not self.has_section("UpdatePreferences"):
+            self.add_section("UpdatePreferences")
+
+        self["UpdatePreferences"]["UpdateDLSS"] = str(prefs.update_dlss).lower()
+        self["UpdatePreferences"]["UpdateDirectStorage"] = str(prefs.update_direct_storage).lower()
+        self["UpdatePreferences"]["UpdateXeSS"] = str(prefs.update_xess).lower()
+        self["UpdatePreferences"]["UpdateFSR"] = str(prefs.update_fsr).lower()
+        self["UpdatePreferences"]["UpdateStreamline"] = str(prefs.update_streamline).lower()
+        self["UpdatePreferences"]["CreateBackups"] = str(prefs.create_backups).lower()
+        self.save()
+
+    def get_launcher_paths_struct(self) -> LauncherPathsConfig:
+        """Get launcher paths as validated msgspec struct"""
+        return LauncherPathsConfig(
+            steam_path=self.check_path_value(LauncherPathName.STEAM) or None,
+            ea_path=self.check_path_value(LauncherPathName.EA) or None,
+            epic_path=self.check_path_value(LauncherPathName.EPIC) or None,
+            gog_path=self.check_path_value(LauncherPathName.GOG) or None,
+            ubisoft_path=self.check_path_value(LauncherPathName.UBISOFT) or None,
+            battle_net_path=self.check_path_value(LauncherPathName.BATTLENET) or None,
+            xbox_path=self.check_path_value(LauncherPathName.XBOX) or None,
+            custom_path_1=self.check_path_value(LauncherPathName.CUSTOM1) or None,
+            custom_path_2=self.check_path_value(LauncherPathName.CUSTOM2) or None,
+            custom_path_3=self.check_path_value(LauncherPathName.CUSTOM3) or None,
+            custom_path_4=self.check_path_value(LauncherPathName.CUSTOM4) or None
+        )
+
+    def save_launcher_paths_struct(self, paths: LauncherPathsConfig):
+        """Save launcher paths from msgspec struct to INI"""
+        if not self.has_section("LauncherPaths"):
+            self.add_section("LauncherPaths")
+
+        self["LauncherPaths"][LauncherPathName.STEAM] = paths.steam_path or ""
+        self["LauncherPaths"][LauncherPathName.EA] = paths.ea_path or ""
+        self["LauncherPaths"][LauncherPathName.EPIC] = paths.epic_path or ""
+        self["LauncherPaths"][LauncherPathName.GOG] = paths.gog_path or ""
+        self["LauncherPaths"][LauncherPathName.UBISOFT] = paths.ubisoft_path or ""
+        self["LauncherPaths"][LauncherPathName.BATTLENET] = paths.battle_net_path or ""
+        self["LauncherPaths"][LauncherPathName.XBOX] = paths.xbox_path or ""
+        self["LauncherPaths"][LauncherPathName.CUSTOM1] = paths.custom_path_1 or ""
+        self["LauncherPaths"][LauncherPathName.CUSTOM2] = paths.custom_path_2 or ""
+        self["LauncherPaths"][LauncherPathName.CUSTOM3] = paths.custom_path_3 or ""
+        self["LauncherPaths"][LauncherPathName.CUSTOM4] = paths.custom_path_4 or ""
+        self.save()
+
+    def get_performance_config_struct(self) -> PerformanceConfig:
+        """Get performance config as validated msgspec struct"""
+        return PerformanceConfig(
+            max_worker_threads=self.get_max_worker_threads()
+        )
+
+    def save_performance_config_struct(self, perf: PerformanceConfig):
+        """Save performance config from msgspec struct to INI"""
+        self.set_max_worker_threads(perf.max_worker_threads)
+
     def save(self):
         """Save configuration to disk"""
         with open(self.config_path, "w") as configfile:
@@ -217,6 +286,28 @@ class ConfigManager(configparser.ConfigParser):
 
 
 config_manager = ConfigManager()
+
+
+def get_current_settings():
+    """
+    Get current update settings from config
+
+    Returns:
+        dict: Dictionary with technology update preferences
+    """
+    return {
+        "UpdateDLSS": config_manager.get_update_preference("DLSS"),
+        "UpdateDirectStorage": config_manager.get_update_preference("DirectStorage"),
+        "UpdateXeSS": config_manager.get_update_preference("XeSS"),
+        "UpdateFSR": config_manager.get_update_preference("FSR"),
+        "UpdateStreamline": config_manager.get_update_preference("Streamline"),
+        "CreateBackups": config_manager.get_backup_preference(),
+    }
+
+
+def is_dll_cache_ready():
+    """Check if the DLL cache has been initialized"""
+    return len(LATEST_DLL_PATHS) > 0
 
 
 def initialize_dll_paths():

@@ -21,7 +21,7 @@ a = Analysis(
     ],
     hiddenimports=[
         'pefile', 'psutil', 'importlib.metadata', 'packaging',
-        'concurrent.futures', 'pywin32', 'PyQt6'
+        'concurrent.futures', 'pywin32', 'flet', 'msgspec', 'aiohttp'
     ] + dlss_updater_imports,
     hookspath=['./hooks'],
     hooksconfig={},
@@ -31,7 +31,7 @@ a = Analysis(
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
-    optimize=2
+    optimize=2,
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
@@ -39,26 +39,17 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,          # include binaries directly in the one-file exe
+    a.zipfiles,
+    a.datas,
     [],
-    exclude_binaries=True,
     name='DLSS_Updater',
     version='version.txt',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    console=True,
+    upx=True,            # UPX compression
+    console=True,        # change to False if you don't want a console window
     optimize=2,
-    icon='dlss_updater/icons/dlss_updater.ico'
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='DLSS_Updater',
+    icon='dlss_updater/icons/dlss_updater.ico',
 )

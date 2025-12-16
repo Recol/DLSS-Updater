@@ -3,6 +3,7 @@ from pathlib import Path
 from .config import LauncherPathName, config_manager
 from .whitelist import is_whitelisted
 from .constants import DLL_GROUPS
+from .utils import find_game_root
 import asyncio
 import concurrent.futures
 from dlss_updater.logger import setup_logger
@@ -176,8 +177,19 @@ async def get_custom_folder(folder_num):
     return [custom_path] if custom_path.exists() else []
 
 
-async def find_all_dlls():
+async def find_all_dlls(progress_callback=None):
+    """
+    Find all DLLs across configured launchers
+
+    Args:
+        progress_callback: Optional callback(current, total, message) for progress updates
+    """
     logger.info("Starting find_all_dlls function")
+
+    # Report initialization
+    if progress_callback:
+        await progress_callback(0, 100, "Initializing scan...")
+
     all_dll_paths = {
         "Steam": [],
         "EA Launcher": [],
@@ -216,7 +228,13 @@ async def find_all_dlls():
     # Skip if no technologies selected
     if not dll_names:
         logger.info("No technologies selected for update, skipping scan")
+        if progress_callback:
+            await progress_callback(100, 100, "No technologies selected")
         return all_dll_paths
+
+    # Report preparation complete
+    if progress_callback:
+        await progress_callback(5, 100, "Preparing to scan launchers...")
 
     # Define async functions for each launcher
     async def scan_steam():
@@ -302,16 +320,45 @@ async def find_all_dlls():
         "Custom Folder 4": asyncio.create_task(scan_custom(4)),
     }
 
-    # Wait for all tasks to complete and gather results
+    # Wait for all tasks to complete and gather results with progress reporting
+    completed_count = 0
+    total_launchers = len(tasks)
+
     for launcher_name, task in tasks.items():
         try:
             dlls = await task
             all_dll_paths[launcher_name] = dlls
+            completed_count += 1
+
+            # Calculate progress (5% base + 65% for launchers = 5-70%)
+            progress_pct = int(5 + (completed_count / total_launchers) * 65)
+
+            if progress_callback:
+                await progress_callback(
+                    progress_pct,
+                    100,
+                    f"Scanned {launcher_name}: {len(dlls)} DLLs found"
+                )
+
             if dlls:
                 logger.info(f"Found {len(dlls)} DLLs in {launcher_name}")
         except Exception as e:
             logger.error(f"Error scanning {launcher_name}: {e}")
             all_dll_paths[launcher_name] = []
+            completed_count += 1
+
+            # Report progress even on error
+            progress_pct = int(5 + (completed_count / total_launchers) * 65)
+            if progress_callback:
+                await progress_callback(
+                    progress_pct,
+                    100,
+                    f"Error scanning {launcher_name}"
+                )
+
+    # Report whitelist filtering phase
+    if progress_callback:
+        await progress_callback(70, 100, "Filtering whitelisted games...")
 
     # Remove duplicates
     unique_dlls = set()
@@ -325,6 +372,137 @@ async def find_all_dlls():
     # Log summary
     total_dlls = sum(len(dlls) for dlls in all_dll_paths.values())
     logger.info(f"Scan complete. Found {total_dlls} total DLLs across all launchers")
+
+    # Record discovered games and DLLs in database
+    try:
+        from dlss_updater.database import db_manager
+        from dlss_updater.steam_integration import (
+            find_steam_app_id_by_name,
+            detect_steam_app_id_from_manifest
+        )
+        from dlss_updater.utils import extract_game_name
+        from dlss_updater.constants import DLL_TYPE_MAP
+
+        # Report database recording start
+        if progress_callback:
+            await progress_callback(85, 100, "Recording games in database...")
+
+        logger.info("Recording scanned games in database...")
+        recorded_games = 0
+        recorded_dlls = 0
+
+        # Count total games to record for progress tracking
+        total_games_to_record = 0
+        all_games_dict = {}
+        for launcher, dll_paths in all_dll_paths.items():
+            # Group DLLs by game directory with normalization to prevent duplicates
+            games_dict = {}
+            normalized_to_original = {}  # Map normalized paths to original paths
+
+            for dll_path in dll_paths:
+                game_dir = find_game_root(Path(dll_path), launcher)
+
+                # Normalize path to prevent duplicates from path variations
+                game_dir_normalized = os.path.normpath(str(game_dir)).lower()
+
+                if game_dir_normalized not in games_dict:
+                    games_dict[game_dir_normalized] = []
+                    normalized_to_original[game_dir_normalized] = str(game_dir)  # Keep original casing
+
+                games_dict[game_dir_normalized].append(dll_path)
+
+            # Convert back to original paths for database recording
+            games_dict_original = {
+                normalized_to_original[norm_path]: dlls
+                for norm_path, dlls in games_dict.items()
+            }
+
+            all_games_dict[launcher] = games_dict_original
+            total_games_to_record += len(games_dict_original)
+
+        game_count = 0
+        dlls_with_versions = 0  # Track DLLs with valid versions
+        for launcher, games_dict in all_games_dict.items():
+            # Record each game
+            for game_dir_str, game_dlls in games_dict.items():
+                game_dir = Path(game_dir_str)
+                game_name = extract_game_name(str(game_dlls[0]), launcher)
+
+                # Try to find Steam app ID
+                app_id = None
+                if launcher == "Steam":
+                    # For Steam games, try appmanifest first (fast and accurate)
+                    app_id = await detect_steam_app_id_from_manifest(game_dir)
+
+                if app_id is None:
+                    # For non-Steam games or if appmanifest failed, use name matching
+                    app_id = await find_steam_app_id_by_name(game_name)
+
+                # Upsert game record
+                game = await db_manager.upsert_game({
+                    'name': game_name,
+                    'path': game_dir_str,
+                    'launcher': launcher,
+                    'steam_app_id': app_id,
+                })
+
+                if game:
+                    recorded_games += 1
+
+                    # Record each DLL for this game
+                    for dll_path in game_dlls:
+                        # Lazy import to avoid circular dependency
+                        from .updater import get_dll_version
+
+                        dll_filename = Path(dll_path).name
+                        dll_type = DLL_TYPE_MAP.get(dll_filename.lower(), "Unknown")
+                        dll_version = get_dll_version(dll_path)
+
+                        # Log version extraction result
+                        if not dll_version:
+                            logger.warning(f"Could not extract version from {dll_path}")
+                        else:
+                            logger.debug(f"Extracted version {dll_version} from {dll_filename}")
+                            dlls_with_versions += 1  # Count DLLs with valid versions
+
+                        dll_record = await db_manager.upsert_game_dll({
+                            'game_id': game.id,
+                            'dll_type': dll_type,
+                            'dll_filename': dll_filename,
+                            'dll_path': str(dll_path),
+                            'current_version': dll_version,
+                        })
+
+                        if dll_record:
+                            recorded_dlls += 1
+
+                # Update progress periodically (every 5 games or on last game)
+                game_count += 1
+                if progress_callback and (game_count % 5 == 0 or game_count == total_games_to_record):
+                    db_progress = int(85 + (game_count / max(total_games_to_record, 1)) * 15)  # 85-100%
+                    await progress_callback(
+                        db_progress,
+                        100,
+                        f"Recorded {game_count}/{total_games_to_record} games"
+                    )
+
+        logger.info(f"Database recording complete: {recorded_games} games, {recorded_dlls} DLLs")
+
+        # Log version extraction summary
+        logger.info(f"Version extraction: {dlls_with_versions}/{recorded_dlls} DLLs have valid versions")
+
+        if dlls_with_versions == 0 and recorded_dlls > 0:
+            logger.warning("⚠️  No DLL versions extracted! Check get_dll_version() function")
+
+        # Report completion
+        if progress_callback:
+            await progress_callback(100, 100, f"Scan complete: {recorded_games} games, {recorded_dlls} DLLs")
+
+    except Exception as e:
+        logger.error(f"Error recording games in database: {e}", exc_info=True)
+        # Don't fail the scan if database recording fails
+        if progress_callback:
+            await progress_callback(100, 100, "Scan complete (database recording failed)")
 
     return all_dll_paths
 

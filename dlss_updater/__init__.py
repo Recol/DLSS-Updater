@@ -10,7 +10,6 @@ from .version import __version__
 from .config import resource_path, initialize_dll_paths, config_manager
 from .logger import setup_logger
 from .constants import DLL_TYPE_MAP, DLL_GROUPS
-from .lib.threading_lib import ThreadManager, WorkerSignals
 
 # We rename find_dlss_dlls to find_dlls and keep it for backward compatibility
 find_dlss_dlls = find_dlls
@@ -35,7 +34,5 @@ __all__ = [
     "setup_logger",
     "DLL_TYPE_MAP",
     "DLL_GROUPS",
-    "ThreadManager",
-    "WorkerSignals",
     "config_manager",
 ]
