@@ -42,7 +42,7 @@ jobs:
 
     - name: Generate file hash
       run: |
-        $hash = (Get-FileHash "dist\DLSS_Updater\DLSS_Updater.exe" -Algorithm SHA256).Hash
+        $hash = (Get-FileHash "dist\DLSS_Updater.exe" -Algorithm SHA256).Hash
         echo "FILE_HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
       id: hash
