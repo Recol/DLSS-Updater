@@ -338,6 +338,11 @@ class SteamIntegration:
                     logger.debug(f"Using cached image for app {app_id}")
                     return cache_file
 
+            # Check if previously failed - skip immediately
+            if await db_manager.is_image_fetch_failed(app_id):
+                logger.debug(f"Skipping image fetch for app {app_id} - previously failed")
+                return None
+
             # Use semaphore to limit concurrent downloads
             async with self.semaphore:
                 cache_file = self.image_cache_dir / f"{app_id}.jpg"
@@ -368,14 +373,14 @@ class SteamIntegration:
                                     continue
 
                         except asyncio.TimeoutError:
-                            logger.warning(f"Timeout fetching image from {url}")
+                            logger.debug(f"Timeout fetching image from {url}")
                             continue
                         except Exception as e:
-                            logger.warning(f"Error fetching from {url}: {e}")
+                            logger.debug(f"Network error fetching from {url}: {e}")
                             continue
 
-                # All URLs failed
-                logger.warning(f"Failed to fetch image for Steam app {app_id} from all CDNs")
+                # All URLs failed - expected for games without images
+                logger.debug(f"Failed to fetch image for Steam app {app_id} from all CDNs")
                 await db_manager.mark_image_fetch_failed(app_id)
                 return None
 

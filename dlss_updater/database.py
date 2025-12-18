@@ -1190,6 +1190,30 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    async def is_image_fetch_failed(self, app_id: int) -> bool:
+        """Check if image fetch has already failed for this app"""
+        return await asyncio.to_thread(self._is_image_fetch_failed, app_id)
+
+    def _is_image_fetch_failed(self, app_id: int) -> bool:
+        """Check if image fetch failed (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT fetch_failed FROM steam_images
+                WHERE steam_app_id = ?
+            """, (app_id,))
+
+            row = cursor.fetchone()
+            return row[0] == 1 if row else False
+
+        except Exception as e:
+            logger.error(f"Error checking image fetch status: {e}", exc_info=True)
+            return False
+        finally:
+            conn.close()
+
 
 # Singleton instance
 db_manager = DatabaseManager()
