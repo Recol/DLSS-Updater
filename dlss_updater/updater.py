@@ -45,19 +45,41 @@ def parse_version(version_string):
 
 
 def get_dll_version(dll_path):
+    """
+    Extract version from a DLL file using pefile.
+
+    Uses fast_load=True and only parses the resource directory for better performance.
+    """
     try:
         with open(dll_path, "rb") as file:
-            pe = pefile.PE(data=file.read())
-            for fileinfo in pe.FileInfo:
-                for entry in fileinfo:
-                    if hasattr(entry, "StringTable"):
-                        for st in entry.StringTable:
-                            for key, value in st.entries.items():
-                                if key == b"FileVersion":
-                                    return value.decode("utf-8").strip()
+            # Use fast_load to skip unnecessary PE parsing
+            pe = pefile.PE(data=file.read(), fast_load=True)
+
+            # Only parse the resource directory (where version info lives)
+            pe.parse_data_directories(
+                directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_RESOURCE']]
+            )
+
+            if hasattr(pe, 'FileInfo') and pe.FileInfo:
+                for fileinfo in pe.FileInfo:
+                    for entry in fileinfo:
+                        if hasattr(entry, "StringTable"):
+                            for st in entry.StringTable:
+                                for key, value in st.entries.items():
+                                    if key == b"FileVersion":
+                                        return value.decode("utf-8").strip()
     except Exception as e:
         logger.error(f"Error reading version from {dll_path}: {e}")
     return None
+
+
+async def get_dll_version_async(dll_path):
+    """
+    Async wrapper for get_dll_version.
+    Runs PE parsing in thread pool to avoid blocking the event loop.
+    """
+    import asyncio
+    return await asyncio.to_thread(get_dll_version, dll_path)
 
 
 def remove_read_only(file_path):
@@ -71,6 +93,16 @@ def restore_permissions(file_path, original_permissions):
 
 
 def is_file_in_use(file_path, timeout=5):
+    """
+    Check if a file is in use by another process.
+
+    Args:
+        file_path: Path to the file to check
+        timeout: Maximum time to wait in seconds
+
+    Returns:
+        True if file is in use, False otherwise
+    """
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
@@ -90,6 +122,43 @@ def is_file_in_use(file_path, timeout=5):
         time.sleep(0.1)
     logger.info(f"Timeout reached while checking if file {file_path} is in use")
     return True  # Assume file is NOT in use if we can't determine otherwise to prevent hanging conditions
+
+
+async def is_file_in_use_async(file_path, timeout=5):
+    """
+    Async version of is_file_in_use.
+
+    Uses asyncio.sleep() instead of time.sleep() to avoid blocking the event loop.
+    Process iteration is run in a thread pool to avoid blocking.
+    """
+    import asyncio
+    start_time = asyncio.get_event_loop().time()
+
+    def _check_process_using_file(path):
+        """Check which process has the file open (runs in thread)"""
+        for proc in psutil.process_iter(["pid", "name", "open_files"]):
+            try:
+                for f in proc.open_files():
+                    if f.path == path:
+                        logger.error(f"File {path} is in use by process {proc.name()} (PID: {proc.pid})")
+                        return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        return False
+
+    while asyncio.get_event_loop().time() - start_time < timeout:
+        try:
+            # Quick test - try to open for reading
+            with open(file_path, "rb"):
+                return False
+        except PermissionError:
+            # File is in use, check which process (in thread pool)
+            if await asyncio.to_thread(_check_process_using_file, str(file_path)):
+                return True
+        await asyncio.sleep(0.1)  # Non-blocking sleep
+
+    logger.info(f"Timeout reached while checking if file {file_path} is in use")
+    return True
 
 
 def normalize_path(path):
@@ -207,28 +276,12 @@ def create_backup(dll_path):
 
         logger.info(f"[BACKUP] Successfully created and verified backup at: {backup_path}")
 
-        # Record backup metadata in database (fixed asyncio event loop handling)
+        # Record backup metadata in database
         try:
-            import asyncio
-            from dlss_updater.backup_manager import record_backup_metadata
-
-            # Use existing event loop instead of creating new one
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # Non-blocking: schedule as task to run later
-                    asyncio.create_task(record_backup_metadata(dll_path, backup_path))
-                    logger.debug(f"[BACKUP] Scheduled metadata recording as async task")
-                else:
-                    # If no loop running, use asyncio.run()
-                    asyncio.run(record_backup_metadata(dll_path, backup_path))
-                    logger.debug(f"[BACKUP] Recorded metadata synchronously")
-            except RuntimeError as e:
-                # If we can't get loop or create task, fall back to asyncio.run()
-                logger.debug(f"[BACKUP] Falling back to asyncio.run() for metadata: {e}")
-                asyncio.run(record_backup_metadata(dll_path, backup_path))
+            from dlss_updater.backup_manager import record_backup_metadata_sync
+            record_backup_metadata_sync(dll_path, backup_path)
         except Exception as e:
-            logger.warning(f"[BACKUP] Failed to record backup metadata: {e}", exc_info=True)
+            logger.warning(f"[BACKUP] Failed to record backup metadata: {e}")
             # Don't fail backup creation if metadata recording fails
 
         return backup_path

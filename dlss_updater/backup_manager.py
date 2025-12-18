@@ -16,9 +16,60 @@ from dlss_updater.database import db_manager
 logger = setup_logger()
 
 
+def record_backup_metadata_sync(dll_path: Path, backup_path: Path) -> Optional[int]:
+    """
+    Record backup metadata in database (synchronous version).
+
+    Use this when calling from sync code running in a thread pool.
+
+    Args:
+        dll_path: Path to original DLL
+        backup_path: Path to backup file
+
+    Returns:
+        Backup ID if successful, None otherwise
+    """
+    try:
+        # Use sync database methods directly
+        game_dll = db_manager._get_game_dll_by_path(str(dll_path))
+
+        if not game_dll:
+            logger.warning(f"No game DLL record found for {dll_path}, cannot record backup metadata")
+            return None
+
+        # Mark old backups inactive
+        db_manager._mark_old_backups_inactive(game_dll.id)
+
+        # Get DLL version
+        from dlss_updater.updater import get_dll_version
+        version = get_dll_version(dll_path)
+
+        # Get backup file size
+        backup_size = backup_path.stat().st_size if backup_path.exists() else 0
+
+        # Insert backup record
+        backup_id = db_manager._insert_backup({
+            'game_dll_id': game_dll.id,
+            'backup_path': str(backup_path),
+            'original_version': version,
+            'backup_size': backup_size
+        })
+
+        if backup_id:
+            logger.info(f"Recorded backup metadata for {dll_path.name} (backup_id: {backup_id})")
+        else:
+            logger.warning(f"Failed to record backup metadata for {dll_path.name}")
+
+        return backup_id
+
+    except Exception as e:
+        logger.error(f"Error recording backup metadata: {e}", exc_info=True)
+        return None
+
+
 async def record_backup_metadata(dll_path: Path, backup_path: Path) -> Optional[int]:
     """
-    Record backup metadata in database
+    Record backup metadata in database (async version).
 
     Args:
         dll_path: Path to original DLL
@@ -137,6 +188,9 @@ async def restore_dll_from_backup(backup_id: int) -> Tuple[bool, str]:
             from dlss_updater.updater import get_dll_version
             new_version = get_dll_version(dll_path)
             await db_manager.update_game_dll_version(game_dll.id, new_version)
+
+            # Mark backup as inactive (removes it from Backups page)
+            await db_manager.mark_backup_inactive(backup_id)
 
             # Cleanup temporary backup
             if temp_backup and temp_backup.exists():

@@ -21,7 +21,8 @@ a = Analysis(
     ],
     hiddenimports=[
         'pefile', 'psutil', 'importlib.metadata', 'packaging',
-        'concurrent.futures', 'pywin32', 'flet', 'msgspec', 'aiohttp'
+        'concurrent.futures', 'pywin32', 'flet', 'msgspec', 'aiohttp',
+        'aiosqlite', 'aiofiles'
     ] + dlss_updater_imports,
     hookspath=['./hooks'],
     hooksconfig={},

@@ -1,15 +1,28 @@
 import os
 from pathlib import Path
+from typing import List, Dict, Set, Any, Optional
 from .config import LauncherPathName, config_manager
 from .whitelist import is_whitelisted
 from .constants import DLL_GROUPS
 from .utils import find_game_root
+from .vdf_parser import VDFParser
 import asyncio
 import concurrent.futures
 from dlss_updater.logger import setup_logger
 import sys
 
 logger = setup_logger()
+
+# Pre-computed frozen set of DLL names for O(1) lookup (populated at scan time)
+_dll_names_lower: frozenset = frozenset()
+
+# Directories to skip during scanning (common non-game folders)
+_SKIP_DIRECTORIES: frozenset = frozenset({
+    '__pycache__', '.git', '.svn', '.hg', 'node_modules',
+    'logs', 'log', 'saves', 'save', 'screenshots', 'crash',
+    'crashdumps', 'dumps', 'temp', 'tmp', 'cache', '.cache',
+    'shader_cache', 'shadercache', 'gpucache', 'webcache'
+})
 
 
 def get_steam_install_path():
@@ -67,18 +80,30 @@ async def find_dlls(library_paths, launcher_name, dll_names):
     dll_paths = []
     logger.debug(f"Searching for DLLs in {launcher_name}")
 
+    # Pre-compute lowercase DLL names for O(1) lookup
+    dll_names_lower = frozenset(d.lower() for d in dll_names)
+
     # First, collect all potential DLL paths
     potential_dlls = []
 
     for library_path in library_paths:
         logger.debug(f"Scanning directory: {library_path}")
         try:
-            for root, _, files in os.walk(library_path):
-                for dll_name in dll_names:
-                    if dll_name.lower() in [f.lower() for f in files]:
-                        dll_path = os.path.join(root, dll_name)
-                        potential_dlls.append(dll_path)
-                await asyncio.sleep(0)
+            # Use asyncio.to_thread to avoid blocking the event loop
+            def _scan_library():
+                results = []
+                for root, dirs, files in os.walk(library_path):
+                    # Skip known non-game directories
+                    dirs[:] = [d for d in dirs if d.lower() not in _SKIP_DIRECTORIES]
+
+                    # O(1) lookup for each file
+                    for f in files:
+                        if f.lower() in dll_names_lower:
+                            results.append(os.path.join(root, f))
+                return results
+
+            lib_dlls = await asyncio.to_thread(_scan_library)
+            potential_dlls.extend(lib_dlls)
         except Exception as e:
             logger.error(f"Error scanning {library_path}: {e}")
 
@@ -177,6 +202,148 @@ async def get_custom_folder(folder_num):
     return [custom_path] if custom_path.exists() else []
 
 
+async def scan_game_for_dlls(game_path: Path, dll_names_lower: frozenset) -> List[str]:
+    """
+    Scan a single game directory for DLLs using optimized O(1) lookup.
+
+    This is MUCH faster than the old approach because:
+    - Uses frozenset for O(1) membership testing
+    - Skips known non-game directories
+    - Runs in thread pool to avoid blocking event loop
+
+    Args:
+        game_path: Path to the game directory
+        dll_names_lower: Frozenset of lowercase DLL names to search for
+
+    Returns:
+        List of found DLL paths
+    """
+    def _scan_sync() -> List[str]:
+        """Synchronous scanning (runs in thread pool)"""
+        results = []
+        try:
+            for root, dirs, files in os.walk(game_path):
+                # Filter out directories to skip (modifies dirs in-place for os.walk)
+                dirs[:] = [d for d in dirs if d.lower() not in _SKIP_DIRECTORIES]
+
+                # O(1) lookup for each file instead of O(n) list comprehension
+                for f in files:
+                    if f.lower() in dll_names_lower:
+                        results.append(os.path.join(root, f))
+        except PermissionError:
+            logger.debug(f"Permission denied accessing {game_path}")
+        except Exception as e:
+            logger.error(f"Error scanning game directory {game_path}: {e}")
+        return results
+
+    return await asyncio.to_thread(_scan_sync)
+
+
+async def scan_games_for_dlls_parallel(
+    games: List[Dict[str, Any]],
+    dll_names_lower: frozenset,
+    max_concurrent: int = 8
+) -> Dict[str, List[str]]:
+    """
+    Scan multiple game directories for DLLs in parallel.
+
+    Args:
+        games: List of game dicts with 'path' key
+        dll_names_lower: Frozenset of lowercase DLL names
+        max_concurrent: Maximum concurrent scans
+
+    Returns:
+        Dict mapping game path string to list of found DLLs
+    """
+    results = {}
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    async def scan_with_limit(game: Dict[str, Any]):
+        async with semaphore:
+            game_path = game['path']
+            dlls = await scan_game_for_dlls(game_path, dll_names_lower)
+            return str(game_path), dlls, game
+
+    tasks = [scan_with_limit(g) for g in games]
+    completed = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for result in completed:
+        if isinstance(result, Exception):
+            logger.error(f"Error in parallel scan: {result}")
+            continue
+        path_str, dlls, game = result
+        if dlls:
+            results[path_str] = {
+                'dlls': dlls,
+                'game': game
+            }
+
+    return results
+
+
+async def enumerate_steam_games_fast(steam_path: str) -> List[Dict[str, Any]]:
+    """
+    Enumerate Steam games using appmanifest files (FAST).
+
+    This is MUCH faster than walking entire Steam libraries because:
+    - Only parses small manifest files (~1KB each)
+    - O(n) where n = installed games, not total files
+    - No directory traversal needed for enumeration
+
+    Args:
+        steam_path: Steam installation path
+
+    Returns:
+        List of game dicts with: app_id, name, path, steamapps_dir
+    """
+    try:
+        games = await VDFParser.enumerate_steam_games(Path(steam_path))
+        logger.info(f"Fast enumeration found {len(games)} Steam games via appmanifest")
+        return games
+    except Exception as e:
+        logger.error(f"Error in fast Steam enumeration: {e}")
+        return []
+
+
+async def scan_steam_fast(steam_path: str, dll_names: List[str]) -> List[str]:
+    """
+    Optimized Steam scanning using appmanifest enumeration + targeted scanning.
+
+    Performance improvement:
+    - Old: Walk entire Steam library (millions of files)
+    - New: Parse manifests (hundreds of small files) + scan only game folders
+
+    Args:
+        steam_path: Steam installation path
+        dll_names: List of DLL names to search for
+
+    Returns:
+        List of found DLL paths
+    """
+    dll_names_lower = frozenset(d.lower() for d in dll_names)
+
+    # Step 1: Enumerate installed games via appmanifest (fast)
+    games = await enumerate_steam_games_fast(steam_path)
+
+    if not games:
+        logger.warning("No Steam games found via appmanifest, falling back to full scan")
+        # Fallback to legacy scanning
+        steam_libraries = get_steam_libraries(steam_path)
+        return scan_steam_libraries_parallel(steam_libraries, dll_names)
+
+    # Step 2: Scan only game directories in parallel
+    logger.info(f"Scanning {len(games)} Steam game directories for DLLs...")
+    scan_results = await scan_games_for_dlls_parallel(games, dll_names_lower)
+
+    # Collect all DLLs
+    all_dlls = []
+    for path_str, data in scan_results.items():
+        all_dlls.extend(data['dlls'])
+
+    logger.info(f"Found {len(all_dlls)} DLLs in {len(scan_results)} Steam games")
+    return all_dlls
+
+
 async def find_all_dlls(progress_callback=None):
     """
     Find all DLLs across configured launchers
@@ -240,9 +407,8 @@ async def find_all_dlls(progress_callback=None):
     async def scan_steam():
         steam_path = get_steam_install_path()
         if steam_path:
-            steam_libraries = get_steam_libraries(steam_path)
-            # Use parallel library scanning for Steam
-            all_steam_dlls = scan_steam_libraries_parallel(steam_libraries, dll_names)
+            # Use optimized appmanifest-based scanning (FAST)
+            all_steam_dlls = await scan_steam_fast(steam_path, dll_names)
 
             # Now filter by whitelist
             from .whitelist import check_whitelist_batch
@@ -373,7 +539,7 @@ async def find_all_dlls(progress_callback=None):
     total_dlls = sum(len(dlls) for dlls in all_dll_paths.values())
     logger.info(f"Scan complete. Found {total_dlls} total DLLs across all launchers")
 
-    # Record discovered games and DLLs in database
+    # Record discovered games and DLLs in database using BATCH operations
     try:
         from dlss_updater.database import db_manager
         from dlss_updater.steam_integration import (
@@ -385,114 +551,147 @@ async def find_all_dlls(progress_callback=None):
 
         # Report database recording start
         if progress_callback:
-            await progress_callback(85, 100, "Recording games in database...")
+            await progress_callback(75, 100, "Preparing game data...")
 
-        logger.info("Recording scanned games in database...")
-        recorded_games = 0
-        recorded_dlls = 0
+        logger.info("Recording scanned games in database (batch mode)...")
 
-        # Count total games to record for progress tracking
-        total_games_to_record = 0
+        # Phase 1: Group DLLs by game directory
         all_games_dict = {}
         for launcher, dll_paths in all_dll_paths.items():
-            # Group DLLs by game directory with normalization to prevent duplicates
             games_dict = {}
-            normalized_to_original = {}  # Map normalized paths to original paths
+            normalized_to_original = {}
 
             for dll_path in dll_paths:
                 game_dir = find_game_root(Path(dll_path), launcher)
-
-                # Normalize path to prevent duplicates from path variations
                 game_dir_normalized = os.path.normpath(str(game_dir)).lower()
 
                 if game_dir_normalized not in games_dict:
                     games_dict[game_dir_normalized] = []
-                    normalized_to_original[game_dir_normalized] = str(game_dir)  # Keep original casing
+                    normalized_to_original[game_dir_normalized] = str(game_dir)
 
                 games_dict[game_dir_normalized].append(dll_path)
 
-            # Convert back to original paths for database recording
             games_dict_original = {
                 normalized_to_original[norm_path]: dlls
                 for norm_path, dlls in games_dict.items()
             }
 
             all_games_dict[launcher] = games_dict_original
-            total_games_to_record += len(games_dict_original)
 
-        game_count = 0
-        dlls_with_versions = 0  # Track DLLs with valid versions
+        # Phase 2: Prepare game records with Steam app IDs (parallel lookup)
+        if progress_callback:
+            await progress_callback(78, 100, "Looking up Steam app IDs...")
+
+        games_to_insert = []
+        game_dll_mapping = {}  # Maps game path to list of DLL paths
+
+        async def prepare_game_data(launcher: str, game_dir_str: str, game_dlls: list):
+            game_dir = Path(game_dir_str)
+            game_name = extract_game_name(str(game_dlls[0]), launcher)
+
+            # Try to find Steam app ID
+            app_id = None
+            if launcher == "Steam":
+                app_id = await detect_steam_app_id_from_manifest(game_dir)
+
+            if app_id is None:
+                app_id = await find_steam_app_id_by_name(game_name)
+
+            return {
+                'name': game_name,
+                'path': game_dir_str,
+                'launcher': launcher,
+                'steam_app_id': app_id,
+                'dlls': game_dlls  # Keep track of DLLs for this game
+            }
+
+        # Gather all game preparation tasks
+        prepare_tasks = []
         for launcher, games_dict in all_games_dict.items():
-            # Record each game
             for game_dir_str, game_dlls in games_dict.items():
-                game_dir = Path(game_dir_str)
-                game_name = extract_game_name(str(game_dlls[0]), launcher)
+                prepare_tasks.append(prepare_game_data(launcher, game_dir_str, game_dlls))
 
-                # Try to find Steam app ID
-                app_id = None
-                if launcher == "Steam":
-                    # For Steam games, try appmanifest first (fast and accurate)
-                    app_id = await detect_steam_app_id_from_manifest(game_dir)
+        # Execute all Steam ID lookups in parallel
+        prepared_games = await asyncio.gather(*prepare_tasks, return_exceptions=True)
 
-                if app_id is None:
-                    # For non-Steam games or if appmanifest failed, use name matching
-                    app_id = await find_steam_app_id_by_name(game_name)
+        # Filter out exceptions and extract game data
+        for result in prepared_games:
+            if isinstance(result, Exception):
+                logger.error(f"Error preparing game data: {result}")
+                continue
+            game_dll_mapping[result['path']] = result.pop('dlls')
+            games_to_insert.append(result)
 
-                # Upsert game record
-                game = await db_manager.upsert_game({
-                    'name': game_name,
-                    'path': game_dir_str,
-                    'launcher': launcher,
-                    'steam_app_id': app_id,
-                })
+        if progress_callback:
+            await progress_callback(82, 100, f"Batch inserting {len(games_to_insert)} games...")
 
-                if game:
-                    recorded_games += 1
+        # Phase 3: Batch upsert all games
+        games_result = await db_manager.batch_upsert_games(games_to_insert)
+        recorded_games = len(games_result)
 
-                    # Record each DLL for this game
-                    for dll_path in game_dlls:
-                        # Lazy import to avoid circular dependency
-                        from .updater import get_dll_version
+        if progress_callback:
+            await progress_callback(88, 100, "Extracting DLL versions...")
 
-                        dll_filename = Path(dll_path).name
-                        dll_type = DLL_TYPE_MAP.get(dll_filename.lower(), "Unknown")
-                        dll_version = get_dll_version(dll_path)
+        # Phase 4: Prepare DLL records with version extraction (parallel)
+        from .updater import get_dll_version
 
-                        # Log version extraction result
-                        if not dll_version:
-                            logger.warning(f"Could not extract version from {dll_path}")
-                        else:
-                            logger.debug(f"Extracted version {dll_version} from {dll_filename}")
-                            dlls_with_versions += 1  # Count DLLs with valid versions
+        dlls_to_insert = []
+        dlls_with_versions = 0
 
-                        dll_record = await db_manager.upsert_game_dll({
-                            'game_id': game.id,
-                            'dll_type': dll_type,
-                            'dll_filename': dll_filename,
-                            'dll_path': str(dll_path),
-                            'current_version': dll_version,
-                        })
+        async def extract_dll_info(game_path: str, dll_path: str, game_id: int):
+            dll_filename = Path(dll_path).name
+            dll_type = DLL_TYPE_MAP.get(dll_filename.lower(), "Unknown")
 
-                        if dll_record:
-                            recorded_dlls += 1
+            # Run version extraction in thread pool
+            dll_version = await asyncio.to_thread(get_dll_version, dll_path)
 
-                # Update progress periodically (every 5 games or on last game)
-                game_count += 1
-                if progress_callback and (game_count % 5 == 0 or game_count == total_games_to_record):
-                    db_progress = int(85 + (game_count / max(total_games_to_record, 1)) * 15)  # 85-100%
-                    await progress_callback(
-                        db_progress,
-                        100,
-                        f"Recorded {game_count}/{total_games_to_record} games"
-                    )
+            return {
+                'game_id': game_id,
+                'dll_type': dll_type,
+                'dll_filename': dll_filename,
+                'dll_path': str(dll_path),
+                'current_version': dll_version,
+            }
+
+        # Gather all DLL extraction tasks
+        dll_tasks = []
+        for game_path, game in games_result.items():
+            if game_path in game_dll_mapping:
+                for dll_path in game_dll_mapping[game_path]:
+                    dll_tasks.append(extract_dll_info(game_path, dll_path, game.id))
+
+        # Execute all DLL version extractions in parallel (with semaphore limit)
+        semaphore = asyncio.Semaphore(16)  # Limit concurrent PE parsing
+
+        async def extract_with_limit(task):
+            async with semaphore:
+                return await task
+
+        dll_results = await asyncio.gather(
+            *[extract_with_limit(t) for t in dll_tasks],
+            return_exceptions=True
+        )
+
+        # Collect DLL data
+        for result in dll_results:
+            if isinstance(result, Exception):
+                logger.error(f"Error extracting DLL info: {result}")
+                continue
+            dlls_to_insert.append(result)
+            if result.get('current_version'):
+                dlls_with_versions += 1
+
+        if progress_callback:
+            await progress_callback(95, 100, f"Batch inserting {len(dlls_to_insert)} DLLs...")
+
+        # Phase 5: Batch upsert all DLLs
+        recorded_dlls = await db_manager.batch_upsert_dlls(dlls_to_insert)
 
         logger.info(f"Database recording complete: {recorded_games} games, {recorded_dlls} DLLs")
-
-        # Log version extraction summary
         logger.info(f"Version extraction: {dlls_with_versions}/{recorded_dlls} DLLs have valid versions")
 
         if dlls_with_versions == 0 and recorded_dlls > 0:
-            logger.warning("⚠️  No DLL versions extracted! Check get_dll_version() function")
+            logger.warning("No DLL versions extracted! Check get_dll_version() function")
 
         # Report completion
         if progress_callback:
@@ -500,7 +699,6 @@ async def find_all_dlls(progress_callback=None):
 
     except Exception as e:
         logger.error(f"Error recording games in database: {e}", exc_info=True)
-        # Don't fail the scan if database recording fails
         if progress_callback:
             await progress_callback(100, 100, "Scan complete (database recording failed)")
 
@@ -540,14 +738,20 @@ def find_all_dlls_sync():
 
 
 def scan_directory_for_dlls(directory, dll_names):
-    """Scan a single directory for DLLs"""
+    """Scan a single directory for DLLs using optimized O(1) lookup"""
     found_dlls = []
+    # Pre-compute lowercase DLL names for O(1) lookup
+    dll_names_lower = frozenset(d.lower() for d in dll_names) if not isinstance(dll_names, frozenset) else dll_names
+
     try:
-        for root, _, files in os.walk(directory):
-            for dll_name in dll_names:
-                if dll_name.lower() in [f.lower() for f in files]:
-                    dll_path = os.path.join(root, dll_name)
-                    found_dlls.append(dll_path)
+        for root, dirs, files in os.walk(directory):
+            # Skip known non-game directories
+            dirs[:] = [d for d in dirs if d.lower() not in _SKIP_DIRECTORIES]
+
+            # O(1) lookup for each file
+            for f in files:
+                if f.lower() in dll_names_lower:
+                    found_dlls.append(os.path.join(root, f))
     except Exception as e:
         logger.error(f"Error scanning directory {directory}: {e}")
     return found_dlls

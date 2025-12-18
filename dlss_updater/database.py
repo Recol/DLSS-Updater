@@ -1,15 +1,24 @@
 """
 Database Manager for DLSS Updater
 SQLite-based persistent storage for games, DLLs, backups, and update history
+
+Performance optimizations:
+- Connection pooling with aiosqlite for true async operations
+- Batch upsert operations for games and DLLs
+- Thread-local connection reuse for sync operations
 """
 
 import sqlite3
 import asyncio
 import logging
+import threading
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple, Any
+from contextlib import asynccontextmanager
 from datetime import datetime
 import appdirs
+
+import aiosqlite
 
 from dlss_updater.logger import setup_logger
 from dlss_updater.models import Game, GameDLL, DLLBackup, UpdateHistory, SteamImage
@@ -37,16 +46,91 @@ class DatabaseManager:
             self.db_path = Path(config_dir) / "games.db"
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             self.initialized = False
+
+            # Connection pool for async operations (aiosqlite)
+            self._async_pool: List[Any] = []  # List of aiosqlite.Connection
+            self._pool_size = 5
+            self._pool_lock = asyncio.Lock()
+            self._pool_semaphore: Optional[asyncio.Semaphore] = None
+
+            # Thread-local storage for sync operations (connection reuse)
+            self._thread_local = threading.local()
+
             logger.info(f"Database path: {self.db_path}")
 
     async def initialize(self):
-        """Initialize database schema"""
+        """Initialize database schema and connection pool"""
         if self.initialized:
             return
 
         await asyncio.to_thread(self._create_schema)
+
+        # Initialize semaphore for connection pool
+        self._pool_semaphore = asyncio.Semaphore(self._pool_size)
+
+        # Pre-warm async connection pool
+        try:
+            for _ in range(self._pool_size):
+                conn = await aiosqlite.connect(str(self.db_path))
+                conn.row_factory = aiosqlite.Row
+                self._async_pool.append(conn)
+            logger.info(f"Connection pool initialized ({len(self._async_pool)} connections)")
+        except Exception as e:
+            logger.error(f"Failed to initialize async pool: {e}")
+            raise
+
         self.initialized = True
         logger.info("Database initialized successfully")
+
+    @asynccontextmanager
+    async def get_async_connection(self):
+        """
+        Get an async connection from the pool.
+
+        Usage:
+            async with db_manager.get_async_connection() as conn:
+                await conn.execute(...)
+        """
+        await self._pool_semaphore.acquire()
+        conn = None
+
+        try:
+            async with self._pool_lock:
+                if self._async_pool:
+                    conn = self._async_pool.pop()
+                else:
+                    # Pool exhausted, create new connection
+                    conn = await aiosqlite.connect(str(self.db_path))
+                    conn.row_factory = aiosqlite.Row
+
+            yield conn
+
+        finally:
+            if conn is not None:
+                async with self._pool_lock:
+                    self._async_pool.append(conn)
+            self._pool_semaphore.release()
+
+    def _get_thread_connection(self) -> sqlite3.Connection:
+        """
+        Get a thread-local reusable connection for sync operations.
+        Reuses connection within the same thread to reduce overhead.
+        """
+        if not hasattr(self._thread_local, 'connection') or self._thread_local.connection is None:
+            self._thread_local.connection = sqlite3.connect(str(self.db_path))
+            self._thread_local.connection.row_factory = sqlite3.Row
+        return self._thread_local.connection
+
+    async def close(self):
+        """Close all pooled connections"""
+        async with self._pool_lock:
+            for conn in self._async_pool:
+                try:
+                    await conn.close()
+                except Exception as e:
+                    logger.debug(f"Error closing pooled connection: {e}")
+            self._async_pool.clear()
+        logger.info("Database connections closed")
 
     def _create_schema(self):
         """Create database schema (runs in thread)"""
@@ -522,6 +606,133 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error updating DLL version: {e}", exc_info=True)
             conn.rollback()
+        finally:
+            conn.close()
+
+    # ===== Batch Operations (Performance Optimized) =====
+
+    async def batch_upsert_games(self, games: List[Dict[str, Any]]) -> Dict[str, Game]:
+        """
+        Batch upsert multiple games in a single transaction.
+
+        Performance: O(1) transaction vs O(n) individual transactions
+        Reduces database roundtrips from N to 1.
+
+        Args:
+            games: List of game dicts with keys: name, path, launcher, steam_app_id
+
+        Returns:
+            Dict mapping path to Game object
+        """
+        if not games:
+            return {}
+
+        return await asyncio.to_thread(self._batch_upsert_games, games)
+
+    def _batch_upsert_games(self, games: List[Dict[str, Any]]) -> Dict[str, Game]:
+        """Batch upsert games (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        result = {}
+
+        try:
+            # Use executemany for batch insert
+            game_data = [
+                (g['name'], g['path'], g['launcher'], g.get('steam_app_id'))
+                for g in games
+            ]
+
+            cursor.executemany("""
+                INSERT INTO games (name, path, launcher, steam_app_id, last_scanned)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(path) DO UPDATE SET
+                    name = excluded.name,
+                    steam_app_id = COALESCE(excluded.steam_app_id, games.steam_app_id),
+                    last_scanned = CURRENT_TIMESTAMP
+            """, game_data)
+
+            conn.commit()
+
+            # Fetch all inserted/updated records
+            paths = [g['path'] for g in games]
+            placeholders = ','.join('?' * len(paths))
+
+            cursor.execute(f"""
+                SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at
+                FROM games
+                WHERE path IN ({placeholders})
+            """, paths)
+
+            for row in cursor.fetchall():
+                game = Game(
+                    id=row[0],
+                    name=row[1],
+                    path=row[2],
+                    launcher=row[3],
+                    steam_app_id=row[4],
+                    last_scanned=datetime.fromisoformat(row[5]),
+                    created_at=datetime.fromisoformat(row[6])
+                )
+                result[game.path] = game
+
+            logger.info(f"Batch upserted {len(result)} games")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error batch upserting games: {e}", exc_info=True)
+            conn.rollback()
+            return {}
+        finally:
+            conn.close()
+
+    async def batch_upsert_dlls(self, dlls: List[Dict[str, Any]]) -> int:
+        """
+        Batch upsert multiple DLLs in a single transaction.
+
+        Performance: O(1) transaction vs O(n) individual transactions
+
+        Args:
+            dlls: List of DLL dicts with keys: game_id, dll_type, dll_filename, dll_path, current_version
+
+        Returns:
+            Number of DLLs upserted
+        """
+        if not dlls:
+            return 0
+
+        return await asyncio.to_thread(self._batch_upsert_dlls, dlls)
+
+    def _batch_upsert_dlls(self, dlls: List[Dict[str, Any]]) -> int:
+        """Batch upsert DLLs (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            dll_data = [
+                (d['game_id'], d['dll_type'], d['dll_filename'], d['dll_path'], d.get('current_version'))
+                for d in dlls
+            ]
+
+            cursor.executemany("""
+                INSERT INTO game_dlls (game_id, dll_type, dll_filename, dll_path, current_version)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(dll_path) DO UPDATE SET
+                    game_id = excluded.game_id,
+                    dll_type = excluded.dll_type,
+                    dll_filename = excluded.dll_filename,
+                    current_version = excluded.current_version,
+                    detected_at = CURRENT_TIMESTAMP
+            """, dll_data)
+
+            conn.commit()
+            count = len(dlls)
+            logger.info(f"Batch upserted {count} DLLs")
+            return count
+
+        except Exception as e:
+            logger.error(f"Error batch upserting DLLs: {e}", exc_info=True)
+            conn.rollback()
+            return 0
         finally:
             conn.close()
 

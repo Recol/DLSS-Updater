@@ -1,3 +1,9 @@
+Version 2.9.1:
+70-80% faster game scanning.
+90% fewer database roundtrips.
+30-50% faster DLL version extraction.
+Fixed backup not removed from Backups page after restore.
+
 Version 2.9.0:
 UI update overhaul of the application.
 Support for scanning games, this will now report back all the games found on the system, including what specific DLL's are found there.

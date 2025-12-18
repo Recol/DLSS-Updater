@@ -8,3 +8,5 @@ requests
 pyinstaller
 msgspec>=0.18.0
 aiohttp
+aiosqlite>=0.22.0
+aiofiles>=25.1.0
