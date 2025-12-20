@@ -134,10 +134,14 @@ class DatabaseManager:
 
     def _create_schema(self):
         """Create database schema (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = sqlite3.connect(str(self.db_path))  # New connection for schema setup
         cursor = conn.cursor()
 
         try:
+            # Enable WAL mode for better write performance
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+
             # Games table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS games (
@@ -239,8 +243,8 @@ class DatabaseManager:
         return await asyncio.to_thread(self._upsert_game, game_data)
 
     def _upsert_game(self, game_data: Dict[str, Any]) -> Optional[Game]:
-        """Upsert game (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Upsert game (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -278,16 +282,15 @@ class DatabaseManager:
             logger.error(f"Error upserting game: {e}", exc_info=True)
             conn.rollback()
             return None
-        finally:
-            conn.close()
+        # Note: Don't close thread-local connection - it's reused
 
     async def get_games_grouped_by_launcher(self) -> Dict[str, List[Game]]:
         """Get all games grouped by launcher"""
         return await asyncio.to_thread(self._get_games_grouped_by_launcher)
 
     def _get_games_grouped_by_launcher(self) -> Dict[str, List[Game]]:
-        """Get games grouped by launcher (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Get games grouped by launcher (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -306,7 +309,7 @@ class DatabaseManager:
             """)
 
             games_by_launcher = {}
-            for row in cursor.fetchall():
+            for row in cursor:  # Direct iteration instead of fetchall()
                 game = Game(
                     id=row[0],
                     name=row[1],
@@ -326,8 +329,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting games by launcher: {e}", exc_info=True)
             return {}
-        finally:
-            conn.close()
 
     async def delete_all_games(self):
         """
@@ -630,8 +631,8 @@ class DatabaseManager:
         return await asyncio.to_thread(self._batch_upsert_games, games)
 
     def _batch_upsert_games(self, games: List[Dict[str, Any]]) -> Dict[str, Game]:
-        """Batch upsert games (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Batch upsert games (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
         result = {}
 
@@ -663,7 +664,7 @@ class DatabaseManager:
                 WHERE path IN ({placeholders})
             """, paths)
 
-            for row in cursor.fetchall():
+            for row in cursor:  # Direct iteration
                 game = Game(
                     id=row[0],
                     name=row[1],
@@ -682,8 +683,6 @@ class DatabaseManager:
             logger.error(f"Error batch upserting games: {e}", exc_info=True)
             conn.rollback()
             return {}
-        finally:
-            conn.close()
 
     async def batch_upsert_dlls(self, dlls: List[Dict[str, Any]]) -> int:
         """
@@ -703,8 +702,8 @@ class DatabaseManager:
         return await asyncio.to_thread(self._batch_upsert_dlls, dlls)
 
     def _batch_upsert_dlls(self, dlls: List[Dict[str, Any]]) -> int:
-        """Batch upsert DLLs (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Batch upsert DLLs (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -733,8 +732,6 @@ class DatabaseManager:
             logger.error(f"Error batch upserting DLLs: {e}", exc_info=True)
             conn.rollback()
             return 0
-        finally:
-            conn.close()
 
     # ===== Backup Operations =====
 

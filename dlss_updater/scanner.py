@@ -11,6 +11,13 @@ import concurrent.futures
 from dlss_updater.logger import setup_logger
 import sys
 
+# Try to import scandir-rs for 6-70x faster directory scanning on Windows
+try:
+    from scandir_rs import Walk as FastWalk
+    HAVE_SCANDIR_RS = True
+except ImportError:
+    HAVE_SCANDIR_RS = False
+
 logger = setup_logger()
 
 # Pre-computed frozen set of DLL names for O(1) lookup (populated at scan time)
@@ -92,6 +99,23 @@ async def find_dlls(library_paths, launcher_name, dll_names):
             # Use asyncio.to_thread to avoid blocking the event loop
             def _scan_library():
                 results = []
+
+                # Use scandir-rs for 6-70x faster scanning on Windows if available
+                if HAVE_SCANDIR_RS:
+                    try:
+                        for entry in FastWalk(str(library_path)):
+                            # Skip directories in skip list
+                            if entry.is_dir:
+                                if entry.name.lower() in _SKIP_DIRECTORIES:
+                                    continue
+                            elif entry.is_file:
+                                if entry.name.lower() in dll_names_lower:
+                                    results.append(entry.path)
+                        return results
+                    except Exception as e:
+                        logger.warning(f"scandir-rs failed, falling back to os.walk: {e}")
+
+                # Fallback to os.walk
                 for root, dirs, files in os.walk(library_path):
                     # Skip known non-game directories
                     dirs[:] = [d for d in dirs if d.lower() not in _SKIP_DIRECTORIES]

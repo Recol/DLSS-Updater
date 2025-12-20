@@ -10,7 +10,8 @@ import flet as ft
 
 from dlss_updater.database import GameDLL
 from dlss_updater.steam_integration import fetch_steam_image
-from dlss_updater.ui_flet.theme.colors import Shadows
+from dlss_updater.ui_flet.theme.colors import Shadows, TechnologyColors
+from dlss_updater.constants import DLL_GROUPS
 
 
 class GameCard(ft.Card):
@@ -26,7 +27,7 @@ class GameCard(ft.Card):
         self.on_view_backups_callback = on_view_backups
 
         # Update button reference for loading state
-        self.update_button: Optional[ft.TextButton] = None
+        self.update_button: Optional[ft.PopupMenuButton] = None
         self.is_updating = False
 
         # Reference to dll_badges for refresh
@@ -118,14 +119,8 @@ class GameCard(ft.Card):
         self.dll_badges_container = self._create_dll_badges()
 
         # Action buttons - store reference to update button for loading state
-        self.update_button = ft.TextButton(
-            "Update",
-            icon=ft.Icons.UPDATE,
-            on_click=self._on_update_clicked,
-            style=ft.ButtonStyle(
-                color="#2D6E88",
-            ),
-        )
+        # Build popup menu items for selective DLL updates
+        self.update_button = self._create_update_popup_menu()
 
         action_buttons = ft.Row(
             controls=[
@@ -236,6 +231,78 @@ class GameCard(ft.Card):
             tight=True,
         )
 
+    def _get_dll_groups_for_game(self) -> List[str]:
+        """Get unique DLL technology groups present in this game"""
+        groups_present = set()
+        for dll in self.dlls:
+            dll_filename = dll.dll_filename.lower() if dll.dll_filename else ""
+            for group_name, group_dlls in DLL_GROUPS.items():
+                if dll_filename in [d.lower() for d in group_dlls]:
+                    groups_present.add(group_name)
+                    break
+        return sorted(list(groups_present))
+
+    def _create_update_popup_menu(self) -> ft.PopupMenuButton:
+        """Create popup menu button for selective DLL updates"""
+        groups = self._get_dll_groups_for_game()
+
+        # Build menu items
+        menu_items = [
+            ft.PopupMenuItem(
+                text="Update All",
+                icon=ft.Icons.UPDATE,
+                on_click=lambda e: self._on_update_group_selected("all"),
+            ),
+        ]
+
+        # Add divider and group-specific options if we have groups
+        if groups:
+            menu_items.append(ft.PopupMenuItem())  # Divider
+
+            for group in groups:
+                color = TechnologyColors.get_color(group)
+                # Create a colored container as leading element
+                menu_items.append(
+                    ft.PopupMenuItem(
+                        content=ft.Row(
+                            controls=[
+                                ft.Container(
+                                    width=8,
+                                    height=8,
+                                    bgcolor=color,
+                                    border_radius=4,
+                                ),
+                                ft.Text(f"Update {group}", size=14),
+                            ],
+                            spacing=8,
+                        ),
+                        on_click=lambda e, g=group: self._on_update_group_selected(g),
+                    )
+                )
+
+        # Use content property to show "Update ▼" text instead of just an icon
+        return ft.PopupMenuButton(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.UPDATE, size=18, color="#2D6E88"),
+                    ft.Text("Update", size=14, color="#2D6E88"),
+                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color="#2D6E88"),
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            tooltip="Select DLLs to update",
+            items=menu_items,
+        )
+
+    def _on_update_group_selected(self, group: str):
+        """Handle DLL group selection from popup menu"""
+        if self.is_updating:
+            return
+        if self.on_update_callback:
+            # Pass both game and selected group
+            self.on_update_callback(self.game, group)
+
     async def load_image(self):
         """Async load Steam image with fade-in animation"""
         if not self.game.steam_app_id:
@@ -294,13 +361,6 @@ class GameCard(ft.Card):
             self.scale = 1.0
         self.update()
 
-    def _on_update_clicked(self, e):
-        """Handle update button click"""
-        if self.is_updating:
-            return  # Prevent double-clicks during update
-        if self.on_update_callback:
-            self.on_update_callback(self.game)
-
     def _on_view_backups_clicked(self, e):
         """Handle view backups button click"""
         if self.on_view_backups_callback:
@@ -309,21 +369,19 @@ class GameCard(ft.Card):
     def set_updating(self, is_updating: bool):
         """Set updating state - shows spinner and disables button"""
         self.is_updating = is_updating
-        if self.update_button:
-            if is_updating:
-                self.update_button.text = "Updating..."
-                self.update_button.icon = ft.Icons.HOURGLASS_TOP
-                self.update_button.disabled = True
-                self.update_button.style = ft.ButtonStyle(
-                    color="#888888",
-                )
-            else:
-                self.update_button.text = "Update"
-                self.update_button.icon = ft.Icons.UPDATE
-                self.update_button.disabled = False
-                self.update_button.style = ft.ButtonStyle(
-                    color="#2D6E88",
-                )
+        if self.update_button and self.update_button.content:
+            row = self.update_button.content
+            color = "#888888" if is_updating else "#2D6E88"
+            # Update icon and colors in the content row
+            if row.controls and len(row.controls) >= 3:
+                # First control is the icon
+                row.controls[0].name = ft.Icons.HOURGLASS_TOP if is_updating else ft.Icons.UPDATE
+                row.controls[0].color = color
+                # Second control is the text
+                row.controls[1].color = color
+                # Third control is the dropdown arrow
+                row.controls[2].color = color
+            self.update_button.disabled = is_updating
             self.update_button.update()
 
     def refresh_dlls(self, new_dlls: List[GameDLL]):

@@ -1,6 +1,6 @@
 import os
 import shutil
-import pefile
+from functools import lru_cache
 from .config import LATEST_DLL_VERSIONS, LATEST_DLL_PATHS
 from pathlib import Path
 import concurrent.futures
@@ -15,7 +15,11 @@ from .models import ProcessedDLLResult
 
 logger = setup_logger()
 
+# Cache for DLL version extraction (key: (path, mtime) for cache invalidation)
+_dll_version_cache: dict = {}
 
+
+@lru_cache(maxsize=256)
 def parse_version(version_string):
     """
     Parse a version string into a format that can be compared.
@@ -49,8 +53,21 @@ def get_dll_version(dll_path):
     Extract version from a DLL file using pefile.
 
     Uses fast_load=True and only parses the resource directory for better performance.
+    Results are cached based on file path and modification time.
     """
+    import pefile  # Deferred import for faster startup
+
     try:
+        # Get file modification time for cache invalidation
+        path_str = str(dll_path)
+        mtime = os.path.getmtime(path_str)
+        cache_key = (path_str, mtime)
+
+        # Check cache first
+        if cache_key in _dll_version_cache:
+            return _dll_version_cache[cache_key]
+
+        # Not in cache, parse the DLL
         with open(dll_path, "rb") as file:
             # Use fast_load to skip unnecessary PE parsing
             pe = pefile.PE(data=file.read(), fast_load=True)
@@ -60,6 +77,7 @@ def get_dll_version(dll_path):
                 directories=[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_RESOURCE']]
             )
 
+            version_str = None
             if hasattr(pe, 'FileInfo') and pe.FileInfo:
                 for fileinfo in pe.FileInfo:
                     for entry in fileinfo:
@@ -67,7 +85,21 @@ def get_dll_version(dll_path):
                             for st in entry.StringTable:
                                 for key, value in st.entries.items():
                                     if key == b"FileVersion":
-                                        return value.decode("utf-8").strip()
+                                        version_str = value.decode("utf-8").strip()
+                                        break
+
+            # Cache the result (including None for files without version)
+            _dll_version_cache[cache_key] = version_str
+
+            # Limit cache size to prevent memory bloat
+            if len(_dll_version_cache) > 256:
+                # Remove oldest entries (simple FIFO)
+                keys_to_remove = list(_dll_version_cache.keys())[:128]
+                for key in keys_to_remove:
+                    del _dll_version_cache[key]
+
+            return version_str
+
     except Exception as e:
         logger.error(f"Error reading version from {dll_path}: {e}")
     return None

@@ -226,6 +226,7 @@ class AsyncUpdateCoordinator:
         self,
         game_id: int,
         game_name: str,
+        dll_groups: Optional[List[str]] = None,
         progress_callback: Optional[Callable[[UpdateProgress], None]] = None
     ) -> Dict[str, Any]:
         """
@@ -234,12 +235,15 @@ class AsyncUpdateCoordinator:
         Args:
             game_id: Database ID of the game to update
             game_name: Name of the game (for logging)
+            dll_groups: Optional list of DLL groups to update (e.g., ["DLSS", "XeSS"]).
+                       If None, updates all DLLs.
             progress_callback: Optional callback for progress updates
 
         Returns:
             Dict with 'updated', 'skipped', 'errors' lists and 'success' bool
         """
-        self.logger.info(f"Starting single-game update for: {game_name} (id: {game_id})")
+        groups_str = ", ".join(dll_groups) if dll_groups else "all"
+        self.logger.info(f"Starting single-game update for: {game_name} (id: {game_id}, groups: {groups_str})")
         self._progress_callback = progress_callback
 
         results: Dict[str, Any] = {
@@ -260,6 +264,30 @@ class AsyncUpdateCoordinator:
                     'dll_type': None
                 })
                 return results
+
+            # Filter DLLs by selected groups if specified
+            if dll_groups:
+                from dlss_updater.constants import DLL_GROUPS
+
+                filtered_dlls = []
+                for game_dll in game_dlls:
+                    dll_filename = game_dll.dll_filename.lower()
+                    for group in dll_groups:
+                        if group in DLL_GROUPS:
+                            group_dll_names = [d.lower() for d in DLL_GROUPS[group]]
+                            if dll_filename in group_dll_names:
+                                filtered_dlls.append(game_dll)
+                                break
+                game_dlls = filtered_dlls
+
+                if not game_dlls:
+                    self.logger.warning(f"No DLLs matching selected groups for game: {game_name}")
+                    results['skipped'].append({
+                        'dll_type': 'Selected groups',
+                        'dll_path': '',
+                        'reason': f'No DLLs found matching groups: {", ".join(dll_groups)}'
+                    })
+                    return results
 
             total_dlls = len(game_dlls)
             processed = 0

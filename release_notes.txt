@@ -1,3 +1,11 @@
+Version 2.9.2:
+Selective DLL updates - choose to update specific DLL types (DLSS, XeSS, FSR, DirectStorage, Streamline) per game via dropdown menu.
+6-70x faster directory scanning on Windows.
+2x faster async operations with winloop.
+Non-blocking startup - UI appears immediately while updates check in background.
+Added LRU caching for version parsing and game name matching.
+SQLite WAL mode for improved database performance.
+
 Version 2.9.1:
 70-80% faster game scanning.
 90% fewer database roundtrips.

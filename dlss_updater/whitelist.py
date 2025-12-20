@@ -2,8 +2,7 @@ import os
 import csv
 from io import StringIO
 import asyncio
-from urllib.request import urlopen
-from urllib.error import URLError
+import aiohttp
 from dlss_updater.logger import setup_logger
 from dlss_updater.config import config_manager
 
@@ -13,14 +12,40 @@ WHITELIST_URL = (
     "https://raw.githubusercontent.com/Recol/DLSS-Updater-Whitelist/main/whitelist.csv"
 )
 
+# Lazy-loaded whitelist cache (not fetched at import time)
+_whitelist_cache: set = set()
+_whitelist_initialized: bool = False
+_whitelist_lock: asyncio.Lock | None = None
 
-def fetch_whitelist():
+
+async def _get_lock() -> asyncio.Lock:
+    """Get or create the whitelist lock (must be called from async context)"""
+    global _whitelist_lock
+    if _whitelist_lock is None:
+        _whitelist_lock = asyncio.Lock()
+    return _whitelist_lock
+
+
+async def fetch_whitelist_async() -> set:
+    """Fetch whitelist from remote URL using aiohttp (non-blocking)"""
     try:
-        with urlopen(WHITELIST_URL) as response:
-            csv_data = StringIO(response.read().decode("utf-8"))
-        reader = csv.reader(csv_data)
-        return set(row[0].strip() for row in reader if row and row[0].strip())
-    except URLError as e:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                WHITELIST_URL,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                if response.status != 200:
+                    logger.error(f"Failed to fetch whitelist: HTTP {response.status}")
+                    return set()
+
+                csv_data = StringIO(await response.text())
+                reader = csv.reader(csv_data)
+                return set(row[0].strip() for row in reader if row and row[0].strip())
+
+    except asyncio.TimeoutError:
+        logger.error("Timeout fetching whitelist")
+        return set()
+    except aiohttp.ClientError as e:
         logger.error(f"Failed to fetch whitelist: {e}")
         return set()
     except csv.Error as e:
@@ -28,7 +53,34 @@ def fetch_whitelist():
         return set()
 
 
-WHITELISTED_GAMES = fetch_whitelist()
+async def initialize_whitelist() -> None:
+    """Initialize the whitelist cache (call once during app startup)"""
+    global _whitelist_cache, _whitelist_initialized
+
+    lock = await _get_lock()
+    async with lock:
+        if _whitelist_initialized:
+            return
+
+        logger.info("Initializing whitelist...")
+        _whitelist_cache = await fetch_whitelist_async()
+        _whitelist_initialized = True
+        logger.info(f"Whitelist initialized with {len(_whitelist_cache)} games")
+
+
+async def get_whitelist() -> set:
+    """Get the whitelist, initializing if necessary"""
+    if not _whitelist_initialized:
+        await initialize_whitelist()
+    return _whitelist_cache
+
+
+def get_whitelist_sync() -> set:
+    """Sync access to whitelist (for use after initialization)"""
+    if not _whitelist_initialized:
+        logger.warning("Whitelist accessed before initialization, returning empty set")
+        return set()
+    return _whitelist_cache
 
 
 async def is_whitelisted(game_path):
@@ -37,6 +89,9 @@ async def is_whitelisted(game_path):
     Uses launcher pattern detection to find the actual game name.
     """
     logger.debug(f"Checking game against whitelist: {game_path}")
+
+    # Get the whitelist (will initialize if needed)
+    whitelist = await get_whitelist()
 
     # Extract path components
     path_parts = [p for p in game_path.split(os.path.sep) if p]
@@ -75,7 +130,7 @@ async def is_whitelisted(game_path):
         gog_index = path_parts.index("GOG Galaxy")
         if "Games" in path_parts:
             # Pattern: D:\GOG Galaxy\Games\<GameName>\...
-            games_index = path_parts.index("Games") 
+            games_index = path_parts.index("Games")
             if games_index + 1 < len(path_parts):
                 game_dir = path_parts[games_index + 1]
         else:
@@ -111,7 +166,7 @@ async def is_whitelisted(game_path):
     logger.debug(f"Identified game directory: {game_dir}")
 
     # Check for skip list first
-    for game in WHITELISTED_GAMES:
+    for game in whitelist:
         if config_manager.is_blacklist_skipped(game):
             if game.lower() == game_dir.lower():
                 logger.info(
@@ -120,7 +175,7 @@ async def is_whitelisted(game_path):
                 return False
 
     # Now check against whitelist
-    for game in WHITELISTED_GAMES:
+    for game in whitelist:
         # Skip if in skip list (already handled)
         if config_manager.is_blacklist_skipped(game):
             continue
@@ -136,7 +191,8 @@ async def is_whitelisted(game_path):
 
 def get_all_blacklisted_games():
     """Return the list of all blacklisted games for UI display"""
-    return list(WHITELISTED_GAMES)
+    return list(get_whitelist_sync())
+
 
 async def check_whitelist_batch(game_paths):
     """Check multiple game paths against whitelist in parallel"""
@@ -144,7 +200,7 @@ async def check_whitelist_batch(game_paths):
     for path in game_paths:
         task = asyncio.create_task(is_whitelisted(path))
         tasks.append((path, task))
-    
+
     results = {}
     for path, task in tasks:
         try:
@@ -152,5 +208,5 @@ async def check_whitelist_batch(game_paths):
         except Exception as e:
             logger.error(f"Error checking whitelist for {path}: {e}")
             results[path] = False
-    
+
     return results

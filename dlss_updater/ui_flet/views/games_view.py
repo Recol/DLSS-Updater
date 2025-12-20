@@ -449,16 +449,16 @@ class GamesView(ft.Column):
             ]
             self.page.open(error_dialog)
 
-    def _on_game_update(self, game):
+    def _on_game_update(self, game, dll_group: str = "all"):
         """Handle game update button click - launches async update"""
-        self.logger.info(f"Update requested for game: {game.name}")
+        self.logger.info(f"Update requested for game: {game.name}, group: {dll_group}")
         # Launch the async update using Flet's page.run_task for proper event loop handling
         if self.page:
-            self.page.run_task(self._perform_game_update, game)
+            self.page.run_task(self._perform_game_update, game, dll_group)
 
-    async def _perform_game_update(self, game):
+    async def _perform_game_update(self, game, dll_group: str = "all"):
         """Perform the single-game DLL update"""
-        self.logger.info(f"Starting update for game: {game.name} (id: {game.id})")
+        self.logger.info(f"Starting update for game: {game.name} (id: {game.id}, group: {dll_group})")
 
         # Check if DLL cache is ready
         if not is_dll_cache_ready():
@@ -474,7 +474,7 @@ class GamesView(ft.Column):
         game_card = self.game_cards.get(game.id)
 
         # Create and show progress dialog
-        progress_dialog = self._create_update_progress_dialog(game.name)
+        progress_dialog = self._create_update_progress_dialog(game.name, dll_group)
         self.page.open(progress_dialog)
 
         # Set card to updating state
@@ -490,10 +490,11 @@ class GamesView(ft.Column):
             async def on_progress(progress):
                 self._update_progress_dialog(progress_dialog, progress)
 
-            # Run update
+            # Run update with optional group filter
             result = await self.update_coordinator.update_single_game(
                 game.id,
                 game.name,
+                dll_groups=[dll_group] if dll_group != "all" else None,
                 progress_callback=on_progress
             )
 
@@ -521,15 +522,20 @@ class GamesView(ft.Column):
             if game_card:
                 game_card.set_updating(False)
 
-    def _create_update_progress_dialog(self, game_name: str) -> ft.AlertDialog:
+    def _create_update_progress_dialog(self, game_name: str, dll_group: str = "all") -> ft.AlertDialog:
         """Create progress dialog for single-game update"""
         self._progress_ring = ft.ProgressRing(width=40, height=40)
         self._progress_text = ft.Text("Preparing update...", size=14)
         self._progress_detail = ft.Text("", size=12, color="#888888")
 
+        # Show which group is being updated in the title
+        title_text = f"Updating {game_name}"
+        if dll_group != "all":
+            title_text = f"Updating {dll_group} - {game_name}"
+
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text(f"Updating {game_name}"),
+            title=ft.Text(title_text),
             content=ft.Container(
                 content=ft.Column(
                     controls=[

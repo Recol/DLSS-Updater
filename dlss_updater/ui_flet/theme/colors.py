@@ -168,6 +168,35 @@ class Shadows:
     ]
 
 
+class TechnologyColors:
+    """Brand colors for DLL technology groups"""
+
+    DLSS = "#76B900"          # NVIDIA green
+    XeSS = "#0071C5"          # Intel blue
+    FSR = "#ED1C24"           # AMD red
+    DirectStorage = "#FFB900" # Windows yellow
+    Streamline = "#76B900"    # NVIDIA green (Streamline is NVIDIA tech)
+
+    # Technology icons mapping
+    ICONS = {
+        "DLSS": "memory",          # GPU/memory icon for DLSS
+        "XeSS": "memory",          # GPU/memory icon for XeSS
+        "FSR": "memory",           # GPU/memory icon for FSR
+        "DirectStorage": "storage",  # Storage icon
+        "Streamline": "tune",      # Settings/tune icon for Streamline
+    }
+
+    @classmethod
+    def get_color(cls, tech_name: str) -> str:
+        """Get brand color for a technology by name"""
+        return getattr(cls, tech_name, "#888888")
+
+    @classmethod
+    def get_icon(cls, tech_name: str) -> str:
+        """Get icon name for a technology"""
+        return cls.ICONS.get(tech_name, "memory")
+
+
 class LauncherColors:
     """Brand colors for each game launcher"""
 

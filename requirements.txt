@@ -4,9 +4,10 @@ packaging
 pywin32; platform_system == "Windows"
 appdirs
 flet>=0.28.3
-requests
 pyinstaller
-msgspec>=0.18.0
+msgspec>=0.20.0
 aiohttp
 aiosqlite>=0.22.0
 aiofiles>=25.1.0
+scandir-rs>=2.9.3; platform_system == "Windows"
+winloop>=0.1.7; platform_system == "Windows"

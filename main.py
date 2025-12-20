@@ -4,6 +4,15 @@ Async/await-based modern Material Design interface
 """
 
 import sys
+
+# Install faster event loop on Windows (must be done before any asyncio usage)
+if sys.platform == 'win32':
+    try:
+        import winloop
+        winloop.install()
+    except ImportError:
+        pass  # winloop not installed, use default event loop
+
 import asyncio
 import logging
 import flet as ft
@@ -67,6 +76,16 @@ async def main(page: ft.Page):
     )
     page.add(startup_overlay)
     page.update()
+
+    # Initialize whitelist in background (non-blocking)
+    async def init_whitelist():
+        """Initialize whitelist asynchronously"""
+        try:
+            from dlss_updater.whitelist import initialize_whitelist
+            await initialize_whitelist()
+        except Exception as e:
+            logger.warning(f"Failed to initialize whitelist: {e}")
+            # Non-critical, continue without whitelist
 
     # Run database and DLL cache initialization in parallel
     async def init_database():
@@ -143,8 +162,9 @@ async def main(page: ft.Page):
 
     logger.info("UI initialized successfully")
 
-    # Now initialize DLL cache and Steam list in background (after UI is visible)
+    # Now initialize DLL cache, whitelist, and Steam list in background (after UI is visible)
     # This allows the user to see the app immediately while heavy init happens
+    asyncio.create_task(init_whitelist())
     asyncio.create_task(init_dll_cache())
     asyncio.create_task(update_steam_list())
 

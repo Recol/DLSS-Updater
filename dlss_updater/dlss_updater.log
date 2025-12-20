@@ -1035,3 +1035,1887 @@
 2025-05-11 03:30:52,408 - INFO - sl.pcl.dll is up to date (local: 2,7,30,0, remote: 2.7.30.0)
 2025-05-11 03:30:52,467 - INFO - Comparing versions for sl.reflex.dll: local=2,7,30,0 (2.7.30) remote=2.7.30.0 (2.7.30)
 2025-05-11 03:30:52,467 - INFO - sl.reflex.dll is up to date (local: 2,7,30,0, remote: 2.7.30.0)
+2025-12-18 16:33:54,715 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-18 16:33:54,715 - INFO - aiosqlite available - async connection pooling enabled
+2025-12-18 16:33:54,975 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-18 16:33:54,975 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-18 16:33:54,997 - INFO - Checking dependencies...
+2025-12-18 16:33:55,014 - WARNING - Application requires administrator privileges
+2025-12-18 16:33:55,014 - INFO - Attempting to restart with admin rights...
+2025-12-18 16:33:55,014 - INFO - Re-running script with admin privileges...
+2025-12-18 16:33:56,622 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-18 16:33:56,622 - INFO - aiosqlite available - async connection pooling enabled
+2025-12-18 16:33:56,704 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-18 16:33:56,704 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-18 16:33:56,705 - INFO - Checking dependencies...
+2025-12-18 16:33:56,720 - INFO - Admin privileges confirmed
+2025-12-18 16:33:56,720 - INFO - DLL cache will be initialized after UI loads...
+2025-12-18 16:33:57,112 - INFO - DLSS Updater (Flet) starting...
+2025-12-18 16:33:57,113 - INFO - Initializing database...
+2025-12-18 16:33:57,119 - INFO - Database schema created successfully
+2025-12-18 16:33:57,121 - INFO - Async connection pool initialized with 2 connections
+2025-12-18 16:33:57,124 - INFO - Database initialized successfully
+2025-12-18 16:33:57,124 - INFO - Database initialized successfully
+2025-12-18 16:33:57,126 - INFO - Cleaned up 0 duplicate game entries
+2025-12-18 16:33:57,134 - INFO - No duplicate backups found
+2025-12-18 16:34:02,149 - INFO - Initializing main view...
+2025-12-18 16:34:02,159 - INFO - Loaded cached scan results: 42 games (scanned 3 days ago)
+2025-12-18 16:34:02,165 - INFO - Main view initialized
+2025-12-18 16:34:02,182 - INFO - UI initialized successfully
+2025-12-18 16:34:02,274 - INFO - Steam app list cache is 9 days old, updating...
+2025-12-18 16:34:02,274 - INFO - Downloading Steam app list from GitHub repository...
+2025-12-18 16:34:02,275 - INFO - Fetching games_appid.json...
+2025-12-18 16:34:02,343 - INFO - Initializing DLL cache (async)...
+2025-12-18 16:34:02,343 - INFO - Initializing DLL cache
+2025-12-18 16:34:03,275 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:34:03,276 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-18 16:34:03,277 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-18 16:34:03,277 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:34:03,278 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-18 16:34:03,278 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-18 16:34:03,279 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:34:03,294 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:34:03,295 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:34:03,295 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-18 16:34:03,295 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-18 16:34:03,302 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:34:03,320 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-18 16:34:03,320 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-18 16:34:03,341 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:34:03,361 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:34:03,366 - INFO - sl.common.dll is up to date
+2025-12-18 16:34:03,461 - INFO - libxess.dll is up to date
+2025-12-18 16:34:03,469 - INFO - dstorage.dll is up to date
+2025-12-18 16:34:03,502 - INFO - nvngx_dlss.dll is up to date
+2025-12-18 16:34:03,542 - INFO - libxess_dx11.dll is up to date
+2025-12-18 16:34:03,558 - INFO - dstoragecore.dll is up to date
+2025-12-18 16:34:03,616 - INFO - nvngx_dlssd.dll is up to date
+2025-12-18 16:34:03,625 - INFO - nvngx_dlssg.dll is up to date
+2025-12-18 16:34:03,898 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:34:03,907 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:34:03,925 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:34:03,925 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:34:03,926 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:34:03,926 - INFO - sl.dlss.dll is up to date
+2025-12-18 16:34:03,927 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:34:03,927 - INFO - sl.interposer.dll is up to date
+2025-12-18 16:34:03,927 - INFO - sl.dlss_g.dll is up to date
+2025-12-18 16:34:03,963 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:34:03,964 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:34:03,965 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:34:03,965 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:34:03,965 - INFO - sl.reflex.dll is up to date
+2025-12-18 16:34:03,965 - INFO - sl.pcl.dll is up to date
+2025-12-18 16:34:04,052 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:34:04,062 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:34:04,084 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:34:04,102 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:34:04,119 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:34:04,131 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:34:04,131 - INFO - sl.directsr.dll is up to date
+2025-12-18 16:34:04,131 - INFO - sl.nis.dll is up to date
+2025-12-18 16:34:04,132 - INFO - sl.dlss_d.dll is up to date
+2025-12-18 16:34:04,372 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-18 16:34:04,392 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-18 16:34:04,419 - INFO - amd_fidelityfx_vk.dll is up to date
+2025-12-18 16:34:04,536 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-18 16:34:04,544 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-18 16:34:04,545 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-18 16:34:04,546 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-18 16:34:04,547 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-18 16:34:04,582 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-18 16:34:04,601 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-18 16:34:04,610 - INFO - Updating amd_fidelityfx_dx12.dll to version 1.0.2.44888
+2025-12-18 16:34:04,645 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-18 16:34:04,655 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date
+2025-12-18 16:34:04,682 - INFO - amd_fidelityfx_loader_dx12.dll is up to date
+2025-12-18 16:34:04,699 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date
+2025-12-18 16:34:05,359 - INFO - Downloaded 150407 apps from games_appid.json
+2025-12-18 16:34:05,359 - INFO - Fetching dlc_appid.json...
+2025-12-18 16:34:05,959 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-18 16:34:05,960 - INFO - Downloaded amd_fidelityfx_dx12.dll
+2025-12-18 16:34:06,024 - INFO - DLL cache initialized successfully
+2025-12-18 16:34:06,088 - INFO - Downloaded 56542 apps from dlc_appid.json
+2025-12-18 16:34:06,088 - INFO - Fetching software_appid.json...
+2025-12-18 16:34:06,222 - INFO - Downloaded 2050 apps from software_appid.json
+2025-12-18 16:34:06,241 - INFO - Total: 208999 Steam apps, saving to cache file...
+2025-12-18 16:34:06,302 - INFO - Steam app list cache saved successfully (208999 apps)
+2025-12-18 16:36:29,728 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-18 16:36:29,814 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-18 16:36:29,814 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-18 16:36:29,815 - INFO - Checking dependencies...
+2025-12-18 16:36:29,831 - WARNING - Application requires administrator privileges
+2025-12-18 16:36:29,831 - INFO - Attempting to restart with admin rights...
+2025-12-18 16:36:29,831 - INFO - Re-running script with admin privileges...
+2025-12-18 16:36:31,254 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-18 16:36:31,333 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-18 16:36:31,333 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-18 16:36:31,334 - INFO - Checking dependencies...
+2025-12-18 16:36:31,348 - INFO - Admin privileges confirmed
+2025-12-18 16:36:31,349 - INFO - DLL cache will be initialized after UI loads...
+2025-12-18 16:36:31,567 - INFO - DLSS Updater (Flet) starting...
+2025-12-18 16:36:31,567 - INFO - Initializing database...
+2025-12-18 16:36:31,568 - INFO - Database schema created successfully
+2025-12-18 16:36:31,569 - INFO - Async connection pool initialized with 2 connections
+2025-12-18 16:36:31,569 - INFO - Database initialized successfully
+2025-12-18 16:36:31,570 - INFO - Database initialized successfully
+2025-12-18 16:36:31,570 - INFO - Cleaned up 0 duplicate game entries
+2025-12-18 16:36:31,570 - INFO - No duplicate backups found
+2025-12-18 16:36:36,573 - INFO - Initializing main view...
+2025-12-18 16:36:36,574 - INFO - Loaded cached scan results: 42 games (scanned 3 days ago)
+2025-12-18 16:36:36,581 - INFO - Main view initialized
+2025-12-18 16:36:36,595 - INFO - UI initialized successfully
+2025-12-18 16:36:36,635 - INFO - Steam app list cache is up to date (age: 0 days)
+2025-12-18 16:36:36,704 - INFO - Initializing DLL cache (async)...
+2025-12-18 16:36:36,709 - INFO - Initializing DLL cache
+2025-12-18 16:36:37,402 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:36:37,420 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:36:37,421 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-18 16:36:37,421 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-18 16:36:37,422 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-18 16:36:37,428 - INFO - sl.common.dll is up to date
+2025-12-18 16:36:37,440 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-18 16:36:37,441 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:36:37,453 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-18 16:36:37,460 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-18 16:36:37,467 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:36:37,467 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-18 16:36:37,481 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:36:37,481 - INFO - dstorage.dll is up to date
+2025-12-18 16:36:37,481 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:36:37,536 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:36:37,537 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-18 16:36:37,545 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:36:37,567 - INFO - libxess_dx11.dll is up to date
+2025-12-18 16:36:37,635 - INFO - dstoragecore.dll is up to date
+2025-12-18 16:36:37,654 - INFO - nvngx_dlss.dll is up to date
+2025-12-18 16:36:37,672 - INFO - nvngx_dlssg.dll is up to date
+2025-12-18 16:36:37,707 - INFO - libxess.dll is up to date
+2025-12-18 16:36:37,734 - INFO - nvngx_dlssd.dll is up to date
+2025-12-18 16:36:37,909 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:36:37,917 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:36:37,942 - INFO - sl.dlss.dll is up to date
+2025-12-18 16:36:37,997 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:36:38,007 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:36:38,023 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:36:38,039 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:36:38,055 - INFO - sl.interposer.dll is up to date
+2025-12-18 16:36:38,101 - INFO - sl.dlss_g.dll is up to date
+2025-12-18 16:36:38,188 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:36:38,189 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:36:38,190 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:36:38,201 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:36:38,201 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:36:38,214 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:36:38,247 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:36:38,256 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:36:38,256 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:36:38,274 - INFO - sl.pcl.dll is up to date
+2025-12-18 16:36:38,274 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:36:38,357 - INFO - sl.dlss_d.dll is up to date
+2025-12-18 16:36:38,402 - INFO - sl.reflex.dll is up to date
+2025-12-18 16:36:38,440 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-18 16:36:38,449 - INFO - sl.directsr.dll is up to date
+2025-12-18 16:36:38,469 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-18 16:36:38,505 - INFO - sl.nis.dll is up to date
+2025-12-18 16:36:38,551 - INFO - amd_fidelityfx_vk.dll is up to date
+2025-12-18 16:36:38,631 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-18 16:36:38,632 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-18 16:36:38,705 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-18 16:36:38,721 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-18 16:36:38,736 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date
+2025-12-18 16:36:38,751 - INFO - Updating amd_fidelityfx_dx12.dll to version 1.0.2.44888
+2025-12-18 16:36:38,776 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-18 16:36:38,792 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-18 16:36:38,792 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-18 16:36:38,815 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-18 16:36:38,861 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date
+2025-12-18 16:36:38,900 - INFO - amd_fidelityfx_loader_dx12.dll is up to date
+2025-12-18 16:36:39,912 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-18 16:36:39,922 - INFO - Downloaded amd_fidelityfx_dx12.dll
+2025-12-18 16:36:39,965 - INFO - DLL cache initialized successfully
+2025-12-18 16:37:29,453 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-18 16:37:29,538 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-18 16:37:29,538 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-18 16:37:29,540 - INFO - Checking dependencies...
+2025-12-18 16:37:29,555 - WARNING - Application requires administrator privileges
+2025-12-18 16:37:29,555 - INFO - Attempting to restart with admin rights...
+2025-12-18 16:37:29,555 - INFO - Re-running script with admin privileges...
+2025-12-18 16:37:30,960 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-18 16:37:31,042 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-18 16:37:31,042 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-18 16:37:31,043 - INFO - Checking dependencies...
+2025-12-18 16:37:31,058 - INFO - Admin privileges confirmed
+2025-12-18 16:37:31,058 - INFO - DLL cache will be initialized after UI loads...
+2025-12-18 16:37:31,281 - INFO - DLSS Updater (Flet) starting...
+2025-12-18 16:37:31,282 - INFO - Initializing database...
+2025-12-18 16:37:31,283 - INFO - Database schema created successfully
+2025-12-18 16:37:31,285 - INFO - Connection pool initialized (5 connections)
+2025-12-18 16:37:31,286 - INFO - Database initialized successfully
+2025-12-18 16:37:31,286 - INFO - Database initialized successfully
+2025-12-18 16:37:31,286 - INFO - Cleaned up 0 duplicate game entries
+2025-12-18 16:37:31,300 - INFO - No duplicate backups found
+2025-12-18 16:37:36,309 - INFO - Initializing main view...
+2025-12-18 16:37:36,310 - INFO - Loaded cached scan results: 42 games (scanned 3 days ago)
+2025-12-18 16:37:36,317 - INFO - Main view initialized
+2025-12-18 16:37:36,332 - INFO - UI initialized successfully
+2025-12-18 16:37:36,375 - INFO - Steam app list cache is up to date (age: 0 days)
+2025-12-18 16:37:36,441 - INFO - Initializing DLL cache (async)...
+2025-12-18 16:37:36,441 - INFO - Initializing DLL cache
+2025-12-18 16:37:37,147 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-18 16:37:37,148 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:37:37,149 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-18 16:37:37,149 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-18 16:37:37,161 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:37:37,162 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-18 16:37:37,163 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:37:37,163 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-18 16:37:37,176 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:37:37,177 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:37:37,183 - INFO - dstorage.dll is up to date
+2025-12-18 16:37:37,184 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-18 16:37:37,196 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-18 16:37:37,209 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:37:37,239 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:37:37,265 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:37:37,290 - INFO - nvngx_dlssd.dll is up to date
+2025-12-18 16:37:37,297 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-18 16:37:37,356 - INFO - dstoragecore.dll is up to date
+2025-12-18 16:37:37,391 - INFO - libxess_dx11.dll is up to date
+2025-12-18 16:37:37,433 - INFO - nvngx_dlss.dll is up to date
+2025-12-18 16:37:37,469 - INFO - sl.common.dll is up to date
+2025-12-18 16:37:37,509 - INFO - nvngx_dlssg.dll is up to date
+2025-12-18 16:37:37,525 - INFO - libxess.dll is up to date
+2025-12-18 16:37:37,708 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:37:37,717 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:37:37,731 - INFO - sl.dlss_g.dll is up to date
+2025-12-18 16:37:37,779 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:37:37,789 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:37:37,789 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:37:37,813 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:37:37,826 - INFO - sl.interposer.dll is up to date
+2025-12-18 16:37:37,838 - INFO - sl.dlss.dll is up to date
+2025-12-18 16:37:37,838 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:37:37,862 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:37:37,862 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:37:37,881 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:37:37,904 - INFO - sl.pcl.dll is up to date
+2025-12-18 16:37:37,950 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:37:37,950 - INFO - sl.reflex.dll is up to date
+2025-12-18 16:37:37,951 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:37:37,963 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:37:37,971 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:37:37,997 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:37:38,004 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:37:38,031 - INFO - sl.nis.dll is up to date
+2025-12-18 16:37:38,084 - INFO - sl.directsr.dll is up to date
+2025-12-18 16:37:38,108 - INFO - sl.dlss_d.dll is up to date
+2025-12-18 16:37:38,264 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-18 16:37:38,292 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-18 16:37:38,319 - INFO - amd_fidelityfx_vk.dll is up to date
+2025-12-18 16:37:38,330 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-18 16:37:38,345 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-18 16:37:38,362 - INFO - Updating amd_fidelityfx_dx12.dll to version 1.0.2.44888
+2025-12-18 16:37:38,377 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-18 16:37:38,395 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-18 16:37:38,412 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-18 16:37:38,413 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date
+2025-12-18 16:37:38,413 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-18 16:37:38,454 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-18 16:37:38,480 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-18 16:37:38,515 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date
+2025-12-18 16:37:38,535 - INFO - amd_fidelityfx_loader_dx12.dll is up to date
+2025-12-18 16:37:39,676 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-18 16:37:39,686 - INFO - Downloaded amd_fidelityfx_dx12.dll
+2025-12-18 16:37:39,731 - INFO - DLL cache initialized successfully
+2025-12-18 16:37:53,831 - INFO - Scan button clicked
+2025-12-18 16:37:53,843 - INFO - Starting game scan...
+2025-12-18 16:37:53,843 - INFO - Scan settings: {'UpdateDLSS': True, 'UpdateDirectStorage': True, 'UpdateXeSS': True, 'UpdateFSR': False, 'UpdateStreamline': False, 'CreateBackups': True}
+2025-12-18 16:37:53,843 - INFO - Starting find_all_dlls function
+2025-12-18 16:37:55,354 - DEBUG - Using configured Steam path: D:\SteamLibrary
+2025-12-18 16:37:55,355 - DEBUG - Searching for DLLs in Custom Folder 1
+2025-12-18 16:37:55,355 - DEBUG - Scanning directory: D:\SteamLibrary\steamapps\common
+2025-12-18 16:37:55,355 - DEBUG - Searching for DLLs in Custom Folder 2
+2025-12-18 16:37:55,355 - DEBUG - Scanning directory: F:\SteamLibrary\steamapps\common
+2025-12-18 16:37:55,472 - INFO - Enumerated 10 installed Steam games via appmanifest files
+2025-12-18 16:37:55,472 - INFO - Fast enumeration found 10 Steam games via appmanifest
+2025-12-18 16:37:55,473 - INFO - Scanning 10 Steam game directories for DLLs...
+2025-12-18 16:37:56,207 - INFO - Found 22 DLLs in 8 Steam games
+2025-12-18 16:37:56,207 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlss.dll
+2025-12-18 16:37:56,208 - DEBUG - Identified game directory: Space Marine 2
+2025-12-18 16:37:56,208 - INFO - Whitelist match found: Space Marine 2
+2025-12-18 16:37:56,208 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlssg.dll
+2025-12-18 16:37:56,208 - DEBUG - Identified game directory: Space Marine 2
+2025-12-18 16:37:56,208 - INFO - Whitelist match found: Space Marine 2
+2025-12-18 16:37:56,209 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Overwatch\libxess.dll
+2025-12-18 16:37:56,209 - DEBUG - Identified game directory: Overwatch
+2025-12-18 16:37:56,209 - DEBUG - No whitelist match found for: Overwatch
+2025-12-18 16:37:56,209 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Overwatch\nvngx_dlss.dll
+2025-12-18 16:37:56,209 - DEBUG - Identified game directory: Overwatch
+2025-12-18 16:37:56,210 - DEBUG - No whitelist match found for: Overwatch
+2025-12-18 16:37:56,210 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:37:56,210 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-18 16:37:56,211 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-18 16:37:56,211 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:37:56,211 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-18 16:37:56,211 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-18 16:37:56,212 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:37:56,212 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-18 16:37:56,212 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-18 16:37:56,212 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:37:56,212 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-18 16:37:56,212 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-18 16:37:56,213 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:37:56,213 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-18 16:37:56,213 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-18 16:37:56,213 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:37:56,213 - DEBUG - Identified game directory: MarvelRivals
+2025-12-18 16:37:56,213 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-18 16:37:56,214 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:37:56,214 - DEBUG - Identified game directory: MarvelRivals
+2025-12-18 16:37:56,214 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-18 16:37:56,214 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:37:56,214 - DEBUG - Identified game directory: MarvelRivals
+2025-12-18 16:37:56,215 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-18 16:37:56,215 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:37:56,215 - DEBUG - Identified game directory: MarvelRivals
+2025-12-18 16:37:56,215 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-18 16:37:56,216 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:37:56,216 - DEBUG - Identified game directory: MarvelRivals
+2025-12-18 16:37:56,216 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-18 16:37:56,216 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\For Honor\nvngx_dlss.dll
+2025-12-18 16:37:56,216 - DEBUG - Identified game directory: For Honor
+2025-12-18 16:37:56,216 - INFO - Whitelist match found: For Honor
+2025-12-18 16:37:56,217 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Tom Clancy's Rainbow Six Siege\nvngx_dlss.dll
+2025-12-18 16:37:56,217 - DEBUG - Identified game directory: Tom Clancy's Rainbow Six Siege
+2025-12-18 16:37:56,217 - INFO - Whitelist match found: Tom Clancy's Rainbow Six Siege
+2025-12-18 16:37:56,217 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll
+2025-12-18 16:37:56,217 - DEBUG - Identified game directory: Dying Light 2
+2025-12-18 16:37:56,217 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-18 16:37:56,217 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll
+2025-12-18 16:37:56,217 - DEBUG - Identified game directory: Dying Light 2
+2025-12-18 16:37:56,218 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-18 16:37:56,218 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlss.dll
+2025-12-18 16:37:56,218 - DEBUG - Identified game directory: Dying Light 2
+2025-12-18 16:37:56,219 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-18 16:37:56,220 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlssg.dll
+2025-12-18 16:37:56,220 - DEBUG - Identified game directory: Dying Light 2
+2025-12-18 16:37:56,220 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-18 16:37:56,220 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-18 16:37:56,221 - DEBUG - Identified game directory: Helldivers 2
+2025-12-18 16:37:56,221 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-18 16:37:56,221 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-18 16:37:56,221 - DEBUG - Identified game directory: Helldivers 2
+2025-12-18 16:37:56,221 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-18 16:37:56,241 - INFO - Skipped whitelisted game in Steam: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlss.dll
+2025-12-18 16:37:56,241 - INFO - Skipped whitelisted game in Steam: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlssg.dll
+2025-12-18 16:37:56,241 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Overwatch\libxess.dll
+2025-12-18 16:37:56,241 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Overwatch\nvngx_dlss.dll
+2025-12-18 16:37:56,241 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:37:56,241 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:37:56,242 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:37:56,242 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:37:56,242 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:37:56,242 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:37:56,242 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:37:56,242 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:37:56,242 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:37:56,242 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:37:56,242 - INFO - Skipped whitelisted game in Steam: D:\SteamLibrary\steamapps\common\For Honor\nvngx_dlss.dll
+2025-12-18 16:37:56,243 - INFO - Skipped whitelisted game in Steam: D:\SteamLibrary\steamapps\common\Tom Clancy's Rainbow Six Siege\nvngx_dlss.dll
+2025-12-18 16:37:56,243 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll
+2025-12-18 16:37:56,243 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll
+2025-12-18 16:37:56,243 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlss.dll
+2025-12-18 16:37:56,243 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlssg.dll
+2025-12-18 16:37:56,243 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-18 16:37:56,243 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-18 16:37:58,119 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:37:58,119 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-18 16:37:58,120 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-18 16:37:58,120 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:37:58,121 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-18 16:37:58,121 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-18 16:37:58,121 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:37:58,121 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-18 16:37:58,121 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-18 16:37:58,121 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:37:58,122 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-18 16:37:58,122 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-18 16:37:58,122 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:37:58,123 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-18 16:37:58,123 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-18 16:37:58,123 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll
+2025-12-18 16:37:58,123 - DEBUG - Identified game directory: Dying Light 2
+2025-12-18 16:37:58,124 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-18 16:37:58,124 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll
+2025-12-18 16:37:58,124 - DEBUG - Identified game directory: Dying Light 2
+2025-12-18 16:37:58,124 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-18 16:37:58,125 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlss.dll
+2025-12-18 16:37:58,125 - DEBUG - Identified game directory: Dying Light 2
+2025-12-18 16:37:58,125 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-18 16:37:58,125 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlssg.dll
+2025-12-18 16:37:58,125 - DEBUG - Identified game directory: Dying Light 2
+2025-12-18 16:37:58,126 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-18 16:37:58,126 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\For Honor\nvngx_dlss.dll
+2025-12-18 16:37:58,126 - DEBUG - Identified game directory: For Honor
+2025-12-18 16:37:58,126 - INFO - Whitelist match found: For Honor
+2025-12-18 16:37:58,126 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-18 16:37:58,126 - DEBUG - Identified game directory: Helldivers 2
+2025-12-18 16:37:58,127 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-18 16:37:58,127 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-18 16:37:58,127 - DEBUG - Identified game directory: Helldivers 2
+2025-12-18 16:37:58,127 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-18 16:37:58,128 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:37:58,128 - DEBUG - Identified game directory: MarvelRivals
+2025-12-18 16:37:58,128 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-18 16:37:58,128 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:37:58,128 - DEBUG - Identified game directory: MarvelRivals
+2025-12-18 16:37:58,130 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-18 16:37:58,130 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:37:58,130 - DEBUG - Identified game directory: MarvelRivals
+2025-12-18 16:37:58,131 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-18 16:37:58,131 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:37:58,132 - DEBUG - Identified game directory: MarvelRivals
+2025-12-18 16:37:58,132 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-18 16:37:58,132 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:37:58,132 - DEBUG - Identified game directory: MarvelRivals
+2025-12-18 16:37:58,132 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-18 16:37:58,133 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Overwatch\libxess.dll
+2025-12-18 16:37:58,133 - DEBUG - Identified game directory: Overwatch
+2025-12-18 16:37:58,133 - DEBUG - No whitelist match found for: Overwatch
+2025-12-18 16:37:58,133 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Overwatch\nvngx_dlss.dll
+2025-12-18 16:37:58,133 - DEBUG - Identified game directory: Overwatch
+2025-12-18 16:37:58,133 - DEBUG - No whitelist match found for: Overwatch
+2025-12-18 16:37:58,133 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlss.dll
+2025-12-18 16:37:58,133 - DEBUG - Identified game directory: Space Marine 2
+2025-12-18 16:37:58,134 - INFO - Whitelist match found: Space Marine 2
+2025-12-18 16:37:58,134 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlssg.dll
+2025-12-18 16:37:58,134 - DEBUG - Identified game directory: Space Marine 2
+2025-12-18 16:37:58,134 - INFO - Whitelist match found: Space Marine 2
+2025-12-18 16:37:58,134 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Tom Clancy's Rainbow Six Siege\nvngx_dlss.dll
+2025-12-18 16:37:58,134 - DEBUG - Identified game directory: Tom Clancy's Rainbow Six Siege
+2025-12-18 16:37:58,135 - INFO - Whitelist match found: Tom Clancy's Rainbow Six Siege
+2025-12-18 16:37:58,135 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:37:58,135 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:37:58,135 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:37:58,136 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:37:58,136 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:37:58,136 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll
+2025-12-18 16:37:58,136 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll
+2025-12-18 16:37:58,136 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlss.dll
+2025-12-18 16:37:58,136 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlssg.dll
+2025-12-18 16:37:58,136 - INFO - Skipped whitelisted game in Custom Folder 1: D:\SteamLibrary\steamapps\common\For Honor\nvngx_dlss.dll
+2025-12-18 16:37:58,136 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-18 16:37:58,136 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-18 16:37:58,136 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:37:58,136 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:37:58,137 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:37:58,137 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:37:58,137 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:37:58,137 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Overwatch\libxess.dll
+2025-12-18 16:37:58,137 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Overwatch\nvngx_dlss.dll
+2025-12-18 16:37:58,137 - INFO - Skipped whitelisted game in Custom Folder 1: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlss.dll
+2025-12-18 16:37:58,137 - INFO - Skipped whitelisted game in Custom Folder 1: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlssg.dll
+2025-12-18 16:37:58,137 - INFO - Skipped whitelisted game in Custom Folder 1: D:\SteamLibrary\steamapps\common\Tom Clancy's Rainbow Six Siege\nvngx_dlss.dll
+2025-12-18 16:37:58,137 - DEBUG - Found 18 DLLs in Custom Folder 1
+2025-12-18 16:38:03,543 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Intel\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:38:03,543 - DEBUG - Identified game directory: Arc Raiders
+2025-12-18 16:38:03,544 - DEBUG - No whitelist match found for: Arc Raiders
+2025-12-18 16:38:03,544 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:38:03,544 - DEBUG - Identified game directory: Arc Raiders
+2025-12-18 16:38:03,544 - DEBUG - No whitelist match found for: Arc Raiders
+2025-12-18 16:38:03,545 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:38:03,545 - DEBUG - Identified game directory: Arc Raiders
+2025-12-18 16:38:03,545 - DEBUG - No whitelist match found for: Arc Raiders
+2025-12-18 16:38:03,545 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:38:03,545 - DEBUG - Identified game directory: Arc Raiders
+2025-12-18 16:38:03,546 - DEBUG - No whitelist match found for: Arc Raiders
+2025-12-18 16:38:03,546 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\dstorage.dll
+2025-12-18 16:38:03,546 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,546 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,546 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\dstoragecore.dll
+2025-12-18 16:38:03,546 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,547 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,547 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\libxess.dll
+2025-12-18 16:38:03,547 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,547 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,547 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlss.dll
+2025-12-18 16:38:03,548 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,548 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,548 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlssd.dll
+2025-12-18 16:38:03,548 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,548 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,549 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlssg.dll
+2025-12-18 16:38:03,549 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,549 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,549 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\dstorage.dll
+2025-12-18 16:38:03,549 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,549 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,550 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\dstoragecore.dll
+2025-12-18 16:38:03,550 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,550 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,550 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\libxess.dll
+2025-12-18 16:38:03,550 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,550 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,551 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlss.dll
+2025-12-18 16:38:03,551 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,551 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,551 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlssd.dll
+2025-12-18 16:38:03,551 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,552 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,552 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlssg.dll
+2025-12-18 16:38:03,552 - DEBUG - Identified game directory: Battlefield 6
+2025-12-18 16:38:03,552 - INFO - Whitelist match found: Battlefield 6
+2025-12-18 16:38:03,552 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:38:03,553 - DEBUG - Identified game directory: DuneAwakening
+2025-12-18 16:38:03,553 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-18 16:38:03,553 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:38:03,553 - DEBUG - Identified game directory: DuneAwakening
+2025-12-18 16:38:03,553 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-18 16:38:03,553 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:38:03,553 - DEBUG - Identified game directory: DuneAwakening
+2025-12-18 16:38:03,554 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-18 16:38:03,554 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:38:03,554 - DEBUG - Identified game directory: DuneAwakening
+2025-12-18 16:38:03,554 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-18 16:38:03,554 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:38:03,554 - DEBUG - Identified game directory: DuneAwakening
+2025-12-18 16:38:03,555 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-18 16:38:03,555 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Expedition 33\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:38:03,555 - DEBUG - Identified game directory: Expedition 33
+2025-12-18 16:38:03,555 - DEBUG - No whitelist match found for: Expedition 33
+2025-12-18 16:38:03,555 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Expedition 33\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:38:03,555 - DEBUG - Identified game directory: Expedition 33
+2025-12-18 16:38:03,556 - DEBUG - No whitelist match found for: Expedition 33
+2025-12-18 16:38:03,556 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:38:03,556 - DEBUG - Identified game directory: Expedition 33
+2025-12-18 16:38:03,556 - DEBUG - No whitelist match found for: Expedition 33
+2025-12-18 16:38:03,556 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:38:03,557 - DEBUG - Identified game directory: Expedition 33
+2025-12-18 16:38:03,557 - DEBUG - No whitelist match found for: Expedition 33
+2025-12-18 16:38:03,557 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:38:03,557 - DEBUG - Identified game directory: Expedition 33
+2025-12-18 16:38:03,558 - DEBUG - No whitelist match found for: Expedition 33
+2025-12-18 16:38:03,558 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\dstorage.dll
+2025-12-18 16:38:03,558 - DEBUG - Identified game directory: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:03,558 - DEBUG - No whitelist match found for: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:03,558 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\dstoragecore.dll
+2025-12-18 16:38:03,558 - DEBUG - Identified game directory: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:03,558 - DEBUG - No whitelist match found for: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:03,559 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\libxess.dll
+2025-12-18 16:38:03,559 - DEBUG - Identified game directory: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:03,559 - DEBUG - No whitelist match found for: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:03,559 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\nvngx_dlss.dll
+2025-12-18 16:38:03,559 - DEBUG - Identified game directory: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:03,559 - DEBUG - No whitelist match found for: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:03,559 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\nvngx_dlssg.dll
+2025-12-18 16:38:03,560 - DEBUG - Identified game directory: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:03,560 - DEBUG - No whitelist match found for: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:03,560 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\libxess.dll
+2025-12-18 16:38:03,560 - DEBUG - Identified game directory: No Man's Sky
+2025-12-18 16:38:03,561 - DEBUG - No whitelist match found for: No Man's Sky
+2025-12-18 16:38:03,561 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlss.dll
+2025-12-18 16:38:03,561 - DEBUG - Identified game directory: No Man's Sky
+2025-12-18 16:38:03,561 - DEBUG - No whitelist match found for: No Man's Sky
+2025-12-18 16:38:03,561 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlssd.dll
+2025-12-18 16:38:03,561 - DEBUG - Identified game directory: No Man's Sky
+2025-12-18 16:38:03,562 - DEBUG - No whitelist match found for: No Man's Sky
+2025-12-18 16:38:03,563 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlssg.dll
+2025-12-18 16:38:03,563 - DEBUG - Identified game directory: No Man's Sky
+2025-12-18 16:38:03,564 - DEBUG - No whitelist match found for: No Man's Sky
+2025-12-18 16:38:03,564 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Warframe\Tools\Windows\x64\nvngx_dlss.dll
+2025-12-18 16:38:03,564 - DEBUG - Identified game directory: Warframe
+2025-12-18 16:38:03,565 - DEBUG - No whitelist match found for: Warframe
+2025-12-18 16:38:03,565 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Intel\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:38:03,565 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:38:03,565 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:38:03,565 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:38:03,565 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\dstorage.dll
+2025-12-18 16:38:03,565 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\dstoragecore.dll
+2025-12-18 16:38:03,565 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\libxess.dll
+2025-12-18 16:38:03,565 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlss.dll
+2025-12-18 16:38:03,565 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlssd.dll
+2025-12-18 16:38:03,565 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlssg.dll
+2025-12-18 16:38:03,565 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\dstorage.dll
+2025-12-18 16:38:03,565 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\dstoragecore.dll
+2025-12-18 16:38:03,565 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\libxess.dll
+2025-12-18 16:38:03,565 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlss.dll
+2025-12-18 16:38:03,566 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlssd.dll
+2025-12-18 16:38:03,566 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlssg.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Expedition 33\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Expedition 33\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-18 16:38:03,566 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\dstorage.dll
+2025-12-18 16:38:03,567 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\dstoragecore.dll
+2025-12-18 16:38:03,567 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\libxess.dll
+2025-12-18 16:38:03,567 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\nvngx_dlss.dll
+2025-12-18 16:38:03,567 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\nvngx_dlssg.dll
+2025-12-18 16:38:03,567 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\libxess.dll
+2025-12-18 16:38:03,567 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlss.dll
+2025-12-18 16:38:03,567 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlssd.dll
+2025-12-18 16:38:03,567 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlssg.dll
+2025-12-18 16:38:03,567 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Warframe\Tools\Windows\x64\nvngx_dlss.dll
+2025-12-18 16:38:03,567 - DEBUG - Found 24 DLLs in Custom Folder 2
+2025-12-18 16:38:12,781 - INFO - Found 18 DLLs in Steam
+2025-12-18 16:38:19,356 - INFO - Found 18 DLLs in Custom Folder 1
+2025-12-18 16:38:20,312 - INFO - Found 24 DLLs in Custom Folder 2
+2025-12-18 16:38:23,133 - INFO - Scan complete. Found 42 total DLLs across all launchers
+2025-12-18 16:38:24,081 - INFO - Recording scanned games in database (batch mode)...
+2025-12-18 16:38:25,065 - INFO - Found Steam app ID 2357570 from appmanifest for Overwatch
+2025-12-18 16:38:25,065 - INFO - Found Steam app ID 2358720 from appmanifest for BlackMythWukong
+2025-12-18 16:38:25,066 - INFO - Found Steam app ID 2767030 from appmanifest for MarvelRivals
+2025-12-18 16:38:25,067 - INFO - Found Steam app ID 534380 from appmanifest for Dying Light 2
+2025-12-18 16:38:25,067 - INFO - Found Steam app ID 553850 from appmanifest for Helldivers 2
+2025-12-18 16:38:25,308 - DEBUG - Found cached Steam app ID 1172710 for 'DuneAwakening'
+2025-12-18 16:38:25,309 - DEBUG - Loading Steam app list cache...
+2025-12-18 16:38:25,309 - DEBUG - Found cached Steam app ID 1808500 for 'Arc Raiders'
+2025-12-18 16:38:25,309 - DEBUG - Found cached Steam app ID 1808500 for 'Arc Raiders'
+2025-12-18 16:38:25,309 - DEBUG - Found cached Steam app ID 1172710 for 'DuneAwakening'
+2025-12-18 16:38:25,309 - DEBUG - Found cached Steam app ID 1172710 for 'DuneAwakening'
+2025-12-18 16:38:25,309 - DEBUG - Found cached Steam app ID 1808500 for 'Arc Raiders'
+2025-12-18 16:38:25,309 - DEBUG - Found cached Steam app ID 230410 for 'Warframe'
+2025-12-18 16:38:25,379 - DEBUG - Loading Steam app list cache...
+2025-12-18 16:38:25,426 - DEBUG - Loading Steam app list cache...
+2025-12-18 16:38:25,426 - DEBUG - Loading Steam app list cache...
+2025-12-18 16:38:25,474 - DEBUG - Loading Steam app list cache...
+2025-12-18 16:38:25,852 - INFO - Loaded 208999 apps from cache
+2025-12-18 16:38:25,853 - INFO - Building Steam app indexes from 208999 apps...
+2025-12-18 16:38:26,313 - INFO - App indexes built: 198333 normalized names, 197946 spaceless names
+2025-12-18 16:38:26,313 - DEBUG - No Steam app ID found for 'Expedition 33'
+2025-12-18 16:38:26,516 - INFO - Loaded 208999 apps from cache
+2025-12-18 16:38:26,516 - INFO - Building Steam app indexes from 208999 apps...
+2025-12-18 16:38:26,989 - INFO - App indexes built: 198333 normalized names, 197946 spaceless names
+2025-12-18 16:38:26,989 - DEBUG - No Steam app ID found for 'Expedition 33'
+2025-12-18 16:38:27,052 - INFO - Loaded 208999 apps from cache
+2025-12-18 16:38:27,053 - INFO - Building Steam app indexes from 208999 apps...
+2025-12-18 16:38:27,518 - INFO - App indexes built: 198333 normalized names, 197946 spaceless names
+2025-12-18 16:38:27,519 - INFO - Found Steam app ID 275850 for 'No Man's Sky' (exact match)
+2025-12-18 16:38:27,584 - INFO - Loaded 208999 apps from cache
+2025-12-18 16:38:27,585 - INFO - Building Steam app indexes from 208999 apps...
+2025-12-18 16:38:28,049 - INFO - App indexes built: 198333 normalized names, 197946 spaceless names
+2025-12-18 16:38:28,049 - DEBUG - No Steam app ID found for 'Expedition 33'
+2025-12-18 16:38:28,161 - INFO - Loaded 208999 apps from cache
+2025-12-18 16:38:28,161 - INFO - Building Steam app indexes from 208999 apps...
+2025-12-18 16:38:28,629 - INFO - App indexes built: 198333 normalized names, 197946 spaceless names
+2025-12-18 16:38:28,629 - INFO - Found Steam app ID 2215430 for 'Ghost of Tsushima DIRECTOR'S CUT' (exact match)
+2025-12-18 16:38:31,249 - INFO - Batch upserted 17 games
+2025-12-18 16:38:33,619 - INFO - Batch upserted 42 DLLs
+2025-12-18 16:38:33,667 - INFO - Database recording complete: 17 games, 42 DLLs
+2025-12-18 16:38:33,667 - INFO - Version extraction: 42/42 DLLs have valid versions
+2025-12-18 16:38:34,699 - INFO - Scan complete: 42 games found
+2025-12-18 16:38:34,750 - INFO - Saved scan cache to C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\scan_cache.json
+2025-12-18 16:38:41,084 - INFO - Navigation drawer destination changed: 1
+2025-12-18 16:38:41,165 - INFO - Loading games from database...
+2025-12-18 16:38:41,228 - INFO - Navigation drawer dismissed
+2025-12-18 16:38:41,333 - DEBUG - No Steam app ID for Expedition 33, skipping image
+2025-12-18 16:38:41,475 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-18 16:38:41,581 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-18 16:38:41,730 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:38:41,823 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-18 16:38:41,969 - DEBUG - Loaded cached image for Warframe
+2025-12-18 16:38:42,068 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-18 16:38:42,212 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-18 16:38:42,213 - INFO - Loaded 11 games from 2 launchers
+2025-12-18 16:38:42,268 - INFO - Navigated to view index: 1
+2025-12-18 16:38:42,400 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-18 16:38:42,644 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-18 16:38:42,885 - DEBUG - Loaded cached image for Overwatch
+2025-12-18 16:39:22,058 - INFO - Navigation drawer destination changed: 2
+2025-12-18 16:39:22,147 - INFO - Loading backups from database...
+2025-12-18 16:39:22,195 - INFO - No backups found in database
+2025-12-18 16:39:22,264 - INFO - Navigated to view index: 2
+2025-12-18 16:39:22,387 - INFO - Navigation drawer dismissed
+2025-12-18 16:39:24,851 - INFO - Navigation drawer destination changed: 0
+2025-12-18 16:39:24,941 - INFO - Navigated to view index: 0
+2025-12-18 16:39:25,003 - INFO - Navigation drawer dismissed
+2025-12-18 16:39:27,495 - INFO - Menu expanded
+2025-12-18 16:39:41,030 - INFO - Menu collapsed
+2025-12-18 16:39:43,128 - INFO - Navigation drawer destination changed: 1
+2025-12-18 16:39:43,193 - INFO - Loading games from database...
+2025-12-18 16:39:43,278 - INFO - Navigation drawer dismissed
+2025-12-18 16:39:43,482 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-18 16:39:43,482 - DEBUG - No Steam app ID for Expedition 33, skipping image
+2025-12-18 16:39:43,620 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-18 16:39:43,799 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-18 16:39:43,969 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-18 16:39:44,113 - DEBUG - Loaded cached image for Warframe
+2025-12-18 16:39:44,168 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-18 16:39:44,446 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-18 16:39:44,447 - INFO - Loaded 11 games from 2 launchers
+2025-12-18 16:39:44,505 - INFO - Navigated to view index: 1
+2025-12-18 16:39:44,644 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-18 16:39:44,892 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-18 16:39:45,089 - DEBUG - Loaded cached image for Overwatch
+2025-12-18 16:40:04,421 - INFO - Navigation drawer dismissed
+2025-12-18 16:40:06,382 - INFO - Navigation drawer dismissed
+2025-12-18 16:40:09,171 - INFO - Update requested for game: Helldivers 2
+2025-12-18 16:40:09,240 - INFO - Starting update for game: Helldivers 2 (id: 161)
+2025-12-18 16:40:09,242 - INFO - Starting single-game update for: Helldivers 2 (id: 161)
+2025-12-18 16:40:09,424 - INFO -  - DirectStorage DLL: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-18 16:40:09,424 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-18 16:40:09,424 - DEBUG - Identified game directory: Helldivers 2
+2025-12-18 16:40:09,424 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-18 16:40:09,425 - DEBUG - Found dstorage.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\dstorage.dll
+2025-12-18 16:40:09,491 - INFO - Checking DLL at D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll...
+2025-12-18 16:40:09,686 - INFO - Existing version: 1.2.2407.1501, Latest version: 1.3.2506.2501
+2025-12-18 16:40:09,756 - INFO - [BACKUP] Attempting to create backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dlsss
+2025-12-18 16:40:09,818 - DEBUG - [BACKUP] Disk space check passed. Available: 6603252.7MB
+2025-12-18 16:40:09,942 - DEBUG - [BACKUP] Size verification passed: 206880 bytes
+2025-12-18 16:40:09,989 - INFO - [BACKUP] Successfully created and verified backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dlsss
+2025-12-18 16:40:10,021 - DEBUG - [BACKUP] Falling back to asyncio.run() for metadata: There is no current event loop in thread 'asyncio_8'.
+2025-12-18 16:40:10,569 - INFO - Recorded backup metadata for dstorage.dll (backup_id: 41)
+2025-12-18 16:40:10,655 - INFO - Successfully updated D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll from version 1.2.2407.1501 to 1.3.2506.2501.
+2025-12-18 16:40:10,749 - DEBUG - Recorded update history for dstorage.dll
+2025-12-18 16:40:10,871 - INFO -  - DirectStorage Core DLL: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-18 16:40:10,871 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-18 16:40:10,871 - DEBUG - Identified game directory: Helldivers 2
+2025-12-18 16:40:10,872 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-18 16:40:10,872 - DEBUG - Found dstoragecore.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\dstoragecore.dll
+2025-12-18 16:40:10,956 - INFO - Checking DLL at D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll...
+2025-12-18 16:40:11,175 - INFO - Existing version: 1.2.2407.1501, Latest version: 1.3.2506.2501
+2025-12-18 16:40:11,206 - INFO - [BACKUP] Attempting to create backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dlsss
+2025-12-18 16:40:11,283 - DEBUG - [BACKUP] Disk space check passed. Available: 6603252.5MB
+2025-12-18 16:40:11,400 - DEBUG - [BACKUP] Size verification passed: 1458208 bytes
+2025-12-18 16:40:11,429 - INFO - [BACKUP] Successfully created and verified backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dlsss
+2025-12-18 16:40:11,459 - DEBUG - [BACKUP] Falling back to asyncio.run() for metadata: There is no current event loop in thread 'asyncio_0'.
+2025-12-18 16:40:11,967 - INFO - Recorded backup metadata for dstoragecore.dll (backup_id: 42)
+2025-12-18 16:40:12,075 - INFO - Successfully updated D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll from version 1.2.2407.1501 to 1.3.2506.2501.
+2025-12-18 16:40:12,173 - DEBUG - Recorded update history for dstoragecore.dll
+2025-12-18 16:40:12,297 - INFO - Single-game update complete for Helldivers 2: 2 updated, 0 skipped, 0 errors
+2025-12-18 16:40:37,209 - INFO - Navigation drawer destination changed: 2
+2025-12-18 16:40:37,279 - INFO - Loading backups from database...
+2025-12-18 16:40:37,374 - INFO - Loaded 2 backups
+2025-12-18 16:40:37,374 - INFO - Navigation drawer dismissed
+2025-12-18 16:40:37,438 - INFO - Navigated to view index: 2
+2025-12-18 16:42:07,834 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-18 16:42:07,921 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-18 16:42:07,921 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-18 16:42:07,924 - INFO - Checking dependencies...
+2025-12-18 16:42:07,941 - WARNING - Application requires administrator privileges
+2025-12-18 16:42:07,941 - INFO - Attempting to restart with admin rights...
+2025-12-18 16:42:07,942 - INFO - Re-running script with admin privileges...
+2025-12-18 16:42:09,356 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-18 16:42:09,441 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-18 16:42:09,441 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-18 16:42:09,442 - INFO - Checking dependencies...
+2025-12-18 16:42:09,457 - INFO - Admin privileges confirmed
+2025-12-18 16:42:09,458 - INFO - DLL cache will be initialized after UI loads...
+2025-12-18 16:42:09,674 - INFO - DLSS Updater (Flet) starting...
+2025-12-18 16:42:09,675 - INFO - Initializing database...
+2025-12-18 16:42:09,676 - INFO - Database schema created successfully
+2025-12-18 16:42:09,678 - INFO - Connection pool initialized (5 connections)
+2025-12-18 16:42:09,678 - INFO - Database initialized successfully
+2025-12-18 16:42:09,678 - INFO - Database initialized successfully
+2025-12-18 16:42:09,679 - INFO - No duplicate backups found
+2025-12-18 16:42:09,694 - INFO - Merged 2 duplicate entries for 'Arc Raiders' (Custom Folder 2)
+2025-12-18 16:42:09,694 - INFO - Merged 2 duplicate entries for 'DuneAwakening' (Custom Folder 2)
+2025-12-18 16:42:09,694 - INFO - Merged 2 duplicate entries for 'Expedition 33' (Custom Folder 2)
+2025-12-18 16:42:09,698 - INFO - Cleaned up 6 duplicate game entries
+2025-12-18 16:42:09,698 - INFO - Cleaned up 6 duplicate game entries on startup
+2025-12-18 16:42:14,699 - INFO - Initializing main view...
+2025-12-18 16:42:14,706 - INFO - Loaded cached scan results: 42 games (scanned 3 minutes ago)
+2025-12-18 16:42:14,713 - INFO - Main view initialized
+2025-12-18 16:42:14,728 - INFO - UI initialized successfully
+2025-12-18 16:42:14,770 - INFO - Steam app list cache is up to date (age: 0 days)
+2025-12-18 16:42:14,831 - INFO - Initializing DLL cache (async)...
+2025-12-18 16:42:14,831 - INFO - Initializing DLL cache
+2025-12-18 16:42:15,623 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-18 16:42:15,624 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-18 16:42:15,640 - INFO - libxess_dx11.dll is up to date
+2025-12-18 16:42:15,654 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:42:15,656 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:42:15,656 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:42:15,668 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:42:15,674 - INFO - nvngx_dlssg.dll is up to date
+2025-12-18 16:42:15,675 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-18 16:42:15,675 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:42:15,683 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-18 16:42:15,690 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-18 16:42:15,696 - INFO - sl.common.dll is up to date
+2025-12-18 16:42:15,714 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-18 16:42:15,722 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:42:15,743 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-18 16:42:15,751 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-18 16:42:15,776 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-18 16:42:15,790 - INFO - dstorage.dll is up to date
+2025-12-18 16:42:15,842 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-18 16:42:15,850 - INFO - nvngx_dlssd.dll is up to date
+2025-12-18 16:42:15,870 - INFO - dstoragecore.dll is up to date
+2025-12-18 16:42:15,878 - INFO - nvngx_dlss.dll is up to date
+2025-12-18 16:42:15,939 - INFO - libxess.dll is up to date
+2025-12-18 16:42:16,083 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:42:16,090 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:42:16,133 - INFO - sl.dlss.dll is up to date
+2025-12-18 16:42:16,196 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:42:16,205 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:42:16,241 - INFO - sl.dlss_g.dll is up to date
+2025-12-18 16:42:16,275 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:42:16,290 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:42:16,315 - INFO - sl.interposer.dll is up to date
+2025-12-18 16:42:16,346 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:42:16,380 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:42:16,403 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:42:16,404 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:42:16,404 - INFO - sl.nis.dll is up to date
+2025-12-18 16:42:16,412 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:42:16,412 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:42:16,414 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-18 16:42:16,414 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:42:16,444 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:42:16,452 - INFO - sl.pcl.dll is up to date
+2025-12-18 16:42:16,467 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-18 16:42:16,514 - INFO - sl.dlss_d.dll is up to date
+2025-12-18 16:42:16,603 - INFO - sl.directsr.dll is up to date
+2025-12-18 16:42:16,635 - INFO - sl.reflex.dll is up to date
+2025-12-18 16:42:16,727 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-18 16:42:16,757 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-18 16:42:16,775 - INFO - amd_fidelityfx_vk.dll is up to date
+2025-12-18 16:42:16,810 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-18 16:42:16,829 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-18 16:42:16,850 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-18 16:42:16,868 - INFO - Updating amd_fidelityfx_dx12.dll to version 1.0.2.44888
+2025-12-18 16:42:16,868 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-18 16:42:16,907 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date
+2025-12-18 16:42:16,978 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-18 16:42:17,007 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-18 16:42:17,030 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-18 16:42:17,046 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date
+2025-12-18 16:42:17,053 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-18 16:42:17,101 - INFO - amd_fidelityfx_loader_dx12.dll is up to date
+2025-12-18 16:42:18,036 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-18 16:42:18,046 - INFO - Downloaded amd_fidelityfx_dx12.dll
+2025-12-18 16:42:18,089 - INFO - DLL cache initialized successfully
+2025-12-18 16:42:21,991 - INFO - Navigation drawer destination changed: 2
+2025-12-18 16:42:22,019 - INFO - Loading backups from database...
+2025-12-18 16:42:22,036 - INFO - Loaded 2 backups
+2025-12-18 16:42:22,037 - INFO - Navigation drawer dismissed
+2025-12-18 16:42:22,052 - INFO - Navigated to view index: 2
+2025-12-18 16:42:25,900 - INFO - Created temporary backup: C:\Users\deckl\AppData\Local\Temp\tmp019zp6wo.dll
+2025-12-18 16:42:25,949 - INFO - Successfully restored dstoragecore.dll from backup
+2025-12-18 16:42:25,959 - INFO - Loading backups from database...
+2025-12-18 16:42:25,999 - INFO - Loaded 2 backups
+2025-12-18 16:44:38,606 - INFO - Created temporary backup: C:\Users\deckl\AppData\Local\Temp\tmpam7ar8un.dll
+2025-12-18 16:44:38,653 - INFO - Successfully restored dstorage.dll from backup
+2025-12-18 16:44:38,665 - INFO - Loading backups from database...
+2025-12-18 16:44:38,704 - INFO - Loaded 2 backups
+2025-12-18 16:44:40,746 - INFO - Deleted backup file: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dlsss
+2025-12-18 16:44:40,777 - INFO - Loading backups from database...
+2025-12-18 16:44:40,796 - INFO - Loaded 1 backups
+2025-12-18 16:44:43,916 - INFO - Deleted backup file: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dlsss
+2025-12-18 16:44:43,954 - INFO - Loading backups from database...
+2025-12-18 16:44:43,973 - INFO - No backups found in database
+2025-12-20 20:52:50,453 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-20 20:52:50,464 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-20 20:52:50,464 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-20 20:52:50,468 - INFO - Checking dependencies...
+2025-12-20 20:52:50,502 - WARNING - Application requires administrator privileges
+2025-12-20 20:52:50,503 - INFO - Attempting to restart with admin rights...
+2025-12-20 20:52:50,503 - INFO - Re-running script with admin privileges...
+2025-12-20 20:52:52,127 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-20 20:52:52,130 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-20 20:52:52,130 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-20 20:52:52,131 - INFO - Checking dependencies...
+2025-12-20 20:52:52,148 - INFO - Admin privileges confirmed
+2025-12-20 20:52:52,148 - INFO - DLL cache will be initialized after UI loads...
+2025-12-20 20:52:52,536 - INFO - DLSS Updater (Flet) starting...
+2025-12-20 20:52:52,537 - INFO - Initializing database...
+2025-12-20 20:52:52,545 - INFO - Database schema created successfully
+2025-12-20 20:52:52,549 - INFO - Connection pool initialized (5 connections)
+2025-12-20 20:52:52,549 - INFO - Database initialized successfully
+2025-12-20 20:52:52,549 - INFO - Database initialized successfully
+2025-12-20 20:52:52,550 - INFO - No duplicate backups found
+2025-12-20 20:52:52,554 - INFO - Cleaned up 0 duplicate game entries
+2025-12-20 20:52:57,567 - INFO - Initializing main view...
+2025-12-20 20:52:57,577 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-20 20:52:57,584 - INFO - Main view initialized
+2025-12-20 20:52:57,599 - INFO - UI initialized successfully
+2025-12-20 20:52:57,599 - INFO - Initializing whitelist...
+2025-12-20 20:52:57,612 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-20 20:52:57,669 - INFO - Initializing DLL cache (async)...
+2025-12-20 20:52:57,669 - INFO - Initializing DLL cache (async)
+2025-12-20 20:52:57,885 - INFO - Whitelist initialized with 32 games
+2025-12-20 20:52:57,919 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-20 20:52:57,921 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-20 20:52:57,922 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-20 20:52:57,922 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-20 20:52:57,923 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 20:52:57,924 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 20:52:57,924 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 20:52:57,924 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 20:52:57,924 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 20:52:57,925 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 20:52:57,925 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 20:52:57,925 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 20:52:57,925 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 20:52:57,925 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 20:52:57,926 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 20:52:57,926 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 20:52:57,927 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 20:52:57,927 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 20:52:57,927 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 20:52:57,927 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 20:52:57,928 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 20:52:57,928 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 20:52:57,929 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-20 20:52:57,929 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-20 20:52:57,929 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-20 20:52:57,929 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-20 20:52:57,947 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 20:52:57,949 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 20:52:57,978 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-20 20:52:57,978 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-20 20:52:57,993 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-20 20:52:57,993 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-20 20:52:58,134 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-20 20:52:58,134 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-20 20:52:58,206 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 20:52:58,207 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 20:52:58,300 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 20:52:58,300 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 20:52:58,300 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-20 20:52:58,300 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-20 20:52:58,327 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-20 20:52:58,327 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-20 20:52:59,412 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-20 20:52:59,442 - INFO - DLL cache initialized successfully
+2025-12-20 20:53:07,910 - INFO - Menu expanded
+2025-12-20 20:53:09,657 - INFO - Menu collapsed
+2025-12-20 20:53:11,273 - INFO - Navigation drawer destination changed: 1
+2025-12-20 20:53:11,300 - INFO - Loading games from database...
+2025-12-20 20:53:11,312 - INFO - Navigation drawer dismissed
+2025-12-20 20:53:11,349 - DEBUG - No Steam app ID for Expedition 33, skipping image
+2025-12-20 20:53:11,402 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-20 20:53:11,422 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-20 20:53:11,449 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:11,456 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-20 20:53:11,524 - DEBUG - Loaded cached image for Warframe
+2025-12-20 20:53:11,570 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-20 20:53:11,577 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-20 20:53:11,578 - INFO - Loaded 11 games from 2 launchers
+2025-12-20 20:53:11,598 - INFO - Navigated to view index: 1
+2025-12-20 20:53:11,661 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-20 20:53:11,744 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-20 20:53:11,894 - DEBUG - Loaded cached image for Overwatch
+2025-12-20 20:53:14,891 - INFO - Navigation drawer destination changed: 0
+2025-12-20 20:53:14,925 - INFO - Navigated to view index: 0
+2025-12-20 20:53:14,946 - INFO - Navigation drawer dismissed
+2025-12-20 20:53:20,008 - INFO - Scan button clicked
+2025-12-20 20:53:20,018 - INFO - Starting game scan...
+2025-12-20 20:53:20,019 - INFO - Scan settings: {'UpdateDLSS': True, 'UpdateDirectStorage': True, 'UpdateXeSS': True, 'UpdateFSR': False, 'UpdateStreamline': False, 'CreateBackups': True}
+2025-12-20 20:53:20,019 - INFO - Starting find_all_dlls function
+2025-12-20 20:53:21,540 - DEBUG - Using configured Steam path: D:\SteamLibrary
+2025-12-20 20:53:21,540 - DEBUG - Searching for DLLs in Custom Folder 1
+2025-12-20 20:53:21,540 - DEBUG - Scanning directory: D:\SteamLibrary\steamapps\common
+2025-12-20 20:53:21,553 - DEBUG - Searching for DLLs in Custom Folder 2
+2025-12-20 20:53:21,553 - WARNING - scandir-rs failed, falling back to os.walk: 'tuple' object has no attribute 'is_dir'
+2025-12-20 20:53:21,553 - DEBUG - Scanning directory: F:\SteamLibrary\steamapps\common
+2025-12-20 20:53:21,594 - WARNING - scandir-rs failed, falling back to os.walk: 'tuple' object has no attribute 'is_dir'
+2025-12-20 20:53:21,811 - INFO - Enumerated 10 installed Steam games via appmanifest files
+2025-12-20 20:53:21,811 - INFO - Fast enumeration found 10 Steam games via appmanifest
+2025-12-20 20:53:21,811 - INFO - Scanning 10 Steam game directories for DLLs...
+2025-12-20 20:53:22,125 - INFO - Found 22 DLLs in 8 Steam games
+2025-12-20 20:53:22,125 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlss.dll
+2025-12-20 20:53:22,125 - DEBUG - Identified game directory: Space Marine 2
+2025-12-20 20:53:22,126 - INFO - Whitelist match found: Space Marine 2
+2025-12-20 20:53:22,126 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlssg.dll
+2025-12-20 20:53:22,127 - DEBUG - Identified game directory: Space Marine 2
+2025-12-20 20:53:22,127 - INFO - Whitelist match found: Space Marine 2
+2025-12-20 20:53:22,127 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Overwatch\libxess.dll
+2025-12-20 20:53:22,127 - DEBUG - Identified game directory: Overwatch
+2025-12-20 20:53:22,128 - DEBUG - No whitelist match found for: Overwatch
+2025-12-20 20:53:22,128 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Overwatch\nvngx_dlss.dll
+2025-12-20 20:53:22,128 - DEBUG - Identified game directory: Overwatch
+2025-12-20 20:53:22,128 - DEBUG - No whitelist match found for: Overwatch
+2025-12-20 20:53:22,128 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:22,129 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-20 20:53:22,129 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-20 20:53:22,129 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:22,129 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-20 20:53:22,130 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-20 20:53:22,130 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:22,131 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-20 20:53:22,131 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-20 20:53:22,131 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:22,131 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-20 20:53:22,132 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-20 20:53:22,132 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:22,132 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-20 20:53:22,132 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-20 20:53:22,133 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:22,133 - DEBUG - Identified game directory: MarvelRivals
+2025-12-20 20:53:22,133 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-20 20:53:22,133 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:22,133 - DEBUG - Identified game directory: MarvelRivals
+2025-12-20 20:53:22,134 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-20 20:53:22,134 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:22,134 - DEBUG - Identified game directory: MarvelRivals
+2025-12-20 20:53:22,135 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-20 20:53:22,135 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:22,135 - DEBUG - Identified game directory: MarvelRivals
+2025-12-20 20:53:22,136 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-20 20:53:22,136 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:22,136 - DEBUG - Identified game directory: MarvelRivals
+2025-12-20 20:53:22,136 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-20 20:53:22,137 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\For Honor\nvngx_dlss.dll
+2025-12-20 20:53:22,137 - DEBUG - Identified game directory: For Honor
+2025-12-20 20:53:22,137 - INFO - Whitelist match found: For Honor
+2025-12-20 20:53:22,137 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Tom Clancy's Rainbow Six Siege\nvngx_dlss.dll
+2025-12-20 20:53:22,137 - DEBUG - Identified game directory: Tom Clancy's Rainbow Six Siege
+2025-12-20 20:53:22,138 - INFO - Whitelist match found: Tom Clancy's Rainbow Six Siege
+2025-12-20 20:53:22,138 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll
+2025-12-20 20:53:22,138 - DEBUG - Identified game directory: Dying Light 2
+2025-12-20 20:53:22,138 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-20 20:53:22,138 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll
+2025-12-20 20:53:22,139 - DEBUG - Identified game directory: Dying Light 2
+2025-12-20 20:53:22,139 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-20 20:53:22,139 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlss.dll
+2025-12-20 20:53:22,139 - DEBUG - Identified game directory: Dying Light 2
+2025-12-20 20:53:22,140 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-20 20:53:22,140 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlssg.dll
+2025-12-20 20:53:22,140 - DEBUG - Identified game directory: Dying Light 2
+2025-12-20 20:53:22,140 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-20 20:53:22,140 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-20 20:53:22,141 - DEBUG - Identified game directory: Helldivers 2
+2025-12-20 20:53:22,141 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-20 20:53:22,141 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-20 20:53:22,141 - DEBUG - Identified game directory: Helldivers 2
+2025-12-20 20:53:22,141 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-20 20:53:22,163 - INFO - Skipped whitelisted game in Steam: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlss.dll
+2025-12-20 20:53:22,163 - INFO - Skipped whitelisted game in Steam: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlssg.dll
+2025-12-20 20:53:22,164 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Overwatch\libxess.dll
+2025-12-20 20:53:22,164 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Overwatch\nvngx_dlss.dll
+2025-12-20 20:53:22,164 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:22,164 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:22,164 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:22,164 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:22,165 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:22,165 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:22,165 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:22,165 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:22,165 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:22,165 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:22,165 - INFO - Skipped whitelisted game in Steam: D:\SteamLibrary\steamapps\common\For Honor\nvngx_dlss.dll
+2025-12-20 20:53:22,165 - INFO - Skipped whitelisted game in Steam: D:\SteamLibrary\steamapps\common\Tom Clancy's Rainbow Six Siege\nvngx_dlss.dll
+2025-12-20 20:53:22,165 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll
+2025-12-20 20:53:22,166 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll
+2025-12-20 20:53:22,166 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlss.dll
+2025-12-20 20:53:22,166 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlssg.dll
+2025-12-20 20:53:22,166 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-20 20:53:22,166 - INFO - Found non-whitelisted DLL in Steam: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-20 20:53:25,197 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:25,197 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-20 20:53:25,198 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-20 20:53:25,198 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:25,198 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-20 20:53:25,198 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-20 20:53:25,198 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:25,199 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-20 20:53:25,199 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-20 20:53:25,199 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:25,199 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-20 20:53:25,200 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-20 20:53:25,200 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:25,200 - DEBUG - Identified game directory: BlackMythWukong
+2025-12-20 20:53:25,200 - DEBUG - No whitelist match found for: BlackMythWukong
+2025-12-20 20:53:25,200 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll
+2025-12-20 20:53:25,201 - DEBUG - Identified game directory: Dying Light 2
+2025-12-20 20:53:25,201 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-20 20:53:25,201 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll
+2025-12-20 20:53:25,201 - DEBUG - Identified game directory: Dying Light 2
+2025-12-20 20:53:25,202 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-20 20:53:25,202 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlss.dll
+2025-12-20 20:53:25,202 - DEBUG - Identified game directory: Dying Light 2
+2025-12-20 20:53:25,202 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-20 20:53:25,203 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlssg.dll
+2025-12-20 20:53:25,203 - DEBUG - Identified game directory: Dying Light 2
+2025-12-20 20:53:25,203 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-20 20:53:25,203 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\For Honor\nvngx_dlss.dll
+2025-12-20 20:53:25,203 - DEBUG - Identified game directory: For Honor
+2025-12-20 20:53:25,204 - INFO - Whitelist match found: For Honor
+2025-12-20 20:53:25,204 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-20 20:53:25,204 - DEBUG - Identified game directory: Helldivers 2
+2025-12-20 20:53:25,204 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-20 20:53:25,205 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-20 20:53:25,205 - DEBUG - Identified game directory: Helldivers 2
+2025-12-20 20:53:25,205 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-20 20:53:25,205 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:25,205 - DEBUG - Identified game directory: MarvelRivals
+2025-12-20 20:53:25,206 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-20 20:53:25,206 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:25,206 - DEBUG - Identified game directory: MarvelRivals
+2025-12-20 20:53:25,206 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-20 20:53:25,206 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:25,206 - DEBUG - Identified game directory: MarvelRivals
+2025-12-20 20:53:25,207 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-20 20:53:25,207 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:25,207 - DEBUG - Identified game directory: MarvelRivals
+2025-12-20 20:53:25,207 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-20 20:53:25,208 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:25,208 - DEBUG - Identified game directory: MarvelRivals
+2025-12-20 20:53:25,208 - DEBUG - No whitelist match found for: MarvelRivals
+2025-12-20 20:53:25,208 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Overwatch\libxess.dll
+2025-12-20 20:53:25,208 - DEBUG - Identified game directory: Overwatch
+2025-12-20 20:53:25,209 - DEBUG - No whitelist match found for: Overwatch
+2025-12-20 20:53:25,209 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Overwatch\nvngx_dlss.dll
+2025-12-20 20:53:25,209 - DEBUG - Identified game directory: Overwatch
+2025-12-20 20:53:25,209 - DEBUG - No whitelist match found for: Overwatch
+2025-12-20 20:53:25,209 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlss.dll
+2025-12-20 20:53:25,209 - DEBUG - Identified game directory: Space Marine 2
+2025-12-20 20:53:25,210 - INFO - Whitelist match found: Space Marine 2
+2025-12-20 20:53:25,210 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlssg.dll
+2025-12-20 20:53:25,210 - DEBUG - Identified game directory: Space Marine 2
+2025-12-20 20:53:25,210 - INFO - Whitelist match found: Space Marine 2
+2025-12-20 20:53:25,210 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Tom Clancy's Rainbow Six Siege\nvngx_dlss.dll
+2025-12-20 20:53:25,210 - DEBUG - Identified game directory: Tom Clancy's Rainbow Six Siege
+2025-12-20 20:53:25,211 - INFO - Whitelist match found: Tom Clancy's Rainbow Six Siege
+2025-12-20 20:53:25,211 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:25,211 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\BlackMythWukong\b1\Plugins\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:25,211 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:25,211 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:25,212 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\BlackMythWukong\Engine\Plugins\Runtime\Nvidia\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:25,212 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll
+2025-12-20 20:53:25,212 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll
+2025-12-20 20:53:25,212 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlss.dll
+2025-12-20 20:53:25,212 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\nvngx_dlssg.dll
+2025-12-20 20:53:25,212 - INFO - Skipped whitelisted game in Custom Folder 1: D:\SteamLibrary\steamapps\common\For Honor\nvngx_dlss.dll
+2025-12-20 20:53:25,212 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-20 20:53:25,213 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-20 20:53:25,213 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:25,213 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:25,213 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\Streamline\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:25,213 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:25,213 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\MarvelRivals\MarvelGame\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:25,213 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Overwatch\libxess.dll
+2025-12-20 20:53:25,214 - INFO - Found non-whitelisted DLL in Custom Folder 1: D:\SteamLibrary\steamapps\common\Overwatch\nvngx_dlss.dll
+2025-12-20 20:53:25,214 - INFO - Skipped whitelisted game in Custom Folder 1: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlss.dll
+2025-12-20 20:53:25,214 - INFO - Skipped whitelisted game in Custom Folder 1: D:\SteamLibrary\steamapps\common\Space Marine 2\client_pc\root\bin\pc\nvngx_dlssg.dll
+2025-12-20 20:53:25,214 - INFO - Skipped whitelisted game in Custom Folder 1: D:\SteamLibrary\steamapps\common\Tom Clancy's Rainbow Six Siege\nvngx_dlss.dll
+2025-12-20 20:53:25,214 - DEBUG - Found 18 DLLs in Custom Folder 1
+2025-12-20 20:53:29,345 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Intel\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:29,345 - DEBUG - Identified game directory: Arc Raiders
+2025-12-20 20:53:29,346 - DEBUG - No whitelist match found for: Arc Raiders
+2025-12-20 20:53:29,346 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:29,346 - DEBUG - Identified game directory: Arc Raiders
+2025-12-20 20:53:29,346 - DEBUG - No whitelist match found for: Arc Raiders
+2025-12-20 20:53:29,347 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:29,347 - DEBUG - Identified game directory: Arc Raiders
+2025-12-20 20:53:29,347 - DEBUG - No whitelist match found for: Arc Raiders
+2025-12-20 20:53:29,347 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:29,347 - DEBUG - Identified game directory: Arc Raiders
+2025-12-20 20:53:29,347 - DEBUG - No whitelist match found for: Arc Raiders
+2025-12-20 20:53:29,348 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\dstorage.dll
+2025-12-20 20:53:29,348 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,348 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,348 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\dstoragecore.dll
+2025-12-20 20:53:29,348 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,349 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,349 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\libxess.dll
+2025-12-20 20:53:29,349 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,349 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,349 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlss.dll
+2025-12-20 20:53:29,349 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,350 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,350 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlssd.dll
+2025-12-20 20:53:29,350 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,350 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,350 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlssg.dll
+2025-12-20 20:53:29,350 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,351 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,351 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\dstorage.dll
+2025-12-20 20:53:29,351 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,351 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,351 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\dstoragecore.dll
+2025-12-20 20:53:29,351 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,351 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,352 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\libxess.dll
+2025-12-20 20:53:29,352 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,352 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,352 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlss.dll
+2025-12-20 20:53:29,352 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,353 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,353 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlssd.dll
+2025-12-20 20:53:29,353 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,353 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,353 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlssg.dll
+2025-12-20 20:53:29,354 - DEBUG - Identified game directory: Battlefield 6
+2025-12-20 20:53:29,354 - INFO - Whitelist match found: Battlefield 6
+2025-12-20 20:53:29,354 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:29,354 - DEBUG - Identified game directory: DuneAwakening
+2025-12-20 20:53:29,355 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-20 20:53:29,355 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:29,355 - DEBUG - Identified game directory: DuneAwakening
+2025-12-20 20:53:29,355 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-20 20:53:29,355 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:29,355 - DEBUG - Identified game directory: DuneAwakening
+2025-12-20 20:53:29,356 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-20 20:53:29,356 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:29,356 - DEBUG - Identified game directory: DuneAwakening
+2025-12-20 20:53:29,356 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-20 20:53:29,357 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:29,357 - DEBUG - Identified game directory: DuneAwakening
+2025-12-20 20:53:29,357 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-20 20:53:29,357 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Expedition 33\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:29,357 - DEBUG - Identified game directory: Expedition 33
+2025-12-20 20:53:29,358 - DEBUG - No whitelist match found for: Expedition 33
+2025-12-20 20:53:29,358 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Expedition 33\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:29,358 - DEBUG - Identified game directory: Expedition 33
+2025-12-20 20:53:29,358 - DEBUG - No whitelist match found for: Expedition 33
+2025-12-20 20:53:29,358 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:29,359 - DEBUG - Identified game directory: Expedition 33
+2025-12-20 20:53:29,359 - DEBUG - No whitelist match found for: Expedition 33
+2025-12-20 20:53:29,359 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:29,359 - DEBUG - Identified game directory: Expedition 33
+2025-12-20 20:53:29,359 - DEBUG - No whitelist match found for: Expedition 33
+2025-12-20 20:53:29,360 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:29,360 - DEBUG - Identified game directory: Expedition 33
+2025-12-20 20:53:29,360 - DEBUG - No whitelist match found for: Expedition 33
+2025-12-20 20:53:29,360 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\dstorage.dll
+2025-12-20 20:53:29,361 - DEBUG - Identified game directory: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:29,361 - DEBUG - No whitelist match found for: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:29,361 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\dstoragecore.dll
+2025-12-20 20:53:29,361 - DEBUG - Identified game directory: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:29,361 - DEBUG - No whitelist match found for: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:29,361 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\libxess.dll
+2025-12-20 20:53:29,361 - DEBUG - Identified game directory: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:29,362 - DEBUG - No whitelist match found for: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:29,362 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\nvngx_dlss.dll
+2025-12-20 20:53:29,362 - DEBUG - Identified game directory: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:29,362 - DEBUG - No whitelist match found for: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:29,362 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\nvngx_dlssg.dll
+2025-12-20 20:53:29,363 - DEBUG - Identified game directory: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:29,363 - DEBUG - No whitelist match found for: Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:53:29,363 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\libxess.dll
+2025-12-20 20:53:29,363 - DEBUG - Identified game directory: No Man's Sky
+2025-12-20 20:53:29,363 - DEBUG - No whitelist match found for: No Man's Sky
+2025-12-20 20:53:29,363 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlss.dll
+2025-12-20 20:53:29,364 - DEBUG - Identified game directory: No Man's Sky
+2025-12-20 20:53:29,364 - DEBUG - No whitelist match found for: No Man's Sky
+2025-12-20 20:53:29,364 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlssd.dll
+2025-12-20 20:53:29,364 - DEBUG - Identified game directory: No Man's Sky
+2025-12-20 20:53:29,365 - DEBUG - No whitelist match found for: No Man's Sky
+2025-12-20 20:53:29,365 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlssg.dll
+2025-12-20 20:53:29,365 - DEBUG - Identified game directory: No Man's Sky
+2025-12-20 20:53:29,365 - DEBUG - No whitelist match found for: No Man's Sky
+2025-12-20 20:53:29,365 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\Warframe\Tools\Windows\x64\nvngx_dlss.dll
+2025-12-20 20:53:29,366 - DEBUG - Identified game directory: Warframe
+2025-12-20 20:53:29,366 - DEBUG - No whitelist match found for: Warframe
+2025-12-20 20:53:29,366 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Intel\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:29,366 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:29,366 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:29,366 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Arc Raiders\Engine\Plugins\Runtime\Nvidia\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:29,366 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\dstorage.dll
+2025-12-20 20:53:29,366 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\dstoragecore.dll
+2025-12-20 20:53:29,367 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\libxess.dll
+2025-12-20 20:53:29,367 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlss.dll
+2025-12-20 20:53:29,367 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlssd.dll
+2025-12-20 20:53:29,367 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\nvngx_dlssg.dll
+2025-12-20 20:53:29,367 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\dstorage.dll
+2025-12-20 20:53:29,367 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\dstoragecore.dll
+2025-12-20 20:53:29,367 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\libxess.dll
+2025-12-20 20:53:29,367 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlss.dll
+2025-12-20 20:53:29,367 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlssd.dll
+2025-12-20 20:53:29,368 - INFO - Skipped whitelisted game in Custom Folder 2: F:\SteamLibrary\steamapps\common\Battlefield 6\SP\nvngx_dlssg.dll
+2025-12-20 20:53:29,368 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:29,368 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:29,368 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:29,370 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:29,370 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\DuneAwakening\Engine\Plugins\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:29,370 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Expedition 33\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 20:53:29,370 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Expedition 33\Engine\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 20:53:29,370 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll
+2025-12-20 20:53:29,370 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\DLSS\Binaries\ThirdParty\Win64\nvngx_dlssd.dll
+2025-12-20 20:53:29,370 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Expedition 33\Sandfall\Plugins\NVIDIA\StreamlineCore\Binaries\ThirdParty\Win64\nvngx_dlssg.dll
+2025-12-20 20:53:29,370 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\dstorage.dll
+2025-12-20 20:53:29,370 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\dstoragecore.dll
+2025-12-20 20:53:29,371 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\libxess.dll
+2025-12-20 20:53:29,371 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\nvngx_dlss.dll
+2025-12-20 20:53:29,371 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Ghost of Tsushima DIRECTOR'S CUT\nvngx_dlssg.dll
+2025-12-20 20:53:29,371 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\libxess.dll
+2025-12-20 20:53:29,371 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlss.dll
+2025-12-20 20:53:29,371 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlssd.dll
+2025-12-20 20:53:29,371 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\No Man's Sky\Binaries\nvngx_dlssg.dll
+2025-12-20 20:53:29,371 - INFO - Found non-whitelisted DLL in Custom Folder 2: F:\SteamLibrary\steamapps\common\Warframe\Tools\Windows\x64\nvngx_dlss.dll
+2025-12-20 20:53:29,371 - DEBUG - Found 24 DLLs in Custom Folder 2
+2025-12-20 20:53:38,688 - INFO - Found 18 DLLs in Steam
+2025-12-20 20:53:45,296 - INFO - Found 18 DLLs in Custom Folder 1
+2025-12-20 20:53:46,272 - INFO - Found 24 DLLs in Custom Folder 2
+2025-12-20 20:53:49,133 - INFO - Scan complete. Found 42 total DLLs across all launchers
+2025-12-20 20:53:50,151 - INFO - Recording scanned games in database (batch mode)...
+2025-12-20 20:53:51,123 - INFO - Found Steam app ID 2357570 from appmanifest for Overwatch
+2025-12-20 20:53:51,124 - INFO - Found Steam app ID 2358720 from appmanifest for BlackMythWukong
+2025-12-20 20:53:51,125 - INFO - Found Steam app ID 2767030 from appmanifest for MarvelRivals
+2025-12-20 20:53:51,126 - INFO - Found Steam app ID 534380 from appmanifest for Dying Light 2
+2025-12-20 20:53:51,126 - INFO - Found Steam app ID 553850 from appmanifest for Helldivers 2
+2025-12-20 20:53:51,441 - DEBUG - Found cached Steam app ID 1808500 for 'Arc Raiders'
+2025-12-20 20:53:51,441 - DEBUG - Found cached Steam app ID 1172710 for 'DuneAwakening'
+2025-12-20 20:53:51,442 - DEBUG - Found cached Steam app ID 230410 for 'Warframe'
+2025-12-20 20:53:51,442 - DEBUG - Loading Steam app list cache...
+2025-12-20 20:53:51,442 - DEBUG - Found cached Steam app ID 1808500 for 'Arc Raiders'
+2025-12-20 20:53:51,442 - DEBUG - Found cached Steam app ID 1172710 for 'DuneAwakening'
+2025-12-20 20:53:51,442 - DEBUG - Loading Steam app list cache...
+2025-12-20 20:53:51,442 - DEBUG - Found cached Steam app ID 1172710 for 'DuneAwakening'
+2025-12-20 20:53:51,443 - DEBUG - Loading Steam app list cache...
+2025-12-20 20:53:51,443 - DEBUG - Loading Steam app list cache...
+2025-12-20 20:53:51,443 - DEBUG - Found cached Steam app ID 1808500 for 'Arc Raiders'
+2025-12-20 20:53:51,443 - DEBUG - Loading Steam app list cache...
+2025-12-20 20:53:52,395 - INFO - Loaded 208999 apps from cache
+2025-12-20 20:53:52,395 - INFO - Building Steam app indexes from 208999 apps...
+2025-12-20 20:53:52,922 - INFO - App indexes built: 198333 normalized names, 197946 spaceless names
+2025-12-20 20:53:52,922 - INFO - Found Steam app ID 275850 for 'No Man's Sky' (exact match)
+2025-12-20 20:53:52,987 - INFO - Loaded 208999 apps from cache
+2025-12-20 20:53:52,987 - INFO - Building Steam app indexes from 208999 apps...
+2025-12-20 20:53:53,513 - INFO - App indexes built: 198333 normalized names, 197946 spaceless names
+2025-12-20 20:53:53,513 - DEBUG - No Steam app ID found for 'Expedition 33'
+2025-12-20 20:53:53,579 - INFO - Loaded 208999 apps from cache
+2025-12-20 20:53:53,580 - INFO - Building Steam app indexes from 208999 apps...
+2025-12-20 20:53:54,097 - INFO - App indexes built: 198333 normalized names, 197946 spaceless names
+2025-12-20 20:53:54,097 - DEBUG - No Steam app ID found for 'Expedition 33'
+2025-12-20 20:53:54,170 - INFO - Loaded 208999 apps from cache
+2025-12-20 20:53:54,170 - INFO - Building Steam app indexes from 208999 apps...
+2025-12-20 20:53:54,694 - INFO - App indexes built: 198333 normalized names, 197946 spaceless names
+2025-12-20 20:53:54,694 - INFO - Found Steam app ID 2215430 for 'Ghost of Tsushima DIRECTOR'S CUT' (exact match)
+2025-12-20 20:53:54,762 - INFO - Loaded 208999 apps from cache
+2025-12-20 20:53:54,762 - INFO - Building Steam app indexes from 208999 apps...
+2025-12-20 20:53:55,293 - INFO - App indexes built: 198333 normalized names, 197946 spaceless names
+2025-12-20 20:53:55,294 - DEBUG - No Steam app ID found for 'Expedition 33'
+2025-12-20 20:53:57,752 - INFO - Batch upserted 17 games
+2025-12-20 20:53:59,998 - INFO - Batch upserted 42 DLLs
+2025-12-20 20:54:00,051 - INFO - Database recording complete: 17 games, 42 DLLs
+2025-12-20 20:54:00,051 - INFO - Version extraction: 42/42 DLLs have valid versions
+2025-12-20 20:54:01,100 - INFO - Scan complete: 42 games found
+2025-12-20 20:54:01,152 - INFO - Saved scan cache to C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\scan_cache.json
+2025-12-20 20:54:07,776 - INFO - Navigation drawer destination changed: 1
+2025-12-20 20:54:07,833 - INFO - Loading games from database...
+2025-12-20 20:54:07,942 - INFO - Navigation drawer dismissed
+2025-12-20 20:54:08,117 - DEBUG - No Steam app ID for Expedition 33, skipping image
+2025-12-20 20:54:08,145 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-20 20:54:08,281 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-20 20:54:08,495 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 20:54:08,521 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-20 20:54:08,706 - DEBUG - Loaded cached image for Warframe
+2025-12-20 20:54:08,898 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-20 20:54:09,063 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-20 20:54:09,249 - INFO - Loaded 11 games from 2 launchers
+2025-12-20 20:54:09,302 - INFO - Navigated to view index: 1
+2025-12-20 20:54:09,329 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-20 20:54:09,596 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-20 20:54:09,810 - DEBUG - Loaded cached image for Overwatch
+2025-12-20 20:54:22,210 - INFO - Update requested for game: Helldivers 2
+2025-12-20 20:54:22,268 - INFO - Starting update for game: Helldivers 2 (id: 161)
+2025-12-20 20:54:22,270 - INFO - Starting single-game update for: Helldivers 2 (id: 161)
+2025-12-20 20:54:22,528 - INFO -  - DirectStorage DLL: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-20 20:54:22,528 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-20 20:54:22,529 - DEBUG - Identified game directory: Helldivers 2
+2025-12-20 20:54:22,529 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-20 20:54:22,530 - DEBUG - Found dstorage.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\dstorage.dll
+2025-12-20 20:54:22,665 - INFO - Checking DLL at D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll...
+2025-12-20 20:54:22,743 - INFO - Existing version: 1.2.2407.1501, Latest version: 1.3.2506.2501
+2025-12-20 20:54:22,837 - INFO - [BACKUP] Attempting to create backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dlsss
+2025-12-20 20:54:22,916 - DEBUG - [BACKUP] Disk space check passed. Available: 6603252.7MB
+2025-12-20 20:54:23,025 - DEBUG - [BACKUP] Size verification passed: 206880 bytes
+2025-12-20 20:54:23,072 - INFO - [BACKUP] Successfully created and verified backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dlsss
+2025-12-20 20:54:23,450 - INFO - Recorded backup metadata for dstorage.dll (backup_id: 43)
+2025-12-20 20:54:23,539 - INFO - Successfully updated D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll from version 1.2.2407.1501 to 1.3.2506.2501.
+2025-12-20 20:54:23,625 - DEBUG - Recorded update history for dstorage.dll
+2025-12-20 20:54:23,743 - INFO -  - DirectStorage Core DLL: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-20 20:54:23,744 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-20 20:54:23,744 - DEBUG - Identified game directory: Helldivers 2
+2025-12-20 20:54:23,745 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-20 20:54:23,745 - DEBUG - Found dstoragecore.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\dstoragecore.dll
+2025-12-20 20:54:23,897 - INFO - Checking DLL at D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll...
+2025-12-20 20:54:23,976 - INFO - Existing version: 1.2.2407.1501, Latest version: 1.3.2506.2501
+2025-12-20 20:54:24,051 - INFO - [BACKUP] Attempting to create backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dlsss
+2025-12-20 20:54:24,132 - DEBUG - [BACKUP] Disk space check passed. Available: 6603252.5MB
+2025-12-20 20:54:24,256 - DEBUG - [BACKUP] Size verification passed: 1458208 bytes
+2025-12-20 20:54:24,301 - INFO - [BACKUP] Successfully created and verified backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dlsss
+2025-12-20 20:54:24,693 - INFO - Recorded backup metadata for dstoragecore.dll (backup_id: 44)
+2025-12-20 20:54:24,778 - INFO - Successfully updated D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll from version 1.2.2407.1501 to 1.3.2506.2501.
+2025-12-20 20:54:24,867 - DEBUG - Recorded update history for dstoragecore.dll
+2025-12-20 20:54:24,989 - INFO - Single-game update complete for Helldivers 2: 2 updated, 0 skipped, 0 errors
+2025-12-20 21:00:08,125 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-20 21:00:08,128 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-20 21:00:08,128 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-20 21:00:08,129 - INFO - Checking dependencies...
+2025-12-20 21:00:08,147 - WARNING - Application requires administrator privileges
+2025-12-20 21:00:08,147 - INFO - Attempting to restart with admin rights...
+2025-12-20 21:00:08,147 - INFO - Re-running script with admin privileges...
+2025-12-20 21:00:09,623 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-20 21:00:09,626 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-20 21:00:09,626 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-20 21:00:09,628 - INFO - Checking dependencies...
+2025-12-20 21:00:09,644 - INFO - Admin privileges confirmed
+2025-12-20 21:00:09,644 - INFO - DLL cache will be initialized after UI loads...
+2025-12-20 21:00:09,872 - INFO - DLSS Updater (Flet) starting...
+2025-12-20 21:00:09,873 - INFO - Initializing database...
+2025-12-20 21:00:09,874 - INFO - Database schema created successfully
+2025-12-20 21:00:09,876 - INFO - Connection pool initialized (5 connections)
+2025-12-20 21:00:09,877 - INFO - Database initialized successfully
+2025-12-20 21:00:09,877 - INFO - Database initialized successfully
+2025-12-20 21:00:09,878 - INFO - No duplicate backups found
+2025-12-20 21:00:09,878 - INFO - Merged 2 duplicate entries for 'Arc Raiders' (Custom Folder 2)
+2025-12-20 21:00:09,878 - INFO - Merged 2 duplicate entries for 'DuneAwakening' (Custom Folder 2)
+2025-12-20 21:00:09,878 - INFO - Merged 2 duplicate entries for 'Expedition 33' (Custom Folder 2)
+2025-12-20 21:00:09,879 - INFO - Cleaned up 6 duplicate game entries
+2025-12-20 21:00:09,879 - INFO - Cleaned up 6 duplicate game entries on startup
+2025-12-20 21:00:14,881 - INFO - Initializing main view...
+2025-12-20 21:00:14,889 - INFO - Loaded cached scan results: 42 games (scanned 6 minutes ago)
+2025-12-20 21:00:14,895 - INFO - Main view initialized
+2025-12-20 21:00:14,909 - INFO - UI initialized successfully
+2025-12-20 21:00:14,910 - INFO - Initializing whitelist...
+2025-12-20 21:00:14,918 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-20 21:00:14,981 - INFO - Initializing DLL cache (async)...
+2025-12-20 21:00:14,981 - INFO - Initializing DLL cache (async)
+2025-12-20 21:00:15,172 - INFO - Whitelist initialized with 32 games
+2025-12-20 21:00:15,212 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-20 21:00:15,216 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-20 21:00:15,218 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:00:15,222 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:00:15,224 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-20 21:00:15,224 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-20 21:00:15,225 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:00:15,226 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:00:15,226 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 21:00:15,227 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 21:00:15,240 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:00:15,241 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:00:15,241 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-20 21:00:15,242 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-20 21:00:15,242 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:00:15,242 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:00:15,265 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:00:15,265 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:00:15,265 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-20 21:00:15,265 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-20 21:00:15,265 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 21:00:15,265 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 21:00:15,265 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:00:15,265 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:00:15,277 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:00:15,277 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:00:15,278 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 21:00:15,278 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 21:00:15,278 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:00:15,278 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:00:15,278 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-20 21:00:15,278 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-20 21:00:15,278 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-20 21:00:15,278 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-20 21:00:15,278 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:00:15,278 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:00:15,340 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-20 21:00:15,341 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-20 21:00:15,367 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-20 21:00:15,368 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-20 21:00:15,368 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-20 21:00:15,368 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-20 21:00:16,603 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-20 21:00:16,637 - INFO - DLL cache initialized successfully
+2025-12-20 21:00:22,373 - INFO - Navigation drawer destination changed: 2
+2025-12-20 21:00:22,397 - INFO - Loading backups from database...
+2025-12-20 21:00:22,410 - INFO - Navigation drawer dismissed
+2025-12-20 21:00:22,424 - INFO - Loaded 2 backups
+2025-12-20 21:00:22,437 - INFO - Navigated to view index: 2
+2025-12-20 21:00:25,084 - INFO - Created temporary backup: C:\Users\deckl\AppData\Local\Temp\tmpkg3l_p45.dll
+2025-12-20 21:00:25,130 - INFO - Successfully restored dstoragecore.dll from backup
+2025-12-20 21:00:25,139 - INFO - Loading backups from database...
+2025-12-20 21:00:25,168 - INFO - Loaded 1 backups
+2025-12-20 21:00:27,470 - INFO - Created temporary backup: C:\Users\deckl\AppData\Local\Temp\tmph0517lkk.dll
+2025-12-20 21:00:27,518 - INFO - Successfully restored dstorage.dll from backup
+2025-12-20 21:00:27,526 - INFO - Loading backups from database...
+2025-12-20 21:00:27,555 - INFO - No backups found in database
+2025-12-20 21:00:30,402 - INFO - Navigation drawer destination changed: 1
+2025-12-20 21:00:30,423 - INFO - Loading games from database...
+2025-12-20 21:00:30,436 - INFO - Navigation drawer dismissed
+2025-12-20 21:00:30,466 - DEBUG - No Steam app ID for Expedition 33, skipping image
+2025-12-20 21:00:30,515 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-20 21:00:30,535 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-20 21:00:30,562 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 21:00:30,627 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-20 21:00:30,663 - DEBUG - Loaded cached image for Warframe
+2025-12-20 21:00:30,670 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-20 21:00:30,677 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-20 21:00:30,692 - INFO - Loaded 11 games from 2 launchers
+2025-12-20 21:00:30,715 - INFO - Navigated to view index: 1
+2025-12-20 21:00:30,780 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-20 21:00:30,812 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-20 21:00:30,999 - DEBUG - Loaded cached image for Overwatch
+2025-12-20 21:04:28,126 - INFO - Navigation drawer destination changed: 0
+2025-12-20 21:04:28,161 - INFO - Navigated to view index: 0
+2025-12-20 21:04:28,180 - INFO - Navigation drawer dismissed
+2025-12-20 21:07:12,022 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-20 21:07:12,022 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-20 21:07:12,022 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-20 21:07:24,694 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-20 21:07:24,697 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-20 21:07:24,697 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-20 21:07:24,698 - INFO - Checking dependencies...
+2025-12-20 21:07:24,716 - WARNING - Application requires administrator privileges
+2025-12-20 21:07:24,716 - INFO - Attempting to restart with admin rights...
+2025-12-20 21:07:24,716 - INFO - Re-running script with admin privileges...
+2025-12-20 21:07:26,275 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-20 21:07:26,279 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-20 21:07:26,279 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-20 21:07:26,280 - INFO - Checking dependencies...
+2025-12-20 21:07:26,298 - INFO - Admin privileges confirmed
+2025-12-20 21:07:26,298 - INFO - DLL cache will be initialized after UI loads...
+2025-12-20 21:07:26,522 - INFO - DLSS Updater (Flet) starting...
+2025-12-20 21:07:26,523 - INFO - Initializing database...
+2025-12-20 21:07:26,525 - INFO - Database schema created successfully
+2025-12-20 21:07:26,531 - INFO - Connection pool initialized (5 connections)
+2025-12-20 21:07:26,531 - INFO - Database initialized successfully
+2025-12-20 21:07:26,531 - INFO - Database initialized successfully
+2025-12-20 21:07:26,532 - INFO - Cleaned up 0 duplicate game entries
+2025-12-20 21:07:26,532 - INFO - No duplicate backups found
+2025-12-20 21:07:31,544 - INFO - Initializing main view...
+2025-12-20 21:07:31,546 - INFO - Loaded cached scan results: 42 games (scanned 13 minutes ago)
+2025-12-20 21:07:31,552 - INFO - Main view initialized
+2025-12-20 21:07:31,565 - INFO - UI initialized successfully
+2025-12-20 21:07:31,565 - INFO - Initializing whitelist...
+2025-12-20 21:07:31,572 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-20 21:07:31,627 - INFO - Initializing DLL cache (async)...
+2025-12-20 21:07:31,627 - INFO - Initializing DLL cache (async)
+2025-12-20 21:07:31,819 - INFO - Whitelist initialized with 32 games
+2025-12-20 21:07:31,857 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-20 21:07:31,859 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-20 21:07:31,862 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-20 21:07:31,865 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-20 21:07:31,866 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:07:31,867 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:07:31,868 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 21:07:31,869 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 21:07:31,869 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-20 21:07:31,870 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-20 21:07:31,886 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-20 21:07:31,887 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-20 21:07:31,887 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:07:31,887 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:07:31,899 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:07:31,899 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:07:31,899 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:07:31,899 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:07:31,900 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:07:31,900 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:07:31,900 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:07:31,900 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:07:31,900 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:07:31,900 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:07:31,912 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:07:31,912 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:07:31,924 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-20 21:07:31,924 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-20 21:07:31,924 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 21:07:31,924 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 21:07:31,924 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 21:07:31,925 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 21:07:31,936 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-20 21:07:31,937 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-20 21:07:31,948 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:07:31,948 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:07:31,966 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-20 21:07:31,967 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-20 21:07:31,991 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-20 21:07:31,991 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-20 21:07:32,015 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-20 21:07:32,015 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-20 21:07:33,278 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-20 21:07:33,311 - INFO - DLL cache initialized successfully
+2025-12-20 21:07:40,757 - INFO - Navigation drawer destination changed: 1
+2025-12-20 21:07:40,781 - INFO - Loading games from database...
+2025-12-20 21:07:40,795 - INFO - Navigation drawer dismissed
+2025-12-20 21:07:40,838 - DEBUG - No Steam app ID for Expedition 33, skipping image
+2025-12-20 21:07:40,884 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-20 21:07:40,889 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-20 21:07:40,926 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 21:07:40,944 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-20 21:07:41,003 - INFO - Loaded 11 games from 2 launchers
+2025-12-20 21:07:41,025 - INFO - Navigated to view index: 1
+2025-12-20 21:07:41,047 - DEBUG - Loaded cached image for Warframe
+2025-12-20 21:07:41,112 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-20 21:07:41,123 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-20 21:07:41,167 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-20 21:07:41,179 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-20 21:07:41,355 - DEBUG - Loaded cached image for Overwatch
+2025-12-20 21:07:43,084 - INFO - Navigation drawer destination changed: 2
+2025-12-20 21:07:43,116 - INFO - Loading backups from database...
+2025-12-20 21:07:43,129 - INFO - Navigation drawer dismissed
+2025-12-20 21:07:43,142 - INFO - No backups found in database
+2025-12-20 21:07:43,161 - INFO - Navigated to view index: 2
+2025-12-20 21:07:45,715 - INFO - Navigation drawer destination changed: 1
+2025-12-20 21:07:45,730 - INFO - Loading games from database...
+2025-12-20 21:07:45,754 - INFO - Navigation drawer dismissed
+2025-12-20 21:07:45,840 - DEBUG - No Steam app ID for Expedition 33, skipping image
+2025-12-20 21:07:45,853 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-20 21:07:45,924 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-20 21:07:46,047 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 21:07:46,081 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-20 21:07:46,094 - DEBUG - Loaded cached image for Warframe
+2025-12-20 21:07:46,139 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-20 21:07:46,209 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-20 21:07:46,303 - INFO - Loaded 11 games from 2 launchers
+2025-12-20 21:07:46,327 - INFO - Navigated to view index: 1
+2025-12-20 21:07:46,421 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-20 21:07:46,433 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-20 21:07:46,542 - DEBUG - Loaded cached image for Overwatch
+2025-12-20 21:10:33,797 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-20 21:10:33,798 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-20 21:10:33,798 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-20 21:10:40,415 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-20 21:10:40,418 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-20 21:10:40,418 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-20 21:10:40,419 - INFO - Checking dependencies...
+2025-12-20 21:10:40,437 - WARNING - Application requires administrator privileges
+2025-12-20 21:10:40,437 - INFO - Attempting to restart with admin rights...
+2025-12-20 21:10:40,438 - INFO - Re-running script with admin privileges...
+2025-12-20 21:10:41,919 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-20 21:10:41,922 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-20 21:10:41,923 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-20 21:10:41,924 - INFO - Checking dependencies...
+2025-12-20 21:10:41,940 - INFO - Admin privileges confirmed
+2025-12-20 21:10:41,940 - INFO - DLL cache will be initialized after UI loads...
+2025-12-20 21:10:42,166 - INFO - DLSS Updater (Flet) starting...
+2025-12-20 21:10:42,167 - INFO - Initializing database...
+2025-12-20 21:10:42,168 - INFO - Database schema created successfully
+2025-12-20 21:10:42,170 - INFO - Connection pool initialized (5 connections)
+2025-12-20 21:10:42,170 - INFO - Database initialized successfully
+2025-12-20 21:10:42,170 - INFO - Database initialized successfully
+2025-12-20 21:10:42,172 - INFO - Cleaned up 0 duplicate game entries
+2025-12-20 21:10:42,172 - INFO - No duplicate backups found
+2025-12-20 21:10:47,187 - INFO - Initializing main view...
+2025-12-20 21:10:47,189 - INFO - Loaded cached scan results: 42 games (scanned 16 minutes ago)
+2025-12-20 21:10:47,194 - INFO - Main view initialized
+2025-12-20 21:10:47,208 - INFO - UI initialized successfully
+2025-12-20 21:10:47,208 - INFO - Initializing whitelist...
+2025-12-20 21:10:47,214 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-20 21:10:47,270 - INFO - Initializing DLL cache (async)...
+2025-12-20 21:10:47,270 - INFO - Initializing DLL cache (async)
+2025-12-20 21:10:47,388 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-20 21:10:47,393 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-20 21:10:47,397 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:10:47,399 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:10:47,401 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-20 21:10:47,401 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-20 21:10:47,401 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:10:47,401 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:10:47,401 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:10:47,401 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:10:47,401 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-20 21:10:47,402 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-20 21:10:47,402 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 21:10:47,402 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 21:10:47,414 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:10:47,415 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:10:47,416 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:10:47,416 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:10:47,416 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-20 21:10:47,416 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-20 21:10:47,432 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:10:47,433 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:10:47,433 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:10:47,433 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:10:47,434 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:10:47,434 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:10:47,434 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 21:10:47,434 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 21:10:47,434 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-20 21:10:47,434 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-20 21:10:47,447 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-20 21:10:47,447 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-20 21:10:47,447 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-20 21:10:47,447 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-20 21:10:47,459 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-20 21:10:47,459 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-20 21:10:47,574 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-20 21:10:47,575 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-20 21:10:47,575 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-20 21:10:47,575 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-20 21:10:47,649 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-20 21:10:47,649 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-20 21:10:48,426 - INFO - Whitelist initialized with 32 games
+2025-12-20 21:10:48,574 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-20 21:10:48,607 - INFO - DLL cache initialized successfully
+2025-12-20 21:10:54,591 - INFO - Navigation drawer destination changed: 1
+2025-12-20 21:10:54,614 - INFO - Loading games from database...
+2025-12-20 21:10:54,627 - INFO - Navigation drawer dismissed
+2025-12-20 21:10:54,651 - DEBUG - No Steam app ID for Expedition 33, skipping image
+2025-12-20 21:10:54,706 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-20 21:10:54,726 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-20 21:10:54,751 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 21:10:54,757 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-20 21:10:54,839 - DEBUG - Loaded cached image for Warframe
+2025-12-20 21:10:54,867 - INFO - Loaded 11 games from 2 launchers
+2025-12-20 21:10:54,892 - INFO - Navigated to view index: 1
+2025-12-20 21:10:54,903 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-20 21:10:54,915 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-20 21:10:54,927 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-20 21:10:55,115 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-20 21:10:55,198 - DEBUG - Loaded cached image for Overwatch
+2025-12-20 21:11:52,648 - INFO - Navigation drawer destination changed: 0
+2025-12-20 21:11:52,681 - INFO - Navigated to view index: 0
+2025-12-20 21:11:52,699 - INFO - Navigation drawer dismissed
+2025-12-20 21:12:24,340 - INFO - Navigation drawer destination changed: 1
+2025-12-20 21:12:24,358 - INFO - Loading games from database...
+2025-12-20 21:12:24,386 - INFO - Navigation drawer dismissed
+2025-12-20 21:12:24,478 - DEBUG - No Steam app ID for Expedition 33, skipping image
+2025-12-20 21:12:24,517 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-20 21:12:24,530 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-20 21:12:24,678 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 21:12:24,717 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-20 21:12:24,730 - DEBUG - Loaded cached image for Warframe
+2025-12-20 21:12:24,852 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-20 21:12:24,920 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-20 21:12:25,009 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-20 21:12:25,021 - INFO - Loaded 11 games from 2 launchers
+2025-12-20 21:12:25,049 - INFO - Navigated to view index: 1
+2025-12-20 21:12:25,113 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-20 21:12:25,272 - DEBUG - Loaded cached image for Overwatch
+2025-12-20 21:12:31,167 - INFO - Update requested for game: DuneAwakening, group: XeSS
+2025-12-20 21:12:31,192 - INFO - Starting update for game: DuneAwakening (id: 168, group: XeSS)
+2025-12-20 21:12:31,193 - INFO - Starting single-game update for: DuneAwakening (id: 168, groups: XeSS)
+2025-12-20 21:12:31,278 - INFO -  - XeSS DLL: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 21:12:31,278 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll
+2025-12-20 21:12:31,279 - DEBUG - Identified game directory: DuneAwakening
+2025-12-20 21:12:31,279 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-20 21:12:31,279 - DEBUG - Found libxess.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\libxess.dll
+2025-12-20 21:12:31,413 - INFO - Checking DLL at F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll...
+2025-12-20 21:12:31,529 - INFO - Existing version: 2.0.1.41, Latest version: 2.0.1.41
+2025-12-20 21:12:31,529 - INFO - F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess.dll is already up-to-date (version 2.0.1.41).
+2025-12-20 21:12:31,594 - INFO -  - XeSS DX11 DLL: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 21:12:31,595 - DEBUG - Checking game against whitelist: F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll
+2025-12-20 21:12:31,595 - DEBUG - Identified game directory: DuneAwakening
+2025-12-20 21:12:31,595 - DEBUG - No whitelist match found for: DuneAwakening
+2025-12-20 21:12:31,596 - DEBUG - Found libxess_dx11.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\libxess_dx11.dll
+2025-12-20 21:12:31,700 - INFO - Checking DLL at F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll...
+2025-12-20 21:12:31,848 - INFO - Existing version: 2.0.1.41, Latest version: 2.0.1.41
+2025-12-20 21:12:31,848 - INFO - F:\SteamLibrary\steamapps\common\DuneAwakening\DuneSandbox\Plugins\Marketplace\XeSS\Binaries\ThirdParty\Win64\libxess_dx11.dll is already up-to-date (version 2.0.1.41).
+2025-12-20 21:12:31,924 - INFO - Single-game update complete for DuneAwakening: 0 updated, 2 skipped, 0 errors
+2025-12-20 21:12:37,207 - INFO - Update requested for game: Helldivers 2, group: DirectStorage
+2025-12-20 21:12:37,235 - INFO - Starting update for game: Helldivers 2 (id: 161, group: DirectStorage)
+2025-12-20 21:12:37,236 - INFO - Starting single-game update for: Helldivers 2 (id: 161, groups: DirectStorage)
+2025-12-20 21:12:37,328 - INFO -  - DirectStorage DLL: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-20 21:12:37,328 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-20 21:12:37,329 - DEBUG - Identified game directory: Helldivers 2
+2025-12-20 21:12:37,329 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-20 21:12:37,329 - DEBUG - Found dstorage.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\dstorage.dll
+2025-12-20 21:12:37,438 - INFO - Checking DLL at D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll...
+2025-12-20 21:12:37,595 - INFO - Existing version: 1.2.2407.1501, Latest version: 1.3.2506.2501
+2025-12-20 21:12:37,626 - INFO - [BACKUP] Attempting to create backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dlsss
+2025-12-20 21:12:37,670 - DEBUG - [BACKUP] Disk space check passed. Available: 6603251.1MB
+2025-12-20 21:12:37,687 - INFO - [BACKUP] Previous backup exists, removing...
+2025-12-20 21:12:37,750 - INFO - [BACKUP] Successfully removed old backup
+2025-12-20 21:12:37,809 - DEBUG - [BACKUP] Size verification passed: 206880 bytes
+2025-12-20 21:12:37,829 - INFO - [BACKUP] Successfully created and verified backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dlsss
+2025-12-20 21:12:37,885 - INFO - Recorded backup metadata for dstorage.dll (backup_id: 45)
+2025-12-20 21:12:37,983 - INFO - Successfully updated D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll from version 1.2.2407.1501 to 1.3.2506.2501.
+2025-12-20 21:12:38,019 - DEBUG - Recorded update history for dstorage.dll
+2025-12-20 21:12:38,069 - INFO -  - DirectStorage Core DLL: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-20 21:12:38,069 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-20 21:12:38,070 - DEBUG - Identified game directory: Helldivers 2
+2025-12-20 21:12:38,070 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-20 21:12:38,070 - DEBUG - Found dstoragecore.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\dstoragecore.dll
+2025-12-20 21:12:38,202 - INFO - Checking DLL at D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll...
+2025-12-20 21:12:38,330 - INFO - Existing version: 1.2.2407.1501, Latest version: 1.3.2506.2501
+2025-12-20 21:12:38,358 - INFO - [BACKUP] Attempting to create backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dlsss
+2025-12-20 21:12:38,400 - DEBUG - [BACKUP] Disk space check passed. Available: 6603251.1MB
+2025-12-20 21:12:38,420 - INFO - [BACKUP] Previous backup exists, removing...
+2025-12-20 21:12:38,467 - INFO - [BACKUP] Successfully removed old backup
+2025-12-20 21:12:38,529 - DEBUG - [BACKUP] Size verification passed: 1458208 bytes
+2025-12-20 21:12:38,546 - INFO - [BACKUP] Successfully created and verified backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dlsss
+2025-12-20 21:12:38,629 - INFO - Recorded backup metadata for dstoragecore.dll (backup_id: 46)
+2025-12-20 21:12:38,698 - INFO - Successfully updated D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll from version 1.2.2407.1501 to 1.3.2506.2501.
+2025-12-20 21:12:38,751 - DEBUG - Recorded update history for dstoragecore.dll
+2025-12-20 21:12:38,816 - INFO - Single-game update complete for Helldivers 2: 2 updated, 0 skipped, 0 errors
+2025-12-20 21:13:02,358 - INFO - Navigation drawer destination changed: 2
+2025-12-20 21:13:02,399 - INFO - Loading backups from database...
+2025-12-20 21:13:02,418 - INFO - Navigation drawer dismissed
+2025-12-20 21:13:02,438 - INFO - Loaded 2 backups
+2025-12-20 21:13:02,458 - INFO - Navigated to view index: 2
+2025-12-20 21:13:05,032 - INFO - Created temporary backup: C:\Users\deckl\AppData\Local\Temp\tmpkn5firih.dll
+2025-12-20 21:13:05,066 - INFO - Successfully restored dstoragecore.dll from backup
+2025-12-20 21:13:05,077 - INFO - Loading backups from database...
+2025-12-20 21:13:05,130 - INFO - Loaded 1 backups
+2025-12-20 21:13:07,648 - INFO - Created temporary backup: C:\Users\deckl\AppData\Local\Temp\tmp77vm864_.dll
+2025-12-20 21:13:07,680 - INFO - Successfully restored dstorage.dll from backup
+2025-12-20 21:13:07,693 - INFO - Loading backups from database...
+2025-12-20 21:13:07,749 - INFO - No backups found in database
+2025-12-20 21:13:10,220 - INFO - Navigation drawer destination changed: 0
+2025-12-20 21:13:10,256 - INFO - Navigated to view index: 0
+2025-12-20 21:13:10,280 - INFO - Navigation drawer dismissed
+2025-12-20 21:13:44,805 - INFO - Navigation drawer destination changed: 1
+2025-12-20 21:13:44,833 - INFO - Loading games from database...
+2025-12-20 21:13:44,866 - INFO - Navigation drawer dismissed
+2025-12-20 21:13:44,986 - DEBUG - No Steam app ID for Expedition 33, skipping image
+2025-12-20 21:13:45,035 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-20 21:13:45,052 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-20 21:13:45,219 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-20 21:13:45,286 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-20 21:13:45,303 - DEBUG - Loaded cached image for Warframe
+2025-12-20 21:13:45,462 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-20 21:13:45,569 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-20 21:13:45,693 - INFO - Loaded 11 games from 2 launchers
+2025-12-20 21:13:45,734 - INFO - Navigated to view index: 1
+2025-12-20 21:13:45,769 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-20 21:13:45,861 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-20 21:13:46,028 - DEBUG - Loaded cached image for Overwatch
+2025-12-20 21:13:53,308 - INFO - Update requested for game: Helldivers 2, group: DirectStorage
+2025-12-20 21:13:53,347 - INFO - Starting update for game: Helldivers 2 (id: 161, group: DirectStorage)
+2025-12-20 21:13:53,349 - INFO - Starting single-game update for: Helldivers 2 (id: 161, groups: DirectStorage)
+2025-12-20 21:13:53,495 - INFO -  - DirectStorage DLL: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-20 21:13:53,496 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll
+2025-12-20 21:13:53,497 - DEBUG - Identified game directory: Helldivers 2
+2025-12-20 21:13:53,497 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-20 21:13:53,497 - DEBUG - Found dstorage.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\dstorage.dll
+2025-12-20 21:13:53,600 - INFO - Checking DLL at D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll...
+2025-12-20 21:13:53,678 - INFO - Existing version: 1.2.2407.1501, Latest version: 1.3.2506.2501
+2025-12-20 21:13:53,758 - INFO - [BACKUP] Attempting to create backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dlsss
+2025-12-20 21:13:53,820 - DEBUG - [BACKUP] Disk space check passed. Available: 6603251.1MB
+2025-12-20 21:13:53,882 - INFO - [BACKUP] Previous backup exists, removing...
+2025-12-20 21:13:53,944 - INFO - [BACKUP] Successfully removed old backup
+2025-12-20 21:13:54,038 - DEBUG - [BACKUP] Size verification passed: 206880 bytes
+2025-12-20 21:13:54,085 - INFO - [BACKUP] Successfully created and verified backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dlsss
+2025-12-20 21:13:54,227 - INFO - Recorded backup metadata for dstorage.dll (backup_id: 47)
+2025-12-20 21:13:54,309 - INFO - Successfully updated D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstorage.dll from version 1.2.2407.1501 to 1.3.2506.2501.
+2025-12-20 21:13:54,367 - DEBUG - Recorded update history for dstorage.dll
+2025-12-20 21:13:54,448 - INFO -  - DirectStorage Core DLL: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-20 21:13:54,449 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll
+2025-12-20 21:13:54,449 - DEBUG - Identified game directory: Helldivers 2
+2025-12-20 21:13:54,450 - DEBUG - No whitelist match found for: Helldivers 2
+2025-12-20 21:13:54,450 - DEBUG - Found dstoragecore.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\dstoragecore.dll
+2025-12-20 21:13:54,581 - INFO - Checking DLL at D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll...
+2025-12-20 21:13:54,660 - INFO - Existing version: 1.2.2407.1501, Latest version: 1.3.2506.2501
+2025-12-20 21:13:54,722 - INFO - [BACKUP] Attempting to create backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dlsss
+2025-12-20 21:13:54,800 - DEBUG - [BACKUP] Disk space check passed. Available: 6603251.1MB
+2025-12-20 21:13:54,847 - INFO - [BACKUP] Previous backup exists, removing...
+2025-12-20 21:13:54,909 - INFO - [BACKUP] Successfully removed old backup
+2025-12-20 21:13:55,004 - DEBUG - [BACKUP] Size verification passed: 1458208 bytes
+2025-12-20 21:13:55,050 - INFO - [BACKUP] Successfully created and verified backup at: D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dlsss
+2025-12-20 21:13:55,204 - INFO - Recorded backup metadata for dstoragecore.dll (backup_id: 48)
+2025-12-20 21:13:55,290 - INFO - Successfully updated D:\SteamLibrary\steamapps\common\Helldivers 2\bin\dstoragecore.dll from version 1.2.2407.1501 to 1.3.2506.2501.
+2025-12-20 21:13:55,356 - DEBUG - Recorded update history for dstoragecore.dll
+2025-12-20 21:13:55,446 - INFO - Single-game update complete for Helldivers 2: 2 updated, 0 skipped, 0 errors
+2025-12-20 21:13:57,940 - INFO - Update requested for game: Dying Light 2, group: XeSS
+2025-12-20 21:13:57,977 - INFO - Starting update for game: Dying Light 2 (id: 160, group: XeSS)
+2025-12-20 21:13:57,980 - INFO - Starting single-game update for: Dying Light 2 (id: 160, groups: XeSS)
+2025-12-20 21:13:58,126 - INFO -  - XeSS DLL: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll
+2025-12-20 21:13:58,126 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll
+2025-12-20 21:13:58,127 - DEBUG - Identified game directory: Dying Light 2
+2025-12-20 21:13:58,127 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-20 21:13:58,127 - DEBUG - Found libxess.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\libxess.dll
+2025-12-20 21:13:58,247 - INFO - Checking DLL at D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll...
+2025-12-20 21:13:58,468 - INFO - Existing version: 2.0.1.41, Latest version: 2.0.1.41
+2025-12-20 21:13:58,471 - INFO - D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess.dll is already up-to-date (version 2.0.1.41).
+2025-12-20 21:13:58,582 - INFO -  - XeSS DX11 DLL: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll
+2025-12-20 21:13:58,582 - DEBUG - Checking game against whitelist: D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll
+2025-12-20 21:13:58,583 - DEBUG - Identified game directory: Dying Light 2
+2025-12-20 21:13:58,583 - DEBUG - No whitelist match found for: Dying Light 2
+2025-12-20 21:13:58,583 - DEBUG - Found libxess_dx11.dll in LATEST_DLL_PATHS, latest_dll_path: C:\Users\deckl\.dlss_updater\dll_cache\libxess_dx11.dll
+2025-12-20 21:13:58,703 - INFO - Checking DLL at D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll...
+2025-12-20 21:13:58,905 - INFO - Existing version: 2.0.1.41, Latest version: 2.0.1.41
+2025-12-20 21:13:58,932 - INFO - D:\SteamLibrary\steamapps\common\Dying Light 2\ph\work\bin\x64\libxess_dx11.dll is already up-to-date (version 2.0.1.41).
+2025-12-20 21:13:59,043 - INFO - Single-game update complete for Dying Light 2: 0 updated, 2 skipped, 0 errors

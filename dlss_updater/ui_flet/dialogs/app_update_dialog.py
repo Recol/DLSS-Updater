@@ -5,10 +5,9 @@ Checks for application updates from GitHub
 
 import logging
 import webbrowser
-import asyncio
 import flet as ft
 
-from dlss_updater.auto_updater import check_for_updates
+from dlss_updater.auto_updater import check_for_updates_async
 from dlss_updater.version import __version__
 
 
@@ -43,9 +42,9 @@ class AppUpdateDialog:
         self.page.update()
 
         try:
-            # Check for updates in background thread (it's a network call)
+            # Check for updates asynchronously (non-blocking)
             # Returns tuple: (latest_version, is_update_available)
-            latest_version, is_update_available = await asyncio.to_thread(check_for_updates)
+            latest_version, is_update_available = await check_for_updates_async()
 
             # Close checking dialog
             self.page.close(checking_dialog)

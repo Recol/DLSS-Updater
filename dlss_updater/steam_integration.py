@@ -6,6 +6,7 @@ Universal image fetching for ALL games (not just Steam launcher) via name matchi
 import asyncio
 import re
 import msgspec
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional, List
 from datetime import datetime, timedelta
@@ -130,13 +131,17 @@ class SteamIntegration:
         except Exception as e:
             logger.error(f"Error downloading Steam app list: {e}", exc_info=True)
 
-    def normalize_game_name(self, name: str) -> str:
+    @staticmethod
+    @lru_cache(maxsize=1024)
+    def normalize_game_name(name: str) -> str:
         """
         Normalize game name for matching
         - Lowercase
         - Remove special characters
         - Remove "The" prefix
         - Remove trademark symbols
+
+        Cached for performance (up to 1024 unique names).
         """
         normalized = name.lower().strip()
 
