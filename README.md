@@ -25,6 +25,7 @@ What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on yo
 - A GUI!
 - Support for manual folder locations.
 - Backups of updated games to be restored.
+- Individual game updates for specific binaries.
 
 
 The current supported DLL included is DLSS 4 (version 3.10.4).
@@ -138,8 +139,6 @@ If you prefer to build the application yourself, follow these steps:
 
 ## Future Features
 
-- Ability to restore and ~~create backups of DLL swaps~~. - This is currently being worked on, however support has been added for restoring with DLSS Swapper currently.
-- Support for a [database](https://github.com/Recol/DLSS-Updater/issues/9).
 - Insert xyz feature that wants to be requested.
 - Automation support with external software.
 
