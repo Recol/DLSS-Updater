@@ -1,3 +1,7 @@
+Version 2.9.3:
+Full file path display in Games and Backups sections with hover tooltips.
+Copy-to-clipboard button for game and backup paths.
+
 Version 2.9.2:
 Selective DLL updates - choose to update specific DLL types (DLSS, XeSS, FSR, DirectStorage, Streamline) per game via dropdown menu.
 6-70x faster directory scanning on Windows.

@@ -63,7 +63,7 @@ class BackupCard(ft.Card):
                 self._create_metadata_row("Original Version:", self.backup.original_version or "Unknown"),
                 self._create_metadata_row("Backup Date:", self._format_date(self.backup.backup_created_at)),
                 self._create_metadata_row("Size:", self._format_size(self.backup.backup_size)),
-                self._create_metadata_row("Location:", self._truncate_path(self.backup.backup_path)),
+                self._create_path_row("Location:", self.backup.backup_path),
             ],
             spacing=4,
             tight=True,
@@ -135,6 +135,46 @@ class BackupCard(ft.Card):
             spacing=8,
             tight=True,
         )
+
+    def _create_path_row(self, label: str, full_path: str) -> ft.Row:
+        """Create a metadata row for paths with tooltip and copy functionality"""
+        return ft.Row(
+            controls=[
+                ft.Text(
+                    label,
+                    size=12,
+                    color="#888888",
+                    width=120,
+                    no_wrap=True,
+                ),
+                ft.Container(
+                    content=ft.Text(
+                        self._truncate_path(full_path),
+                        size=12,
+                        color=ft.Colors.WHITE,
+                        no_wrap=True,
+                    ),
+                    tooltip=full_path,
+                    expand=True,
+                ),
+                ft.IconButton(
+                    icon=ft.Icons.CONTENT_COPY,
+                    icon_size=14,
+                    icon_color="#888888",
+                    tooltip="Copy path",
+                    on_click=lambda e, p=full_path: self._on_copy_path_clicked(e, p),
+                    width=24,
+                    height=24,
+                ),
+            ],
+            spacing=8,
+            tight=True,
+        )
+
+    async def _on_copy_path_clicked(self, e, path: str):
+        """Copy path to clipboard with snackbar confirmation"""
+        await self.page.set_clipboard_async(path)
+        self.page.open(ft.SnackBar(content=ft.Text("Path copied to clipboard"), bgcolor="#2D6E88"))
 
     def _format_date(self, dt: datetime) -> str:
         """Format datetime for display"""

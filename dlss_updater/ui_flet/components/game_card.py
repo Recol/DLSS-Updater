@@ -92,7 +92,7 @@ class GameCard(ft.Card):
             alignment=ft.alignment.center,
         )
 
-        # Game name and launcher
+        # Game name, launcher, and path
         game_info = ft.Column(
             controls=[
                 ft.Text(
@@ -109,6 +109,33 @@ class GameCard(ft.Card):
                     size=12,
                     color="#888888",
                     no_wrap=True,
+                ),
+                # Path row with tooltip and copy button
+                ft.Row(
+                    controls=[
+                        ft.Container(
+                            content=ft.Text(
+                                self._truncate_path(self.game.path, 40),
+                                size=10,
+                                color="#666666",
+                                no_wrap=True,
+                                italic=True,
+                            ),
+                            tooltip=self.game.path,
+                            expand=True,
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.CONTENT_COPY,
+                            icon_size=12,
+                            icon_color="#666666",
+                            tooltip="Copy path",
+                            on_click=self._on_copy_path_clicked,
+                            width=20,
+                            height=20,
+                        ),
+                    ],
+                    spacing=4,
+                    tight=True,
                 ),
             ],
             spacing=4,
@@ -396,3 +423,14 @@ class GameCard(ft.Card):
             self.right_content.controls[1] = new_badges
             self.dll_badges_container = new_badges
             self.right_content.update()
+
+    def _truncate_path(self, path: str, max_length: int = 40) -> str:
+        """Truncate long paths for display, keeping end visible"""
+        if len(path) <= max_length:
+            return path
+        return "..." + path[-(max_length - 3):]
+
+    async def _on_copy_path_clicked(self, e):
+        """Copy game path to clipboard with snackbar confirmation"""
+        await self.page.set_clipboard_async(self.game.path)
+        self.page.open(ft.SnackBar(content=ft.Text("Path copied to clipboard"), bgcolor="#2D6E88"))
