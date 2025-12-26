@@ -15,10 +15,15 @@ jobs:
         run: |
           RELEASE_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          
           echo "name=$(echo $RELEASE_DATA | jq -r '.name')" >> $GITHUB_OUTPUT
           echo "tag=$(echo $RELEASE_DATA | jq -r '.tag_name')" >> $GITHUB_OUTPUT
           echo "url=$(echo $RELEASE_DATA | jq -r '.html_url')" >> $GITHUB_OUTPUT
-          echo "body=$(echo $RELEASE_DATA | jq -r '.body')" >> $GITHUB_OUTPUT
+          
+          # Handle multiline body properly
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$RELEASE_DATA" | jq -r '.body' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
       
       - name: Send Discord notification
         env:
