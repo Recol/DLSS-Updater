@@ -1,6 +1,6 @@
 [project]
 name = "dlss-updater"
-version = "2.9.3"
+version = "3.0.0"
 description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
 readme = "README.md"
 license = "AGPL-3.0-only"
