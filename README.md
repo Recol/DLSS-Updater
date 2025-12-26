@@ -6,6 +6,9 @@
 ![Downloads](https://img.shields.io/badge/Downloads-57414-blue)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-donate-yellow.svg)](https://buymeacoffee.com/decouk)
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Recol/DLSS-Updater&type=date&legend=top-left)](https://www.star-history.com/#Recol/DLSS-Updater&type=date&legend=top-left)
 
 ![dlss_updater](https://github.com/user-attachments/assets/b7d7fb4d-e204-412d-8e92-61a7173abfaf)
 
