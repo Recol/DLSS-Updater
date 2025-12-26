@@ -3,6 +3,7 @@ name: Discord Release Notification
 on:
   release:
     types: [published, edited]
+  workflow_dispatch:
 
 jobs:
   notify:
