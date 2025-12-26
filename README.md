@@ -6,9 +6,6 @@
 ![Downloads](https://img.shields.io/badge/Downloads-57414-blue)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-donate-yellow.svg)](https://buymeacoffee.com/decouk)
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Recol/DLSS-Updater&type=date&legend=top-left)](https://www.star-history.com/#Recol/DLSS-Updater&type=date&legend=top-left)
 
 ![dlss_updater](https://github.com/user-attachments/assets/b7d7fb4d-e204-412d-8e92-61a7173abfaf)
 
@@ -40,7 +37,9 @@ The current supported XESS DLL included is 2.0.1, please see the limitations [he
 <img width="2772" height="1531" alt="image" src="https://github.com/user-attachments/assets/1ac16e23-0633-467c-948d-5fa0eb9c4005" />
 
 
+## Star History
 
+[![Star History Chart](https://api.star-history.com/svg?repos=Recol/DLSS-Updater&type=date&legend=top-left)](https://www.star-history.com/#Recol/DLSS-Updater&type=date&legend=top-left)
 
 ## Blacklisted Games
 
@@ -57,8 +56,7 @@ The blacklist includes games that:
 The games that are blacklisted can be disabled manually by clicking the "Manage Blacklist" button in the GUI. This will allow you to skip games for whatever reason.
 
 ## Restoring modified DLL's
-- In order to do this, simply rename the **.dlsss** file of the respective DLL which you wish to restore to **.dll** and overwrite the original file. 
-- Support does not exist yet for being able to restore them using the program.
+- You can find these in the Backups tab.
 
 ## Execution Instructions
 
