@@ -25,10 +25,23 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Build JSON payload directly from release.json using jq
+          # Build JSON payload with embeds (supports up to 4096 chars in description)
           PAYLOAD=$(jq -n \
             --argjson release "$(cat release.json)" \
-            '{content: ("🎉 **New Release Published!**\n\n**" + $release.name + "** (" + $release.tag_name + ")\n" + $release.html_url + "\n\n" + $release.body)}')
+            '{
+              content: "🎉 **New Release Published!**",
+              embeds: [{
+                title: $release.name,
+                url: $release.html_url,
+                description: $release.body,
+                color: 5814783,
+                fields: [{
+                  name: "Version",
+                  value: $release.tag_name,
+                  inline: true
+                }]
+              }]
+            }')
           
           curl -H "Content-Type: application/json" \
                -d "$PAYLOAD" \
