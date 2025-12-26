@@ -9,10 +9,33 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
+      - name: Get latest release (manual trigger)
+        if: github.event_name == 'workflow_dispatch'
+        id: latest_release
+        run: |
+          RELEASE_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          echo "name=$(echo $RELEASE_DATA | jq -r '.name')" >> $GITHUB_OUTPUT
+          echo "tag=$(echo $RELEASE_DATA | jq -r '.tag_name')" >> $GITHUB_OUTPUT
+          echo "url=$(echo $RELEASE_DATA | jq -r '.html_url')" >> $GITHUB_OUTPUT
+          echo "body=$(echo $RELEASE_DATA | jq -r '.body')" >> $GITHUB_OUTPUT
+      
       - name: Send Discord notification
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            RELEASE_NAME="${{ steps.latest_release.outputs.name }}"
+            RELEASE_TAG="${{ steps.latest_release.outputs.tag }}"
+            RELEASE_URL="${{ steps.latest_release.outputs.url }}"
+            RELEASE_BODY="${{ steps.latest_release.outputs.body }}"
+          else
+            RELEASE_NAME="${{ github.event.release.name }}"
+            RELEASE_TAG="${{ github.event.release.tag_name }}"
+            RELEASE_URL="${{ github.event.release.html_url }}"
+            RELEASE_BODY="${{ github.event.release.body }}"
+          fi
+          
           curl -H "Content-Type: application/json" \
-               -d "{\"content\": \"🎉 New release: ${{ github.event.release.name }}\n${{ github.event.release.html_url }}\"}" \
+               -d "{\"content\": \"🎉 **New Release Published!**\n\n**${RELEASE_NAME}** (${RELEASE_TAG})\n${RELEASE_URL}\n\n${RELEASE_BODY}\"}" \
                $DISCORD_WEBHOOK
