@@ -1,12 +1,94 @@
 import os
 import sys
 import configparser
+import threading
 from enum import StrEnum
+from typing import List
 import appdirs
+import msgspec
 from .logger import setup_logger
-from .models import UpdatePreferencesConfig, LauncherPathsConfig, PerformanceConfig
+from .models import UpdatePreferencesConfig, LauncherPathsConfig, PerformanceConfig, MAX_PATHS_PER_LAUNCHER
 
 logger = setup_logger()
+
+# =============================================================================
+# CONCURRENCY CONFIGURATION - Maximize hardware utilization
+# =============================================================================
+# Target: Use ~90% of available CPU threads for maximum performance
+# I/O-bound tasks can use much higher multipliers since threads wait on I/O
+
+def _get_cpu_threads() -> int:
+    """Get the number of CPU threads (including hyperthreading)."""
+    return os.cpu_count() or 8  # Fallback to 8 if detection fails
+
+def _is_gil_disabled() -> bool:
+    """Check if running on free-threaded Python (GIL disabled)."""
+    try:
+        return not sys._is_gil_enabled()
+    except AttributeError:
+        return False
+
+# Core thread counts
+CPU_THREADS = _get_cpu_threads()
+GIL_DISABLED = _is_gil_disabled()
+
+# =============================================================================
+# CONCURRENCY MULTIPLIERS - Aggressive settings for maximum throughput
+# =============================================================================
+# CPU-bound tasks: Use 90% of threads (e.g., PE parsing)
+# I/O-bound tasks: Use high multipliers since threads wait on I/O, not CPU
+
+class Concurrency:
+    """
+    Centralized concurrency limits scaled to hardware.
+
+    For a 16-thread CPU at 90% utilization:
+    - CPU_BOUND = 14 threads (90% of 16)
+    - IO_LIGHT = 112 (CPU * 8, lightweight I/O like string ops)
+    - IO_MEDIUM = 224 (CPU * 16, file operations)
+    - IO_HEAVY = 448 (CPU * 32, network/disk heavy ops)
+    - IO_EXTREME = 896 (CPU * 64, async I/O that mostly waits)
+    """
+
+    # CPU-bound operations (PE parsing, version extraction)
+    # Use 90% of CPU threads - these actually consume CPU cycles
+    CPU_BOUND: int = max(4, int(CPU_THREADS * 0.9))
+
+    # CPU-bound with GIL disabled gets full parallelism
+    CPU_BOUND_PARALLEL: int = max(8, int(CPU_THREADS * 0.9)) if GIL_DISABLED else max(4, CPU_THREADS // 2)
+
+    # I/O-bound operations - threads spend most time waiting, not computing
+    # These can be MUCH higher than CPU count
+
+    # Light I/O (string matching, in-memory ops with occasional I/O)
+    IO_LIGHT: int = CPU_THREADS * 8
+
+    # Medium I/O (file stat, small file reads, directory listing)
+    IO_MEDIUM: int = CPU_THREADS * 16
+
+    # Heavy I/O (file copy, large file reads, database ops)
+    IO_HEAVY: int = CPU_THREADS * 32
+
+    # Extreme I/O (network requests, async operations that mostly wait)
+    IO_EXTREME: int = CPU_THREADS * 64
+
+    # ThreadPoolExecutor limits (OS has limits on actual threads)
+    # These are for actual OS threads, not async tasks
+    THREADPOOL_CPU: int = max(8, int(CPU_THREADS * 0.9))
+    THREADPOOL_IO: int = min(256, CPU_THREADS * 8)  # Cap at 256 real threads
+
+    @classmethod
+    def log_config(cls):
+        """Log the concurrency configuration."""
+        logger.info(f"Concurrency config: CPU_THREADS={CPU_THREADS}, GIL_DISABLED={GIL_DISABLED}")
+        logger.info(f"  CPU_BOUND={cls.CPU_BOUND}, CPU_BOUND_PARALLEL={cls.CPU_BOUND_PARALLEL}")
+        logger.info(f"  IO_LIGHT={cls.IO_LIGHT}, IO_MEDIUM={cls.IO_MEDIUM}")
+        logger.info(f"  IO_HEAVY={cls.IO_HEAVY}, IO_EXTREME={cls.IO_EXTREME}")
+        logger.info(f"  THREADPOOL_CPU={cls.THREADPOOL_CPU}, THREADPOOL_IO={cls.THREADPOOL_IO}")
+
+# Thread-safety locks for free-threading (Python 3.14+)
+_config_lock = threading.Lock()
+_dll_paths_lock = threading.Lock()
 
 
 def get_config_path():
@@ -73,8 +155,11 @@ class ConfigManager(configparser.ConfigParser):
     _instance = None
 
     def __new__(cls, *args, **kwargs):
+        # Double-checked locking pattern for free-threading safety
         if cls._instance is None:
-            cls._instance = super(ConfigManager, cls).__new__(cls)
+            with _config_lock:
+                if cls._instance is None:
+                    cls._instance = super(ConfigManager, cls).__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -127,6 +212,16 @@ class ConfigManager(configparser.ConfigParser):
                 if "CreateBackups" not in self["UpdatePreferences"]:
                     self["UpdatePreferences"]["CreateBackups"] = "true"
                     self.save()
+                # Add HighPerformanceMode preference if it doesn't exist (for existing configs)
+                if "HighPerformanceMode" not in self["UpdatePreferences"]:
+                    self["UpdatePreferences"]["HighPerformanceMode"] = "false"
+                    self.save()
+
+            # Initialize DiscordBanner section
+            if not self.has_section("DiscordBanner"):
+                self.add_section("DiscordBanner")
+                self["DiscordBanner"]["dismissed"] = "false"
+                self.save()
 
             self.initialized = True
 
@@ -147,6 +242,120 @@ class ConfigManager(configparser.ConfigParser):
         self.save()
         self.logger.debug(f"Reset path for {path_to_reset}.")
 
+    # =========================================================================
+    # Multi-Path Methods (Sub-Folder Support)
+    # =========================================================================
+
+    def get_launcher_paths(self, launcher: LauncherPathName) -> List[str]:
+        """
+        Get all paths for a launcher (multi-path support).
+
+        Handles both legacy single-path format and new JSON array format.
+
+        Args:
+            launcher: The launcher to get paths for
+
+        Returns:
+            List of paths, or empty list if none configured
+        """
+        raw_value = self["LauncherPaths"].get(launcher, "")
+        if not raw_value:
+            return []
+
+        # Try parsing as JSON array first (new format)
+        if raw_value.startswith("["):
+            try:
+                paths = msgspec.json.decode(raw_value.encode())
+                if isinstance(paths, list):
+                    return [p for p in paths if p]  # Filter empty strings
+            except Exception as e:
+                self.logger.warning(f"Failed to parse JSON paths for {launcher}: {e}")
+
+        # Fallback: treat as single path (legacy format)
+        return [raw_value] if raw_value else []
+
+    def set_launcher_paths(self, launcher: LauncherPathName, paths: List[str]):
+        """
+        Set all paths for a launcher (multi-path support).
+
+        Stores as JSON array format. Enforces MAX_PATHS_PER_LAUNCHER limit.
+
+        Args:
+            launcher: The launcher to set paths for
+            paths: List of paths to set
+        """
+        # Filter empty paths and enforce limit
+        filtered_paths = [p for p in paths if p][:MAX_PATHS_PER_LAUNCHER]
+
+        # Encode as JSON array
+        json_value = msgspec.json.encode(filtered_paths).decode()
+        self["LauncherPaths"][launcher] = json_value
+        self.save()
+        self.logger.debug(f"Set {len(filtered_paths)} paths for {launcher}")
+
+    def add_launcher_path(self, launcher: LauncherPathName, new_path: str) -> bool:
+        """
+        Add a new path to a launcher's path list.
+
+        Args:
+            launcher: The launcher to add path to
+            new_path: The path to add
+
+        Returns:
+            True if path was added, False if at limit or duplicate
+        """
+        if not new_path:
+            return False
+
+        paths = self.get_launcher_paths(launcher)
+
+        # Check limit
+        if len(paths) >= MAX_PATHS_PER_LAUNCHER:
+            self.logger.warning(f"Cannot add path to {launcher}: limit of {MAX_PATHS_PER_LAUNCHER} reached")
+            return False
+
+        # Check for duplicate (case-insensitive on Windows)
+        normalized_new = os.path.normpath(new_path).lower()
+        for existing in paths:
+            if os.path.normpath(existing).lower() == normalized_new:
+                self.logger.debug(f"Path already exists for {launcher}: {new_path}")
+                return False
+
+        paths.append(new_path)
+        self.set_launcher_paths(launcher, paths)
+        self.logger.info(f"Added path to {launcher}: {new_path}")
+        return True
+
+    def remove_launcher_path(self, launcher: LauncherPathName, path_to_remove: str) -> bool:
+        """
+        Remove a path from a launcher's path list.
+
+        Args:
+            launcher: The launcher to remove path from
+            path_to_remove: The path to remove
+
+        Returns:
+            True if path was removed, False if not found
+        """
+        paths = self.get_launcher_paths(launcher)
+
+        # Find and remove (case-insensitive on Windows)
+        normalized_remove = os.path.normpath(path_to_remove).lower()
+        new_paths = []
+        removed = False
+
+        for p in paths:
+            if os.path.normpath(p).lower() == normalized_remove:
+                removed = True
+            else:
+                new_paths.append(p)
+
+        if removed:
+            self.set_launcher_paths(launcher, new_paths)
+            self.logger.info(f"Removed path from {launcher}: {path_to_remove}")
+
+        return removed
+
     def get_update_preference(self, technology):
         """Get update preference for a specific technology"""
         return self["UpdatePreferences"].getboolean(f"Update{technology}", True)
@@ -163,6 +372,19 @@ class ConfigManager(configparser.ConfigParser):
     def set_backup_preference(self, enabled):
         """Set backup creation preference"""
         self["UpdatePreferences"]["CreateBackups"] = str(enabled).lower()
+        self.save()
+
+    def get_discord_banner_dismissed(self) -> bool:
+        """Get whether the Discord invite banner has been dismissed"""
+        if not self.has_section("DiscordBanner"):
+            return False
+        return self["DiscordBanner"].getboolean("dismissed", False)
+
+    def set_discord_banner_dismissed(self, dismissed: bool):
+        """Set the Discord invite banner dismissed state"""
+        if not self.has_section("DiscordBanner"):
+            self.add_section("DiscordBanner")
+        self["DiscordBanner"]["dismissed"] = str(dismissed).lower()
         self.save()
 
     def get_all_blacklist_skips(self):
@@ -204,7 +426,8 @@ class ConfigManager(configparser.ConfigParser):
             update_xess=self.get_update_preference("XeSS"),
             update_fsr=self.get_update_preference("FSR"),
             update_streamline=self.get_update_preference("Streamline"),
-            create_backups=self.get_backup_preference()
+            create_backups=self.get_backup_preference(),
+            high_performance_mode=self.get_high_performance_mode()
         )
 
     def save_update_preferences_struct(self, prefs: UpdatePreferencesConfig):
@@ -218,6 +441,7 @@ class ConfigManager(configparser.ConfigParser):
         self["UpdatePreferences"]["UpdateFSR"] = str(prefs.update_fsr).lower()
         self["UpdatePreferences"]["UpdateStreamline"] = str(prefs.update_streamline).lower()
         self["UpdatePreferences"]["CreateBackups"] = str(prefs.create_backups).lower()
+        self["UpdatePreferences"]["HighPerformanceMode"] = str(prefs.high_performance_mode).lower()
         self.save()
 
     def get_launcher_paths_struct(self) -> LauncherPathsConfig:
@@ -284,6 +508,15 @@ class ConfigManager(configparser.ConfigParser):
         self["Performance"]["MaxWorkerThreads"] = str(count)
         self.save()
 
+    def get_high_performance_mode(self) -> bool:
+        """Get high performance update mode preference (opt-in, default OFF)"""
+        return self["UpdatePreferences"].getboolean("HighPerformanceMode", False)
+
+    def set_high_performance_mode(self, enabled: bool) -> None:
+        """Set high performance update mode preference"""
+        self["UpdatePreferences"]["HighPerformanceMode"] = str(enabled).lower()
+        self.save()
+
 
 config_manager = ConfigManager()
 
@@ -302,20 +535,24 @@ def get_current_settings():
         "UpdateFSR": config_manager.get_update_preference("FSR"),
         "UpdateStreamline": config_manager.get_update_preference("Streamline"),
         "CreateBackups": config_manager.get_backup_preference(),
+        "HighPerformanceMode": config_manager.get_high_performance_mode(),
     }
 
 
 def is_dll_cache_ready():
-    """Check if the DLL cache has been initialized"""
-    return len(LATEST_DLL_PATHS) > 0
+    """Check if the DLL cache has been initialized (thread-safe)"""
+    with _dll_paths_lock:
+        return len(LATEST_DLL_PATHS) > 0
 
 
 def initialize_dll_paths():
-    """Initialize the DLL paths after all modules are loaded"""
+    """Initialize the DLL paths after all modules are loaded (thread-safe)"""
     from .dll_repository import get_local_dll_path
 
     global LATEST_DLL_PATHS
-    LATEST_DLL_PATHS = {
+
+    # Build the dict outside the lock to minimize lock time
+    new_paths = {
         "nvngx_dlss.dll": get_local_dll_path("nvngx_dlss.dll"),
         "nvngx_dlssg.dll": get_local_dll_path("nvngx_dlssg.dll"),
         "nvngx_dlssd.dll": get_local_dll_path("nvngx_dlssd.dll"),
@@ -338,4 +575,8 @@ def initialize_dll_paths():
         "sl.dlss_d.dll": get_local_dll_path("sl.dlss_d.dll"),
         "sl.nis.dll": get_local_dll_path("sl.nis.dll"),
     }
+
+    with _dll_paths_lock:
+        LATEST_DLL_PATHS = new_paths
+
     return LATEST_DLL_PATHS

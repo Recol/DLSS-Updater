@@ -1,3 +1,19 @@
+Version 3.0.0:
+Migration to Python 3.14 free threading for the GIL to be unlocked.
+Upgrades to uv for backend infrastructure development.
+Multi threading included for scanning directories.
+Mutex thread binders included for synchronisation fixes with the GIL being unlocked.
+Fixes for minor DB transactions performance issues.
+Multi threading support for backups.
+Bug fix for the "Clear All Backups" and "Delete Database" buttons to be disabled if no database exists.
+Inclusion of a Discord invite to the server.
+High Performance Mode - New optional feature for faster DLL updates:
+  - Memory-maps source DLLs to RAM, reducing redundant disk reads.
+  - Creates all backups atomically before any updates begin.
+  - Parallel writes using true multi-threading (GIL-free).
+  - Adaptive memory management with automatic fallback if RAM pressure is high.
+  - Accessible via Preferences > High Performance Mode.
+
 Version 2.9.3:
 Full file path display in Games and Backups sections with hover tooltips.
 Copy-to-clipboard button for game and backup paths.

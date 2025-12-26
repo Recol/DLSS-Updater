@@ -94,6 +94,73 @@ class AsyncUpdateCoordinator:
         settings = get_current_settings()
         backup_enabled = config_manager.get_backup_preference()
 
+        # Check if high-performance mode is enabled (opt-in only)
+        if config_manager.get_high_performance_mode():
+            try:
+                from ..high_performance_updater import HighPerformanceUpdateManager, DLLTask
+                from ..config import LATEST_DLL_PATHS
+
+                self.logger.info("Using high-performance update mode")
+                manager = HighPerformanceUpdateManager()
+
+                # Build task list from dll_dict with proper DLLTask objects
+                dll_tasks = []
+                for launcher, dll_paths in dll_dict.items():
+                    for dll_path in dll_paths:
+                        path_obj = Path(dll_path)
+                        dll_name = path_obj.name.lower()
+                        # Only create task if we have a source DLL for this
+                        if dll_name in LATEST_DLL_PATHS and LATEST_DLL_PATHS[dll_name]:
+                            dll_tasks.append(DLLTask(
+                                target_path=str(dll_path),
+                                source_dll_name=dll_name,
+                            ))
+
+                # Create progress wrapper to convert (int, int, str) to UpdateProgress
+                async def hp_progress_wrapper(current: int, total: int, message: str):
+                    if self._progress_callback:
+                        percentage = int((current / total * 100)) if total > 0 else 0
+                        await self._progress_callback(UpdateProgress(
+                            current=current,
+                            total=total,
+                            message=message,
+                            percentage=percentage
+                        ))
+
+                # Execute high-performance pipeline
+                result = await manager.execute(dll_tasks, settings, hp_progress_wrapper)
+
+                # Log if fallback was used
+                if result.mode_used == "fallback":
+                    self.logger.warning("Fell back to standard mode due to memory pressure")
+
+                # Convert detailed results to expected format
+                updated_games = []
+                for detail in result.detailed_updates:
+                    game_name = detail.get("game_name", "Unknown Game")
+                    dll_name = detail.get("dll_name", "")
+                    old_ver = detail.get("old_version", "?")
+                    new_ver = detail.get("new_version", "?")
+                    updated_games.append(f"{game_name} ({dll_name}: {old_ver} → {new_ver})")
+
+                skipped_games = []
+                for detail in result.detailed_skipped:
+                    game_name = detail.get("game_name", "Unknown Game")
+                    dll_name = detail.get("dll_name", "")
+                    reason = detail.get("reason", "Already up-to-date")
+                    skipped_games.append(f"{game_name} ({dll_name}: {reason})")
+
+                return UpdateResult(
+                    updated_games=updated_games,
+                    skipped_games=skipped_games,
+                    errors=result.errors,
+                    backup_created=result.backups_created > 0,
+                    total_processed=result.updates_succeeded + result.updates_skipped + len(result.errors)
+                )
+            except Exception as e:
+                self.logger.error(f"High-performance update failed, falling back to standard: {e}")
+                # Fall through to standard mode
+
         # Count total DLLs to process
         total_dlls = sum(len(dlls) for dlls in dll_dict.values())
         self.logger.info(f"Processing {total_dlls} DLLs...")

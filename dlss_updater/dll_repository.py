@@ -1,11 +1,12 @@
 import os
 import asyncio
+import threading
 import msgspec
 import aiohttp
 import aiofiles
 import concurrent.futures
 from .logger import setup_logger
-from .config import initialize_dll_paths
+from .config import initialize_dll_paths, Concurrency
 
 logger = setup_logger()
 
@@ -21,26 +22,46 @@ LOCAL_DLL_CACHE_DIR = os.path.join(
     os.path.expanduser("~"), ".dlss_updater", "dll_cache"
 )
 
+# Thread-safety locks for free-threading (Python 3.14+)
+_session_lock = threading.Lock()
+_cache_init_lock = threading.Lock()
+
 # Shared aiohttp session for connection reuse
 _http_session: aiohttp.ClientSession | None = None
 
 
 async def get_http_session() -> aiohttp.ClientSession:
-    """Get or create shared HTTP session"""
+    """Get or create shared HTTP session.
+
+    Thread-safe for free-threading (Python 3.14+).
+    """
     global _http_session
-    if _http_session is None or _http_session.closed:
-        _http_session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=60)
-        )
+
+    # Quick check without lock
+    if _http_session is not None and not _http_session.closed:
+        return _http_session
+
+    # Need to create session - use lock
+    with _session_lock:
+        # Double-check after acquiring lock
+        if _http_session is None or _http_session.closed:
+            _http_session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=60)
+            )
     return _http_session
 
 
 async def close_http_session() -> None:
-    """Close shared HTTP session (call on app shutdown)"""
+    """Close shared HTTP session (call on app shutdown).
+
+    Thread-safe for free-threading (Python 3.14+).
+    """
     global _http_session
-    if _http_session and not _http_session.closed:
-        await _http_session.close()
-        _http_session = None
+
+    with _session_lock:
+        if _http_session and not _http_session.closed:
+            await _http_session.close()
+            _http_session = None
 
 
 def ensure_cache_dir():
@@ -67,7 +88,10 @@ def get_local_dll_path(dll_name, skip_update_check=False):
             return None
 
     # Skip update check if cache is already initialized or explicitly skipped
-    if not skip_update_check and not _cache_initialized:
+    with _cache_init_lock:
+        cache_init = _cache_initialized
+
+    if not skip_update_check and not cache_init:
         if check_for_dll_update(dll_name):
             download_latest_dll(dll_name)
 
@@ -111,7 +135,7 @@ def get_remote_manifest():
 
 
 def get_cached_manifest():
-    """Get the cached manifest if available"""
+    """Get the cached manifest if available (sync version)"""
     manifest_path = os.path.join(LOCAL_DLL_CACHE_DIR, "manifest.json")
     if os.path.exists(manifest_path):
         try:
@@ -122,12 +146,38 @@ def get_cached_manifest():
     return None
 
 
+async def get_cached_manifest_async():
+    """Get the cached manifest if available (async version)"""
+    manifest_path = os.path.join(LOCAL_DLL_CACHE_DIR, "manifest.json")
+    if os.path.exists(manifest_path):
+        try:
+            async with aiofiles.open(manifest_path, "rb") as f:
+                content = await f.read()
+                return _json_decoder.decode(content)
+        except Exception as e:
+            logger.error(f"Failed to read cached manifest: {e}")
+    return None
+
+
 def update_cached_manifest(manifest):
-    """Update the cached manifest"""
+    """Update the cached manifest (sync version)"""
     manifest_path = os.path.join(LOCAL_DLL_CACHE_DIR, "manifest.json")
     try:
         with open(manifest_path, "wb") as f:
             f.write(msgspec.json.format(msgspec.json.encode(manifest), indent=2))
+        return True
+    except Exception as e:
+        logger.error(f"Failed to update cached manifest: {e}")
+        return False
+
+
+async def update_cached_manifest_async(manifest):
+    """Update the cached manifest (async version)"""
+    manifest_path = os.path.join(LOCAL_DLL_CACHE_DIR, "manifest.json")
+    try:
+        encoded = msgspec.json.format(msgspec.json.encode(manifest), indent=2)
+        async with aiofiles.open(manifest_path, "wb") as f:
+            await f.write(encoded)
         return True
     except Exception as e:
         logger.error(f"Failed to update cached manifest: {e}")
@@ -153,7 +203,7 @@ async def check_for_dll_update_async(dll_name: str, manifest: dict | None = None
     if manifest is None:
         manifest = await get_remote_manifest_async()
         if not manifest:
-            manifest = get_cached_manifest()
+            manifest = await get_cached_manifest_async()
 
     if not manifest:
         logger.warning("No manifest available, can't check for updates")
@@ -362,12 +412,16 @@ async def initialize_dll_cache_async(progress_callback=None):
 
     Args:
         progress_callback: Optional async callback(current, total, message) for progress updates
+
+    Thread-safe for free-threading (Python 3.14+).
     """
     global _cache_initialized
 
-    if _cache_initialized:
-        logger.debug("DLL cache already initialized, skipping")
-        return
+    # Quick check with lock
+    with _cache_init_lock:
+        if _cache_initialized:
+            logger.debug("DLL cache already initialized, skipping")
+            return
 
     logger.info("Initializing DLL cache (async)")
     ensure_cache_dir()
@@ -384,7 +438,7 @@ async def initialize_dll_cache_async(progress_callback=None):
     # Fetch latest manifest
     manifest = await get_remote_manifest_async()
     if manifest:
-        update_cached_manifest(manifest)
+        await update_cached_manifest_async(manifest)
 
         await report_progress(10, 100, "Checking for DLL updates...")
 
@@ -392,11 +446,15 @@ async def initialize_dll_cache_async(progress_callback=None):
         dll_names = list(manifest.keys())
         total_dlls = len(dll_names)
 
-        # Create check tasks
-        check_tasks = [
-            check_for_dll_update_async(name, manifest)
-            for name in dll_names
-        ]
+        # CPU-bound PE parsing - scale with CPU threads
+        check_semaphore = asyncio.Semaphore(Concurrency.IO_HEAVY)
+
+        async def bounded_check(name):
+            async with check_semaphore:
+                return await check_for_dll_update_async(name, manifest)
+
+        # Create bounded check tasks
+        check_tasks = [bounded_check(name) for name in dll_names]
 
         # Run checks with progress reporting
         dlls_to_update = []
@@ -415,10 +473,14 @@ async def initialize_dll_cache_async(progress_callback=None):
         if dlls_to_update:
             await report_progress(40, 100, f"Downloading {len(dlls_to_update)} DLL updates...")
 
-            download_tasks = [
-                download_latest_dll_async(name, manifest)
-                for name in dlls_to_update
-            ]
+            # Network I/O - use extreme concurrency to saturate bandwidth
+            download_semaphore = asyncio.Semaphore(Concurrency.IO_EXTREME)
+
+            async def bounded_download(name):
+                async with download_semaphore:
+                    return await download_latest_dll_async(name, manifest)
+
+            download_tasks = [bounded_download(name) for name in dlls_to_update]
 
             download_results = await asyncio.gather(*download_tasks, return_exceptions=True)
 
@@ -436,7 +498,9 @@ async def initialize_dll_cache_async(progress_callback=None):
         logger.warning("Using cached manifest, updates may not be available")
         await report_progress(100, 100, "Using cached manifest")
 
-    _cache_initialized = True
+    # Set initialized flag with lock for thread safety
+    with _cache_init_lock:
+        _cache_initialized = True
     initialize_dll_paths()
 
     await report_progress(100, 100, "DLL cache initialized")
@@ -448,12 +512,16 @@ def initialize_dll_cache(progress_callback=None):
 
     Args:
         progress_callback: Optional callback(current, total, message) for progress updates
+
+    Thread-safe for free-threading (Python 3.14+).
     """
     global _cache_initialized
 
-    if _cache_initialized:
-        logger.debug("DLL cache already initialized, skipping")
-        return
+    # Quick check with lock
+    with _cache_init_lock:
+        if _cache_initialized:
+            logger.debug("DLL cache already initialized, skipping")
+            return
 
     logger.info("Initializing DLL cache")
     ensure_cache_dir()
@@ -468,7 +536,7 @@ def initialize_dll_cache(progress_callback=None):
         if progress_callback:
             progress_callback(10, 100, "Checking for DLL updates...")
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=Concurrency.THREADPOOL_IO) as executor:
             check_futures = {
                 executor.submit(check_for_dll_update, dll_name): dll_name
                 for dll_name in manifest
@@ -530,7 +598,8 @@ def initialize_dll_cache(progress_callback=None):
         if progress_callback:
             progress_callback(100, 100, "Using cached manifest")
 
-    _cache_initialized = True
+    with _cache_init_lock:
+        _cache_initialized = True
     initialize_dll_paths()
 
     if progress_callback:

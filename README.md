@@ -80,9 +80,9 @@ If you prefer to build the application yourself, follow these steps:
 
 #### Prerequisites
 
-- Python 3.12 or higher
+- Python 3.14 or higher (free-threaded Python version recommended)
 - Git
-- pip (Python package installer)
+- uv (Python package installer)
 
 #### Steps
 
@@ -103,7 +103,7 @@ If you prefer to build the application yourself, follow these steps:
 3. **Install Dependencies:**
 
     ```sh
-    pip install -r requirements.txt
+    uv sync
     ```
 
 4. **Build the Executable:**
@@ -111,7 +111,7 @@ If you prefer to build the application yourself, follow these steps:
     Ensure you have `pyinstaller` installed:
 
     ```sh
-    pip install pyinstaller
+    uv pip install pyinstaller
     ```
 
     Run PyInstaller to build the executable:

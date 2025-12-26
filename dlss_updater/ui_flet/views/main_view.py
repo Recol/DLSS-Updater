@@ -25,6 +25,7 @@ from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDial
 from dlss_updater.ui_flet.dialogs.release_notes_dialog import ReleaseNotesDialog
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
+from dlss_updater.ui_flet.dialogs.high_perf_warning_dialog import HighPerfWarningDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
 from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
@@ -50,6 +51,7 @@ class MainView(ft.Column):
         # File picker for launcher paths
         self.file_picker = ft.FilePicker(on_result=self._on_folder_selected)
         self.current_launcher_selecting: Optional[LauncherPathName] = None
+        self.is_adding_subfolder: bool = False  # Track if adding subfolder vs setting primary path
 
         # Loading overlay
         self.loading_overlay = LoadingOverlay()
@@ -73,6 +75,9 @@ class MainView(ft.Column):
         # Menu state
         self.menu_expanded = False
         self.app_menu_selector = None  # Will be created in _create_app_bar
+
+        # Discord banner
+        self.discord_banner: Optional[ft.Banner] = None
 
         # Navigation state
         self.current_view_index = 0  # 0=Launchers, 1=Games, 2=Backups
@@ -120,6 +125,13 @@ class MainView(ft.Column):
 
         # Build UI components
         await self._build_ui()
+
+        # Show Discord invite banner if not dismissed
+        if not config_manager.get_discord_banner_dismissed():
+            self.discord_banner = self._create_discord_banner()
+            self.page.open(self.discord_banner)
+            self.logger.info("Discord invite banner displayed")
+
         self.logger.info("Main view initialized")
 
     async def _build_ui(self):
@@ -527,6 +539,13 @@ class MainView(ft.Column):
                         on_click=lambda _: webbrowser.open("https://discord.com/users/162568099839606784"),
                     ),
                     MenuItem(
+                        id="discord_invite",
+                        title="Show Discord Invite",
+                        description="Re-display the Discord community banner",
+                        icon=ft.Icons.CAMPAIGN,
+                        on_click=self._on_show_discord_invite_clicked,
+                    ),
+                    MenuItem(
                         id="release_notes",
                         title="Release Notes",
                         description="View changelog",
@@ -561,6 +580,13 @@ class MainView(ft.Column):
                         description="Toggle in-game DLSS indicator",
                         icon=ft.Icons.BUG_REPORT,
                         on_click=self._on_dlss_overlay_clicked,
+                    ),
+                    MenuItem(
+                        id="high_performance",
+                        title="High Performance Mode",
+                        description="Faster updates using memory caching",
+                        icon=ft.Icons.SPEED,
+                        on_click=self._on_high_performance_clicked,
                     ),
                     MenuItem(
                         id="theme",
@@ -618,6 +644,65 @@ class MainView(ft.Column):
         self.app_menu_container.content = self.app_menu_selector
         self.page.update()
 
+    def _create_discord_banner(self) -> ft.Banner:
+        """Create the Discord invite banner using ft.Banner widget."""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+
+        is_dark = self.theme_manager.is_dark
+
+        banner = ft.Banner(
+            bgcolor=MD3Colors.ACCENT_SUBTLE,  # 12% opacity teal
+            leading=ft.Icon(
+                ft.Icons.CAMPAIGN,  # Announcement icon
+                color=MD3Colors.PRIMARY,
+                size=40,
+            ),
+            content=ft.Text(
+                "Join our Discord community! Get early announcements, support, and connect with other users.",
+                color=MD3Colors.get_on_surface(is_dark),
+                size=14,
+            ),
+            actions=[
+                ft.TextButton(
+                    "Join Discord",
+                    style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=MD3Colors.PRIMARY),
+                    on_click=self._on_join_discord_clicked,
+                ),
+                ft.TextButton(
+                    "Dismiss",
+                    style=ft.ButtonStyle(color=MD3Colors.get_on_surface_variant(is_dark)),
+                    on_click=self._on_dismiss_discord_banner,
+                ),
+            ],
+        )
+        return banner
+
+    async def _on_join_discord_clicked(self, e):
+        """Open Discord invite link and dismiss banner"""
+        webbrowser.open("https://discord.gg/xTah8XCauN")
+        await self._on_dismiss_discord_banner(e)
+
+    async def _on_dismiss_discord_banner(self, e):
+        """Dismiss banner and persist preference"""
+        config_manager.set_discord_banner_dismissed(True)
+        if self.discord_banner:
+            self.page.close(self.discord_banner)
+        self.logger.info("Discord banner dismissed permanently")
+
+    async def show_discord_banner(self):
+        """Show Discord invite banner (for re-showing from menu)"""
+        if not self.discord_banner:
+            self.discord_banner = self._create_discord_banner()
+        self.page.open(self.discord_banner)
+        self.logger.info("Discord banner shown")
+
+    async def _on_show_discord_invite_clicked(self, e):
+        """Handle Show Discord Invite menu click"""
+        config_manager.set_discord_banner_dismissed(False)
+        await self.show_discord_banner()
+        if self.menu_expanded:
+            self._toggle_app_menu(None)
+
     async def _create_launcher_list(self) -> ft.Container:
         """Create the scrollable list of launcher cards"""
         launcher_cards = []
@@ -632,14 +717,15 @@ class MainView(ft.Column):
                 is_custom=is_custom,
                 on_browse=self._create_browse_handler(config["enum"]),
                 on_reset=self._create_reset_handler(config["enum"]),
+                on_add_subfolder=self._create_add_subfolder_handler(config["enum"]),
                 page=self.page,
                 logger=self.logger,
             )
 
-            # Load existing path from config
-            current_path = config_manager.check_path_value(config["enum"])
-            if current_path:
-                await card.set_path(current_path)
+            # Load existing paths from config (multi-path support)
+            current_paths = config_manager.get_launcher_paths(config["enum"])
+            if current_paths:
+                await card.set_paths(current_paths)
 
             self.launcher_cards[config["enum"]] = card
             launcher_cards.append(card)
@@ -670,10 +756,19 @@ class MainView(ft.Column):
         )
 
     def _create_browse_handler(self, launcher: LauncherPathName):
-        """Create browse click handler for specific launcher"""
+        """Create browse click handler for specific launcher (sets primary path)"""
         async def handler(e):
             self.current_launcher_selecting = launcher
+            self.is_adding_subfolder = False  # Browse replaces primary path
             self.file_picker.get_directory_path(dialog_title="Select Game Folder")
+        return handler
+
+    def _create_add_subfolder_handler(self, launcher: LauncherPathName):
+        """Create add subfolder click handler for specific launcher"""
+        async def handler(e):
+            self.current_launcher_selecting = launcher
+            self.is_adding_subfolder = True  # Add subfolder adds to existing paths
+            self.file_picker.get_directory_path(dialog_title="Add Sub-Folder")
         return handler
 
     def _open_navigation_drawer(self, e):
@@ -705,23 +800,52 @@ class MainView(ft.Column):
         self.file_picker.get_directory_path(dialog_title="Select Game Folder")
 
     async def _on_folder_selected(self, e: ft.FilePickerResultEvent):
-        """Handle folder selection from file picker"""
+        """Handle folder selection from file picker (multi-path support)"""
         if e.path and self.current_launcher_selecting:
             path = e.path
-            self.logger.info(f"Selected path for {self.current_launcher_selecting.name}: {path}")
+            launcher = self.current_launcher_selecting
+            is_adding = getattr(self, 'is_adding_subfolder', False)
 
-            # Update config
-            config_manager.update_launcher_path(self.current_launcher_selecting, path)
+            self.logger.info(f"{'Adding' if is_adding else 'Setting'} path for {launcher.name}: {path}")
 
-            # Update card UI
-            card = self.launcher_cards.get(self.current_launcher_selecting)
-            if card:
-                await card.set_path(path)
+            card = self.launcher_cards.get(launcher)
 
-            # Show notification
-            await self._show_snackbar(f"Path updated for {card.name}")
+            if is_adding:
+                # Add as sub-folder (append to existing paths)
+                added = config_manager.add_launcher_path(launcher, path)
+                if added:
+                    # Get updated paths and refresh card
+                    all_paths = config_manager.get_launcher_paths(launcher)
+                    if card:
+                        await card.set_paths(all_paths)
+                    await self._show_snackbar(f"Sub-folder added to {card.name}")
+                else:
+                    # Path already exists or limit reached
+                    from dlss_updater.models import MAX_PATHS_PER_LAUNCHER
+                    current_count = len(config_manager.get_launcher_paths(launcher))
+                    if current_count >= MAX_PATHS_PER_LAUNCHER:
+                        await self._show_snackbar(f"Maximum {MAX_PATHS_PER_LAUNCHER} paths reached for {card.name}")
+                    else:
+                        await self._show_snackbar(f"Path already exists for {card.name}")
+            else:
+                # Browse: set as primary path (keeps other paths if any)
+                current_paths = config_manager.get_launcher_paths(launcher)
+                if current_paths:
+                    # Replace first path, keep others
+                    current_paths[0] = path
+                    config_manager.set_launcher_paths(launcher, current_paths)
+                else:
+                    # No existing paths, add this one
+                    config_manager.add_launcher_path(launcher, path)
+
+                # Get updated paths and refresh card
+                all_paths = config_manager.get_launcher_paths(launcher)
+                if card:
+                    await card.set_paths(all_paths)
+                await self._show_snackbar(f"Path updated for {card.name}")
 
             self.current_launcher_selecting = None
+            self.is_adding_subfolder = False
 
     def _create_reset_handler(self, launcher: LauncherPathName):
         """Create reset click handler for specific launcher"""
@@ -730,23 +854,30 @@ class MainView(ft.Column):
         return handler
 
     async def _on_reset_clicked(self, launcher: LauncherPathName):
-        """Handle reset button click"""
+        """Handle reset button click - clears all paths for the launcher"""
+        card = self.launcher_cards.get(launcher)
+        path_count = len(config_manager.get_launcher_paths(launcher))
+
         # Show confirmation dialog
         async def confirm_reset(e):
             self.page.close(dialog)
-            config_manager.update_launcher_path(launcher, "")
+            # Clear all paths for this launcher
+            config_manager.set_launcher_paths(launcher, [])
 
-            card = self.launcher_cards.get(launcher)
             if card:
-                await card.set_path("")
-                await self._show_snackbar(f"Path reset for {card.name}")
+                await card.set_paths([])
+                await self._show_snackbar(f"All paths cleared for {card.name}")
+
+        # Customize message based on path count
+        if path_count > 1:
+            content_text = f"This will clear all {path_count} paths for {card.name}. Continue?"
+        else:
+            content_text = f"This will clear the path for {card.name}. Continue?"
 
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Reset Path?"),
-            content=ft.Text(
-                f"This will reset the path for {self.launcher_cards[launcher].name}. Continue?"
-            ),
+            title=ft.Text("Reset Paths?"),
+            content=ft.Text(content_text),
             actions=[
                 ft.TextButton("Cancel", on_click=lambda e: self.page.close(dialog)),
                 ft.FilledButton("Reset", on_click=confirm_reset),
@@ -798,6 +929,68 @@ class MainView(ft.Column):
         """Handle DLSS overlay settings button click"""
         dialog = DLSSOverlayDialog(self.page, self.logger)
         await dialog.show()
+
+    async def _on_high_performance_clicked(self, e):
+        """Handle High Performance Mode click - shows warning dialog with enable/disable"""
+        from dlss_updater.config import config_manager
+
+        # Check current state
+        is_enabled = config_manager.get_high_performance_mode()
+
+        if is_enabled:
+            # Already enabled - show disable confirmation
+            await self._show_high_perf_disable_dialog()
+        else:
+            # Not enabled - show warning dialog to enable
+            dialog = HighPerfWarningDialog(self.page, self.logger)
+            confirmed = await dialog.show()
+            if confirmed:
+                config_manager.set_high_performance_mode(True)
+                await self._show_snackbar("High Performance Mode enabled", "#4CAF50")
+
+    async def _show_high_perf_disable_dialog(self):
+        """Show dialog to confirm disabling High Performance Mode"""
+        import asyncio
+        from dlss_updater.config import config_manager
+
+        close_event = asyncio.Event()
+
+        async def on_disable(e):
+            config_manager.set_high_performance_mode(False)
+            self.page.close(dialog)
+            close_event.set()
+            await self._show_snackbar("High Performance Mode disabled", "#2D6E88")
+
+        async def on_cancel(e):
+            self.page.close(dialog)
+            close_event.set()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row([
+                ft.Icon(ft.Icons.SPEED, color="#4CAF50", size=24),
+                ft.Text("High Performance Mode"),
+            ], spacing=10),
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text("High Performance Mode is currently enabled."),
+                    ft.Container(height=8),
+                    ft.Text(
+                        "This mode uses memory caching for faster DLL updates.",
+                        size=12,
+                        color=ft.Colors.GREY_400,
+                    ),
+                ], spacing=4, tight=True),
+                width=400,
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=on_cancel),
+                ft.FilledButton("Disable", on_click=on_disable),
+            ],
+        )
+
+        self.page.open(dialog)
+        await close_event.wait()
 
     async def _on_settings_clicked(self, e):
         """Handle settings button click"""

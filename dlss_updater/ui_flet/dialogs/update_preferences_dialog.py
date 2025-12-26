@@ -144,7 +144,7 @@ class UpdatePreferencesDialog:
                         self.xess_tile,
                         self.fsr_tile,
                         ft.Divider(),
-                        ft.Text("Backup Options:", weight=ft.FontWeight.BOLD),
+                        ft.Text("Backup Options:", weight=ft.FontWeight.BOLD, size=14),
                         self.backup_tile,
                     ],
                     spacing=12,
