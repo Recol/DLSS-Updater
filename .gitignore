@@ -7,3 +7,5 @@
 *.claude
 *CLAUDE.md
 *.log
+.codspeed/
+.pytest_cache/
