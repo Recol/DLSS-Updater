@@ -25,6 +25,9 @@ from dlss_updater.models import Game, GameDLL, DLLBackup, UpdateHistory, SteamIm
 
 logger = setup_logger()
 
+# Thread-safety lock for singleton pattern (free-threading Python 3.14+)
+_db_manager_lock = threading.Lock()
+
 
 class DatabaseManager:
     """
@@ -34,8 +37,11 @@ class DatabaseManager:
     _instance = None
 
     def __new__(cls):
+        # Double-checked locking pattern for free-threading safety
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            with _db_manager_lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -375,7 +381,7 @@ class DatabaseManager:
         return await asyncio.to_thread(self._cleanup_duplicate_games)
 
     def _cleanup_duplicate_games(self):
-        """Cleanup duplicate games (runs in thread)"""
+        """Cleanup duplicate games (runs in thread) - optimized with batched SQL"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
 
@@ -389,7 +395,10 @@ class DatabaseManager:
             """)
 
             duplicates = cursor.fetchall()
-            merged_count = 0
+
+            # Collect all mappings for batched operations
+            dll_migrations = []  # List of (keep_id, remove_id) tuples
+            all_remove_ids = []  # All IDs to delete
 
             for name, launcher, ids_str, paths_str in duplicates:
                 ids = [int(x) for x in ids_str.split(',')]
@@ -400,24 +409,32 @@ class DatabaseManager:
                 keep_id = ids[shortest_idx]
                 remove_ids = [id for id in ids if id != keep_id]
 
-                # Migrate DLLs from duplicate games to the kept game
-                for remove_id in remove_ids:
-                    cursor.execute("""
-                        UPDATE game_dlls
-                        SET game_id = ?
-                        WHERE game_id = ?
-                    """, (keep_id, remove_id))
+                # Collect migrations: (keep_id, remove_id) for batch update
+                dll_migrations.extend((keep_id, remove_id) for remove_id in remove_ids)
+                all_remove_ids.extend(remove_ids)
 
-                # Delete duplicate game entries
-                cursor.execute("""
-                    DELETE FROM games
-                    WHERE id IN ({})
-                """.format(','.join('?' * len(remove_ids))), remove_ids)
+                logger.debug(f"Queued merge: {len(remove_ids)} duplicate entries for '{name}' ({launcher})")
 
-                merged_count += len(remove_ids)
-                logger.info(f"Merged {len(remove_ids)} duplicate entries for '{name}' ({launcher})")
+            if not all_remove_ids:
+                logger.info("No duplicate games found")
+                return 0
+
+            # Batch migrate DLLs from duplicate games to kept games
+            cursor.executemany("""
+                UPDATE game_dlls
+                SET game_id = ?
+                WHERE game_id = ?
+            """, dll_migrations)
+
+            # Batch delete duplicate game entries
+            placeholders = ','.join('?' * len(all_remove_ids))
+            cursor.execute(f"""
+                DELETE FROM games
+                WHERE id IN ({placeholders})
+            """, all_remove_ids)
 
             conn.commit()
+            merged_count = len(all_remove_ids)
             logger.info(f"Cleaned up {merged_count} duplicate game entries")
             return merged_count
 

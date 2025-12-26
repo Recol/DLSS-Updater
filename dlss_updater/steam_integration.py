@@ -5,8 +5,8 @@ Universal image fetching for ALL games (not just Steam launcher) via name matchi
 
 import asyncio
 import re
+import threading
 import msgspec
-from functools import lru_cache
 from pathlib import Path
 from typing import Optional, List
 from datetime import datetime, timedelta
@@ -20,6 +20,10 @@ logger = setup_logger()
 
 # msgspec decoder for better performance
 _json_decoder = msgspec.json.Decoder()
+
+# Thread-safe cache for normalize_game_name (replaces @lru_cache for free-threading)
+_normalize_cache_lock = threading.Lock()
+_normalize_cache: dict = {}
 
 
 class SteamIntegration:
@@ -132,7 +136,6 @@ class SteamIntegration:
             logger.error(f"Error downloading Steam app list: {e}", exc_info=True)
 
     @staticmethod
-    @lru_cache(maxsize=1024)
     def normalize_game_name(name: str) -> str:
         """
         Normalize game name for matching
@@ -141,8 +144,15 @@ class SteamIntegration:
         - Remove "The" prefix
         - Remove trademark symbols
 
-        Cached for performance (up to 1024 unique names).
+        Thread-safe cached for performance (up to 1024 unique names).
+        Uses manual cache instead of @lru_cache for Python 3.14 free-threading compatibility.
         """
+        # Check cache first (with lock for thread safety)
+        with _normalize_cache_lock:
+            if name in _normalize_cache:
+                return _normalize_cache[name]
+
+        # Compute normalized name
         normalized = name.lower().strip()
 
         # Remove trademark symbols
@@ -157,6 +167,15 @@ class SteamIntegration:
 
         # Collapse multiple spaces
         normalized = re.sub(r'\s+', ' ', normalized).strip()
+
+        # Store in cache with size limit (thread-safe)
+        with _normalize_cache_lock:
+            # Limit cache size to 1024 entries (FIFO eviction)
+            if len(_normalize_cache) >= 1024:
+                # Remove oldest entry
+                oldest_key = next(iter(_normalize_cache))
+                del _normalize_cache[oldest_key]
+            _normalize_cache[name] = normalized
 
         return normalized
 

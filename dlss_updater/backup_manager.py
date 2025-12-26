@@ -7,13 +7,36 @@ import shutil
 import os
 import stat
 import tempfile
+import asyncio
+import aiofiles
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from dlss_updater.logger import setup_logger
 from dlss_updater.database import db_manager
+from dlss_updater.config import Concurrency
 
 logger = setup_logger()
+
+
+async def async_copy2(src: Path, dst: Path, chunk_size: int = 65536) -> None:
+    """
+    Async file copy that preserves metadata (similar to shutil.copy2).
+
+    Uses aiofiles for non-blocking I/O, improving UI responsiveness.
+
+    Args:
+        src: Source file path
+        dst: Destination file path
+        chunk_size: Size of chunks for streaming copy (default 64KB)
+    """
+    async with aiofiles.open(src, 'rb') as fsrc:
+        async with aiofiles.open(dst, 'wb') as fdst:
+            while chunk := await fsrc.read(chunk_size):
+                await fdst.write(chunk)
+
+    # Copy metadata (stat info) - run in thread pool since it's sync
+    await asyncio.to_thread(shutil.copystat, src, dst)
 
 
 def record_backup_metadata_sync(dll_path: Path, backup_path: Path) -> Optional[int]:
@@ -89,12 +112,16 @@ async def record_backup_metadata(dll_path: Path, backup_path: Path) -> Optional[
         # Mark all existing backups for this DLL as inactive before creating a new one
         await db_manager.mark_old_backups_inactive(game_dll.id)
 
-        # Get DLL version (lazy import to avoid circular dependency)
-        from dlss_updater.updater import get_dll_version
-        version = get_dll_version(dll_path)
+        # Get DLL version asynchronously (avoids blocking event loop)
+        from dlss_updater.updater import get_dll_version_async
+        version = await get_dll_version_async(dll_path)
 
-        # Get backup file size
-        backup_size = backup_path.stat().st_size if backup_path.exists() else 0
+        # Get backup file size (run in thread pool to avoid blocking)
+        if backup_path.exists():
+            stat_result = await asyncio.to_thread(backup_path.stat)
+            backup_size = stat_result.st_size
+        else:
+            backup_size = 0
 
         # Insert backup record
         backup_id = await db_manager.insert_backup({
@@ -154,9 +181,9 @@ async def restore_dll_from_backup(backup_id: int) -> Tuple[bool, str]:
         if not dll_path.exists():
             return False, f"Current DLL not found: {dll_path}"
 
-        # Check if file is in use (lazy import to avoid circular dependency)
-        from dlss_updater.updater import is_file_in_use
-        if is_file_in_use(str(dll_path)):
+        # Check if file is in use (use async version to avoid blocking event loop)
+        from dlss_updater.updater import is_file_in_use_async
+        if await is_file_in_use_async(str(dll_path)):
             return False, "DLL is currently in use. Please close the game first."
 
         # Create temporary backup of current DLL (for rollback)
@@ -164,8 +191,9 @@ async def restore_dll_from_backup(backup_id: int) -> Tuple[bool, str]:
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.dll') as tf:
                 temp_backup = Path(tf.name)
-                shutil.copy2(dll_path, temp_backup)
-                logger.info(f"Created temporary backup: {temp_backup}")
+            # Use async copy to avoid blocking event loop
+            await async_copy2(dll_path, temp_backup)
+            logger.info(f"Created temporary backup: {temp_backup}")
 
         except Exception as e:
             logger.error(f"Failed to create temporary backup: {e}")
@@ -173,20 +201,20 @@ async def restore_dll_from_backup(backup_id: int) -> Tuple[bool, str]:
 
         # Perform restore
         try:
-            # Remove read-only attribute if present
+            # Remove read-only attribute if present (run in thread pool)
             if dll_path.exists():
-                os.chmod(dll_path, stat.S_IWRITE | stat.S_IREAD)
+                await asyncio.to_thread(os.chmod, dll_path, stat.S_IWRITE | stat.S_IREAD)
 
-            # Copy backup to DLL location
-            shutil.copy2(backup_path, dll_path)
+            # Copy backup to DLL location (async to avoid blocking event loop)
+            await async_copy2(backup_path, dll_path)
 
             # Verify restore succeeded
             if not dll_path.exists():
                 raise Exception("DLL file not found after restore")
 
-            # Update database with new version (lazy import to avoid circular dependency)
-            from dlss_updater.updater import get_dll_version
-            new_version = get_dll_version(dll_path)
+            # Update database with new version (use async version to avoid blocking)
+            from dlss_updater.updater import get_dll_version_async
+            new_version = await get_dll_version_async(dll_path)
             await db_manager.update_game_dll_version(game_dll.id, new_version)
 
             # Mark backup as inactive (removes it from Backups page)
@@ -246,9 +274,9 @@ async def delete_backup(backup_id: int) -> Tuple[bool, str]:
         # Delete backup file if it exists
         if backup_path.exists():
             try:
-                # Remove read-only attribute if present
-                os.chmod(backup_path, stat.S_IWRITE)
-                backup_path.unlink()
+                # Remove read-only attribute if present (run in thread pool)
+                await asyncio.to_thread(os.chmod, backup_path, stat.S_IWRITE)
+                await asyncio.to_thread(backup_path.unlink)
                 logger.info(f"Deleted backup file: {backup_path}")
             except Exception as e:
                 logger.error(f"Failed to delete backup file: {e}")
@@ -288,12 +316,14 @@ async def validate_backup(backup_id: int) -> Tuple[bool, str]:
             await db_manager.mark_backup_inactive(backup_id)
             return False, "Backup file not found"
 
-        # Check if file is readable
-        if not os.access(backup_path, os.R_OK):
+        # Check if file is readable (run in thread pool to avoid blocking)
+        is_readable = await asyncio.to_thread(os.access, backup_path, os.R_OK)
+        if not is_readable:
             return False, "Backup file is not readable"
 
-        # Check file size matches
-        actual_size = backup_path.stat().st_size
+        # Check file size matches (run in thread pool to avoid blocking)
+        stat_result = await asyncio.to_thread(backup_path.stat)
+        actual_size = stat_result.st_size
         if actual_size != backup.backup_size:
             logger.warning(f"Backup file size mismatch: expected {backup.backup_size}, got {actual_size}")
             return False, f"Backup file may be corrupted (size mismatch)"
@@ -303,3 +333,37 @@ async def validate_backup(backup_id: int) -> Tuple[bool, str]:
     except Exception as e:
         logger.error(f"Error validating backup: {e}", exc_info=True)
         return False, f"Error validating backup: {str(e)}"
+
+
+async def validate_backups_batch(
+    backup_ids: List[int],
+    max_concurrent: int = None
+) -> dict[int, Tuple[bool, str]]:
+    """
+    Validate multiple backups in parallel with maximum concurrency.
+
+    Args:
+        backup_ids: List of backup IDs to validate
+        max_concurrent: Maximum concurrent validations (default: IO_HEAVY)
+
+    Returns:
+        Dict mapping backup_id to (valid: bool, message: str)
+    """
+    if not backup_ids:
+        return {}
+
+    if max_concurrent is None:
+        max_concurrent = Concurrency.IO_HEAVY
+    # Maximum concurrency for backup validation (async file I/O scales extremely well)
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    async def bounded_validate(backup_id: int) -> Tuple[int, Tuple[bool, str]]:
+        async with semaphore:
+            result = await validate_backup(backup_id)
+            return backup_id, result
+
+    # Run all validations with bounded concurrency
+    tasks = [bounded_validate(bid) for bid in backup_ids]
+    results = await asyncio.gather(*tasks)
+
+    return dict(results)

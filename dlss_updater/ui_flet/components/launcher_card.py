@@ -9,8 +9,8 @@ from typing import Optional, Callable, List, Dict
 
 import flet as ft
 
-from dlss_updater.config import LauncherPathName
-from dlss_updater.models import GameCardData, DLLInfo
+from dlss_updater.config import LauncherPathName, config_manager
+from dlss_updater.models import GameCardData, DLLInfo, MAX_PATHS_PER_LAUNCHER
 from dlss_updater.ui_flet.theme.colors import MD3Colors, LauncherColors
 
 
@@ -27,6 +27,7 @@ class LauncherCard(ft.ExpansionTile):
         is_custom: bool,
         on_browse: Callable,
         on_reset: Callable,
+        on_add_subfolder: Callable,  # New: callback for adding sub-folder
         page: ft.Page,
         logger: logging.Logger,
     ):
@@ -37,11 +38,12 @@ class LauncherCard(ft.ExpansionTile):
         self.is_custom = is_custom
         self.on_browse_callback = on_browse
         self.on_reset_callback = on_reset
+        self.on_add_subfolder_callback = on_add_subfolder
         self.page = page
         self.logger = logger
 
-        # State
-        self.current_path: Optional[str] = None
+        # State - multi-path support
+        self.current_paths: List[str] = []  # List of configured paths
         self.games_count: int = 0
         self.games_data: List[Dict] = []  # List of detected games
 
@@ -142,9 +144,9 @@ class LauncherCard(ft.ExpansionTile):
             size=20,
         )
 
-        # Path text
+        # Path status text (shows count of configured paths)
         self.path_text = ft.Text(
-            "No path configured",
+            "No paths configured",
             size=12,
             color=MD3Colors.get_on_surface_variant(is_dark),
             max_lines=1,
@@ -158,13 +160,34 @@ class LauncherCard(ft.ExpansionTile):
             color=MD3Colors.get_on_surface_variant(is_dark),
         )
 
-        # Subtitle: Column with game count and path
+        # Add Sub-Folder button
+        self.add_subfolder_btn = ft.TextButton(
+            "Add Sub-Folder",
+            icon=ft.Icons.CREATE_NEW_FOLDER,
+            on_click=self.on_add_subfolder_callback,
+            style=ft.ButtonStyle(
+                color=MD3Colors.PRIMARY,
+                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            ),
+            height=28,
+        )
+
+        # Paths row - holds path chips and add button
+        self.paths_row = ft.Row(
+            controls=[self.add_subfolder_btn],  # Initially just the add button
+            spacing=6,
+            wrap=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        # Subtitle: Column with game count, path status, and paths row
         self.subtitle_column = ft.Column(
             controls=[
                 self.game_count_text,
                 self.path_text,
+                self.paths_row,
             ],
-            spacing=2,
+            spacing=4,
             tight=True,
         )
 
@@ -211,43 +234,161 @@ class LauncherCard(ft.ExpansionTile):
             tight=True,
         )
 
-    async def set_path(self, path: str):
-        """Update the launcher path"""
-        self.current_path = path
+    def _create_path_chip(self, path: str, is_dark: bool) -> ft.Container:
+        """
+        Create a removable chip for a path.
+
+        Args:
+            path: The path to display
+            is_dark: Whether dark theme is active
+
+        Returns:
+            Container with path chip and remove button
+        """
+        # Truncate long paths for display
+        display_path = path
+        if len(path) > 35:
+            display_path = f"{path[:12]}...{path[-18:]}"
+
+        # Create handler that properly schedules the async coroutine
+        def on_remove_click(e, p=path):
+            self.page.run_task(self._on_remove_path, p)
+
+        return ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Text(
+                        display_path,
+                        size=11,
+                        color=MD3Colors.get_on_surface(is_dark),
+                        tooltip=path,  # Show full path on hover
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.CLOSE,
+                        icon_size=14,
+                        icon_color=MD3Colors.get_on_surface_variant(is_dark),
+                        on_click=on_remove_click,
+                        tooltip="Remove path",
+                        style=ft.ButtonStyle(
+                            padding=ft.padding.all(2),
+                        ),
+                        width=20,
+                        height=20,
+                    ),
+                ],
+                spacing=2,
+                tight=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
+            border_radius=16,
+            padding=ft.padding.only(left=10, right=4, top=4, bottom=4),
+        )
+
+    async def _on_remove_path(self, path: str):
+        """
+        Handle removing a path from this launcher.
+
+        Args:
+            path: The path to remove
+        """
+        self.logger.info(f"Removing path from {self.name_str}: {path}")
+
+        # Remove from config
+        config_manager.remove_launcher_path(self.launcher_enum, path)
+
+        # Update local state
+        if path in self.current_paths:
+            self.current_paths.remove(path)
+
+        # Update UI
+        await self._update_paths_display()
+
+        # Note: We don't trigger a re-scan here - user can manually scan
+        # to update the game list after removing paths
+
+    async def _update_paths_display(self):
+        """Update the paths display in subtitle area."""
+        is_dark = self.page.session.get("is_dark_theme") if self.page and self.page.session.contains_key("is_dark_theme") else True
+
+        # Create path chips
+        path_chips = [self._create_path_chip(p, is_dark) for p in self.current_paths]
+
+        # Enable/disable add button based on path limit
+        at_limit = len(self.current_paths) >= MAX_PATHS_PER_LAUNCHER
+        self.add_subfolder_btn.disabled = at_limit
+        if at_limit:
+            self.add_subfolder_btn.tooltip = f"Maximum {MAX_PATHS_PER_LAUNCHER} paths reached"
+        else:
+            self.add_subfolder_btn.tooltip = None
+
+        # Update paths row: chips + add button
+        self.paths_row.controls = path_chips + [self.add_subfolder_btn]
+
+        # Update path status text
+        path_count = len(self.current_paths)
+        if path_count == 0:
+            self.path_text.value = "No paths configured"
+            self.path_text.color = MD3Colors.get_on_surface_variant(is_dark)
+            self.status_icon.name = ft.Icons.INFO_OUTLINE
+            self.status_icon.color = ft.Colors.GREY
+        elif path_count == 1:
+            self.path_text.value = "1 path configured"
+            self.path_text.color = MD3Colors.get_on_surface(is_dark)
+            self.status_icon.name = ft.Icons.CHECK_CIRCLE
+            self.status_icon.color = MD3Colors.SUCCESS
+        else:
+            self.path_text.value = f"{path_count} paths configured"
+            self.path_text.color = MD3Colors.get_on_surface(is_dark)
+            self.status_icon.name = ft.Icons.CHECK_CIRCLE
+            self.status_icon.color = MD3Colors.SUCCESS
+
+        if self.page:
+            self.page.update()
+
+    async def set_paths(self, paths: List[str]):
+        """
+        Update the launcher paths (multi-path support).
+
+        Args:
+            paths: List of paths configured for this launcher
+        """
+        self.current_paths = paths if paths else []
 
         # Get theme state
         is_dark = self.page.session.get("is_dark_theme") if self.page and self.page.session.contains_key("is_dark_theme") else True
 
-        if path:
-            # Show truncated path
-            path_obj = Path(path)
-            if len(path) > 50:
-                display_path = f"{path[:20]}...{path[-27:]}"
-            else:
-                display_path = path
+        # Update paths display
+        await self._update_paths_display()
 
-            self.path_text.value = display_path
-            self.path_text.color = MD3Colors.get_on_surface(is_dark)
-
-            # Update status icon
-            self.status_icon.name = ft.Icons.CHECK_CIRCLE
-            self.status_icon.color = MD3Colors.SUCCESS
-
-            # Show path configured
-            self.game_count_text.value = "Path configured"
-            self.game_count_text.color = MD3Colors.SUCCESS
-        else:
-            self.path_text.value = "No path configured"
-            self.path_text.color = MD3Colors.get_on_surface_variant(is_dark)
-            self.status_icon.name = ft.Icons.INFO_OUTLINE
-            self.status_icon.color = ft.Colors.GREY
+        # Update game count text if no paths
+        if not self.current_paths:
             self.game_count_text.value = ""
-
             # Clear controls when no path
             self.controls = []
+        else:
+            # Will be updated by set_games()
+            if self.games_count == 0:
+                self.game_count_text.value = "Paths configured"
+                self.game_count_text.color = MD3Colors.SUCCESS
 
         if self.page:
             self.page.update()
+
+    # Keep set_path for backward compatibility
+    async def set_path(self, path: str):
+        """
+        Update the launcher path (legacy single-path method).
+
+        For backward compatibility. Converts single path to list.
+
+        Args:
+            path: The path to set
+        """
+        if path:
+            await self.set_paths([path])
+        else:
+            await self.set_paths([])
 
     async def set_games(self, games_data: List[Dict]):
         """
