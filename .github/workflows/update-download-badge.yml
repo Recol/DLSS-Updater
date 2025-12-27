@@ -1,5 +1,3 @@
-name: Update Download Count Badge
-
 on:
   schedule:
     - cron: '0 0 * * *'  # Runs daily at midnight UTC
@@ -16,10 +14,6 @@ jobs:
       with:
         python-version: "3.14"
         enable-cache: true
-
-    - name: Install requests
-      run: |
-        uv pip install requests --system
 
     - name: Fetch download count and update README
       env:
@@ -82,7 +76,7 @@ jobs:
         total_downloads = get_total_downloads()
         update_readme(total_downloads)
         print(f"Total downloads: {total_downloads}")
-      shell: python
+      shell: uv run --with requests python {0}
 
     - name: Commit and push if changed
       run: |
