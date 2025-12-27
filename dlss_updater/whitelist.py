@@ -1,10 +1,11 @@
 import os
 import csv
+import threading
 from io import StringIO
 import asyncio
 import aiohttp
 from dlss_updater.logger import setup_logger
-from dlss_updater.config import config_manager
+from dlss_updater.config import config_manager, Concurrency
 
 logger = setup_logger()
 
@@ -16,6 +17,9 @@ WHITELIST_URL = (
 _whitelist_cache: set = set()
 _whitelist_initialized: bool = False
 _whitelist_lock: asyncio.Lock | None = None
+
+# Thread-safety lock for sync access (free-threading Python 3.14+)
+_whitelist_threading_lock = threading.Lock()
 
 
 async def _get_lock() -> asyncio.Lock:
@@ -54,33 +58,60 @@ async def fetch_whitelist_async() -> set:
 
 
 async def initialize_whitelist() -> None:
-    """Initialize the whitelist cache (call once during app startup)"""
+    """Initialize the whitelist cache (call once during app startup).
+
+    Thread-safe for free-threading (Python 3.14+).
+    """
     global _whitelist_cache, _whitelist_initialized
+
+    # Quick check without lock
+    if _whitelist_initialized:
+        return
 
     lock = await _get_lock()
     async with lock:
+        # Double-check after acquiring async lock
         if _whitelist_initialized:
             return
 
         logger.info("Initializing whitelist...")
-        _whitelist_cache = await fetch_whitelist_async()
-        _whitelist_initialized = True
+        new_cache = await fetch_whitelist_async()
+
+        # Update globals with threading lock for free-threading safety
+        with _whitelist_threading_lock:
+            _whitelist_cache = new_cache
+            _whitelist_initialized = True
+
         logger.info(f"Whitelist initialized with {len(_whitelist_cache)} games")
 
 
 async def get_whitelist() -> set:
-    """Get the whitelist, initializing if necessary"""
-    if not _whitelist_initialized:
-        await initialize_whitelist()
-    return _whitelist_cache
+    """Get the whitelist, initializing if necessary.
+
+    Thread-safe for free-threading (Python 3.14+).
+    """
+    with _whitelist_threading_lock:
+        if not _whitelist_initialized:
+            pass  # Need to initialize
+        else:
+            return _whitelist_cache
+
+    await initialize_whitelist()
+
+    with _whitelist_threading_lock:
+        return _whitelist_cache
 
 
 def get_whitelist_sync() -> set:
-    """Sync access to whitelist (for use after initialization)"""
-    if not _whitelist_initialized:
-        logger.warning("Whitelist accessed before initialization, returning empty set")
-        return set()
-    return _whitelist_cache
+    """Sync access to whitelist (for use after initialization).
+
+    Thread-safe for free-threading (Python 3.14+).
+    """
+    with _whitelist_threading_lock:
+        if not _whitelist_initialized:
+            logger.warning("Whitelist accessed before initialization, returning empty set")
+            return set()
+        return _whitelist_cache
 
 
 async def is_whitelisted(game_path):
@@ -194,19 +225,31 @@ def get_all_blacklisted_games():
     return list(get_whitelist_sync())
 
 
-async def check_whitelist_batch(game_paths):
-    """Check multiple game paths against whitelist in parallel"""
-    tasks = []
-    for path in game_paths:
-        task = asyncio.create_task(is_whitelisted(path))
-        tasks.append((path, task))
+async def check_whitelist_batch(game_paths, max_concurrent: int = None):
+    """Check multiple game paths against whitelist in parallel with maximum concurrency.
 
-    results = {}
-    for path, task in tasks:
-        try:
-            results[path] = await task
-        except Exception as e:
-            logger.error(f"Error checking whitelist for {path}: {e}")
-            results[path] = False
+    Args:
+        game_paths: Iterable of game paths to check
+        max_concurrent: Maximum concurrent checks (default: IO_EXTREME for in-memory ops)
 
-    return results
+    Returns:
+        Dict mapping path to whitelist status (True = whitelisted/blacklisted)
+    """
+    if max_concurrent is None:
+        max_concurrent = Concurrency.IO_EXTREME
+    # Maximum concurrency for whitelist checks (mostly in-memory string operations)
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    async def bounded_check(path):
+        async with semaphore:
+            try:
+                return path, await is_whitelisted(path)
+            except Exception as e:
+                logger.error(f"Error checking whitelist for {path}: {e}")
+                return path, False
+
+    # Run all checks with bounded concurrency
+    check_tasks = [bounded_check(path) for path in game_paths]
+    check_results = await asyncio.gather(*check_tasks)
+
+    return dict(check_results)

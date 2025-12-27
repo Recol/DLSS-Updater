@@ -1,0 +1,85 @@
+[project]
+name = "dlss-updater"
+version = "3.0.1"
+description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
+readme = "README.md"
+license = "AGPL-3.0-only"
+requires-python = ">=3.14"  # Optimized for free-threaded Python (GIL disabled)
+authors = [
+    { name = "Recol (Deco)" }
+]
+keywords = ["dlss", "nvidia", "gaming", "xess", "directstorage", "fsr", "streamline"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Games/Entertainment",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "pefile",
+    "psutil>=7.2.0",
+    "packaging",
+    "appdirs",
+    "flet==0.28.3",  # Pinned to stable version (1.0 beta has performance issues)
+    "flet-desktop==0.28.3",  # Desktop runtime (must match flet version)
+    "msgspec>=0.20.0",
+    "aiohttp",
+    "pyinstaller",
+    "aiosqlite>=0.22.0",
+    "aiofiles>=25.1.0",
+    # scandir-rs is optional - provides 6-70x faster directory scanning
+    # Falls back to os.walk when unavailable (e.g., free-threaded Python)
+    # "scandir-rs>=2.9.3; platform_system == 'Windows'",
+    "winloop>=0.1.7; platform_system == 'Windows'",
+    "pytest-codspeed>=4.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "flake8",
+    "pylint",
+    "ruff",
+]
+build = [
+    "pyinstaller",
+]
+
+[project.urls]
+Homepage = "https://github.com/Recol/DLSS-Updater"
+Repository = "https://github.com/Recol/DLSS-Updater"
+Issues = "https://github.com/Recol/DLSS-Updater/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dlss_updater"]
+
+[tool.uv]
+# Windows-only application
+required-environments = [
+    "sys_platform == 'win32'",
+]
+# Fix for Flet on Windows: uv symlinks cause silent exit (no GUI)
+# See: https://github.com/flet-dev/website/pull/454
+link-mode = "copy"
+
+[tool.ruff]
+line-length = 127
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]  # Line too long (handled by formatter)
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,48 @@
+name: Discord Release Notification
+
+on:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get release data
+        id: get_release
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Fetch latest release
+            curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest" > release.json
+          else
+            # Use event data
+            echo '${{ toJSON(github.event.release) }}' > release.json
+          fi
+      
+      - name: Send Discord notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          # Build JSON payload with embeds (supports up to 4096 chars in description)
+          PAYLOAD=$(jq -n \
+            --argjson release "$(cat release.json)" \
+            '{
+              content: "🎉 **New Release Published!**",
+              embeds: [{
+                title: $release.name,
+                url: $release.html_url,
+                description: $release.body,
+                color: 5814783,
+                fields: [{
+                  name: "Version",
+                  value: $release.tag_name,
+                  inline: true
+                }]
+              }]
+            }')
+          
+          curl -H "Content-Type: application/json" \
+               -d "$PAYLOAD" \
+               "$DISCORD_WEBHOOK"

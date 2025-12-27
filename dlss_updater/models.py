@@ -16,6 +16,13 @@ Performance benefits:
 """
 
 import msgspec
+
+# =============================================================================
+# Constants
+# =============================================================================
+
+# Maximum number of paths (sub-folders) allowed per launcher
+MAX_PATHS_PER_LAUNCHER = 5
 from datetime import datetime
 from typing import Optional, List, Dict
 
@@ -258,6 +265,7 @@ class UpdatePreferencesConfig(msgspec.Struct):
     update_fsr: bool = True
     update_streamline: bool = True
     create_backups: bool = True
+    high_performance_mode: bool = False  # Default OFF - opt-in only
 
 
 class LauncherPathsConfig(msgspec.Struct):
@@ -347,3 +355,47 @@ class GameCardData(msgspec.Struct):
     name: str
     path: str
     dlls: List[DLLInfo]
+
+
+# =============================================================================
+# High Performance Update Structures
+# =============================================================================
+
+class MemoryStatus(msgspec.Struct):
+    """System memory status for high-performance mode decisions."""
+    total_bytes: int
+    available_bytes: int
+    percent_used: float
+    can_use_aggressive_mode: bool
+    recommended_cache_mb: int
+
+
+class CacheStats(msgspec.Struct):
+    """Source DLL cache statistics."""
+    dlls_cached: int
+    total_size_bytes: int
+    cache_hits: int
+    cache_misses: int
+
+
+class BackupEntry(msgspec.Struct):
+    """Single backup entry in the manifest."""
+    original_path: str
+    backup_path: str
+    original_size: int
+    verified: bool = False
+
+
+class BatchUpdateResult(msgspec.Struct):
+    """Result from high-performance batch update."""
+    mode_used: str  # "high_performance" | "standard" | "fallback"
+    backups_created: int
+    updates_succeeded: int
+    updates_failed: int
+    updates_skipped: int
+    memory_peak_mb: float
+    duration_seconds: float
+    errors: List[Dict[str, str]] = msgspec.field(default_factory=list)
+    # Detailed tracking: list of dicts with game_name, dll_name, old_version, new_version
+    detailed_updates: List[Dict[str, str]] = msgspec.field(default_factory=list)
+    detailed_skipped: List[Dict[str, str]] = msgspec.field(default_factory=list)

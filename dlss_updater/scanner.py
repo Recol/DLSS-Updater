@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from typing import List, Dict, Set, Any, Optional
-from .config import LauncherPathName, config_manager
+from .config import LauncherPathName, config_manager, Concurrency
 from .whitelist import is_whitelisted
 from .constants import DLL_GROUPS
 from .utils import find_game_root
@@ -18,7 +18,110 @@ try:
 except ImportError:
     HAVE_SCANDIR_RS = False
 
+# Check if running on free-threaded Python (GIL disabled)
+try:
+    GIL_DISABLED = not sys._is_gil_enabled()
+except AttributeError:
+    GIL_DISABLED = False
+
 logger = setup_logger()
+
+# Log scanner configuration at module load
+if HAVE_SCANDIR_RS:
+    logger.info("Scanner: Using scandir-rs (Rust-based, fastest)")
+elif GIL_DISABLED:
+    logger.info("Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)")
+else:
+    logger.info("Scanner: Using parallel os.scandir() with GIL enabled (I/O parallelism)")
+
+
+def _parallel_scandir_walk(root_path: str, dll_names_lower: frozenset, max_workers: int = None) -> List[str]:
+    """
+    High-performance parallel directory scanner using os.scandir().
+
+    When running on free-threaded Python (GIL disabled), this achieves true
+    parallelism across CPU cores. On regular Python, it still provides
+    I/O parallelism benefits.
+
+    Strategy:
+    - Use os.scandir() which is faster than os.listdir() + os.stat()
+    - Parallelize across top-level directories for better load distribution
+    - Use thread pool sized to CPU count (more beneficial with no GIL)
+
+    Args:
+        root_path: Root directory to scan
+        dll_names_lower: Frozenset of lowercase DLL names to find
+        max_workers: Number of worker threads (default: CPU count * 2 for I/O)
+
+    Returns:
+        List of found DLL paths
+    """
+    import os
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    if max_workers is None:
+        # Use thread pool sized for I/O operations - scale aggressively
+        max_workers = Concurrency.THREADPOOL_IO
+
+    results = []
+
+    def scan_directory_recursive(directory: str) -> List[str]:
+        """Recursively scan a directory for DLLs using os.scandir()"""
+        found = []
+        try:
+            with os.scandir(directory) as entries:
+                subdirs = []
+                for entry in entries:
+                    try:
+                        name_lower = entry.name.lower()
+                        if entry.is_file(follow_symlinks=False):
+                            if name_lower in dll_names_lower:
+                                found.append(entry.path)
+                        elif entry.is_dir(follow_symlinks=False):
+                            if name_lower not in _SKIP_DIRECTORIES:
+                                subdirs.append(entry.path)
+                    except (OSError, PermissionError):
+                        continue
+
+                # Recurse into subdirectories
+                for subdir in subdirs:
+                    found.extend(scan_directory_recursive(subdir))
+
+        except (OSError, PermissionError):
+            pass
+        return found
+
+    # Get top-level directories for parallel processing
+    try:
+        with os.scandir(root_path) as entries:
+            top_level_dirs = []
+            for entry in entries:
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        if entry.name.lower() not in _SKIP_DIRECTORIES:
+                            top_level_dirs.append(entry.path)
+                    elif entry.is_file(follow_symlinks=False):
+                        if entry.name.lower() in dll_names_lower:
+                            results.append(entry.path)
+                except (OSError, PermissionError):
+                    continue
+    except (OSError, PermissionError) as e:
+        logger.debug(f"Cannot access {root_path}: {e}")
+        return results
+
+    if not top_level_dirs:
+        return results
+
+    # Parallel scan of top-level directories
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(scan_directory_recursive, d): d for d in top_level_dirs}
+        for future in as_completed(futures):
+            try:
+                results.extend(future.result())
+            except Exception as e:
+                logger.debug(f"Error scanning {futures[future]}: {e}")
+
+    return results
 
 # Pre-computed frozen set of DLL names for O(1) lookup (populated at scan time)
 _dll_names_lower: frozenset = frozenset()
@@ -33,9 +136,13 @@ _SKIP_DIRECTORIES: frozenset = frozenset({
 
 
 def get_steam_install_path():
+    """Get Steam install path, auto-detecting from registry if not configured."""
     try:
-        if config_manager.check_path_value(LauncherPathName.STEAM):
-            path = config_manager.check_path_value(LauncherPathName.STEAM)
+        # Check for configured paths first
+        existing_paths = config_manager.get_launcher_paths(LauncherPathName.STEAM)
+        if existing_paths:
+            # Return first path (main Steam installation)
+            path = existing_paths[0]
             # Remove \steamapps\common if it exists
             path = path.replace("\\steamapps\\common", "")
             logger.debug(f"Using configured Steam path: {path}")
@@ -47,11 +154,34 @@ def get_steam_install_path():
             winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam"
         )
         value, _ = winreg.QueryValueEx(key, "InstallPath")
-        config_manager.update_launcher_path(LauncherPathName.STEAM, str(value))
+        config_manager.add_launcher_path(LauncherPathName.STEAM, str(value))
         return value
     except (FileNotFoundError, ImportError) as e:
         logger.debug(f"Could not find Steam install path: {e}")
         return None
+
+
+def get_steam_manual_paths() -> List[Path]:
+    """
+    Get manually configured Steam paths (sub-folders).
+
+    These are additional paths beyond the auto-detected Steam libraries.
+    Returns paths with steamapps/common appended if they don't have it.
+    """
+    manual_paths = []
+    configured_paths = config_manager.get_launcher_paths(LauncherPathName.STEAM)
+
+    for path_str in configured_paths:
+        path = Path(path_str)
+        # Check if this is a Steam root (has steamapps/common)
+        common_path = path / "steamapps" / "common"
+        if common_path.exists():
+            manual_paths.append(common_path)
+        # Or if path itself exists (user specified a custom games directory)
+        elif path.exists():
+            manual_paths.append(path)
+
+    return manual_paths
 
 
 def get_steam_libraries(steam_path):
@@ -115,16 +245,8 @@ async def find_dlls(library_paths, launcher_name, dll_names):
                     except Exception as e:
                         logger.warning(f"scandir-rs failed, falling back to os.walk: {e}")
 
-                # Fallback to os.walk
-                for root, dirs, files in os.walk(library_path):
-                    # Skip known non-game directories
-                    dirs[:] = [d for d in dirs if d.lower() not in _SKIP_DIRECTORIES]
-
-                    # O(1) lookup for each file
-                    for f in files:
-                        if f.lower() in dll_names_lower:
-                            results.append(os.path.join(root, f))
-                return results
+                # Fallback to parallel scandir (faster than os.walk, especially with GIL disabled)
+                return _parallel_scandir_walk(str(library_path), dll_names_lower)
 
             lib_dlls = await asyncio.to_thread(_scan_library)
             potential_dlls.extend(lib_dlls)
@@ -154,83 +276,85 @@ def get_user_input(prompt):
 
 
 async def get_ea_games():
-    ea_path = config_manager.check_path_value(LauncherPathName.EA)
-    if not ea_path or ea_path == "":
-        return []
-    ea_games_path = Path(ea_path)
-    return [ea_games_path] if ea_games_path.exists() else []
+    """Get all configured EA game paths (multi-path support)."""
+    ea_paths = config_manager.get_launcher_paths(LauncherPathName.EA)
+    return [Path(p) for p in ea_paths if Path(p).exists()]
 
 
 def get_ubisoft_install_path():
+    """Get Ubisoft install path from registry (auto-detection for first path)."""
     try:
-        if config_manager.check_path_value(LauncherPathName.UBISOFT):
-            return config_manager.check_path_value(LauncherPathName.UBISOFT)
+        # Check if we already have configured paths
+        existing_paths = config_manager.get_launcher_paths(LauncherPathName.UBISOFT)
+        if existing_paths:
+            return existing_paths[0]  # Return first path for backward compat
+
         import winreg
 
         key = winreg.OpenKey(
             winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Ubisoft\Launcher"
         )
         value, _ = winreg.QueryValueEx(key, "InstallDir")
-        config_manager.update_launcher_path(LauncherPathName.UBISOFT, str(value))
+        config_manager.add_launcher_path(LauncherPathName.UBISOFT, str(value))
         return value
     except (FileNotFoundError, ImportError):
         return None
 
 
-async def get_ubisoft_games(ubisoft_path):
-    ubisoft_games_path = Path(ubisoft_path) / "games"
-    if not ubisoft_games_path.exists():
-        return []
-    return [ubisoft_games_path]
+async def get_ubisoft_games():
+    """Get all configured Ubisoft game paths (multi-path support)."""
+    ubisoft_paths = config_manager.get_launcher_paths(LauncherPathName.UBISOFT)
+    valid_paths = []
+
+    for ubisoft_path in ubisoft_paths:
+        # Try with /games subdirectory first (standard Ubisoft layout)
+        games_path = Path(ubisoft_path) / "games"
+        if games_path.exists():
+            valid_paths.append(games_path)
+        # Also check the path directly (for custom sub-folders)
+        elif Path(ubisoft_path).exists():
+            valid_paths.append(Path(ubisoft_path))
+
+    return valid_paths
 
 
 async def get_epic_games():
-    epic_path = config_manager.check_path_value(LauncherPathName.EPIC)
-    if not epic_path or epic_path == "":
-        return []
-    epic_games_path = Path(epic_path)
-    return [epic_games_path] if epic_games_path.exists() else []
+    """Get all configured Epic game paths (multi-path support)."""
+    epic_paths = config_manager.get_launcher_paths(LauncherPathName.EPIC)
+    return [Path(p) for p in epic_paths if Path(p).exists()]
 
 
 async def get_gog_games():
-    gog_path = config_manager.check_path_value(LauncherPathName.GOG)
-    if not gog_path or gog_path == "":
-        return []
-    gog_games_path = Path(gog_path)
-    return [gog_games_path] if gog_games_path.exists() else []
+    """Get all configured GOG game paths (multi-path support)."""
+    gog_paths = config_manager.get_launcher_paths(LauncherPathName.GOG)
+    return [Path(p) for p in gog_paths if Path(p).exists()]
 
 
 async def get_battlenet_games():
-    battlenet_path = config_manager.check_path_value(LauncherPathName.BATTLENET)
-    if not battlenet_path or battlenet_path == "":
-        return []
-    battlenet_games_path = Path(battlenet_path)
-    return [battlenet_games_path] if battlenet_games_path.exists() else []
+    """Get all configured Battle.net game paths (multi-path support)."""
+    battlenet_paths = config_manager.get_launcher_paths(LauncherPathName.BATTLENET)
+    return [Path(p) for p in battlenet_paths if Path(p).exists()]
 
 
 async def get_xbox_games():
-    xbox_path = config_manager.check_path_value(LauncherPathName.XBOX)
-    if not xbox_path or xbox_path == "":
-        return []
-    xbox_games_path = Path(xbox_path)
-    return [xbox_games_path] if xbox_games_path.exists() else []
+    """Get all configured Xbox game paths (multi-path support)."""
+    xbox_paths = config_manager.get_launcher_paths(LauncherPathName.XBOX)
+    return [Path(p) for p in xbox_paths if Path(p).exists()]
 
 
 async def get_custom_folder(folder_num):
-    custom_path = config_manager.check_path_value(
-        getattr(LauncherPathName, f"CUSTOM{folder_num}")
-    )
-    if not custom_path or custom_path == "":
-        return []
-    custom_path = Path(custom_path)
-    return [custom_path] if custom_path.exists() else []
+    """Get all configured paths for a custom folder (multi-path support)."""
+    launcher = getattr(LauncherPathName, f"CUSTOM{folder_num}")
+    custom_paths = config_manager.get_launcher_paths(launcher)
+    return [Path(p) for p in custom_paths if Path(p).exists()]
 
 
 async def scan_game_for_dlls(game_path: Path, dll_names_lower: frozenset) -> List[str]:
     """
-    Scan a single game directory for DLLs using optimized O(1) lookup.
+    Scan a single game directory for DLLs using optimized os.scandir().
 
-    This is MUCH faster than the old approach because:
+    This is MUCH faster than os.walk() because:
+    - Uses os.scandir() which avoids extra stat() calls
     - Uses frozenset for O(1) membership testing
     - Skips known non-game directories
     - Runs in thread pool to avoid blocking event loop
@@ -243,21 +367,30 @@ async def scan_game_for_dlls(game_path: Path, dll_names_lower: frozenset) -> Lis
         List of found DLL paths
     """
     def _scan_sync() -> List[str]:
-        """Synchronous scanning (runs in thread pool)"""
+        """Synchronous scanning using os.scandir() (runs in thread pool)"""
         results = []
-        try:
-            for root, dirs, files in os.walk(game_path):
-                # Filter out directories to skip (modifies dirs in-place for os.walk)
-                dirs[:] = [d for d in dirs if d.lower() not in _SKIP_DIRECTORIES]
+        dirs_to_scan = [str(game_path)]
 
-                # O(1) lookup for each file instead of O(n) list comprehension
-                for f in files:
-                    if f.lower() in dll_names_lower:
-                        results.append(os.path.join(root, f))
-        except PermissionError:
-            logger.debug(f"Permission denied accessing {game_path}")
-        except Exception as e:
-            logger.error(f"Error scanning game directory {game_path}: {e}")
+        while dirs_to_scan:
+            current_dir = dirs_to_scan.pop()
+            try:
+                with os.scandir(current_dir) as entries:
+                    for entry in entries:
+                        try:
+                            name_lower = entry.name.lower()
+                            if entry.is_file(follow_symlinks=False):
+                                if name_lower in dll_names_lower:
+                                    results.append(entry.path)
+                            elif entry.is_dir(follow_symlinks=False):
+                                if name_lower not in _SKIP_DIRECTORIES:
+                                    dirs_to_scan.append(entry.path)
+                        except (OSError, PermissionError):
+                            continue
+            except PermissionError:
+                logger.debug(f"Permission denied accessing {current_dir}")
+            except Exception as e:
+                logger.debug(f"Error scanning {current_dir}: {e}")
+
         return results
 
     return await asyncio.to_thread(_scan_sync)
@@ -266,19 +399,21 @@ async def scan_game_for_dlls(game_path: Path, dll_names_lower: frozenset) -> Lis
 async def scan_games_for_dlls_parallel(
     games: List[Dict[str, Any]],
     dll_names_lower: frozenset,
-    max_concurrent: int = 8
+    max_concurrent: int = None
 ) -> Dict[str, List[str]]:
     """
-    Scan multiple game directories for DLLs in parallel.
+    Scan multiple game directories for DLLs in parallel with maximum concurrency.
 
     Args:
         games: List of game dicts with 'path' key
         dll_names_lower: Frozenset of lowercase DLL names
-        max_concurrent: Maximum concurrent scans
+        max_concurrent: Maximum concurrent scans (default: IO_HEAVY from Concurrency)
 
     Returns:
         Dict mapping game path string to list of found DLLs
     """
+    if max_concurrent is None:
+        max_concurrent = Concurrency.IO_HEAVY
     results = {}
     semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -337,6 +472,8 @@ async def scan_steam_fast(steam_path: str, dll_names: List[str]) -> List[str]:
     - Old: Walk entire Steam library (millions of files)
     - New: Parse manifests (hundreds of small files) + scan only game folders
 
+    Also merges auto-detected Steam libraries with manually configured paths.
+
     Args:
         steam_path: Steam installation path
         dll_names: List of DLL names to search for
@@ -345,27 +482,66 @@ async def scan_steam_fast(steam_path: str, dll_names: List[str]) -> List[str]:
         List of found DLL paths
     """
     dll_names_lower = frozenset(d.lower() for d in dll_names)
+    all_dlls = []
 
-    # Step 1: Enumerate installed games via appmanifest (fast)
+    # Step 1: Enumerate installed games via appmanifest (fast) - auto-detection
     games = await enumerate_steam_games_fast(steam_path)
 
-    if not games:
-        logger.warning("No Steam games found via appmanifest, falling back to full scan")
+    if games:
+        # Step 2: Scan game directories in parallel
+        logger.info(f"Scanning {len(games)} Steam game directories for DLLs...")
+        scan_results = await scan_games_for_dlls_parallel(games, dll_names_lower)
+
+        # Collect all DLLs
+        for path_str, data in scan_results.items():
+            all_dlls.extend(data['dlls'])
+
+        logger.info(f"Found {len(all_dlls)} DLLs in {len(scan_results)} Steam games (auto-detected)")
+    else:
+        logger.warning("No Steam games found via appmanifest, using library scan")
         # Fallback to legacy scanning
         steam_libraries = get_steam_libraries(steam_path)
-        return scan_steam_libraries_parallel(steam_libraries, dll_names)
+        all_dlls = scan_steam_libraries_parallel(steam_libraries, dll_names)
 
-    # Step 2: Scan only game directories in parallel
-    logger.info(f"Scanning {len(games)} Steam game directories for DLLs...")
-    scan_results = await scan_games_for_dlls_parallel(games, dll_names_lower)
+    # Step 3: Also scan manually configured Steam paths (sub-folders)
+    # This handles cases where users have additional game directories
+    manual_paths = get_steam_manual_paths()
 
-    # Collect all DLLs
-    all_dlls = []
-    for path_str, data in scan_results.items():
-        all_dlls.extend(data['dlls'])
+    # De-duplicate: remove paths that are already covered by auto-detected libraries
+    auto_detected_libs = set()
+    if steam_path:
+        for lib in get_steam_libraries(steam_path):
+            auto_detected_libs.add(str(lib).lower())
 
-    logger.info(f"Found {len(all_dlls)} DLLs in {len(scan_results)} Steam games")
-    return all_dlls
+    unique_manual_paths = []
+    for manual_path in manual_paths:
+        manual_str = str(manual_path).lower()
+        # Check if this path is not already covered
+        is_duplicate = False
+        for auto_lib in auto_detected_libs:
+            if manual_str.startswith(auto_lib) or auto_lib.startswith(manual_str):
+                is_duplicate = True
+                break
+        if not is_duplicate:
+            unique_manual_paths.append(manual_path)
+
+    if unique_manual_paths:
+        logger.info(f"Scanning {len(unique_manual_paths)} additional manual Steam paths...")
+        manual_dlls = await find_dlls(unique_manual_paths, "Steam (Manual)", dll_names)
+        all_dlls.extend(manual_dlls)
+        logger.info(f"Found {len(manual_dlls)} DLLs in manual Steam paths")
+
+    # Remove duplicates from all_dlls
+    seen = set()
+    unique_dlls = []
+    for dll in all_dlls:
+        dll_lower = str(dll).lower()
+        if dll_lower not in seen:
+            seen.add(dll_lower)
+            unique_dlls.append(dll)
+
+    logger.info(f"Total Steam DLLs found: {len(unique_dlls)}")
+    return unique_dlls
 
 
 async def find_all_dlls(progress_callback=None):
@@ -457,9 +633,10 @@ async def find_all_dlls(progress_callback=None):
         return []
 
     async def scan_ubisoft():
-        ubisoft_path = get_ubisoft_install_path()
-        if ubisoft_path:
-            ubisoft_games = await get_ubisoft_games(ubisoft_path)
+        # Try auto-detection first if no paths configured
+        get_ubisoft_install_path()  # This will auto-add path if found in registry
+        ubisoft_games = await get_ubisoft_games()
+        if ubisoft_games:
             return await find_dlls(ubisoft_games, "Ubisoft Launcher", dll_names)
         return []
 
@@ -684,8 +861,8 @@ async def find_all_dlls(progress_callback=None):
                 for dll_path in game_dll_mapping[game_path]:
                     dll_tasks.append(extract_dll_info(game_path, dll_path, game.id))
 
-        # Execute all DLL version extractions in parallel (with semaphore limit)
-        semaphore = asyncio.Semaphore(16)  # Limit concurrent PE parsing
+        # Execute all DLL version extractions in parallel - CPU-bound PE parsing
+        semaphore = asyncio.Semaphore(Concurrency.IO_HEAVY)  # Scale with CPU for PE parsing
 
         async def extract_with_limit(task):
             async with semaphore:
@@ -762,28 +939,19 @@ def find_all_dlls_sync():
 
 
 def scan_directory_for_dlls(directory, dll_names):
-    """Scan a single directory for DLLs using optimized O(1) lookup"""
-    found_dlls = []
+    """Scan a single directory for DLLs using optimized os.scandir()"""
     # Pre-compute lowercase DLL names for O(1) lookup
     dll_names_lower = frozenset(d.lower() for d in dll_names) if not isinstance(dll_names, frozenset) else dll_names
 
-    try:
-        for root, dirs, files in os.walk(directory):
-            # Skip known non-game directories
-            dirs[:] = [d for d in dirs if d.lower() not in _SKIP_DIRECTORIES]
-
-            # O(1) lookup for each file
-            for f in files:
-                if f.lower() in dll_names_lower:
-                    found_dlls.append(os.path.join(root, f))
-    except Exception as e:
-        logger.error(f"Error scanning directory {directory}: {e}")
-    return found_dlls
+    # Use parallel scandir for better performance (especially with GIL disabled)
+    return _parallel_scandir_walk(str(directory), dll_names_lower)
 
 
-def scan_steam_libraries_parallel(library_paths, dll_names, max_workers=4):
-    """Scan multiple Steam libraries in parallel"""
-    logger.info(f"Scanning {len(library_paths)} Steam libraries in parallel")
+def scan_steam_libraries_parallel(library_paths, dll_names, max_workers=None):
+    """Scan multiple Steam libraries in parallel with maximum concurrency"""
+    if max_workers is None:
+        max_workers = Concurrency.THREADPOOL_IO
+    logger.info(f"Scanning {len(library_paths)} Steam libraries in parallel (workers={max_workers})")
     all_dlls = []
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:

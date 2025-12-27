@@ -7,3 +7,7 @@
 *.claude
 *CLAUDE.md
 *.log
+*.MD
+.codspeed/
+.pytest_cache/
+*dlss_updater.log

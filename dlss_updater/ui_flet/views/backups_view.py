@@ -28,8 +28,30 @@ class BackupsView(ft.Column):
         self.is_loading = False
         self.refresh_button_ref = ft.Ref[ft.IconButton]()
 
+        # Button references for state management
+        self.clear_all_button: Optional[ft.ElevatedButton] = None
+
         # Build initial UI
         self._build_ui()
+
+    def _create_clear_all_button(self) -> ft.ElevatedButton:
+        """Create and store reference to Clear All Backups button"""
+        self.clear_all_button = ft.ElevatedButton(
+            "Clear All Backups",
+            icon=ft.Icons.DELETE_SWEEP,
+            on_click=self._on_clear_all_clicked,
+            disabled=True,  # Initially disabled until backups are loaded
+            style=ft.ButtonStyle(
+                bgcolor=ft.Colors.RED_400,
+                color=ft.Colors.WHITE,
+            ),
+        )
+        return self.clear_all_button
+
+    def _update_clear_button_state(self, has_backups: bool):
+        """Update clear button enabled/disabled state"""
+        if self.clear_all_button:
+            self.clear_all_button.disabled = not has_backups
 
     def _build_ui(self):
         """Build initial UI"""
@@ -47,15 +69,7 @@ class BackupsView(ft.Column):
                         color=ft.Colors.WHITE,
                         expand=True,
                     ),
-                    ft.ElevatedButton(
-                        "Clear All Backups",
-                        icon=ft.Icons.DELETE_SWEEP,
-                        on_click=self._on_clear_all_clicked,
-                        style=ft.ButtonStyle(
-                            bgcolor=ft.Colors.RED_400,
-                            color=ft.Colors.WHITE,
-                        ),
-                    ),
+                    self._create_clear_all_button(),
                     ft.IconButton(
                         icon=ft.Icons.REFRESH,
                         tooltip="Refresh Backups",
@@ -158,6 +172,7 @@ class BackupsView(ft.Column):
                 self.logger.info("No backups found in database")
                 self.empty_state.visible = True
                 self.loading_indicator.visible = False
+                self._update_clear_button_state(False)
                 if self.page:
                     self.page.update()
                 return
@@ -193,6 +208,7 @@ class BackupsView(ft.Column):
             self.backups_grid_container.visible = True
             self.empty_state.visible = False
             self.loading_indicator.visible = False
+            self._update_clear_button_state(True)
 
             self.logger.info(f"Loaded {len(self.backups)} backups")
 
@@ -200,6 +216,7 @@ class BackupsView(ft.Column):
             self.logger.error(f"Error loading backups: {e}", exc_info=True)
             self.empty_state.visible = True
             self.loading_indicator.visible = False
+            self._update_clear_button_state(False)
 
         finally:
             self.is_loading = False

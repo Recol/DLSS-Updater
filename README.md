@@ -1,8 +1,9 @@
 # DLSS Updater
 
 [![CodeQL](https://github.com/Recol/DLSS-Updater/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/Recol/DLSS-Updater/actions?query=workflow%3ACodeQL)
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/Recol/DLSS-Updater?utm_source=badge)
 ![Version](./version.svg)
-![Downloads](https://img.shields.io/badge/Downloads-57414-blue)
+![Downloads](https://img.shields.io/badge/Downloads-57545-blue)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-donate-yellow.svg)](https://buymeacoffee.com/decouk)
 
 
@@ -33,9 +34,12 @@ The current supported DLL included is FSR 4 (version 4.0.2.0).
 The current supported XESS DLL included is 2.0.1, please see the limitations [here](https://github.com/intel/xess/releases/tag/v2.0.1) for game support.
 
 ## GUI
-<img width="2605" height="1348" alt="image" src="https://github.com/user-attachments/assets/960e4168-7f55-4cf2-813b-476fbc06d8fe" />
+<img width="2772" height="1531" alt="image" src="https://github.com/user-attachments/assets/1ac16e23-0633-467c-948d-5fa0eb9c4005" />
 
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Recol/DLSS-Updater&type=date&legend=top-left)](https://www.star-history.com/#Recol/DLSS-Updater&type=date&legend=top-left)
 
 ## Blacklisted Games
 
@@ -52,8 +56,7 @@ The blacklist includes games that:
 The games that are blacklisted can be disabled manually by clicking the "Manage Blacklist" button in the GUI. This will allow you to skip games for whatever reason.
 
 ## Restoring modified DLL's
-- In order to do this, simply rename the **.dlsss** file of the respective DLL which you wish to restore to **.dll** and overwrite the original file. 
-- Support does not exist yet for being able to restore them using the program.
+- You can find these in the Backups tab.
 
 ## Execution Instructions
 
@@ -80,9 +83,9 @@ If you prefer to build the application yourself, follow these steps:
 
 #### Prerequisites
 
-- Python 3.12 or higher
+- Python 3.14 or higher (free-threaded Python version recommended)
 - Git
-- pip (Python package installer)
+- uv (Python package installer)
 
 #### Steps
 
@@ -103,7 +106,7 @@ If you prefer to build the application yourself, follow these steps:
 3. **Install Dependencies:**
 
     ```sh
-    pip install -r requirements.txt
+    uv sync
     ```
 
 4. **Build the Executable:**
@@ -111,7 +114,7 @@ If you prefer to build the application yourself, follow these steps:
     Ensure you have `pyinstaller` installed:
 
     ```sh
-    pip install pyinstaller
+    uv pip install pyinstaller
     ```
 
     Run PyInstaller to build the executable:

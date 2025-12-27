@@ -14,15 +14,11 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - name: Set up Python
-      uses: actions/setup-python@v6
+    - name: Set up uv with Python 3.14 (free-threaded)
+      uses: astral-sh/setup-uv@v5
       with:
-        python-version: '3.x'
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install requests
+        python-version: "3.14t"
+        enable-cache: true
 
     - name: Fetch download count and update README
       env:
@@ -34,41 +30,41 @@ jobs:
         def get_total_downloads():
             total_downloads = 0
             page = 1
-            
+
             while True:
                 url = f"https://api.github.com/repos/Recol/DLSS-Updater/releases?page={page}&per_page=100"
                 headers = {"Authorization": f"token {os.environ['GITHUB_TOKEN']}"}
                 response = requests.get(url, headers=headers)
-                
+
                 if response.status_code != 200:
                     print(f"Error fetching page {page}: {response.status_code}")
                     break
-                    
+
                 releases = response.json()
-                
+
                 if not releases:  # No more releases
                     break
-                
+
                 # Count downloads for this page
                 for release in releases:
                     for asset in release.get('assets', []):
                         total_downloads += asset.get('download_count', 0)
-                
+
                 page += 1
-            
+
             return total_downloads
 
         def update_readme(total_downloads):
             with open('README.md', 'r') as file:
                 content = file.readlines()
-            
+
             badge_url = f"https://img.shields.io/badge/Downloads-{total_downloads}-blue"
             new_badge = f"![Downloads]({badge_url})"
-            
+
             # Find the position to insert or update the downloads badge
             version_badge_index = next((i for i, line in enumerate(content) if '![Version]' in line), -1)
             downloads_badge_index = next((i for i, line in enumerate(content) if '![Downloads]' in line), -1)
-            
+
             if downloads_badge_index != -1:
                 # Update existing downloads badge
                 content[downloads_badge_index] = new_badge + '\n'
@@ -78,14 +74,14 @@ jobs:
             else:
                 # If version badge not found, insert at the top of the file
                 content.insert(0, new_badge + '\n')
-            
+
             with open('README.md', 'w') as file:
                 file.writelines(content)
 
         total_downloads = get_total_downloads()
         update_readme(total_downloads)
         print(f"Total downloads: {total_downloads}")
-      shell: python
+      shell: uv run --with requests python {0}
 
     - name: Commit and push if changed
       run: |

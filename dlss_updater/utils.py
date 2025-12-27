@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 import ctypes
 from dlss_updater.logger import setup_logger
-from dlss_updater.config import config_manager
+from dlss_updater.config import config_manager, Concurrency
 from dlss_updater.models import ProcessedDLLResult
 
 
@@ -67,8 +67,10 @@ async def process_single_dll_with_backup(dll_path, launcher, backup_path, progre
         return ProcessedDLLResult(success=False, dll_type="Error")
 
 
-async def process_dlls_parallel(dll_tasks, max_workers=32, progress_callback=None):
-    """Process DLLs using asyncio with progress tracking (fully async version)"""
+async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=None):
+    """Process DLLs using asyncio with progress tracking (maximum hardware utilization)"""
+    if max_workers is None:
+        max_workers = Concurrency.IO_HEAVY
     import asyncio
 
     results = {
@@ -461,9 +463,9 @@ async def update_dlss_versions(dll_dict=None, settings=None, progress_callback=N
             logger.info(f"\nFound {len(dll_tasks)} DLLs to process.")
             logger.info("Processing DLLs in parallel...")
 
-            # Determine optimal concurrency count
-            max_workers = min(len(dll_tasks), 8)  # Fixed concurrency limit
-            logger.info(f"Using {max_workers} parallel workers")
+            # Determine optimal concurrency - scale with hardware
+            max_workers = min(len(dll_tasks), Concurrency.IO_HEAVY)
+            logger.info(f"Using {max_workers} parallel workers (IO_HEAVY={Concurrency.IO_HEAVY})")
 
             # Process all DLLs in parallel with progress callback (now async)
             results = await process_dlls_parallel(dll_tasks, max_workers, progress_callback)

@@ -33,8 +33,30 @@ class GamesView(ft.Column):
         self.game_cards: Dict[int, GameCard] = {}  # game_id -> GameCard
         self.update_coordinator: Optional[AsyncUpdateCoordinator] = None
 
+        # Button references for state management
+        self.delete_db_button: Optional[ft.ElevatedButton] = None
+
         # Build initial UI
         self._build_ui()
+
+    def _create_delete_db_button(self) -> ft.ElevatedButton:
+        """Create and store reference to Delete Database button"""
+        self.delete_db_button = ft.ElevatedButton(
+            "Delete Database",
+            icon=ft.Icons.DELETE_SWEEP,
+            on_click=self._on_delete_all_clicked,
+            disabled=True,  # Initially disabled until games are loaded
+            style=ft.ButtonStyle(
+                bgcolor=ft.Colors.RED_400,
+                color=ft.Colors.WHITE,
+            ),
+        )
+        return self.delete_db_button
+
+    def _update_delete_button_state(self, has_games: bool):
+        """Update delete button enabled/disabled state"""
+        if self.delete_db_button:
+            self.delete_db_button.disabled = not has_games
 
     def _build_ui(self):
         """Build initial UI with empty state"""
@@ -52,15 +74,7 @@ class GamesView(ft.Column):
                         color=ft.Colors.WHITE,
                         expand=True,
                     ),
-                    ft.ElevatedButton(
-                        "Delete Database",
-                        icon=ft.Icons.DELETE_SWEEP,
-                        on_click=self._on_delete_all_clicked,
-                        style=ft.ButtonStyle(
-                            bgcolor=ft.Colors.RED_400,
-                            color=ft.Colors.WHITE,
-                        ),
-                    ),
+                    self._create_delete_db_button(),
                     ft.IconButton(
                         icon=ft.Icons.REFRESH,
                         tooltip="Refresh Games",
@@ -157,6 +171,7 @@ class GamesView(ft.Column):
                 self.logger.info("No games found in database")
                 self.empty_state.visible = True
                 self.loading_indicator.visible = False
+                self._update_delete_button_state(False)
                 if self.page:
                     self.page.update()
                 return
@@ -167,6 +182,7 @@ class GamesView(ft.Column):
             self.tabs_container.visible = True
             self.empty_state.visible = False
             self.loading_indicator.visible = False
+            self._update_delete_button_state(True)
 
             self.logger.info(f"Loaded {sum(len(games) for games in self.games_by_launcher.values())} games from {len(self.games_by_launcher)} launchers")
 
@@ -174,6 +190,7 @@ class GamesView(ft.Column):
             self.logger.error(f"Error loading games: {e}", exc_info=True)
             self.empty_state.visible = True
             self.loading_indicator.visible = False
+            self._update_delete_button_state(False)
 
         finally:
             self.is_loading = False
