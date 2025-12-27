@@ -10,3 +10,4 @@
 *.MD
 .codspeed/
 .pytest_cache/
+*dlss_updater.log
