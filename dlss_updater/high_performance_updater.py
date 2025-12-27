@@ -1031,7 +1031,15 @@ class HighPerformanceUpdateManager:
                 )
 
             # Update total steps based on filtered count
-            total_steps = len(filtered_tasks) * 3  # backup + update + verify
+            # Steps breakdown:
+            #   - 3 phase-level calls (backup, update, verify)
+            #   - N per-DLL backup callbacks (in _phase1_create_all_backups)
+            #   - N per-DLL update callbacks (in _phase2_parallel_updates)
+            create_backups = settings.get("CreateBackups", True)
+            if create_backups:
+                total_steps = 3 + (2 * len(filtered_tasks))  # 3 phases + N backups + N updates
+            else:
+                total_steps = 2 + len(filtered_tasks)  # 2 phases (no backup) + N updates
             current_step = 0
 
             # ========== PHASE 1: Create All Backups ==========

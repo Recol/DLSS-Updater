@@ -50,7 +50,8 @@ class AsyncUpdateCoordinator:
             # Create progress wrapper that converts (current, total, msg) to UpdateProgress
             async def scanner_progress_wrapper(current, total, message):
                 if self._progress_callback:
-                    percentage = int((current / total * 100)) if total > 0 else 0
+                    raw_percentage = int((current / total * 100)) if total > 0 else 0
+                    percentage = max(0, min(100, raw_percentage))  # Clamp to [0, 100]
                     await self._progress_callback(UpdateProgress(
                         current=int(current),
                         total=int(total),
@@ -119,7 +120,8 @@ class AsyncUpdateCoordinator:
                 # Create progress wrapper to convert (int, int, str) to UpdateProgress
                 async def hp_progress_wrapper(current: int, total: int, message: str):
                     if self._progress_callback:
-                        percentage = int((current / total * 100)) if total > 0 else 0
+                        raw_percentage = int((current / total * 100)) if total > 0 else 0
+                        percentage = max(0, min(100, raw_percentage))  # Clamp to [0, 100]
                         await self._progress_callback(UpdateProgress(
                             current=current,
                             total=total,
@@ -185,7 +187,8 @@ class AsyncUpdateCoordinator:
                 """Synchronous progress callback for compatibility"""
                 nonlocal processed_count, _pending_progress_tasks
                 processed_count = current
-                percentage = int((current / total * 100)) if total > 0 else 0
+                raw_percentage = int((current / total * 100)) if total > 0 else 0
+                percentage = max(0, min(100, raw_percentage))  # Clamp to [0, 100]
 
                 # Call async callback directly (we're in async context now)
                 if self._progress_callback:

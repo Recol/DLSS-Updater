@@ -1,3 +1,6 @@
+Version 3.0.1:
+Fixes to a overflow percent calculation bug with high performance mode with the callback emitters.
+
 Version 3.0.0:
 Migration to Python 3.14 free threading for the GIL to be unlocked.
 Upgrades to uv for backend infrastructure development.
