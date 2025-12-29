@@ -1,8 +1,5 @@
 name: Discord Release Notification
 
-permissions:
-  contents: read
-
 on:
   release:
     types: [published, edited]
@@ -28,24 +25,24 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Build JSON payload with embeds (supports up to 4096 chars in description)
-          PAYLOAD=$(jq -n \
-            --argjson release "$(cat release.json)" \
+          # Build JSON payload with embeds - let jq read the file directly
+          jq -n \
+            --slurpfile release release.json \
             '{
               content: "🎉 **New Release Published!**",
               embeds: [{
-                title: $release.name,
-                url: $release.html_url,
-                description: $release.body,
+                title: $release[0].name,
+                url: $release[0].html_url,
+                description: ($release[0].body | if length > 4096 then .[0:4093] + "..." else . end),
                 color: 5814783,
                 fields: [{
                   name: "Version",
-                  value: $release.tag_name,
+                  value: $release[0].tag_name,
                   inline: true
                 }]
               }]
-            }')
+            }' > payload.json
           
           curl -H "Content-Type: application/json" \
-               -d "$PAYLOAD" \
+               -d @payload.json \
                "$DISCORD_WEBHOOK"
