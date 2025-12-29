@@ -1,3 +1,48 @@
+Version 3.1.0:
+Game search - real-time search bar with instant filtering:
+  - Search bar in Games tab header with 150ms debouncing.
+  - Real-time card visibility filtering (sub-millisecond).
+  - Search history dropdown shows recent searches on focus.
+  - Tab switching reapplies current search filter.
+  - Clear button to reset search and show all games.
+  - MD3 dark theme styling for search components.
+Game search infrastructure - high-performance search backend:
+  - In-memory search index with trie and hash map for sub-millisecond lookups.
+  - LRU query cache (100 entries, 60s TTL) for repeated searches.
+  - Database-level search with case-insensitive LIKE and relevance ordering.
+  - Search history persistence with auto-deduplication (max 50 entries).
+  - Optimized indexes on games table for fast name lookups.
+UI polish improvements:
+  - Fixed game card button alignment - buttons now consistently align to bottom.
+  - Styled backups filter dropdown to match MD3 dark theme.
+Backend database improvements:
+  - Added the ability to search games via DB lookup.
+  - Added the ability to get total game statistics.
+Per-game backup restore - restore DLL backups directly from game cards:
+  - Restore dropdown on game cards - similar to Update dropdown, with per-DLL-group options (DLSS, FSR, XeSS, etc.).
+  - "Restore All" option to restore all backed-up DLLs for a game at once.
+  - Smart button state - Restore button disabled (grayed) when no backups exist for that game.
+  - Color-coded menu items matching technology brand colors (DLSS green, FSR red, XeSS blue).
+  - Confirmation, progress, and results dialogs with detailed per-DLL restore status.
+  - Parallel loading of backup groups with game data for responsive UI.
+Backups page game filter:
+  - Filter dropdown to view backups for a specific game.
+  - Shows game name with backup count: "Game Name (3)".
+  - Dynamically updates when backups change.
+Optimized image caching - game cover images now stored as WebP thumbnails.
+  - 80% smaller cache size (~3MB vs ~20MB for 200 games).
+  - 4x less memory usage when displaying game cards.
+  - 4-5x faster image decoding and display.
+Fixes to a minor race condition relating to UI states.
+Fixed Discord banner dismissal not persisting across application upgrades.
+Games tab UI improvements for better visual consistency:
+  - Fixed card heights - all game cards now display at uniform 180px height.
+  - Dynamic file path display - paths now use native ellipsis overflow instead of hard 40-char truncation.
+  - Responsive DLL badges - badge count dynamically adjusts based on window size (2-4 badges).
+  - "+N more" popover - overflow DLLs accessible via popover menu.
+  - Bottom-aligned buttons - Update/Backups buttons now properly align to card bottom.
+  - Enhanced hover effects - subtle border glow and refined scale animation (1.015x).
+
 Version 3.0.1:
 Fixes to a overflow percent calculation bug with high performance mode with the callback emitters.
 

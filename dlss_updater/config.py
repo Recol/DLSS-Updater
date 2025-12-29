@@ -169,6 +169,10 @@ class ConfigManager(configparser.ConfigParser):
             self.config_path = get_config_path()
             self.read(self.config_path)
 
+            # Detect fresh install BEFORE adding any sections
+            # Fresh install = config file was empty/non-existent
+            is_fresh_install = len(self.sections()) == 0
+
             # Initialize launcher paths section
             if not self.has_section("LauncherPaths"):
                 self.add_section("LauncherPaths")
@@ -220,7 +224,15 @@ class ConfigManager(configparser.ConfigParser):
             # Initialize DiscordBanner section
             if not self.has_section("DiscordBanner"):
                 self.add_section("DiscordBanner")
-                self["DiscordBanner"]["dismissed"] = "false"
+                # Fresh install: show banner to new users (dismissed=false)
+                # Upgrade: don't re-show banner (dismissed=true)
+                self["DiscordBanner"]["dismissed"] = "false" if is_fresh_install else "true"
+                self.save()
+
+            # Initialize ImageCache section (for migration tracking)
+            if not self.has_section("ImageCache"):
+                self.add_section("ImageCache")
+                self["ImageCache"]["Version"] = "0"  # Pre-WebP thumbnails
                 self.save()
 
             self.initialized = True
@@ -385,6 +397,19 @@ class ConfigManager(configparser.ConfigParser):
         if not self.has_section("DiscordBanner"):
             self.add_section("DiscordBanner")
         self["DiscordBanner"]["dismissed"] = str(dismissed).lower()
+        self.save()
+
+    def get_image_cache_version(self) -> int:
+        """Get the image cache version for migration tracking."""
+        if not self.has_section("ImageCache"):
+            return 0
+        return int(self["ImageCache"].get("Version", "0"))
+
+    def set_image_cache_version(self, version: int):
+        """Set the image cache version after migration."""
+        if not self.has_section("ImageCache"):
+            self.add_section("ImageCache")
+        self["ImageCache"]["Version"] = str(version)
         self.save()
 
     def get_all_blacklist_skips(self):

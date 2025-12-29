@@ -4,10 +4,11 @@ Backups View - Browse and restore DLL backups
 
 import asyncio
 import math
-from typing import List
+from typing import List, Optional
 import flet as ft
 
 from dlss_updater.database import db_manager, DLLBackup
+from dlss_updater.models import GameWithBackupCount, GameDLLBackup
 from dlss_updater.backup_manager import restore_dll_from_backup, delete_backup
 from dlss_updater.ui_flet.components.backup_card import BackupCard
 from dlss_updater.ui_flet.theme.colors import MD3Colors
@@ -24,12 +25,17 @@ class BackupsView(ft.Column):
         self.spacing = 0
 
         # State
-        self.backups: List[DLLBackup] = []
+        self.backups: List[GameDLLBackup] = []
         self.is_loading = False
         self.refresh_button_ref = ft.Ref[ft.IconButton]()
 
         # Button references for state management
         self.clear_all_button: Optional[ft.ElevatedButton] = None
+
+        # Game filter state
+        self.selected_game_id: Optional[int] = None
+        self.game_filter_dropdown: Optional[ft.Dropdown] = None
+        self.games_with_backups: List[GameWithBackupCount] = []
 
         # Build initial UI
         self._build_ui()
@@ -53,12 +59,73 @@ class BackupsView(ft.Column):
         if self.clear_all_button:
             self.clear_all_button.disabled = not has_backups
 
+    def _create_game_filter_dropdown(self) -> ft.Dropdown:
+        """Create dropdown for filtering backups by game with MD3 dark theme styling"""
+        self.game_filter_dropdown = ft.Dropdown(
+            label="Filter by Game",
+            hint_text="All Games",
+            options=[ft.dropdown.Option(key="all", text="All Games")],
+            value="all",
+            on_change=self._on_game_filter_changed,
+            width=250,
+            dense=True,
+            text_size=14,
+            bgcolor="#2E2E2E",
+            color="#E4E2E0",
+            border_color="#5A5A5A",
+            focused_border_color="#2D6E88",
+            border_radius=8,
+            label_style=ft.TextStyle(color="#C4C7CA"),
+            text_style=ft.TextStyle(color="#E4E2E0"),
+            fill_color="#2E2E2E",
+        )
+        return self.game_filter_dropdown
+
+    async def _on_game_filter_changed(self, e):
+        """Handle game filter selection change"""
+        value = e.control.value
+        if value == "all":
+            self.selected_game_id = None
+        else:
+            self.selected_game_id = int(value)
+        await self.load_backups()
+
+    def _update_game_filter_options(self):
+        """Update game filter dropdown with available games"""
+        if not self.game_filter_dropdown:
+            return
+
+        options = [ft.dropdown.Option(key="all", text="All Games")]
+
+        for game in self.games_with_backups:
+            options.append(
+                ft.dropdown.Option(
+                    key=str(game.game_id),
+                    text=f"{game.game_name} ({game.backup_count})"
+                )
+            )
+
+        self.game_filter_dropdown.options = options
+
+        # Preserve current selection if still valid
+        if self.selected_game_id:
+            valid_ids = [g.game_id for g in self.games_with_backups]
+            if self.selected_game_id not in valid_ids:
+                self.selected_game_id = None
+                self.game_filter_dropdown.value = "all"
+
+    def set_game_filter(self, game_id: Optional[int]):
+        """Set game filter programmatically (for navigation from Games view)"""
+        self.selected_game_id = game_id
+        if self.game_filter_dropdown:
+            self.game_filter_dropdown.value = str(game_id) if game_id else "all"
+
     def _build_ui(self):
         """Build initial UI"""
         # Get theme preference
         is_dark = self.page.session.get("is_dark_theme") if self.page and self.page.session.contains_key("is_dark_theme") else True
 
-        # Header
+        # Header with game filter
         self.header = ft.Container(
             content=ft.Row(
                 controls=[
@@ -67,8 +134,9 @@ class BackupsView(ft.Column):
                         size=20,
                         weight=ft.FontWeight.BOLD,
                         color=ft.Colors.WHITE,
-                        expand=True,
                     ),
+                    ft.Container(expand=True),  # Spacer
+                    self._create_game_filter_dropdown(),
                     self._create_clear_all_button(),
                     ft.IconButton(
                         icon=ft.Icons.REFRESH,
@@ -79,7 +147,8 @@ class BackupsView(ft.Column):
                         ref=self.refresh_button_ref,
                     ),
                 ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                alignment=ft.MainAxisAlignment.START,
+                spacing=8,
             ),
             padding=16,
             bgcolor=MD3Colors.get_surface_variant(is_dark),
@@ -151,7 +220,7 @@ class BackupsView(ft.Column):
         ]
 
     async def load_backups(self):
-        """Load backups from database"""
+        """Load backups from database with optional game filter"""
         if self.is_loading:
             return
 
@@ -165,11 +234,15 @@ class BackupsView(ft.Column):
         try:
             self.logger.info("Loading backups from database...")
 
-            # Get all backups
-            self.backups = await db_manager.get_all_backups()
+            # Get games with backups for filter dropdown
+            self.games_with_backups = await db_manager.get_games_with_backups()
+            self._update_game_filter_options()
+
+            # Get backups with optional game filter
+            self.backups = await db_manager.get_all_backups_filtered(self.selected_game_id)
 
             if not self.backups:
-                self.logger.info("No backups found in database")
+                self.logger.info("No backups found")
                 self.empty_state.visible = True
                 self.loading_indicator.visible = False
                 self._update_clear_button_state(False)
@@ -181,8 +254,21 @@ class BackupsView(ft.Column):
             # Backups are wider cards, so xs=12 (1 col), sm=12 (1 col), md=6 (2 col), lg=6 (2 col)
             responsive_cards = []
             for backup in self.backups:
+                # Convert GameDLLBackup to DLLBackup for BackupCard compatibility
+                dll_backup = DLLBackup(
+                    id=backup.id,
+                    game_dll_id=backup.game_dll_id,
+                    game_name=backup.game_name,
+                    dll_filename=backup.dll_filename,
+                    backup_path=backup.backup_path,
+                    backup_size=backup.backup_size,
+                    original_version=backup.original_version,
+                    backup_created_at=backup.backup_created_at,
+                    is_active=backup.is_active,
+                )
+
                 card = BackupCard(
-                    backup=backup,
+                    backup=dll_backup,
                     page=self.page,
                     logger=self.logger,
                     on_restore=self._on_restore_backup,

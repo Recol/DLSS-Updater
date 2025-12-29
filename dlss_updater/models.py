@@ -222,6 +222,54 @@ class DLLBackup(msgspec.Struct):
     is_active: bool = True
 
 
+class GameDLLBackup(msgspec.Struct):
+    """
+    Extended DLL backup model that includes game_id and dll_type for filtering.
+
+    Used for per-game backup restore functionality where we need to filter
+    and group backups by game and DLL type.
+    """
+    id: int
+    game_dll_id: int
+    game_id: int
+    game_name: str
+    dll_type: str
+    dll_filename: str
+    backup_path: str
+    backup_size: int
+    original_version: Optional[str] = None
+    backup_created_at: datetime = msgspec.field(default_factory=datetime.now)
+    is_active: bool = True
+
+
+class GameBackupSummary(msgspec.Struct):
+    """
+    Summary of backups for a specific game - for UI state checks.
+
+    Provides aggregated backup information for a game including count,
+    total size, and date range of backups.
+    """
+    game_id: int
+    game_name: str
+    backup_count: int
+    total_backup_size: int
+    dll_types: List[str]
+    oldest_backup: Optional[datetime] = None
+    newest_backup: Optional[datetime] = None
+
+
+class GameWithBackupCount(msgspec.Struct):
+    """
+    Game info with backup count for filter dropdowns.
+
+    Used in UI components to show games that have available backups.
+    """
+    game_id: int
+    game_name: str
+    launcher: str
+    backup_count: int
+
+
 class UpdateHistory(msgspec.Struct):
     """
     Update history database model.

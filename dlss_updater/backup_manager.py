@@ -10,7 +10,7 @@ import tempfile
 import asyncio
 import aiofiles
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 
 from dlss_updater.logger import setup_logger
 from dlss_updater.database import db_manager
@@ -367,3 +367,84 @@ async def validate_backups_batch(
     results = await asyncio.gather(*tasks)
 
     return dict(results)
+
+
+async def restore_group_for_game(
+    game_id: int,
+    group: str,  # "all" or specific group name like "DLSS"
+) -> Tuple[bool, str, List[Dict[str, str]]]:
+    """
+    Restore all backups for a game, optionally filtered by DLL group.
+
+    Performs concurrent restore operations with bounded concurrency to avoid
+    overwhelming the system while maximizing throughput.
+
+    Args:
+        game_id: Database ID of the game
+        group: "all" to restore all backups, or group name like "DLSS", "FSR", etc.
+
+    Returns:
+        Tuple of (overall_success, summary_message, detailed_results)
+        - overall_success: True only if ALL restores succeeded
+        - summary_message: Human-readable summary (e.g., "Restored 3/4 DLLs")
+        - detailed_results: List of dicts with keys: dll_filename, success, message
+    """
+    try:
+        # Get backups grouped by DLL type
+        backup_groups = await db_manager.get_backups_grouped_by_dll_type(game_id)
+
+        if not backup_groups:
+            return False, "No backups found for this game", []
+
+        # Determine which backups to restore
+        backups_to_restore = []
+        if group == "all":
+            for group_backups in backup_groups.values():
+                backups_to_restore.extend(group_backups)
+        elif group in backup_groups:
+            backups_to_restore = backup_groups[group]
+        else:
+            available_groups = ", ".join(backup_groups.keys())
+            return False, f"No backups found for group '{group}'. Available: {available_groups}", []
+
+        if not backups_to_restore:
+            return False, "No backups to restore", []
+
+        # Restore with bounded concurrency using Concurrency.IO_HEAVY
+        # This prevents overwhelming the filesystem while still achieving parallelism
+        semaphore = asyncio.Semaphore(Concurrency.IO_HEAVY)
+
+        async def bounded_restore(backup) -> Dict[str, str]:
+            """Perform a single restore operation with semaphore-bounded concurrency."""
+            async with semaphore:
+                success, message = await restore_dll_from_backup(backup.id)
+                return {
+                    'dll_filename': backup.dll_filename,
+                    'success': str(success),  # Convert to string for consistent Dict[str, str]
+                    'message': message
+                }
+
+        # Execute all restore operations concurrently
+        tasks = [bounded_restore(backup) for backup in backups_to_restore]
+        results = await asyncio.gather(*tasks)
+
+        # Calculate success metrics
+        success_count = sum(1 for r in results if r['success'] == 'True')
+        total_count = len(backups_to_restore)
+        overall_success = success_count == total_count
+
+        # Generate summary message
+        if overall_success:
+            summary = f"Successfully restored all {total_count} DLL(s)"
+        elif success_count == 0:
+            summary = f"Failed to restore any DLLs (0/{total_count})"
+        else:
+            summary = f"Partially restored {success_count}/{total_count} DLLs"
+
+        logger.info(f"Restore group for game {game_id} ({group}): {summary}")
+
+        return overall_success, summary, results
+
+    except Exception as e:
+        logger.error(f"Error in restore_group_for_game: {e}", exc_info=True)
+        return False, f"Unexpected error during restore: {str(e)}", []

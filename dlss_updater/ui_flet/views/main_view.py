@@ -112,6 +112,11 @@ class MainView(ft.Column):
         """Initialize the view asynchronously"""
         self.logger.info("Initializing main view...")
 
+        # Migrate image cache to WebP thumbnails if needed (one-time on upgrade)
+        from dlss_updater.steam_integration import migrate_image_cache_if_needed
+        if await migrate_image_cache_if_needed():
+            self.logger.info("Image cache migrated to WebP thumbnail format")
+
         # Add file picker to page overlay
         self.page.overlay.append(self.file_picker)
         self.page.overlay.append(self.loading_overlay)

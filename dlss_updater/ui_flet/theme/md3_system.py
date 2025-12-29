@@ -529,6 +529,12 @@ class MD3Spacing:
     CARD_PADDING = 16
     CARD_BORDER_RADIUS = 12
 
+    # Game Card specific sizes
+    GAME_CARD_HEIGHT = 180          # Fixed card content height (increased for button visibility)
+    GAME_CARD_IMAGE_SIZE = 140      # Image container dimensions
+    GAME_CARD_DLL_ROW_HEIGHT = 36   # Fixed height for DLL badges row
+    GAME_CARD_BUTTON_ROW_HEIGHT = 36  # Fixed height for action buttons row
+
     # Dialog
     DIALOG_MIN_WIDTH = 280
     DIALOG_MAX_WIDTH = 560

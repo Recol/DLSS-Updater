@@ -63,6 +63,39 @@ class SteamIntegration:
         logger.info(f"Steam image cache directory: {self.image_cache_dir}")
         logger.info(f"Steam app list cache file: {self.app_list_cache_file}")
 
+    async def migrate_image_cache(self) -> bool:
+        """
+        One-time migration to WebP thumbnail cache format.
+
+        Purges old full-size JPEG images for all users upgrading.
+        Non-blocking: file ops via asyncio.to_thread(), DB ops via aiosqlite.
+
+        Returns True if migration was performed, False if already up-to-date.
+        """
+        from .config import config_manager
+        import shutil
+
+        CURRENT_CACHE_VERSION = 3  # WebP thumbnails with proper sizing (v2 had low-res bug)
+
+        if config_manager.get_image_cache_version() >= CURRENT_CACHE_VERSION:
+            return False  # Already migrated
+
+        logger.info("Migrating image cache to WebP thumbnail format...")
+
+        # 1. Clear the steam_images directory (async via thread pool)
+        if self.image_cache_dir.exists():
+            await asyncio.to_thread(shutil.rmtree, self.image_cache_dir)
+        await asyncio.to_thread(self.image_cache_dir.mkdir, parents=True, exist_ok=True)
+
+        # 2. Clear the database table (async via aiosqlite)
+        await db_manager.clear_steam_images_cache()
+
+        # 3. Update version flag (sync - small INI write, acceptable)
+        config_manager.set_image_cache_version(CURRENT_CACHE_VERSION)
+
+        logger.info("Image cache migration complete - old cache purged")
+        return True
+
     async def update_app_list_if_needed(self):
         """Update Steam app list cache file if stale (>7 days old)"""
         try:
@@ -345,31 +378,39 @@ class SteamIntegration:
 
     async def fetch_steam_header_image(self, app_id: int) -> Optional[Path]:
         """
-        Fetch Steam game header image from CDN
+        Fetch Steam game header image and save as optimized WebP thumbnail.
+
+        Fully async/non-blocking:
+        - Network requests via aiohttp
+        - Image processing via asyncio.to_thread() (Pillow)
+        - File I/O via aiofiles
+        - Database ops via aiosqlite
 
         Args:
             app_id: Steam app ID
 
         Returns:
-            Path to cached image file, or None if failed
+            Path to cached WebP thumbnail file, or None if failed
         """
         try:
-            # Check if already cached
+            # Check if already cached (async DB query)
             cached_path = await db_manager.get_cached_image_path(app_id)
             if cached_path:
                 cache_file = Path(cached_path)
+                # File exists check is fast enough to not need async
                 if cache_file.exists():
                     logger.debug(f"Using cached image for app {app_id}")
                     return cache_file
 
-            # Check if previously failed - skip immediately
+            # Check if previously failed - skip immediately (async DB query)
             if await db_manager.is_image_fetch_failed(app_id):
                 logger.debug(f"Skipping image fetch for app {app_id} - previously failed")
                 return None
 
             # Use semaphore to limit concurrent downloads
             async with self.semaphore:
-                cache_file = self.image_cache_dir / f"{app_id}.jpg"
+                # Save as .webp instead of .jpg for optimized thumbnails
+                cache_file = self.image_cache_dir / f"{app_id}.webp"
 
                 # Try primary CDN first, then fallback
                 urls = [
@@ -380,16 +421,19 @@ class SteamIntegration:
                 async with aiohttp.ClientSession() as session:
                     for url in urls:
                         try:
+                            # Async network request
                             async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                                 if response.status == 200:
-                                    # Save image to cache
-                                    image_data = await response.read()
-                                    cache_file.write_bytes(image_data)
+                                    raw_data = await response.read()
 
-                                    # Record in database
+                                    # Create and save WebP thumbnail (async CPU + file I/O)
+                                    from .image_optimizer import save_thumbnail
+                                    await save_thumbnail(raw_data, cache_file)
+
+                                    # Record in database (async DB write)
                                     await db_manager.cache_steam_image(app_id, str(cache_file))
 
-                                    logger.info(f"Fetched and cached image for Steam app {app_id}")
+                                    logger.info(f"Fetched and cached thumbnail for Steam app {app_id}")
                                     return cache_file
 
                                 elif response.status == 404:
@@ -400,7 +444,7 @@ class SteamIntegration:
                             logger.debug(f"Timeout fetching image from {url}")
                             continue
                         except Exception as e:
-                            logger.debug(f"Network error fetching from {url}: {e}")
+                            logger.debug(f"Error fetching from {url}: {e}")
                             continue
 
                 # All URLs failed - expected for games without images
@@ -451,6 +495,18 @@ async def detect_steam_app_id_from_manifest(game_dir: Path) -> Optional[int]:
 async def fetch_steam_image(app_id: int) -> Optional[Path]:
     """Fetch Steam header image"""
     return await steam_integration.fetch_steam_header_image(app_id)
+
+
+async def migrate_image_cache_if_needed() -> bool:
+    """
+    One-time migration to WebP thumbnail cache format.
+
+    Should be called early during app startup. Purges old full-size JPEG images
+    and clears the database cache for all users upgrading to the new format.
+
+    Returns True if migration was performed, False if already up-to-date.
+    """
+    return await steam_integration.migrate_image_cache()
 
 
 async def queue_image_downloads(app_ids: List[int]):

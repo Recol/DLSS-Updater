@@ -9,9 +9,11 @@ import flet as ft
 
 from dlss_updater.database import db_manager, Game
 from dlss_updater.ui_flet.components.game_card import GameCard
+from dlss_updater.ui_flet.components.search_bar import SearchBar
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator
 from dlss_updater.config import is_dll_cache_ready
+from dlss_updater.search_service import search_service
 
 
 class GamesView(ft.Column):
@@ -31,10 +33,16 @@ class GamesView(ft.Column):
 
         # Game card tracking for single-game updates
         self.game_cards: Dict[int, GameCard] = {}  # game_id -> GameCard
+        self.game_card_containers: Dict[int, ft.Container] = {}  # game_id -> container wrapper
         self.update_coordinator: Optional[AsyncUpdateCoordinator] = None
 
         # Button references for state management
         self.delete_db_button: Optional[ft.ElevatedButton] = None
+
+        # Search state
+        self.search_query: str = ""
+        self._search_generation: int = 0
+        self.search_bar: Optional[SearchBar] = None
 
         # Build initial UI
         self._build_ui()
@@ -58,10 +66,32 @@ class GamesView(ft.Column):
         if self.delete_db_button:
             self.delete_db_button.disabled = not has_games
 
+    def _get_breakpoint(self) -> str:
+        """Determine current breakpoint from page width for responsive badge count"""
+        if not self.page or not self.page.width:
+            return "lg"
+        width = self.page.width
+        if width < 576:
+            return "xs"
+        elif width < 768:
+            return "sm"
+        elif width < 992:
+            return "md"
+        return "lg"
+
     def _build_ui(self):
         """Build initial UI with empty state"""
         # Get theme preference
         is_dark = self.page.session.get("is_dark_theme") if self.page and self.page.session.contains_key("is_dark_theme") else True
+
+        # Create search bar
+        self.search_bar = SearchBar(
+            on_search=self._on_search_changed,
+            on_clear=self._on_search_cleared,
+            on_history_selected=self._on_history_selected,
+            placeholder="Search games...",
+            width=300,
+        )
 
         # Header
         self.header = ft.Container(
@@ -72,8 +102,10 @@ class GamesView(ft.Column):
                         size=20,
                         weight=ft.FontWeight.BOLD,
                         color=ft.Colors.WHITE,
-                        expand=True,
                     ),
+                    ft.Container(expand=True),  # Spacer
+                    self.search_bar,
+                    ft.Container(width=16),  # Spacing
                     self._create_delete_db_button(),
                     ft.IconButton(
                         icon=ft.Icons.REFRESH,
@@ -84,7 +116,8 @@ class GamesView(ft.Column):
                         ref=self.refresh_button_ref,
                     ),
                 ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                alignment=ft.MainAxisAlignment.START,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=16,
             bgcolor=MD3Colors.get_surface_variant(is_dark),
@@ -184,6 +217,10 @@ class GamesView(ft.Column):
             self.loading_indicator.visible = False
             self._update_delete_button_state(True)
 
+            # Build search index and load history
+            await search_service.build_index(self.games_by_launcher)
+            await self._load_search_history()
+
             self.logger.info(f"Loaded {sum(len(games) for games in self.games_by_launcher.values())} games from {len(self.games_by_launcher)} launchers")
 
         except Exception as e:
@@ -203,6 +240,25 @@ class GamesView(ft.Column):
 
         # Clear existing game cards tracking
         self.game_cards.clear()
+        self.game_card_containers.clear()
+
+        # Register centralized resize handler for responsive badge counts (only once)
+        if self.page and not getattr(self, '_resize_handler_registered', False):
+            self._last_breakpoint = self._get_breakpoint()
+
+            async def on_resize(e):
+                new_breakpoint = self._get_breakpoint()
+                if new_breakpoint == self._last_breakpoint:
+                    return  # No breakpoint change
+                self._last_breakpoint = new_breakpoint
+                # Update all cards with new breakpoint
+                for card in self.game_cards.values():
+                    await card.update_badge_count(new_breakpoint)
+                if self.page:
+                    self.page.update()
+
+            self.page.on_resized = on_resize
+            self._resize_handler_registered = True
 
         # Launcher icons mapping
         launcher_icons = {
@@ -223,12 +279,18 @@ class GamesView(ft.Column):
             if not games:
                 continue
 
+            # Load DLLs and backup groups in parallel for all games
+            async def load_game_data(game):
+                dlls = await db_manager.get_dlls_for_game(game.id)
+                backup_groups = await db_manager.get_backups_grouped_by_dll_type(game.id)
+                return game, dlls, backup_groups
+
+            tasks = [load_game_data(game) for game in games]
+            results = await asyncio.gather(*tasks)
+
             # Create game cards for this launcher
             game_cards = []
-            for game in games:
-                # Get DLLs for this game
-                dlls = await db_manager.get_dlls_for_game(game.id)
-
+            for game, dlls, backup_groups in results:
                 # Create game card
                 card = GameCard(
                     game=game,
@@ -236,7 +298,8 @@ class GamesView(ft.Column):
                     page=self.page,
                     logger=self.logger,
                     on_update=self._on_game_update,
-                    on_view_backups=self._on_view_backups,
+                    on_restore=self._on_game_restore,
+                    backup_groups=backup_groups,
                 )
 
                 # Track card for single-game updates
@@ -259,12 +322,14 @@ class GamesView(ft.Column):
             # Breakpoints: xs=12 (1 col), sm=6 (2 col), md=4 (3 col), lg=3 (4 col)
             responsive_cards = []
             for card in game_cards:
-                responsive_card = ft.Column(
-                    controls=[card],
+                responsive_card = ft.Container(
+                    content=card,
                     col={"xs": 12, "sm": 6, "md": 4, "lg": 3},
-                    tight=True,
+                    height=180,  # Fixed height to match game card
                 )
                 responsive_cards.append(responsive_card)
+                # Track container for search visibility control
+                self.game_card_containers[card.game.id] = responsive_card
 
             # Create ResponsiveRow with scrollable container
             game_grid = ft.Column(
@@ -294,14 +359,22 @@ class GamesView(ft.Column):
             )
             tabs.append(tab)
 
-        # Create Tabs control
+        # Create Tabs control with tab change handler for search reapplication
         self.tabs_control = ft.Tabs(
             tabs=tabs,
             animation_duration=300,
             expand=True,
+            on_change=self._on_tab_changed,
         )
 
         self.tabs_container.content = self.tabs_control
+
+    async def _on_tab_changed(self, e):
+        """Handle tab change - reapply search filter to new tab."""
+        if self.search_query:
+            await self._execute_search(self.search_query, self._search_generation)
+        else:
+            await self._show_all_games()
 
     async def _animate_cards_in(self, game_cards: List[GameCard]):
         """Animate game cards with staggered fade-in for grid layout"""
@@ -330,6 +403,113 @@ class GamesView(ft.Column):
             self.page.update()
 
         await self.load_games()
+
+    # ===== Search Methods =====
+
+    async def _on_search_changed(self, query: str):
+        """Handle search input changes with generation token pattern."""
+        # Increment generation to invalidate in-flight searches
+        self._search_generation += 1
+        current_gen = self._search_generation
+
+        self.search_query = query.strip()
+
+        if not self.search_query:
+            await self._show_all_games()
+            return
+
+        # Execute search filtering
+        await self._execute_search(self.search_query, current_gen)
+
+    async def _on_search_cleared(self):
+        """Handle search clear button click."""
+        self.search_query = ""
+        self._search_generation += 1
+        await self._show_all_games()
+
+    async def _on_history_selected(self, query: str):
+        """Handle search history item selection."""
+        self.search_query = query
+        self._search_generation += 1
+        current_gen = self._search_generation
+        await self._execute_search(query, current_gen)
+
+    async def _execute_search(self, query: str, generation: int):
+        """Execute search filtering on game cards."""
+        # Check if this search has been superseded
+        if generation != self._search_generation:
+            return
+
+        query_lower = query.lower()
+
+        # Get current tab launcher
+        current_launcher = self._get_current_launcher()
+
+        # Filter cards by visibility (set on container wrapper for proper reflow)
+        matching_count = 0
+        for game_id, card in self.game_cards.items():
+            if current_launcher and card.game.launcher != current_launcher:
+                continue
+
+            # Check if game name matches query
+            matches = query_lower in card.game.name.lower()
+
+            # Set visibility on container wrapper for proper ResponsiveRow reflow
+            container = self.game_card_containers.get(game_id)
+            if container:
+                container.visible = matches
+            if matches:
+                matching_count += 1
+
+        if self.page:
+            self.page.update()
+
+        # Save to search history after search (if results exist)
+        if matching_count > 0 and len(query) >= 2:
+            await db_manager.add_search_history(query, current_launcher, matching_count)
+            # Refresh history button to show new entry
+            await self._load_search_history()
+
+        self.logger.debug(f"Search '{query}' found {matching_count} matches")
+
+    async def _show_all_games(self):
+        """Show all games (clear search filter)."""
+        current_launcher = self._get_current_launcher()
+
+        for game_id, card in self.game_cards.items():
+            container = self.game_card_containers.get(game_id)
+            if container:
+                if current_launcher:
+                    container.visible = card.game.launcher == current_launcher
+                else:
+                    container.visible = True
+
+        if self.page:
+            self.page.update()
+
+    def _get_current_launcher(self) -> Optional[str]:
+        """Get the currently selected launcher tab."""
+        if not hasattr(self, 'tabs_control') or not self.tabs_control:
+            return None
+
+        if self.tabs_control.selected_index is None:
+            return None
+
+        # Get launcher name from tab text (format: "Launcher (N)")
+        tabs = self.tabs_control.tabs
+        if 0 <= self.tabs_control.selected_index < len(tabs):
+            tab_text = tabs[self.tabs_control.selected_index].text or ""
+            # Extract launcher name (remove count suffix)
+            if " (" in tab_text:
+                return tab_text.rsplit(" (", 1)[0]
+            return tab_text
+        return None
+
+    async def _load_search_history(self):
+        """Load search history for dropdown."""
+        if self.search_bar:
+            history = await search_service.get_search_history(limit=10)
+            self.search_bar.update_history(history)
 
     async def _on_delete_all_clicked(self, e):
         """Handle delete all games button click"""
@@ -524,7 +704,7 @@ class GamesView(ft.Column):
             # Refresh the game card's DLL badges if update succeeded
             if result['success'] and game_card:
                 new_dlls = await db_manager.get_dlls_for_game(game.id)
-                game_card.refresh_dlls(new_dlls)
+                await game_card.refresh_dlls(new_dlls)
 
         except Exception as ex:
             self.logger.error(f"Update failed for {game.name}: {ex}", exc_info=True)
@@ -650,18 +830,176 @@ class GamesView(ft.Column):
         ]
         self.page.open(error_dialog)
 
-    def _on_view_backups(self, game):
-        """Handle view backups button click"""
-        self.logger.info(f"View backups for game: {game.name}")
-        # Navigate to Backups view and filter by this game
-        # This would require passing the game filter to backups view
+    def _on_game_restore(self, game, dll_group: str = "all"):
+        """Handle game restore button click - launches async restore"""
+        self.logger.info(f"Restore requested for game: {game.name}, group: {dll_group}")
         if self.page:
-            self.page.open(
-                ft.AlertDialog(
-                    title=ft.Text("View Backups"),
-                    content=ft.Text(f"Navigate to the Backups view to see backups for {game.name}"),
-                    actions=[
-                        ft.TextButton("OK", on_click=lambda e: self.page.close(e.control.parent) if self.page else None),
-                    ],
-                )
+            self.page.run_task(self._perform_game_restore, game, dll_group)
+
+    async def _perform_game_restore(self, game, dll_group: str = "all"):
+        """Perform the per-game DLL restore operation"""
+        from dlss_updater.backup_manager import restore_group_for_game
+
+        game_card = self.game_cards.get(game.id)
+
+        # Show confirmation dialog
+        confirmed = await self._show_restore_confirmation_dialog(game, dll_group)
+        if not confirmed:
+            return
+
+        # Create and show progress dialog
+        progress_dialog = self._create_restore_progress_dialog(game.name, dll_group)
+        self.page.open(progress_dialog)
+
+        try:
+            # Perform restore
+            success, summary, results = await restore_group_for_game(game.id, dll_group)
+
+            # Close progress dialog
+            self.page.close(progress_dialog)
+
+            # Show results
+            await self._show_restore_results_dialog(game.name, success, summary, results)
+
+            # Refresh the game card's DLL badges and backup groups
+            if game_card:
+                new_dlls = await db_manager.get_dlls_for_game(game.id)
+                await game_card.refresh_dlls(new_dlls)
+                new_backup_groups = await db_manager.get_backups_grouped_by_dll_type(game.id)
+                await game_card.refresh_restore_button(new_backup_groups)
+
+        except Exception as ex:
+            self.logger.error(f"Restore failed for {game.name}: {ex}", exc_info=True)
+            self.page.close(progress_dialog)
+            await self._show_error_dialog(
+                "Restore Failed",
+                f"Failed to restore {game.name}: {str(ex)}",
+                ft.Colors.RED
             )
+
+    async def _show_restore_confirmation_dialog(self, game, dll_group: str) -> bool:
+        """Show confirmation dialog before restore, returns True if confirmed"""
+        confirmed = asyncio.Event()
+        result = [False]  # Use list to capture result in closure
+
+        title = f"Restore {game.name}?"
+        if dll_group != "all":
+            title = f"Restore {dll_group} for {game.name}?"
+
+        dialog = ft.AlertDialog(
+            title=ft.Text(title),
+            content=ft.Column(
+                controls=[
+                    ft.Icon(ft.Icons.RESTORE, color="#4CAF50", size=48),
+                    ft.Text(
+                        "This will restore DLLs from backup.",
+                        size=14,
+                    ),
+                    ft.Text(
+                        "Make sure the game is closed before restoring.",
+                        size=12,
+                        color=ft.Colors.ORANGE,
+                    ),
+                ],
+                tight=True,
+                spacing=12,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        def on_cancel(e):
+            result[0] = False
+            self.page.close(dialog)
+            confirmed.set()
+
+        def on_confirm(e):
+            result[0] = True
+            self.page.close(dialog)
+            confirmed.set()
+
+        dialog.actions = [
+            ft.TextButton("Cancel", on_click=on_cancel),
+            ft.ElevatedButton(
+                "Restore",
+                on_click=on_confirm,
+                style=ft.ButtonStyle(bgcolor="#4CAF50", color=ft.Colors.WHITE),
+            ),
+        ]
+
+        self.page.open(dialog)
+        await confirmed.wait()
+        return result[0]
+
+    def _create_restore_progress_dialog(self, game_name: str, dll_group: str = "all") -> ft.AlertDialog:
+        """Create progress dialog for restore operation"""
+        title_text = f"Restoring {game_name}"
+        if dll_group != "all":
+            title_text = f"Restoring {dll_group} - {game_name}"
+
+        return ft.AlertDialog(
+            modal=True,
+            title=ft.Text(title_text),
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[ft.ProgressRing(width=40, height=40)],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                        ),
+                        ft.Text("Restoring DLLs from backup...", size=14),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=12,
+                    tight=True,
+                ),
+                width=300,
+                padding=20,
+            ),
+        )
+
+    async def _show_restore_results_dialog(self, game_name: str, success: bool, summary: str, results: list):
+        """Show results dialog after restore"""
+        content_controls = []
+
+        # Successful restores
+        successful = [r for r in results if r['success']]
+        if successful:
+            content_controls.append(ft.Text("Restored:", weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN))
+            for item in successful:
+                content_controls.append(ft.Text(f"  - {item['dll_filename']}", size=12))
+
+        # Failed restores
+        failed = [r for r in results if not r['success']]
+        if failed:
+            if content_controls:
+                content_controls.append(ft.Container(height=8))
+            content_controls.append(ft.Text("Failed:", weight=ft.FontWeight.BOLD, color=ft.Colors.RED))
+            for item in failed:
+                content_controls.append(ft.Text(f"  - {item['dll_filename']}: {item['message']}", size=12))
+
+        if not content_controls:
+            content_controls.append(ft.Text("No DLLs were restored.", color="#888888"))
+
+        # Determine title and icon
+        if success:
+            title = ft.Text(f"Restore Complete - {game_name}", color=ft.Colors.GREEN)
+            icon = ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN, size=48)
+        else:
+            title = ft.Text(f"Restore Failed - {game_name}", color=ft.Colors.RED)
+            icon = ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED, size=48)
+
+        results_dialog = ft.AlertDialog(
+            title=title,
+            content=ft.Column(
+                controls=[icon, ft.Text(summary, size=14, color="#888888")] + content_controls,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
+                tight=True,
+                scroll=ft.ScrollMode.AUTO,
+            ),
+        )
+        results_dialog.actions = [
+            ft.TextButton("OK", on_click=lambda e: self.page.close(results_dialog)),
+        ]
+        self.page.open(results_dialog)

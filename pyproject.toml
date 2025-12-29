@@ -1,6 +1,6 @@
 [project]
 name = "dlss-updater"
-version = "3.0.1"
+version = "3.0.2"
 description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -32,6 +32,7 @@ dependencies = [
     "pyinstaller",
     "aiosqlite>=0.22.0",
     "aiofiles>=25.1.0",
+    "pillow>=12.0.0",  # Image thumbnail generation, Python 3.14 free-threaded compatible
     # scandir-rs is optional - provides 6-70x faster directory scanning
     # Falls back to os.walk when unavailable (e.g., free-threaded Python)
     # "scandir-rs>=2.9.3; platform_system == 'Windows'",
