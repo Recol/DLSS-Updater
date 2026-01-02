@@ -9708,3 +9708,12 @@ Games skipped:
 2025-12-27 14:44:54,150 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
 2025-12-27 14:45:13,724 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
 2025-12-27 14:45:25,724 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-02 21:49:42,680 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-02 21:49:42,688 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-02 21:49:42,691 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2026-01-02 21:49:42,692 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2026-01-02 21:49:42,692 - INFO - GameSearchService initialized (fuzzy=False)
+2026-01-02 21:49:42,693 - INFO - Checking dependencies...
+2026-01-02 21:49:42,707 - WARNING - Application requires administrator privileges
+2026-01-02 21:49:42,707 - INFO - Attempting to restart with admin rights...
+2026-01-02 21:49:42,707 - INFO - Re-running script with admin privileges...

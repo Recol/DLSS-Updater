@@ -232,6 +232,9 @@ class BackupsView(ft.Column):
             self.page.update()
 
         try:
+            # Ensure database pool is ready
+            await db_manager.ensure_pool()
+
             self.logger.info("Loading backups from database...")
 
             # Get games with backups for filter dropdown

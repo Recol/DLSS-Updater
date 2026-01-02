@@ -301,6 +301,237 @@ def get_ubisoft_install_path():
         return None
 
 
+# =============================================================================
+# UNIFIED LAUNCHER PATH AUTO-DETECTION
+# =============================================================================
+# Registry paths and value keys for each launcher
+
+_LAUNCHER_REGISTRY_INFO: dict = {
+    LauncherPathName.STEAM: {
+        "registry_path": r"SOFTWARE\WOW6432Node\Valve\Steam",
+        "value_key": "InstallPath",
+        "games_subdir": "steamapps\\common",
+    },
+    LauncherPathName.EA: {
+        "registry_path": r"SOFTWARE\WOW6432Node\Electronic Arts\EA Desktop",
+        "value_key": "InstallLocation",
+        "games_subdir": None,
+    },
+    LauncherPathName.EPIC: {
+        "registry_path": r"com.epicgames.launcher\DefaultIcon",
+        "value_key": "",  # Empty string = default value
+        "games_subdir": None,
+        "hive": "HKCR",  # Use HKEY_CLASSES_ROOT instead of HKLM
+        "parse_exe_path": True,  # Parse exe path to get Epic Games folder
+    },
+    LauncherPathName.UBISOFT: {
+        "registry_path": r"SOFTWARE\WOW6432Node\Ubisoft\Launcher",
+        "value_key": "InstallDir",
+        "games_subdir": "games",
+    },
+    LauncherPathName.GOG: {
+        "registry_path": r"SOFTWARE\WOW6432Node\GOG.com\GalaxyClient\\paths",
+        "value_key": "client",
+        "games_subdir": "Games",
+    },
+    LauncherPathName.BATTLENET: {
+        "registry_path": r"SOFTWARE\WOW6432Node\Blizzard Entertainment\\Battle.net",
+        "value_key": "InstallPath",
+        "games_subdir": None,
+    },
+    # Xbox uses WindowsApps folder, no registry detection available
+    LauncherPathName.XBOX: None,
+    # Custom folders don't have registry detection
+    LauncherPathName.CUSTOM1: None,
+    LauncherPathName.CUSTOM2: None,
+    LauncherPathName.CUSTOM3: None,
+    LauncherPathName.CUSTOM4: None,
+}
+
+
+def auto_detect_launcher_path(launcher: LauncherPathName) -> Optional[str]:
+    """
+    Auto-detect launcher installation path from Windows registry.
+
+    This unified function handles registry-based path detection for all supported
+    launchers. It queries the Windows registry for the launcher's installation
+    path and optionally appends the games subdirectory.
+
+    Args:
+        launcher: The launcher to detect (LauncherPathName enum)
+
+    Returns:
+        The detected path string if found, or None if:
+        - The launcher is not installed
+        - The launcher doesn't support registry detection (Xbox, Custom folders)
+        - Running on a non-Windows platform
+        - Any registry access error occurs
+
+    Example:
+        >>> path = auto_detect_launcher_path(LauncherPathName.STEAM)
+        >>> if path:
+        ...     print(f"Steam found at: {path}")
+
+    Note:
+        This function does NOT automatically add paths to config_manager.
+        The caller is responsible for that if desired.
+    """
+    # Get registry info for this launcher
+    registry_info = _LAUNCHER_REGISTRY_INFO.get(launcher)
+
+    # Return None for launchers without registry detection
+    if registry_info is None:
+        logger.debug(f"No registry detection available for {launcher.name}")
+        return None
+
+    try:
+        # Import winreg at function level to avoid import errors on non-Windows
+        import winreg
+
+        registry_path = registry_info["registry_path"]
+        value_key = registry_info["value_key"]
+        games_subdir = registry_info.get("games_subdir")
+        hive = registry_info.get("hive", "HKLM")  # Default to HKEY_LOCAL_MACHINE
+        parse_exe_path = registry_info.get("parse_exe_path", False)
+
+        # Determine which registry hive to use
+        if hive == "HKCR":
+            registry_hive = winreg.HKEY_CLASSES_ROOT
+            hive_name = "HKCR"
+        else:
+            registry_hive = winreg.HKEY_LOCAL_MACHINE
+            hive_name = "HKLM"
+
+        logger.debug(f"Attempting registry detection for {launcher.name}")
+        logger.debug(f"  Registry path: {hive_name}\\{registry_path}")
+        logger.debug(f"  Value key: {value_key if value_key else '(Default)'}")
+
+        # Open the registry key
+        key = winreg.OpenKey(
+            registry_hive,
+            registry_path
+        )
+
+        try:
+            # Query the value (empty string = default value)
+            value, _ = winreg.QueryValueEx(key, value_key)
+
+            if value:
+                value_str = str(value)
+
+                # Special handling for exe paths (e.g., Epic Games DefaultIcon)
+                # Value format: "C:\...\EpicGamesLauncher.exe,0"
+                if parse_exe_path:
+                    # Remove trailing ",0" or similar if present
+                    if "," in value_str:
+                        value_str = value_str.rsplit(",", 1)[0]
+
+                    # Extract the base launcher folder (e.g., "Epic Games")
+                    # From: C:\Program Files\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe
+                    # To:   C:\Program Files\Epic Games
+                    path_parts = Path(value_str).parts
+                    for i, part in enumerate(path_parts):
+                        if "Epic Games" in part:
+                            detected_path = str(Path(*path_parts[:i+1]))
+                            logger.info(f"Auto-detected {launcher.name} path (from exe): {detected_path}")
+                            return detected_path
+
+                    # Fallback: couldn't find Epic Games folder
+                    logger.debug(f"Could not extract Epic Games folder from: {value_str}")
+                    return None
+
+                # Standard path handling
+                if games_subdir:
+                    detected_path = os.path.join(value_str, games_subdir)
+                else:
+                    detected_path = value_str
+
+                logger.info(f"Auto-detected {launcher.name} path: {detected_path}")
+                return detected_path
+            else:
+                logger.debug(f"Registry value for {launcher.name} is empty")
+                return None
+
+        finally:
+            winreg.CloseKey(key)
+
+    except FileNotFoundError:
+        # Registry key or value doesn't exist - launcher not installed
+        logger.debug(f"{launcher.name} not found in registry (not installed)")
+        return None
+
+    except PermissionError as e:
+        # Access denied to registry key
+        logger.warning(f"Permission denied accessing registry for {launcher.name}: {e}")
+        return None
+
+    except ImportError:
+        # winreg not available (non-Windows platform)
+        logger.debug(f"winreg not available - running on non-Windows platform")
+        return None
+
+    except OSError as e:
+        # Other OS-level errors (e.g., registry corruption)
+        logger.warning(f"OS error detecting {launcher.name} path: {e}")
+        return None
+
+    except Exception as e:
+        # Catch-all for unexpected errors
+        logger.error(f"Unexpected error detecting {launcher.name} path: {e}")
+        return None
+
+
+async def auto_detect_all_launcher_paths() -> dict[LauncherPathName, Optional[str]]:
+    """
+    Auto-detect paths for all launchers that support registry detection.
+
+    This async function runs registry detection for all launchers in parallel
+    using a thread pool, since registry access is I/O-bound.
+
+    Returns:
+        Dict mapping LauncherPathName to detected path (or None if not found)
+
+    Example:
+        >>> paths = await auto_detect_all_launcher_paths()
+        >>> for launcher, path in paths.items():
+        ...     if path:
+        ...         print(f"{launcher.name}: {path}")
+    """
+    results: dict[LauncherPathName, Optional[str]] = {}
+
+    # Get all launchers that support registry detection
+    detectable_launchers = [
+        launcher for launcher, info in _LAUNCHER_REGISTRY_INFO.items()
+        if info is not None
+    ]
+
+    if not detectable_launchers:
+        return results
+
+    # Run detection in parallel using thread pool (registry I/O is blocking)
+    async def detect_single(launcher: LauncherPathName) -> tuple[LauncherPathName, Optional[str]]:
+        path = await asyncio.to_thread(auto_detect_launcher_path, launcher)
+        return launcher, path
+
+    tasks = [detect_single(launcher) for launcher in detectable_launchers]
+    completed = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for result in completed:
+        if isinstance(result, Exception):
+            logger.error(f"Error in parallel launcher detection: {result}")
+            continue
+        launcher, path = result
+        results[launcher] = path
+
+    # Add None entries for non-detectable launchers
+    for launcher, info in _LAUNCHER_REGISTRY_INFO.items():
+        if info is None:
+            results[launcher] = None
+
+    logger.info(f"Auto-detection complete: {sum(1 for p in results.values() if p)} launchers found")
+    return results
+
+
 async def get_ubisoft_games():
     """Get all configured Ubisoft game paths (multi-path support)."""
     ubisoft_paths = config_manager.get_launcher_paths(LauncherPathName.UBISOFT)

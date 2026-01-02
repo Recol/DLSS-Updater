@@ -51,17 +51,15 @@ class SteamIntegration:
         self.image_cache_dir = Path(config_dir) / "steam_images"
         self.image_cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Local cache file for Steam app list (instead of storing all 200k+ apps in database)
+        # Local cache file for Steam app list (used for downloading, then stored in DB)
         self.app_list_cache_file = Path(config_dir) / "steam_app_list.json"
-        self.app_list_cache = None  # Lazy-loaded
 
-        # Pre-computed indexes for fast O(1) lookups
-        self.app_index = None  # {normalized_name: app_id}
-        self.app_index_spaceless = None  # {normalized_name_no_spaces: app_id}
+        # Database-backed storage replaces in-memory indexes
+        # This saves ~20-30 MB RAM by eliminating the 207K-entry dictionaries
+        self._db_populated = False  # Track if database has been populated
 
         self.semaphore = asyncio.Semaphore(self.IMAGE_SEMAPHORE)
         logger.info(f"Steam image cache directory: {self.image_cache_dir}")
-        logger.info(f"Steam app list cache file: {self.app_list_cache_file}")
 
     async def migrate_image_cache(self) -> bool:
         """
@@ -97,13 +95,24 @@ class SteamIntegration:
         return True
 
     async def update_app_list_if_needed(self):
-        """Update Steam app list cache file if stale (>7 days old)"""
+        """
+        Update Steam app list in database if needed.
+
+        Checks:
+        1. If database is empty, download and populate
+        2. If JSON cache file is stale (>7 days old), re-download and update DB
+        """
         try:
-            if not self.app_list_cache_file.exists():
-                logger.info("No Steam app list cache found, downloading...")
+            # Check database first - if populated, check if cache file is stale
+            db_count = await db_manager.get_steam_apps_count()
+
+            if db_count == 0:
+                # Database empty - need to populate
+                logger.info("Steam apps database empty, downloading app list...")
                 await self.download_steam_app_list()
-            else:
-                # Check file age
+                self._db_populated = True
+            elif self.app_list_cache_file.exists():
+                # Check file age for staleness
                 file_time = datetime.fromtimestamp(self.app_list_cache_file.stat().st_mtime)
                 age_days = (datetime.now() - file_time).days
 
@@ -111,13 +120,23 @@ class SteamIntegration:
                     logger.info(f"Steam app list cache is {age_days} days old, updating...")
                     await self.download_steam_app_list()
                 else:
-                    logger.info(f"Steam app list cache is up to date (age: {age_days} days)")
+                    logger.info(f"Steam apps database has {db_count} entries (cache age: {age_days} days)")
+                    self._db_populated = True
+            else:
+                # Database populated but no cache file - create cache file timestamp
+                logger.info(f"Steam apps database has {db_count} entries")
+                self._db_populated = True
 
         except Exception as e:
-            logger.error(f"Error checking Steam app list cache: {e}", exc_info=True)
+            logger.error(f"Error checking Steam app list: {e}", exc_info=True)
 
     async def download_steam_app_list(self):
-        """Download full Steam app list to local cache file (not database)"""
+        """
+        Download full Steam app list and store in database with FTS5 indexing.
+
+        Downloads from GitHub repository, normalizes names, and bulk-inserts
+        into the steam_apps table with FTS5 triggers handling the search index.
+        """
         try:
             logger.info("Downloading Steam app list from GitHub repository...")
             all_apps = []
@@ -154,16 +173,33 @@ class SteamIntegration:
                 logger.error("Failed to download any Steam app data")
                 return
 
-            logger.info(f"Total: {len(all_apps)} Steam apps, saving to cache file...")
+            logger.info(f"Total: {len(all_apps)} Steam apps, processing for database...")
 
-            # Save to local cache file (not database)
+            # Prepare data for database: (appid, name, name_normalized)
+            # Normalize names by lowercasing and removing spaces for exact matching
+            db_apps = []
+            for app in all_apps:
+                if not app.get('name'):
+                    continue
+
+                appid = app['appid']
+                name = app['name']
+                # Normalize: lowercase and remove spaces for exact matching
+                name_normalized = self.normalize_game_name(name).replace(' ', '')
+                db_apps.append((appid, name, name_normalized))
+
+            logger.info(f"Inserting {len(db_apps)} apps into database with FTS5 indexing...")
+
+            # Clear existing data and insert fresh
+            await db_manager.clear_steam_apps()
+            count = await db_manager.upsert_steam_apps(db_apps)
+
+            # Save to local cache file for timestamp tracking (smaller subset)
             cache_data = msgspec.json.encode(all_apps)
             await asyncio.to_thread(self.app_list_cache_file.write_bytes, cache_data)
 
-            # Clear in-memory cache to force reload
-            self.app_list_cache = None
-
-            logger.info(f"Steam app list cache saved successfully ({len(all_apps)} apps)")
+            self._db_populated = True
+            logger.info(f"Steam app list saved to database ({count} apps with FTS5 index)")
 
         except Exception as e:
             logger.error(f"Error downloading Steam app list: {e}", exc_info=True)
@@ -212,68 +248,15 @@ class SteamIntegration:
 
         return normalized
 
-    async def _load_app_list_cache(self):
-        """Load Steam app list from cache file into memory"""
-        if self.app_list_cache is not None:
-            return  # Already loaded
-
-        if not self.app_list_cache_file.exists():
-            logger.warning("Steam app list cache file not found")
-            return
-
-        try:
-            logger.debug("Loading Steam app list cache...")
-            cache_data = await asyncio.to_thread(self.app_list_cache_file.read_bytes)
-            self.app_list_cache = _json_decoder.decode(cache_data)
-            logger.info(f"Loaded {len(self.app_list_cache)} apps from cache")
-        except Exception as e:
-            logger.error(f"Error loading Steam app list cache: {e}", exc_info=True)
-            self.app_list_cache = []
-
-    async def _build_app_index(self):
-        """
-        Build normalized indexes from app list cache for O(1) lookups
-        One-time cost: O(n) where n = 207,746 apps
-        """
-        if self.app_index is not None:
-            return  # Already built
-
-        await self._load_app_list_cache()
-
-        if not self.app_list_cache:
-            logger.warning("Cannot build app index - cache not available")
-            return
-
-        logger.info(f"Building Steam app indexes from {len(self.app_list_cache)} apps...")
-
-        self.app_index = {}
-        self.app_index_spaceless = {}
-
-        for app in self.app_list_cache:
-            if not app.get('name'):
-                continue
-
-            app_id = app['appid']
-
-            # Index with spaces (exact match)
-            normalized = self.normalize_game_name(app['name'])
-            self.app_index[normalized] = app_id
-
-            # Index without spaces (for folder name matching)
-            spaceless = normalized.replace(' ', '')
-            self.app_index_spaceless[spaceless] = app_id
-
-        logger.info(f"App indexes built: {len(self.app_index)} normalized names, {len(self.app_index_spaceless)} spaceless names")
-
     async def find_steam_app_id_by_name(self, game_name: str) -> Optional[int]:
         """
-        Find Steam app ID by game name using pre-built indexes
-        Complexity: O(1) hash lookup vs previous O(n) linear search
+        Find Steam app ID by game name using database-backed FTS5 search.
 
         Matching strategies (in order):
-        1. Database check (previously matched games)
-        2. Exact match (with spaces)
-        3. Spaceless match (handles folder names like "BlackMythWukong")
+        1. Exact match on normalized name (O(log n) B-tree lookup)
+        2. FTS5 search for partial matches
+
+        Memory efficient: No in-memory indexes needed (~20-30 MB saved).
 
         Args:
             game_name: Name of the game to search for
@@ -282,38 +265,23 @@ class SteamIntegration:
             Steam app ID if found, None otherwise
         """
         try:
-            # Strategy 1: Check database first (fast path for previously matched games)
+            # Normalize the game name
             normalized_name = self.normalize_game_name(game_name)
-            app_id = await db_manager.find_steam_app_by_name(normalized_name)
+            spaceless = normalized_name.replace(' ', '')
+
+            # Strategy 1: Exact match on normalized name (fast path)
+            app_id = await db_manager.get_steam_app_by_name(spaceless)
 
             if app_id:
-                logger.debug(f"Found cached Steam app ID {app_id} for '{game_name}'")
+                logger.debug(f"Found Steam app ID {app_id} for '{game_name}' (exact match)")
                 return app_id
 
-            # Build index if not loaded
-            await self._build_app_index()
+            # Strategy 2: FTS5 search for partial/fuzzy matches
+            results = await db_manager.search_steam_app(normalized_name, limit=1)
 
-            if not self.app_index:
-                logger.warning(f"Cannot search for '{game_name}' - app indexes not available")
-                return None
-
-            # Strategy 2: Exact match (with spaces) - O(1)
-            if normalized_name in self.app_index:
-                app_id = self.app_index[normalized_name]
-                logger.info(f"Found Steam app ID {app_id} for '{game_name}' (exact match)")
-
-                # Store in database for faster future lookups
-                await db_manager.upsert_steam_app(app_id, game_name)
-                return app_id
-
-            # Strategy 3: Spaceless match (handles folder names) - O(1)
-            spaceless = normalized_name.replace(' ', '')
-            if spaceless in self.app_index_spaceless:
-                app_id = self.app_index_spaceless[spaceless]
-                logger.info(f"Found Steam app ID {app_id} for '{game_name}' (spaceless match)")
-
-                # Store in database for faster future lookups
-                await db_manager.upsert_steam_app(app_id, game_name)
+            if results:
+                app_id, matched_name = results[0]
+                logger.info(f"Found Steam app ID {app_id} for '{game_name}' via FTS5 (matched: '{matched_name}')")
                 return app_id
 
             logger.debug(f"No Steam app ID found for '{game_name}'")
@@ -322,6 +290,25 @@ class SteamIntegration:
         except Exception as e:
             logger.error(f"Error finding Steam app ID for '{game_name}': {e}", exc_info=True)
             return None
+
+    async def search_steam_apps(self, query: str, limit: int = 10) -> List[tuple[int, str]]:
+        """
+        Search Steam apps by name using FTS5 full-text search.
+
+        Provides fast prefix and fuzzy matching for UI autocomplete.
+
+        Args:
+            query: Search query string
+            limit: Maximum results to return (default 10)
+
+        Returns:
+            List of tuples (appid, name) matching the query
+        """
+        try:
+            return await db_manager.search_steam_app(query, limit)
+        except Exception as e:
+            logger.error(f"Error searching Steam apps: {e}", exc_info=True)
+            return []
 
     async def detect_steam_app_id_from_manifest(self, game_dir: Path) -> Optional[int]:
         """
@@ -512,3 +499,17 @@ async def migrate_image_cache_if_needed() -> bool:
 async def queue_image_downloads(app_ids: List[int]):
     """Queue multiple image downloads"""
     await steam_integration.queue_image_downloads(app_ids)
+
+
+async def search_steam_apps(query: str, limit: int = 10) -> List[tuple[int, str]]:
+    """
+    Search Steam apps by name using FTS5 full-text search.
+
+    Args:
+        query: Search query string
+        limit: Maximum results to return (default 10)
+
+    Returns:
+        List of tuples (appid, name) matching the query
+    """
+    return await steam_integration.search_steam_apps(query, limit)

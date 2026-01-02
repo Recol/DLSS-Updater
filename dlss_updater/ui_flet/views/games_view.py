@@ -66,19 +66,6 @@ class GamesView(ft.Column):
         if self.delete_db_button:
             self.delete_db_button.disabled = not has_games
 
-    def _get_breakpoint(self) -> str:
-        """Determine current breakpoint from page width for responsive badge count"""
-        if not self.page or not self.page.width:
-            return "lg"
-        width = self.page.width
-        if width < 576:
-            return "xs"
-        elif width < 768:
-            return "sm"
-        elif width < 992:
-            return "md"
-        return "lg"
-
     def _build_ui(self):
         """Build initial UI with empty state"""
         # Get theme preference
@@ -195,6 +182,9 @@ class GamesView(ft.Column):
             self.page.update()
 
         try:
+            # Ensure database pool is ready
+            await db_manager.ensure_pool()
+
             self.logger.info("Loading games from database...")
 
             # Get games grouped by launcher
@@ -217,8 +207,9 @@ class GamesView(ft.Column):
             self.loading_indicator.visible = False
             self._update_delete_button_state(True)
 
-            # Build search index and load history
-            await search_service.build_index(self.games_by_launcher)
+            # Build search index only if not already built, then load history
+            if not search_service.is_index_built():
+                await search_service.build_index(self.games_by_launcher)
             await self._load_search_history()
 
             self.logger.info(f"Loaded {sum(len(games) for games in self.games_by_launcher.values())} games from {len(self.games_by_launcher)} launchers")
@@ -241,24 +232,6 @@ class GamesView(ft.Column):
         # Clear existing game cards tracking
         self.game_cards.clear()
         self.game_card_containers.clear()
-
-        # Register centralized resize handler for responsive badge counts (only once)
-        if self.page and not getattr(self, '_resize_handler_registered', False):
-            self._last_breakpoint = self._get_breakpoint()
-
-            async def on_resize(e):
-                new_breakpoint = self._get_breakpoint()
-                if new_breakpoint == self._last_breakpoint:
-                    return  # No breakpoint change
-                self._last_breakpoint = new_breakpoint
-                # Update all cards with new breakpoint
-                for card in self.game_cards.values():
-                    await card.update_badge_count(new_breakpoint)
-                if self.page:
-                    self.page.update()
-
-            self.page.on_resized = on_resize
-            self._resize_handler_registered = True
 
         # Launcher icons mapping
         launcher_icons = {
@@ -1003,3 +976,9 @@ class GamesView(ft.Column):
             ft.TextButton("OK", on_click=lambda e: self.page.close(results_dialog)),
         ]
         self.page.open(results_dialog)
+
+    async def on_view_hidden(self):
+        """Called when view is hidden - release resources"""
+        from dlss_updater.search_service import search_service
+        search_service.clear_index()
+        self.logger.debug("Games view hidden - resources released")

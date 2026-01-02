@@ -25,11 +25,9 @@ from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDial
 from dlss_updater.ui_flet.dialogs.release_notes_dialog import ReleaseNotesDialog
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
-from dlss_updater.ui_flet.dialogs.high_perf_warning_dialog import HighPerfWarningDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
 from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
-from dlss_updater.ui_flet.components.navigation_drawer import CustomNavigationDrawer
 from dlss_updater.ui_flet.components.dll_cache_snackbar import DLLCacheProgressSnackbar
 from dlss_updater.ui_flet.components.app_menu_selector import AppMenuSelector, MenuCategory, MenuItem
 from dlss_updater.version import __version__
@@ -81,6 +79,7 @@ class MainView(ft.Column):
 
         # Navigation state
         self.current_view_index = 0  # 0=Launchers, 1=Games, 2=Backups
+        self.last_view_index = 0  # Track previous view for cleanup
 
         # Scan state management - store last scan results for update operations
         self.last_scan_results: Optional[Dict] = None
@@ -91,7 +90,10 @@ class MainView(ft.Column):
         self.launchers_view = None
         self.games_view = None
         self.backups_view = None
-        self.content_switcher = None
+        self.navigation_bar = None
+        self.tab_buttons = []
+        self.tab_contents = []
+        self.content_area = None
 
         # Initialize launcher configurations
         self.launcher_configs = [
@@ -140,8 +142,8 @@ class MainView(ft.Column):
         self.logger.info("Main view initialized")
 
     async def _build_ui(self):
-        """Build the main UI structure with NavigationDrawer"""
-        # Create app bar (with drawer toggle button)
+        """Build the main UI structure with top navigation tabs"""
+        # Create app bar
         app_bar = await self._create_app_bar()
 
         # Create launcher view (with existing cards and action buttons)
@@ -151,32 +153,13 @@ class MainView(ft.Column):
         self.games_view = GamesView(self.page, self.logger)
         self.backups_view = BackupsView(self.page, self.logger)
 
-        # Create AnimatedSwitcher for smooth view transitions
-        self.content_switcher = ft.AnimatedSwitcher(
-            content=self.launchers_view,
-            transition=ft.AnimatedSwitcherTransition.SCALE,
-            duration=350,
-            switch_in_curve=ft.AnimationCurve.EASE_OUT_CUBIC,
-            switch_out_curve=ft.AnimationCurve.EASE_IN_CUBIC,
-            expand=True,
-        )
-
-        # Create NavigationDrawer
-        self.navigation_drawer_component = CustomNavigationDrawer(
-            page=self.page,
-            logger=self.logger,
-            on_destination_changed=self._on_drawer_navigation_changed,
-            initial_index=self.current_view_index
-        )
-
-        # Set page drawer
-        self.page.drawer = self.navigation_drawer_component.get_drawer()
+        # Create custom navigation tabs
+        self.navigation_bar = self._create_navigation_tabs()
 
         # Create logger panel
         self.logger_panel = LoggerPanel(self.page, self.logger)
 
         # Assemble main layout: AppBar + Content + Logger
-        # NOTE: NavigationRail has been removed - drawer opens via overlay
         self.controls = [
             app_bar,
             ft.Container(
@@ -187,13 +170,7 @@ class MainView(ft.Column):
                     colors=["transparent", "#5A5A5A", "transparent"],
                 ),
             ),
-            ft.Row(
-                controls=[
-                    self.content_switcher,  # Full-width content
-                ],
-                expand=True,
-                spacing=0,
-            ),
+            self.navigation_bar,
             self.logger_panel,
         ]
 
@@ -336,6 +313,119 @@ class MainView(ft.Column):
             spacing=0,
         )
 
+    def _create_navigation_tabs(self) -> ft.Column:
+        """Create custom colored navigation tab bar"""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
+
+        is_dark = self.page.theme_mode == ft.ThemeMode.DARK
+
+        tab_configs = [
+            {"name": "Launchers", "icon": ft.Icons.FOLDER_SPECIAL, "color": TabColors.LAUNCHERS, "content": self.launchers_view},
+            {"name": "Games", "icon": ft.Icons.VIDEOGAME_ASSET, "color": TabColors.GAMES, "content": self.games_view},
+            {"name": "Backups", "icon": ft.Icons.RESTORE, "color": TabColors.BACKUPS, "content": self.backups_view},
+        ]
+
+        self.tab_buttons = []
+        self.tab_contents = []
+
+        for i, config in enumerate(tab_configs):
+            is_active = i == self.current_view_index
+            btn = self._create_tab_button(config, is_active, i)
+            self.tab_buttons.append(btn)
+            self.tab_contents.append(config["content"])
+
+        # Tab bar row
+        tab_bar = ft.Container(
+            content=ft.Row(
+                controls=self.tab_buttons,
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=0,
+            ),
+            bgcolor=MD3Colors.get_surface(is_dark),
+            padding=ft.padding.symmetric(vertical=4),
+        )
+
+        # Content area with AnimatedSwitcher for transitions
+        self.content_area = ft.AnimatedSwitcher(
+            content=self.tab_contents[self.current_view_index],
+            transition=ft.AnimatedSwitcherTransition.FADE,
+            duration=350,
+            switch_in_curve=ft.AnimationCurve.EASE_OUT,
+            switch_out_curve=ft.AnimationCurve.EASE_IN,
+            expand=True,
+        )
+
+        return ft.Column(
+            controls=[tab_bar, self.content_area],
+            spacing=0,
+            expand=True,
+        )
+
+    def _create_tab_button(self, config: dict, is_active: bool, index: int) -> ft.Container:
+        """Create individual tab button with color theming"""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+
+        is_dark = self.page.theme_mode == ft.ThemeMode.DARK
+        color = config["color"]
+
+        # Use white text on colored background for better contrast
+        icon_color = ft.Colors.WHITE if is_active else MD3Colors.get_on_surface_variant(is_dark)
+        text_color = ft.Colors.WHITE if is_active else MD3Colors.get_on_surface_variant(is_dark)
+        bg_color = color if is_active else "transparent"  # Full color background when active
+        indicator_visible = is_active
+
+        # Store references for later updates
+        tab_icon = ft.Icon(config["icon"], size=20, color=icon_color)
+        tab_label = ft.Text(
+            config["name"],
+            size=14,
+            weight=ft.FontWeight.W_600 if is_active else ft.FontWeight.W_500,
+            color=text_color,
+        )
+        indicator = ft.Container(
+            height=3,
+            bgcolor=color if indicator_visible else "transparent",
+            border_radius=ft.border_radius.only(top_left=3, top_right=3),
+            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+        )
+
+        tab_btn = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[tab_icon, tab_label],
+                            spacing=8,
+                            alignment=ft.MainAxisAlignment.CENTER,
+                        ),
+                        padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                    ),
+                    indicator,
+                ],
+                spacing=0,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            bgcolor=bg_color,
+            border_radius=ft.border_radius.only(top_left=8, top_right=8),
+            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+            on_click=lambda e, idx=index: self.page.run_task(self._on_tab_clicked, idx),
+            on_hover=lambda e, idx=index, c=color: self._on_tab_hover(e, idx, c),
+            expand=True,
+        )
+
+        return tab_btn
+
+    def _on_tab_hover(self, e, index: int, color: str):
+        """Handle tab hover effect"""
+        if index == self.current_view_index:
+            return
+        btn = self.tab_buttons[index]
+        if e.data == "true":
+            btn.bgcolor = f"{color}10"
+        else:
+            btn.bgcolor = "transparent"
+        btn.update()
+
     def _create_header_icon_button(
         self,
         icon: str,
@@ -369,40 +459,10 @@ class MainView(ft.Column):
         )
 
     async def _create_app_bar(self) -> ft.Container:
-        """Create the application bar with hamburger menu and ExpansionTiles"""
+        """Create the application bar with title and action buttons"""
         from dlss_updater.ui_flet.theme.colors import MD3Colors
 
         is_dark = self.theme_manager.is_dark
-
-        # Create hamburger button with colored circle
-        hamburger_btn = self._create_header_icon_button(
-            icon=ft.Icons.MENU,
-            color=MD3Colors.PRIMARY,  # Teal
-            tooltip="Navigation Menu",
-            on_click=self._open_navigation_drawer,
-        )
-
-        # Badge for hamburger button (shown when updates available)
-        self.hamburger_badge_dot = ft.Container(
-            width=10,
-            height=10,
-            bgcolor=ft.Colors.RED,
-            border_radius=5,
-            visible=False,
-        )
-
-        self.hamburger_badge = ft.Stack(
-            controls=[
-                hamburger_btn,
-                ft.Container(
-                    content=self.hamburger_badge_dot,
-                    right=0,
-                    top=0,
-                ),
-            ],
-            width=48,
-            height=48,
-        )
 
         # Create Support Development button with colored circle
         support_btn = self._create_header_icon_button(
@@ -423,7 +483,6 @@ class MainView(ft.Column):
         # Compact top bar
         top_bar = ft.Row(
             controls=[
-                self.hamburger_badge,
                 ft.Column(
                     controls=[
                         ft.Text(
@@ -587,13 +646,6 @@ class MainView(ft.Column):
                         on_click=self._on_dlss_overlay_clicked,
                     ),
                     MenuItem(
-                        id="high_performance",
-                        title="High Performance Mode",
-                        description="Faster updates using memory caching",
-                        icon=ft.Icons.SPEED,
-                        on_click=self._on_high_performance_clicked,
-                    ),
-                    MenuItem(
                         id="theme",
                         title="Theme: Dark Mode",
                         description="Disabled (light theme has issues)",
@@ -720,7 +772,6 @@ class MainView(ft.Column):
                 launcher_enum=config["enum"],
                 icon=config["icon"],
                 is_custom=is_custom,
-                on_browse=self._create_browse_handler(config["enum"]),
                 on_reset=self._create_reset_handler(config["enum"]),
                 on_add_subfolder=self._create_add_subfolder_handler(config["enum"]),
                 page=self.page,
@@ -760,14 +811,6 @@ class MainView(ft.Column):
             expand=True,
         )
 
-    def _create_browse_handler(self, launcher: LauncherPathName):
-        """Create browse click handler for specific launcher (sets primary path)"""
-        async def handler(e):
-            self.current_launcher_selecting = launcher
-            self.is_adding_subfolder = False  # Browse replaces primary path
-            self.file_picker.get_directory_path(dialog_title="Select Game Folder")
-        return handler
-
     def _create_add_subfolder_handler(self, launcher: LauncherPathName):
         """Create add subfolder click handler for specific launcher"""
         async def handler(e):
@@ -776,33 +819,62 @@ class MainView(ft.Column):
             self.file_picker.get_directory_path(dialog_title="Add Sub-Folder")
         return handler
 
-    def _open_navigation_drawer(self, e):
-        """Open the navigation drawer"""
-        self.page.open(self.page.drawer)
+    async def _on_tab_clicked(self, index: int):
+        """Handle tab click - switch to selected tab"""
+        if index == self.current_view_index:
+            return
 
-    async def _on_drawer_navigation_changed(self, index: int):
-        """Handle navigation drawer selection change"""
+        previous_index = self.current_view_index
         self.current_view_index = index
 
-        # Switch to appropriate view
-        if self.current_view_index == 0:
-            self.content_switcher.content = self.launchers_view
-        elif self.current_view_index == 1:
-            self.content_switcher.content = self.games_view
-            # Load games when navigating to games view
+        # Update tab button visuals first
+        self._update_tab_visuals(previous_index, index)
+        self.page.update()
+
+        # Small delay to let tab visuals update before content switch
+        await asyncio.sleep(0.05)
+
+        # Resource cleanup (existing logic)
+        if previous_index == 1 and index != 1:
+            await self._cleanup_games_view()
+        if index == 0 and previous_index != 0:
+            from dlss_updater.database import db_manager
+            await db_manager.close()
+
+        # Load data for destination view
+        if index == 1:
             await self.games_view.load_games()
-        elif self.current_view_index == 2:
-            self.content_switcher.content = self.backups_view
-            # Load backups when navigating to backups view
+        elif index == 2:
             await self.backups_view.load_backups()
 
+        # Switch content with animation
+        self.content_area.content = self.tab_contents[index]
+        self.last_view_index = index
         self.page.update()
-        self.logger.info(f"Navigated to view index: {self.current_view_index}")
 
-    async def _on_browse_clicked(self, launcher: LauncherPathName):
-        """Handle browse button click"""
-        self.current_launcher_selecting = launcher
-        self.file_picker.get_directory_path(dialog_title="Select Game Folder")
+    def _update_tab_visuals(self, old_index: int, new_index: int):
+        """Update tab button colors on selection change"""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
+
+        is_dark = self.page.theme_mode == ft.ThemeMode.DARK
+        tab_colors = [TabColors.LAUNCHERS, TabColors.GAMES, TabColors.BACKUPS]
+
+        # Deactivate old tab
+        old_btn = self.tab_buttons[old_index]
+        old_btn.bgcolor = "transparent"
+        old_btn.content.controls[0].content.controls[0].color = MD3Colors.get_on_surface_variant(is_dark)
+        old_btn.content.controls[0].content.controls[1].color = MD3Colors.get_on_surface_variant(is_dark)
+        old_btn.content.controls[0].content.controls[1].weight = ft.FontWeight.W_500
+        old_btn.content.controls[1].bgcolor = "transparent"
+
+        # Activate new tab
+        new_btn = self.tab_buttons[new_index]
+        new_color = tab_colors[new_index]
+        new_btn.bgcolor = new_color  # Full color background
+        new_btn.content.controls[0].content.controls[0].color = ft.Colors.WHITE  # White icon
+        new_btn.content.controls[0].content.controls[1].color = ft.Colors.WHITE  # White text
+        new_btn.content.controls[0].content.controls[1].weight = ft.FontWeight.W_600
+        new_btn.content.controls[1].bgcolor = new_color
 
     async def _on_folder_selected(self, e: ft.FilePickerResultEvent):
         """Handle folder selection from file picker (multi-path support)"""
@@ -901,14 +973,12 @@ class MainView(ft.Column):
 
     def show_update_badge(self, show: bool = True):
         """
-        Show or hide update available badge on hamburger menu
+        Show or hide update available badge on menu
 
         Args:
             show: True to display red badge indicator, False to hide it
         """
-        if hasattr(self, 'hamburger_badge_dot'):
-            self.hamburger_badge_dot.visible = show
-        # Use new AppMenuSelector API for menu badge
+        # Use AppMenuSelector API for menu badge
         if hasattr(self, 'app_menu_selector'):
             self.app_menu_selector.set_badge_visible("check_updates", show)
         if self.page:
@@ -934,68 +1004,6 @@ class MainView(ft.Column):
         """Handle DLSS overlay settings button click"""
         dialog = DLSSOverlayDialog(self.page, self.logger)
         await dialog.show()
-
-    async def _on_high_performance_clicked(self, e):
-        """Handle High Performance Mode click - shows warning dialog with enable/disable"""
-        from dlss_updater.config import config_manager
-
-        # Check current state
-        is_enabled = config_manager.get_high_performance_mode()
-
-        if is_enabled:
-            # Already enabled - show disable confirmation
-            await self._show_high_perf_disable_dialog()
-        else:
-            # Not enabled - show warning dialog to enable
-            dialog = HighPerfWarningDialog(self.page, self.logger)
-            confirmed = await dialog.show()
-            if confirmed:
-                config_manager.set_high_performance_mode(True)
-                await self._show_snackbar("High Performance Mode enabled", "#4CAF50")
-
-    async def _show_high_perf_disable_dialog(self):
-        """Show dialog to confirm disabling High Performance Mode"""
-        import asyncio
-        from dlss_updater.config import config_manager
-
-        close_event = asyncio.Event()
-
-        async def on_disable(e):
-            config_manager.set_high_performance_mode(False)
-            self.page.close(dialog)
-            close_event.set()
-            await self._show_snackbar("High Performance Mode disabled", "#2D6E88")
-
-        async def on_cancel(e):
-            self.page.close(dialog)
-            close_event.set()
-
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Row([
-                ft.Icon(ft.Icons.SPEED, color="#4CAF50", size=24),
-                ft.Text("High Performance Mode"),
-            ], spacing=10),
-            content=ft.Container(
-                content=ft.Column([
-                    ft.Text("High Performance Mode is currently enabled."),
-                    ft.Container(height=8),
-                    ft.Text(
-                        "This mode uses memory caching for faster DLL updates.",
-                        size=12,
-                        color=ft.Colors.GREY_400,
-                    ),
-                ], spacing=4, tight=True),
-                width=400,
-            ),
-            actions=[
-                ft.TextButton("Cancel", on_click=on_cancel),
-                ft.FilledButton("Disable", on_click=on_disable),
-            ],
-        )
-
-        self.page.open(dialog)
-        await close_event.wait()
 
     async def _on_settings_clicked(self, e):
         """Handle settings button click"""
@@ -1397,6 +1405,21 @@ class MainView(ft.Column):
         self.page.overlay.append(snackbar)
         snackbar.open = True
         self.page.update()
+
+    async def _cleanup_games_view(self):
+        """Release Games view resources"""
+        if hasattr(self, 'games_view') and self.games_view:
+            await self.games_view.on_view_hidden()
+            from dlss_updater.search_service import search_service
+            search_service.clear_index()
+            self.logger.debug("Games view resources cleaned up")
+
+    async def shutdown(self):
+        """Graceful shutdown on app close"""
+        self.logger.info("Shutting down application...")
+        from dlss_updater.database import db_manager
+        await db_manager.close()
+        self.logger.info("Application shutdown complete")
 
     def get_dll_cache_snackbar(self) -> DLLCacheProgressSnackbar:
         """Get the DLL cache progress snackbar for external use"""

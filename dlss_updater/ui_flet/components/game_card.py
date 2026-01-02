@@ -43,10 +43,6 @@ class GameCard(ft.Card):
         self._ui_lock = asyncio.Lock()
         self._image_loaded = False  # Prevent duplicate image loads
 
-        # Responsive badge state
-        self._current_breakpoint = self._get_breakpoint()
-        self._max_visible_badges = self._get_max_badges_for_breakpoint(self._current_breakpoint)
-
         # Card styling optimized for grid layout
         self.elevation = 2
         self.surface_tint_color = "#2D6E88"
@@ -97,23 +93,71 @@ class GameCard(ft.Card):
             return "md"
         return "lg"
 
-    def _get_max_badges_for_breakpoint(self, breakpoint: str) -> int:
-        """Get maximum visible badges for current breakpoint"""
-        return {"xs": 2, "sm": 2, "md": 3, "lg": 4}.get(breakpoint, 4)
+    def _check_for_updates(self) -> bool:
+        """Check if any DLLs have updates available"""
+        from dlss_updater.config import LATEST_DLL_VERSIONS
+        from dlss_updater.updater import parse_version
 
-    async def update_badge_count(self, breakpoint: str):
-        """Update badge count based on breakpoint (called from GamesView)"""
-        new_max = self._get_max_badges_for_breakpoint(breakpoint)
-        if new_max != self._max_visible_badges:
-            self._max_visible_badges = new_max
-            self._current_breakpoint = breakpoint
-            async with self._ui_lock:
-                new_badges = self._create_dll_badges()
-                if self.right_content and len(self.right_content.controls) >= 2:
-                    self.right_content.controls[1] = new_badges
-                    self.dll_badges_container = new_badges
-                    if self.page:
-                        self.page.update()
+        for dll in self.dlls:
+            if not dll.current_version or not dll.dll_filename:
+                continue
+            latest_version = LATEST_DLL_VERSIONS.get(dll.dll_filename.lower())
+            if not latest_version:
+                continue
+            try:
+                current_parsed = parse_version(dll.current_version)
+                latest_parsed = parse_version(latest_version)
+                if current_parsed < latest_parsed:
+                    return True
+            except Exception:
+                continue
+        return False
+
+    def _build_dll_popover_items(self) -> List[ft.PopupMenuItem]:
+        """Build popup menu items for all DLLs with color coding and update status"""
+        from dlss_updater.config import LATEST_DLL_VERSIONS
+        from dlss_updater.updater import parse_version
+
+        dll_colors = {
+            "DLSS": "#76B900", "XeSS": "#0071C5", "FSR": "#ED1C24",
+            "DLSS-G": "#76B900", "DLSS-D": "#76B900",
+            "Streamline": "#76B900", "DirectStorage": "#FFB900",
+        }
+
+        items = []
+        for dll in self.dlls:
+            color = dll_colors.get(dll.dll_type, "#888888")
+            version_text = dll.current_version[:12] if dll.current_version else "N/A"
+
+            # Check for update
+            update_available = False
+            if dll.current_version and dll.dll_filename:
+                latest = LATEST_DLL_VERSIONS.get(dll.dll_filename.lower())
+                if latest:
+                    try:
+                        update_available = parse_version(dll.current_version) < parse_version(latest)
+                    except Exception:
+                        pass
+
+            status_icon = ft.Icon(
+                ft.Icons.ARROW_UPWARD if update_available else ft.Icons.CHECK_CIRCLE,
+                size=14,
+                color="#FF9800" if update_available else "#4CAF50",
+            )
+
+            items.append(ft.PopupMenuItem(
+                content=ft.Row(
+                    controls=[
+                        ft.Container(width=10, height=10, bgcolor=color, border_radius=5),
+                        ft.Text(dll.dll_type, size=12, weight=ft.FontWeight.BOLD, width=90),
+                        ft.Text(version_text, size=11, color="#AAAAAA", width=80),
+                        status_icon,
+                    ],
+                    spacing=8,
+                    tight=True,
+                ),
+            ))
+        return items
 
     def _build_card_content(self):
         """Build card content layout"""
@@ -240,93 +284,47 @@ class GameCard(ft.Card):
         )
 
     def _create_dll_badges(self) -> ft.Container:
-        """Create DLL type badges with version info - responsive count based on breakpoint"""
-        badges = []
+        """Create condensed DLL badge with popout showing all DLLs"""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
 
-        dll_colors = {
-            "DLSS": "#76B900",
-            "XeSS": "#0071C5",
-            "FSR": "#ED1C24",
-            "DLSS-G": "#76B900",
-            "DLSS-D": "#76B900",
-            "Streamline": "#76B900",
-            "DirectStorage": "#FFB900",
-        }
-
-        # Use responsive max badges count based on current breakpoint
-        max_visible = getattr(self, '_max_visible_badges', 4)
-        visible_dlls = self.dlls[:max_visible]
-        overflow_dlls = self.dlls[max_visible:]
-
-        for dll in visible_dlls:
-            color = dll_colors.get(dll.dll_type, "#888888")
-            chip = ft.Container(
-                content=ft.Row(
-                    controls=[
-                        ft.Icon(
-                            ft.Icons.CHECK_CIRCLE if dll.current_version else ft.Icons.HELP_OUTLINE,
-                            size=12,
-                            color=ft.Colors.WHITE,
-                        ),
-                        ft.Column(
-                            controls=[
-                                ft.Text(dll.dll_type, size=9, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE, no_wrap=True),
-                                ft.Text(dll.current_version[:8] if dll.current_version else "N/A", size=7, color=ft.Colors.with_opacity(0.9, ft.Colors.WHITE), no_wrap=True),
-                            ],
-                            spacing=0,
-                            tight=True,
-                        ),
-                    ],
-                    spacing=4,
-                    tight=True,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                bgcolor=color,
-                padding=ft.padding.symmetric(horizontal=6, vertical=3),
+        # Edge case: No DLLs
+        if not self.dlls:
+            return ft.Container(
+                content=ft.Text("0 DLLs", size=10, color="#666666"),
+                bgcolor="#3A3A3A",
+                padding=ft.padding.symmetric(horizontal=8, vertical=4),
                 border_radius=8,
-                border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.WHITE)),
+                height=28,
             )
-            badges.append(chip)
 
-        # Add "+N more" popover if there are overflow DLLs
-        if overflow_dlls:
-            # Create popover menu items for overflow DLLs
-            popover_items = []
-            for dll in overflow_dlls:
-                color = dll_colors.get(dll.dll_type, "#888888")
-                popover_items.append(
-                    ft.PopupMenuItem(
-                        content=ft.Row(
-                            controls=[
-                                ft.Container(width=8, height=8, bgcolor=color, border_radius=4),
-                                ft.Text(dll.dll_type, size=12, weight=ft.FontWeight.BOLD),
-                                ft.Text(dll.current_version[:8] if dll.current_version else "N/A", size=10, color="#888888"),
-                            ],
-                            spacing=8,
-                            tight=True,
-                        ),
-                    )
-                )
+        dll_count = len(self.dlls)
+        has_updates = self._check_for_updates()
+        badge_text = f"+{dll_count} DLL" if dll_count == 1 else f"+{dll_count} DLLs"
+        badge_color = "#FF9800" if has_updates else MD3Colors.PRIMARY
 
-            more_button = ft.PopupMenuButton(
+        return ft.Container(
+            content=ft.PopupMenuButton(
                 content=ft.Container(
-                    content=ft.Text(f"+{len(overflow_dlls)}", size=10, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-                    bgcolor="#555555",
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(
+                                ft.Icons.ARROW_UPWARD if has_updates else ft.Icons.EXTENSION,
+                                size=14,
+                                color=ft.Colors.WHITE,
+                            ),
+                            ft.Text(badge_text, size=11, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                        ],
+                        spacing=4,
+                        tight=True,
+                    ),
+                    bgcolor=badge_color,
                     padding=ft.padding.symmetric(horizontal=8, vertical=4),
                     border_radius=8,
                 ),
-                items=popover_items,
-                tooltip=f"{len(overflow_dlls)} more DLLs",
-            )
-            badges.append(more_button)
-
-        return ft.Container(
-            content=ft.Row(
-                controls=badges,
-                spacing=6,
-                tight=True,
+                items=self._build_dll_popover_items(),
+                tooltip=f"View {dll_count} DLL{'s' if dll_count != 1 else ''}",
             ),
-            height=36,
+            height=28,
         )
 
     def _get_dll_groups_for_game(self) -> List[str]:

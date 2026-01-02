@@ -88,6 +88,18 @@ class UpdatePreferencesDialog:
             trailing=self.backup_switch,
         )
 
+        # UI Preferences
+        self.smooth_scroll_pref = config_manager.get_smooth_scrolling_enabled()
+        self.smooth_scroll_switch = ft.Switch(
+            value=self.smooth_scroll_pref,
+            active_color="#2D6E88",
+        )
+        self.smooth_scroll_tile = ft.ListTile(
+            title=ft.Text("Smooth Scrolling", weight=ft.FontWeight.BOLD),
+            subtitle=ft.Text("Enable smooth scroll animations"),
+            trailing=self.smooth_scroll_switch,
+        )
+
     async def show(self):
         """Show the preferences dialog"""
 
@@ -118,6 +130,7 @@ class UpdatePreferencesDialog:
             config_manager.set_update_preference("XeSS", self.xess_switch.value)
             config_manager.set_update_preference("FSR", self.fsr_switch.value)
             config_manager.set_backup_preference(self.backup_switch.value)
+            config_manager.set_smooth_scrolling_enabled(self.smooth_scroll_switch.value)
 
             self.logger.info("Update preferences saved")
             self.page.close(dialog)
@@ -146,6 +159,9 @@ class UpdatePreferencesDialog:
                         ft.Divider(),
                         ft.Text("Backup Options:", weight=ft.FontWeight.BOLD, size=14),
                         self.backup_tile,
+                        ft.Divider(),
+                        ft.Text("UI Preferences:", weight=ft.FontWeight.BOLD, size=14),
+                        self.smooth_scroll_tile,
                     ],
                     spacing=12,
                     tight=True,

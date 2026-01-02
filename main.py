@@ -160,6 +160,12 @@ async def main(page: ft.Page):
     page.add(main_view)
     page.update()
 
+    # Register shutdown handler for graceful cleanup
+    async def on_window_close(e):
+        await main_view.shutdown()
+
+    page.on_close = on_window_close
+
     logger.info("UI initialized successfully")
 
     # Now initialize DLL cache, whitelist, and Steam list in background (after UI is visible)

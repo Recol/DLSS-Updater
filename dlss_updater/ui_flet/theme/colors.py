@@ -229,3 +229,63 @@ class LauncherColors:
     def get_color(cls, launcher_name: str) -> str:
         """Get brand color for a launcher by name"""
         return cls._MAPPING.get(launcher_name.upper(), cls.CUSTOM)
+
+
+class TabColors:
+    """
+    Color scheme for navigation tabs.
+    Designed to be extensible for future tabs.
+    """
+    # Current tabs - distinct color families for clear visual identity
+    LAUNCHERS = "#FFC107"    # Amber/gold - folder/organization
+    GAMES = "#E91E63"        # Pink/magenta - gaming/action theme
+    BACKUPS = "#FF7043"      # Orange - safety/backup theme
+
+    # Reserved palette for future tabs (distinct, accessible colors)
+    SETTINGS = "#9C27B0"     # Purple - configuration
+    UPDATES = "#2196F3"      # Blue - downloads/updates
+    LOGS = "#607D8B"         # Blue-grey - logs/history
+    STATS = "#00BCD4"        # Cyan - analytics/statistics
+
+    # Fallback palette for dynamic tabs (cycles through)
+    _PALETTE = [
+        "#FFC107",  # Amber/gold
+        "#E91E63",  # Pink/magenta
+        "#FF7043",  # Orange
+        "#9C27B0",  # Purple
+        "#2196F3",  # Blue
+        "#00BCD4",  # Cyan
+        "#E91E63",  # Pink
+        "#607D8B",  # Blue-grey
+    ]
+
+    # Named tab mapping
+    _TAB_COLORS = {
+        "Launchers": LAUNCHERS,
+        "Games": GAMES,
+        "Backups": BACKUPS,
+        "Settings": SETTINGS,
+        "Updates": UPDATES,
+        "Logs": LOGS,
+        "Stats": STATS,
+    }
+
+    @classmethod
+    def get_color(cls, tab_name: str, index: int = 0) -> str:
+        """
+        Get color for a specific tab.
+        Falls back to palette cycling for unknown tabs.
+
+        Args:
+            tab_name: Name of the tab
+            index: Tab index (used for fallback palette cycling)
+        """
+        if tab_name in cls._TAB_COLORS:
+            return cls._TAB_COLORS[tab_name]
+        # Fallback: cycle through palette based on index
+        return cls._PALETTE[index % len(cls._PALETTE)]
+
+    @classmethod
+    def register_tab(cls, tab_name: str, color: str):
+        """Register a new tab color at runtime"""
+        cls._TAB_COLORS[tab_name] = color

@@ -25,7 +25,6 @@ class LauncherCard(ft.ExpansionTile):
         launcher_enum: LauncherPathName,
         icon: str,
         is_custom: bool,
-        on_browse: Callable,
         on_reset: Callable,
         on_add_subfolder: Callable,  # New: callback for adding sub-folder
         page: ft.Page,
@@ -36,7 +35,6 @@ class LauncherCard(ft.ExpansionTile):
         self.launcher_enum = launcher_enum
         self.icon_name = icon
         self.is_custom = is_custom
-        self.on_browse_callback = on_browse
         self.on_reset_callback = on_reset
         self.on_add_subfolder_callback = on_add_subfolder
         self.page = page
@@ -144,6 +142,15 @@ class LauncherCard(ft.ExpansionTile):
             size=20,
         )
 
+        # Path health indicator
+        self.path_health_icon = ft.Icon(
+            ft.Icons.VERIFIED,
+            color=MD3Colors.SUCCESS,
+            size=18,
+            visible=False,
+            tooltip="All paths valid",
+        )
+
         # Path status text (shows count of configured paths)
         self.path_text = ft.Text(
             "No paths configured",
@@ -191,15 +198,18 @@ class LauncherCard(ft.ExpansionTile):
             tight=True,
         )
 
-        # Browse button
-        self.browse_btn = ft.OutlinedButton(
-            "Browse",
-            icon=ft.Icons.FOLDER_OPEN,
-            on_click=self.on_browse_callback,
-            style=ft.ButtonStyle(
-                color=MD3Colors.PRIMARY,
-            ),
-            height=36,
+        # Config menu (replaces Browse button)
+        self.config_menu = ft.PopupMenuButton(
+            icon=ft.Icons.MORE_VERT,
+            icon_color=MD3Colors.get_on_surface_variant(is_dark),
+            tooltip="More options",
+            items=[
+                ft.PopupMenuItem(text="Copy Path(s)", icon=ft.Icons.CONTENT_COPY, on_click=self._on_copy_paths),
+                ft.PopupMenuItem(text="Open in Explorer", icon=ft.Icons.FOLDER_OPEN, on_click=self._on_open_explorer),
+                ft.PopupMenuItem(text="Auto-Detect", icon=ft.Icons.AUTO_FIX_HIGH, on_click=self._on_auto_detect),
+                ft.PopupMenuItem(),  # Divider
+                ft.PopupMenuItem(text="Clear All", icon=ft.Icons.DELETE_OUTLINE, on_click=self.on_reset_callback),
+            ],
         )
 
         # Reset button
@@ -213,10 +223,11 @@ class LauncherCard(ft.ExpansionTile):
             height=36,
         )
 
-        # Leading: Row with status icon + launcher icon for visual symmetry
+        # Leading: Row with status icon + path health icon + launcher icon for visual symmetry
         self.leading_row = ft.Row(
             controls=[
                 self.status_icon,
+                self.path_health_icon,
                 self.launcher_icon,
             ],
             spacing=8,
@@ -224,10 +235,10 @@ class LauncherCard(ft.ExpansionTile):
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
-        # Trailing: Row with action buttons only (status moved to leading)
+        # Trailing: Row with config menu and reset button (Browse button removed)
         self.trailing_row = ft.Row(
             controls=[
-                self.browse_btn,
+                self.config_menu,
                 self.reset_btn,
             ],
             spacing=8,
@@ -343,6 +354,21 @@ class LauncherCard(ft.ExpansionTile):
             self.status_icon.name = ft.Icons.CHECK_CIRCLE
             self.status_icon.color = MD3Colors.SUCCESS
 
+        # Update path health indicator
+        all_valid = self._validate_paths_sync()
+        if self.current_paths:
+            self.path_health_icon.visible = True
+            if all_valid:
+                self.path_health_icon.name = ft.Icons.VERIFIED
+                self.path_health_icon.color = MD3Colors.SUCCESS
+                self.path_health_icon.tooltip = "All paths valid"
+            else:
+                self.path_health_icon.name = ft.Icons.WARNING_AMBER
+                self.path_health_icon.color = MD3Colors.WARNING
+                self.path_health_icon.tooltip = "Some paths inaccessible"
+        else:
+            self.path_health_icon.visible = False
+
         if self.page:
             self.page.update()
 
@@ -430,6 +456,44 @@ class LauncherCard(ft.ExpansionTile):
 
         if self.page:
             self.page.update()
+
+    def _validate_paths_sync(self) -> bool:
+        """Check if all paths exist (sync version for use in UI updates)"""
+        if not self.current_paths:
+            return True
+        return all(Path(p).exists() for p in self.current_paths)
+
+    async def _on_copy_paths(self, e):
+        """Copy all configured paths to clipboard"""
+        if self.current_paths:
+            paths_text = "\n".join(self.current_paths)
+            self.page.set_clipboard(paths_text)
+            self.page.snack_bar = ft.SnackBar(ft.Text("Paths copied to clipboard"))
+            self.page.snack_bar.open = True
+            self.page.update()
+
+    async def _on_open_explorer(self, e):
+        """Open first path in Windows Explorer"""
+        if self.current_paths:
+            import os
+            os.startfile(self.current_paths[0])
+
+    async def _on_auto_detect(self, e):
+        """Attempt to auto-detect launcher path"""
+        from dlss_updater.scanner import auto_detect_launcher_path
+        detected = auto_detect_launcher_path(self.launcher_enum)
+        if detected:
+            added = config_manager.add_launcher_path(self.launcher_enum, detected)
+            if added:
+                self.current_paths.append(detected)
+                await self._update_paths_display()
+                self.page.snack_bar = ft.SnackBar(ft.Text(f"Detected: {detected}"))
+            else:
+                self.page.snack_bar = ft.SnackBar(ft.Text("Path already configured or at limit"))
+        else:
+            self.page.snack_bar = ft.SnackBar(ft.Text("Could not auto-detect path"))
+        self.page.snack_bar.open = True
+        self.page.update()
 
     def _create_game_tile(self, game: GameCardData) -> ft.ListTile:
         """

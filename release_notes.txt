@@ -1,3 +1,84 @@
+Version 3.2.0:
+Condensed DLL Badges - Replaced individual DLL badges with compact popout:
+  - Single "+N DLLs" badge shows count of detected DLLs per game card.
+  - Click badge to open popout with all DLL details (type, version, update status).
+  - Orange badge with arrow icon when updates are available.
+  - Teal badge with extension icon when all DLLs are up-to-date.
+  - Color-coded dots in popout match DLL technology (DLSS green, FSR red, XeSS blue).
+  - Removed responsive badge breakpoint logic for cleaner, consistent UI.
+
+Launcher Card Config Menu - Replaced redundant Browse button with utility menu:
+  - Copy Path(s): Copy all configured paths to clipboard.
+  - Open in Explorer: Open first configured path in Windows Explorer.
+  - Auto-Detect: Automatically find launcher install path from Windows registry.
+  - Clear All: Clear all configured paths (same as Reset).
+
+Path Health Indicator - Visual validation for configured paths:
+  - Green checkmark icon when all paths are valid and accessible.
+  - Yellow warning icon when one or more paths are inaccessible.
+  - Hidden when no paths configured.
+
+Auto-Detect Launcher Paths - Registry-based path detection for all major launchers:
+  - Steam: Detects from HKLM registry + steamapps\common subfolder.
+  - EA App: Detects from HKLM registry.
+  - Epic Games: Detects from HKCR DefaultIcon registry (parses launcher exe path).
+  - Ubisoft: Detects from HKLM registry + games subfolder.
+  - GOG Galaxy: Detects from HKLM registry + Games subfolder.
+  - Battle.net: Detects from HKLM registry.
+  - Xbox/Custom: Manual configuration only (no registry detection).
+
+Memory Optimization - ~40-55 MB reduction in RAM usage:
+
+Database Pool Lifecycle Management:
+  - Database connection pool now uses lazy initialization (ensure_pool on-demand).
+  - Pool is closed when leaving Games/Backups views to free ~5-10 MB.
+  - Graceful shutdown releases all database connections on app close.
+
+Search Index Lifecycle:
+  - Search index cleared when leaving Games view.
+  - Rebuilt on-demand when re-entering Games view.
+  - Saves ~5-15 MB depending on game count.
+
+Database-backed Steam app search - SQLite FTS5 for memory efficiency:
+  - Steam apps now stored in SQLite database with FTS5 full-text search index.
+  - Eliminates ~20-30 MB in-memory index (207K+ Steam app entries).
+  - O(log n) exact match lookups via B-tree index on normalized names.
+  - FTS5 prefix matching for fuzzy/partial game name searches.
+
+Unified Cache Manager:
+  - New centralized cache management system with configurable policies.
+  - LRU eviction based on access times and size limits.
+
+High-Performance Mode:
+  - High-performance update mode is now always enabled (no toggle).
+  - Removed UI toggle and config option for high-performance mode.
+  - DLLs are memory-mapped during update operations for optimal performance.
+
+View Lifecycle Hooks:
+  - Views now properly clean up resources when hidden.
+  - Navigation between views triggers appropriate cleanup callbacks.
+  - Shutdown handler ensures graceful cleanup on app close.
+
+Top Navigation Tabs - Replaced sidebar drawer with Material Design 3 top tabs:
+  - Tabs positioned below app header with icons and labels (Launchers, Games, Backups).
+  - Smooth 350ms tab switch animations with MD3 indicator styling.
+  - Removed hamburger menu - cleaner, more accessible navigation.
+  - Tab content preserves state when switching (scroll position, loaded images).
+
+Per-Tab Color Theming - Distinct colors for each navigation tab:
+  - Launchers: Teal (#2D6E88) - matches app brand.
+  - Games: NVIDIA Green (#76B900) - gaming/DLSS focus.
+  - Backups: Orange (#FFB74D) - safety/restore theme.
+  - Active tab: colored background (20% opacity), colored icon/text, colored indicator.
+  - Hover effects: subtle 10% opacity tint on inactive tabs.
+  - Extensible color system for future tabs with fallback palette.
+
+Smooth Scrolling - User-configurable smooth scroll animations:
+  - New setting in Preferences > UI Preferences to toggle smooth scrolling.
+  - Enabled by default with 300ms EASE_OUT_CUBIC animation curve.
+  - Persisted to config file for cross-session consistency.
+  - Applied to all scrollable views (Launchers, Games, Backups).
+
 Version 3.1.0:
 Game search - real-time search bar with instant filtering:
   - Search bar in Games tab header with 150ms debouncing.

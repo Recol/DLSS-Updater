@@ -235,6 +235,12 @@ class ConfigManager(configparser.ConfigParser):
                 self["ImageCache"]["Version"] = "0"  # Pre-WebP thumbnails
                 self.save()
 
+            # Initialize UIPreferences section with defaults if missing
+            if not self.has_section("UIPreferences"):
+                self.add_section("UIPreferences")
+                self["UIPreferences"]["SmoothScrolling"] = "true"  # Enabled by default
+                self.save()
+
             self.initialized = True
 
     def update_launcher_path(
@@ -412,6 +418,21 @@ class ConfigManager(configparser.ConfigParser):
         self["ImageCache"]["Version"] = str(version)
         self.save()
 
+    def get_smooth_scrolling_enabled(self) -> bool:
+        """Get smooth scrolling preference (default: enabled)"""
+        with _config_lock:
+            if not self.has_section("UIPreferences"):
+                return True  # Default enabled
+            return self["UIPreferences"].getboolean("SmoothScrolling", True)
+
+    def set_smooth_scrolling_enabled(self, enabled: bool):
+        """Set smooth scrolling preference and persist to config file"""
+        with _config_lock:
+            if not self.has_section("UIPreferences"):
+                self.add_section("UIPreferences")
+            self["UIPreferences"]["SmoothScrolling"] = str(enabled).lower()
+            self.save()  # Persist to disk immediately
+
     def get_all_blacklist_skips(self):
         """Get all games to skip in the blacklist"""
         if not self.has_section("BlacklistSkips"):
@@ -534,13 +555,23 @@ class ConfigManager(configparser.ConfigParser):
         self.save()
 
     def get_high_performance_mode(self) -> bool:
-        """Get high performance update mode preference (opt-in, default OFF)"""
-        return self["UpdatePreferences"].getboolean("HighPerformanceMode", False)
+        """
+        Get high performance update mode.
+
+        Always returns True as high-performance mode is now the only mode.
+        This method is kept for backward compatibility with existing code.
+        """
+        return True
 
     def set_high_performance_mode(self, enabled: bool) -> None:
-        """Set high performance update mode preference"""
-        self["UpdatePreferences"]["HighPerformanceMode"] = str(enabled).lower()
-        self.save()
+        """
+        Set high performance update mode preference (deprecated).
+
+        This method is a no-op since high-performance mode is now always enabled.
+        Kept for backward compatibility with existing code.
+        """
+        # No-op: high-performance mode is now always enabled
+        pass
 
 
 config_manager = ConfigManager()
