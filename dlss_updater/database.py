@@ -236,6 +236,70 @@ class DatabaseManager:
                 )
             """)
 
+            # ================================================================
+            # FEATURE: Favorites & Game Grouping (v3.2.0)
+            # ================================================================
+
+            # Favorites table - games marked as favorites with ordering
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS game_favorites (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    game_id INTEGER NOT NULL UNIQUE,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+                )
+            """)
+
+            # Custom tags (user-created, colored)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    color TEXT NOT NULL DEFAULT '#6366f1',
+                    icon TEXT DEFAULT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Game-tag associations (many-to-many)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS game_tags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    game_id INTEGER NOT NULL,
+                    tag_id INTEGER NOT NULL,
+                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+                    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+                    UNIQUE(game_id, tag_id)
+                )
+            """)
+
+            # ================================================================
+            # FEATURE: DLL Dashboard Statistics Cache (v3.2.0)
+            # ================================================================
+
+            # Dashboard statistics cache (pre-aggregated for performance)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS dashboard_stats_cache (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    total_games INTEGER NOT NULL DEFAULT 0,
+                    total_dlls INTEGER NOT NULL DEFAULT 0,
+                    total_updates_performed INTEGER NOT NULL DEFAULT 0,
+                    successful_updates INTEGER NOT NULL DEFAULT 0,
+                    failed_updates INTEGER NOT NULL DEFAULT 0,
+                    games_with_outdated_dlls INTEGER NOT NULL DEFAULT 0,
+                    games_with_backups INTEGER NOT NULL DEFAULT 0,
+                    total_backup_size_bytes INTEGER NOT NULL DEFAULT 0,
+                    last_scan_timestamp TIMESTAMP,
+                    last_update_timestamp TIMESTAMP,
+                    cache_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Initialize dashboard stats singleton row
+            cursor.execute("INSERT OR IGNORE INTO dashboard_stats_cache (id) VALUES (1)")
+
             # Create indexes
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_games_launcher ON games(launcher)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_games_steam_app_id ON games(steam_app_id)")
@@ -250,6 +314,13 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_games_name ON games(name COLLATE NOCASE)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_games_name_launcher ON games(name COLLATE NOCASE, launcher)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_search_history_timestamp ON search_history(timestamp DESC)")
+
+            # Favorites & Tags indexes
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_favorites_game_id ON game_favorites(game_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_favorites_sort_order ON game_favorites(sort_order)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name COLLATE NOCASE)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_game_tags_game_id ON game_tags(game_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_game_tags_tag_id ON game_tags(tag_id)")
 
             conn.commit()
             logger.info("Database schema created successfully")
@@ -1889,6 +1960,667 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error clearing search history: {e}", exc_info=True)
             conn.rollback()
+        finally:
+            conn.close()
+
+    # ===== Favorites Operations =====
+
+    async def set_game_favorite(self, game_id: int, is_favorite: bool) -> bool:
+        """
+        Set or remove a game as favorite.
+
+        Args:
+            game_id: Database ID of the game
+            is_favorite: True to add to favorites, False to remove
+
+        Returns:
+            True if operation succeeded
+        """
+        return await asyncio.to_thread(self._set_game_favorite, game_id, is_favorite)
+
+    def _set_game_favorite(self, game_id: int, is_favorite: bool) -> bool:
+        """Set game favorite (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            if is_favorite:
+                # Add to favorites with sort_order = max + 1
+                cursor.execute("""
+                    INSERT OR REPLACE INTO game_favorites (game_id, sort_order)
+                    SELECT ?, COALESCE(MAX(sort_order), 0) + 1 FROM game_favorites
+                """, (game_id,))
+            else:
+                # Remove from favorites
+                cursor.execute("DELETE FROM game_favorites WHERE game_id = ?", (game_id,))
+
+            conn.commit()
+            return True
+
+        except Exception as e:
+            logger.error(f"Error setting game favorite: {e}", exc_info=True)
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
+    async def is_game_favorite(self, game_id: int) -> bool:
+        """Check if a game is in favorites."""
+        return await asyncio.to_thread(self._is_game_favorite, game_id)
+
+    def _is_game_favorite(self, game_id: int) -> bool:
+        """Check if game is favorite (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("SELECT 1 FROM game_favorites WHERE game_id = ?", (game_id,))
+            return cursor.fetchone() is not None
+        except Exception as e:
+            logger.error(f"Error checking game favorite: {e}", exc_info=True)
+            return False
+        finally:
+            conn.close()
+
+    async def get_favorite_game_ids(self) -> List[int]:
+        """Get all favorite game IDs ordered by sort_order."""
+        return await asyncio.to_thread(self._get_favorite_game_ids)
+
+    def _get_favorite_game_ids(self) -> List[int]:
+        """Get favorite game IDs (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT game_id FROM game_favorites ORDER BY sort_order
+            """)
+            return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting favorite game IDs: {e}", exc_info=True)
+            return []
+        finally:
+            conn.close()
+
+    async def batch_check_favorites(self, game_ids: List[int]) -> Dict[int, bool]:
+        """Check favorite status for multiple games in one query."""
+        if not game_ids:
+            return {}
+        return await asyncio.to_thread(self._batch_check_favorites, game_ids)
+
+    def _batch_check_favorites(self, game_ids: List[int]) -> Dict[int, bool]:
+        """Batch check favorites (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            result = {gid: False for gid in game_ids}
+            placeholders = ','.join('?' * len(game_ids))
+            cursor.execute(f"""
+                SELECT game_id FROM game_favorites WHERE game_id IN ({placeholders})
+            """, game_ids)
+            for row in cursor.fetchall():
+                result[row[0]] = True
+            return result
+        except Exception as e:
+            logger.error(f"Error batch checking favorites: {e}", exc_info=True)
+            return {gid: False for gid in game_ids}
+        finally:
+            conn.close()
+
+    # ===== Tags Operations =====
+
+    async def create_tag(self, name: str, color: str = '#6366f1', icon: str = None) -> Optional[int]:
+        """
+        Create a new tag.
+
+        Args:
+            name: Tag name (case-insensitive unique)
+            color: Hex color code
+            icon: Optional icon identifier
+
+        Returns:
+            Tag ID if created, None if failed
+        """
+        return await asyncio.to_thread(self._create_tag, name, color, icon)
+
+    def _create_tag(self, name: str, color: str, icon: str) -> Optional[int]:
+        """Create tag (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                INSERT INTO tags (name, color, icon) VALUES (?, ?, ?)
+            """, (name.strip(), color, icon))
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            logger.warning(f"Tag '{name}' already exists")
+            return None
+        except Exception as e:
+            logger.error(f"Error creating tag: {e}", exc_info=True)
+            conn.rollback()
+            return None
+        finally:
+            conn.close()
+
+    async def delete_tag(self, tag_id: int) -> bool:
+        """Delete a tag and all its game associations."""
+        return await asyncio.to_thread(self._delete_tag, tag_id)
+
+    def _delete_tag(self, tag_id: int) -> bool:
+        """Delete tag (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            # CASCADE will handle game_tags cleanup
+            cursor.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error deleting tag: {e}", exc_info=True)
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
+    async def get_all_tags(self) -> List[Dict]:
+        """Get all tags with game counts."""
+        return await asyncio.to_thread(self._get_all_tags)
+
+    def _get_all_tags(self) -> List[Dict]:
+        """Get all tags (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT t.id, t.name, t.color, t.icon, COUNT(gt.id) as game_count
+                FROM tags t
+                LEFT JOIN game_tags gt ON t.id = gt.tag_id
+                GROUP BY t.id, t.name, t.color, t.icon
+                ORDER BY t.name COLLATE NOCASE
+            """)
+
+            tags = []
+            for row in cursor.fetchall():
+                tags.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'color': row[2],
+                    'icon': row[3],
+                    'game_count': row[4]
+                })
+            return tags
+        except Exception as e:
+            logger.error(f"Error getting tags: {e}", exc_info=True)
+            return []
+        finally:
+            conn.close()
+
+    async def get_game_tags(self, game_id: int) -> List[Dict]:
+        """Get all tags for a specific game."""
+        return await asyncio.to_thread(self._get_game_tags, game_id)
+
+    def _get_game_tags(self, game_id: int) -> List[Dict]:
+        """Get game tags (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT t.id, t.name, t.color, t.icon
+                FROM tags t
+                JOIN game_tags gt ON t.id = gt.tag_id
+                WHERE gt.game_id = ?
+                ORDER BY t.name COLLATE NOCASE
+            """, (game_id,))
+
+            tags = []
+            for row in cursor.fetchall():
+                tags.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'color': row[2],
+                    'icon': row[3]
+                })
+            return tags
+        except Exception as e:
+            logger.error(f"Error getting game tags: {e}", exc_info=True)
+            return []
+        finally:
+            conn.close()
+
+    async def set_game_tags(self, game_id: int, tag_ids: List[int]) -> bool:
+        """
+        Set tags for a game (replaces existing).
+
+        Args:
+            game_id: Database ID of the game
+            tag_ids: List of tag IDs to assign
+
+        Returns:
+            True if operation succeeded
+        """
+        return await asyncio.to_thread(self._set_game_tags, game_id, tag_ids)
+
+    def _set_game_tags(self, game_id: int, tag_ids: List[int]) -> bool:
+        """Set game tags (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            # Remove existing tags
+            cursor.execute("DELETE FROM game_tags WHERE game_id = ?", (game_id,))
+
+            # Add new tags
+            for tag_id in tag_ids:
+                cursor.execute("""
+                    INSERT INTO game_tags (game_id, tag_id) VALUES (?, ?)
+                """, (game_id, tag_id))
+
+            conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error setting game tags: {e}", exc_info=True)
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
+    async def add_tag_to_game(self, game_id: int, tag_id: int) -> bool:
+        """Add a single tag to a game."""
+        return await asyncio.to_thread(self._add_tag_to_game, game_id, tag_id)
+
+    def _add_tag_to_game(self, game_id: int, tag_id: int) -> bool:
+        """Add tag to game (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                INSERT OR IGNORE INTO game_tags (game_id, tag_id) VALUES (?, ?)
+            """, (game_id, tag_id))
+            conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error adding tag to game: {e}", exc_info=True)
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
+    async def remove_tag_from_game(self, game_id: int, tag_id: int) -> bool:
+        """Remove a single tag from a game."""
+        return await asyncio.to_thread(self._remove_tag_from_game, game_id, tag_id)
+
+    def _remove_tag_from_game(self, game_id: int, tag_id: int) -> bool:
+        """Remove tag from game (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                DELETE FROM game_tags WHERE game_id = ? AND tag_id = ?
+            """, (game_id, tag_id))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error removing tag from game: {e}", exc_info=True)
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
+    async def get_games_by_tag(self, tag_id: int) -> List[int]:
+        """Get all game IDs that have a specific tag."""
+        return await asyncio.to_thread(self._get_games_by_tag, tag_id)
+
+    def _get_games_by_tag(self, tag_id: int) -> List[int]:
+        """Get games by tag (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT game_id FROM game_tags WHERE tag_id = ?
+            """, (tag_id,))
+            return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting games by tag: {e}", exc_info=True)
+            return []
+        finally:
+            conn.close()
+
+    # ===== Dashboard Statistics =====
+
+    async def get_dashboard_stats(self) -> Dict:
+        """Get cached dashboard statistics."""
+        return await asyncio.to_thread(self._get_dashboard_stats)
+
+    def _get_dashboard_stats(self) -> Dict:
+        """Get dashboard stats (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            # First, update the cache with live data
+            cursor.execute("""
+                UPDATE dashboard_stats_cache SET
+                    total_games = (SELECT COUNT(*) FROM games),
+                    total_dlls = (SELECT COUNT(*) FROM game_dlls),
+                    games_with_backups = (
+                        SELECT COUNT(DISTINCT gd.game_id)
+                        FROM game_dlls gd
+                        JOIN dll_backups b ON gd.id = b.game_dll_id
+                        WHERE b.is_active = 1
+                    ),
+                    cache_updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """)
+            conn.commit()
+
+            # Now get the stats
+            cursor.execute("""
+                SELECT total_games, total_dlls, total_updates_performed,
+                       successful_updates, failed_updates, games_with_outdated_dlls,
+                       games_with_backups, total_backup_size_bytes,
+                       last_scan_timestamp, last_update_timestamp
+                FROM dashboard_stats_cache WHERE id = 1
+            """)
+
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'total_games': row[0],
+                    'total_dlls': row[1],
+                    'total_updates_performed': row[2],
+                    'successful_updates': row[3],
+                    'failed_updates': row[4],
+                    'games_with_outdated_dlls': row[5],
+                    'games_with_backups': row[6],
+                    'total_backup_size_bytes': row[7],
+                    'last_scan_timestamp': row[8],
+                    'last_update_timestamp': row[9],
+                }
+            return {}
+        except Exception as e:
+            logger.error(f"Error getting dashboard stats: {e}", exc_info=True)
+            return {}
+        finally:
+            conn.close()
+
+    async def increment_update_stats(self, success: bool) -> None:
+        """Increment update statistics."""
+        return await asyncio.to_thread(self._increment_update_stats, success)
+
+    def _increment_update_stats(self, success: bool) -> None:
+        """Increment update stats (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            if success:
+                cursor.execute("""
+                    UPDATE dashboard_stats_cache SET
+                        total_updates_performed = total_updates_performed + 1,
+                        successful_updates = successful_updates + 1,
+                        last_update_timestamp = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                """)
+            else:
+                cursor.execute("""
+                    UPDATE dashboard_stats_cache SET
+                        total_updates_performed = total_updates_performed + 1,
+                        failed_updates = failed_updates + 1,
+                        last_update_timestamp = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                """)
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error incrementing update stats: {e}", exc_info=True)
+            conn.rollback()
+        finally:
+            conn.close()
+
+    # ===== Dashboard Query Methods =====
+
+    async def get_total_games_count(self) -> int:
+        """Get total number of games."""
+        return await asyncio.to_thread(self._get_total_games_count)
+
+    def _get_total_games_count(self) -> int:
+        """Get total games count (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) FROM games")
+            return cursor.fetchone()[0] or 0
+        except Exception as e:
+            logger.error(f"Error getting total games count: {e}")
+            return 0
+        finally:
+            conn.close()
+
+    async def get_total_dlls_count(self) -> int:
+        """Get total number of tracked DLLs."""
+        return await asyncio.to_thread(self._get_total_dlls_count)
+
+    def _get_total_dlls_count(self) -> int:
+        """Get total DLLs count (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) FROM game_dlls")
+            return cursor.fetchone()[0] or 0
+        except Exception as e:
+            logger.error(f"Error getting total DLLs count: {e}")
+            return 0
+        finally:
+            conn.close()
+
+    async def get_updated_dlls_count(self) -> int:
+        """Get count of DLLs that have been updated (have backup)."""
+        return await asyncio.to_thread(self._get_updated_dlls_count)
+
+    def _get_updated_dlls_count(self) -> int:
+        """Get updated DLLs count (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT COUNT(DISTINCT game_dll_id)
+                FROM dll_backups WHERE is_active = 1
+            """)
+            return cursor.fetchone()[0] or 0
+        except Exception as e:
+            logger.error(f"Error getting updated DLLs count: {e}")
+            return 0
+        finally:
+            conn.close()
+
+    async def get_dlls_needing_update_count(self) -> int:
+        """Get count of DLLs that need updates (placeholder - returns 0 for now)."""
+        # Note: This would require comparing versions to latest, which is complex
+        # For now, we return 0 as a placeholder
+        return 0
+
+    async def get_version_distribution(self) -> Dict[str, Dict[str, int]]:
+        """Get version distribution by DLL type."""
+        return await asyncio.to_thread(self._get_version_distribution)
+
+    def _get_version_distribution(self) -> Dict[str, Dict[str, int]]:
+        """Get version distribution (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT dll_type, current_version, COUNT(*) as count
+                FROM game_dlls
+                WHERE current_version IS NOT NULL AND current_version != ''
+                GROUP BY dll_type, current_version
+                ORDER BY dll_type, count DESC
+            """)
+
+            distribution = {}
+            for row in cursor.fetchall():
+                dll_type = row[0]
+                version = row[1]
+                count = row[2]
+
+                if dll_type not in distribution:
+                    distribution[dll_type] = {}
+                distribution[dll_type][version] = count
+
+            return distribution
+        except Exception as e:
+            logger.error(f"Error getting version distribution: {e}")
+            return {}
+        finally:
+            conn.close()
+
+    async def get_update_timeline(self, start_date, end_date) -> List[Tuple]:
+        """Get update counts by date for timeline chart, filling all days in range."""
+        return await asyncio.to_thread(self._get_update_timeline, start_date, end_date)
+
+    def _get_update_timeline(self, start_date, end_date) -> List[Tuple]:
+        """
+        Get update timeline with all days filled (runs in thread).
+
+        Returns a list of (date, count) tuples for every day in the range,
+        with 0 for days that had no updates. This ensures the chart shows
+        a continuous timeline without gaps.
+        """
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        try:
+            # Query only days that have updates
+            cursor.execute("""
+                SELECT DATE(updated_at) as update_date, COUNT(*) as count
+                FROM update_history
+                WHERE updated_at BETWEEN ? AND ?
+                GROUP BY DATE(updated_at)
+            """, (start_date.isoformat(), end_date.isoformat()))
+
+            # Build a dict of date -> count for quick lookup
+            update_counts = {}
+            for row in cursor.fetchall():
+                date_str = row[0]
+                count = row[1]
+                update_counts[date_str] = count
+
+            # Generate all days from start_date to end_date (going backward from end_date)
+            from datetime import timedelta
+            timeline = []
+            current_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date_normalized = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+            while current_date <= end_date_normalized:
+                date_str = current_date.strftime("%Y-%m-%d")
+                count = update_counts.get(date_str, 0)
+                timeline.append((current_date, count))
+                current_date = current_date + timedelta(days=1)
+
+            return timeline
+        except Exception as e:
+            logger.error(f"Error getting update timeline: {e}")
+            return []
+        finally:
+            conn.close()
+
+    async def get_technology_distribution(self) -> Dict[str, int]:
+        """Get DLL count by technology category (DLSS, XeSS, FSR, DirectStorage, Streamline)."""
+        return await asyncio.to_thread(self._get_technology_distribution)
+
+    def _get_technology_distribution(self) -> Dict[str, int]:
+        """
+        Get technology distribution grouped by category (runs in thread).
+
+        Maps individual dll_type values to their parent categories:
+        - DLSS: contains "DLSS" or "Streamline" (NVIDIA ecosystem)
+        - XeSS: contains "XeSS"
+        - FSR: contains "FSR" or "FidelityFX"
+        - DirectStorage: contains "DirectStorage"
+        """
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT dll_type, COUNT(*) as count
+                FROM game_dlls
+                GROUP BY dll_type
+            """)
+
+            # Category mapping based on dll_type content
+            # Streamline is merged with DLSS as it's part of NVIDIA's SDK
+            category_counts = {
+                "DLSS": 0,
+                "XeSS": 0,
+                "FSR": 0,
+                "DirectStorage": 0,
+            }
+
+            for row in cursor.fetchall():
+                dll_type = row[0]
+                count = row[1]
+
+                # Map to category based on content
+                # Streamline is part of NVIDIA ecosystem, merge with DLSS
+                if "DLSS" in dll_type or "Streamline" in dll_type:
+                    category_counts["DLSS"] += count
+                elif "XeSS" in dll_type:
+                    category_counts["XeSS"] += count
+                elif "FSR" in dll_type or "FidelityFX" in dll_type:
+                    category_counts["FSR"] += count
+                elif "DirectStorage" in dll_type:
+                    category_counts["DirectStorage"] += count
+
+            # Remove categories with 0 count and sort by count descending
+            distribution = {k: v for k, v in category_counts.items() if v > 0}
+            distribution = dict(sorted(distribution.items(), key=lambda x: x[1], reverse=True))
+
+            return distribution
+        except Exception as e:
+            logger.error(f"Error getting technology distribution: {e}")
+            return {}
+        finally:
+            conn.close()
+
+    async def get_recent_updates(self, limit: int = 10) -> List[Dict]:
+        """Get recent update history."""
+        return await asyncio.to_thread(self._get_recent_updates, limit)
+
+    def _get_recent_updates(self, limit: int) -> List[Dict]:
+        """Get recent updates (runs in thread)"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT g.name, gd.dll_type, uh.from_version, uh.to_version, uh.updated_at
+                FROM update_history uh
+                JOIN game_dlls gd ON uh.game_dll_id = gd.id
+                JOIN games g ON gd.game_id = g.id
+                WHERE uh.success = 1
+                ORDER BY uh.updated_at DESC
+                LIMIT ?
+            """, (limit,))
+
+            updates = []
+            for row in cursor.fetchall():
+                updates.append({
+                    'game_name': row[0],
+                    'dll_type': row[1],
+                    'old_version': row[2] or 'Unknown',
+                    'new_version': row[3] or 'Unknown',
+                    'timestamp': row[4],
+                })
+
+            return updates
+        except Exception as e:
+            logger.error(f"Error getting recent updates: {e}")
+            return []
         finally:
             conn.close()
 

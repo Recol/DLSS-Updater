@@ -138,6 +138,31 @@ If you prefer to build the application yourself, follow these steps:
     .\DLSS_Updater.exe
     ```
 
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+1 | Switch to Launchers view |
+| Ctrl+2 | Switch to Games view |
+| Ctrl+3 | Switch to Backups view |
+| Ctrl+4 | Switch to Dashboard view |
+| Ctrl+R | Refresh current view |
+| Ctrl+S | Scan for games |
+| Ctrl+U | Update all eligible DLLs |
+| Ctrl+F | Focus search bar |
+| F1 | Show keyboard shortcuts help |
+| F11 | Toggle fullscreen |
+| Escape | Clear search / Close dialogs |
+
+## Discord Rich Presence
+
+DLSS Updater can optionally show your activity in Discord. This feature is:
+- Off by default for privacy
+- Configurable (show/hide game count, activity, elapsed time)
+- Only active when Discord is running
+
+Enable it via **Preferences > Discord Rich Presence**.
+
 ## Easy Anti Cheat
 - The tool will not globally block games as some games do allow for this, with that being said i will whitelist games as they appear if they do not function for this.
 

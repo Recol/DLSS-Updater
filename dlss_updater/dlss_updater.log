@@ -9708,3 +9708,2110 @@ Games skipped:
 2025-12-27 14:44:54,150 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
 2025-12-27 14:45:13,724 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
 2025-12-27 14:45:25,724 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 06:59:03,330 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 06:59:03,494 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 06:59:03,538 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 06:59:03,538 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 06:59:03,554 - INFO - Checking dependencies...
+2025-12-29 06:59:03,888 - WARNING - Application requires administrator privileges
+2025-12-29 06:59:03,888 - INFO - Attempting to restart with admin rights...
+2025-12-29 06:59:03,888 - INFO - Re-running script with admin privileges...
+2025-12-29 06:59:05,489 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 06:59:05,507 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 06:59:05,509 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 06:59:05,509 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 06:59:05,510 - INFO - Checking dependencies...
+2025-12-29 06:59:05,523 - INFO - Admin privileges confirmed
+2025-12-29 06:59:05,523 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 06:59:05,920 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 06:59:05,921 - INFO - Initializing database...
+2025-12-29 06:59:05,924 - INFO - Database schema created successfully
+2025-12-29 06:59:05,927 - INFO - Connection pool initialized (5 connections)
+2025-12-29 06:59:05,927 - INFO - Database initialized successfully
+2025-12-29 06:59:05,927 - INFO - Database initialized successfully
+2025-12-29 06:59:05,928 - INFO - No duplicate backups found
+2025-12-29 06:59:05,933 - INFO - No duplicate games found
+2025-12-29 06:59:10,942 - INFO - Initializing main view...
+2025-12-29 06:59:10,942 - INFO - Migrating image cache to WebP thumbnail format...
+2025-12-29 06:59:10,949 - INFO - Cleared 12 steam image cache entries
+2025-12-29 06:59:10,952 - INFO - Image cache migration complete - old cache purged
+2025-12-29 06:59:10,952 - INFO - Image cache migrated to WebP thumbnail format
+2025-12-29 06:59:10,958 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 06:59:10,968 - INFO - Discord invite banner displayed
+2025-12-29 06:59:10,968 - INFO - Main view initialized
+2025-12-29 06:59:10,983 - INFO - UI initialized successfully
+2025-12-29 06:59:10,983 - INFO - Initializing whitelist...
+2025-12-29 06:59:11,002 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 06:59:11,076 - INFO - Initializing DLL cache (async)...
+2025-12-29 06:59:11,077 - INFO - Initializing DLL cache (async)
+2025-12-29 06:59:11,316 - INFO - Whitelist initialized with 32 games
+2025-12-29 06:59:11,368 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 06:59:11,368 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 06:59:11,369 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 06:59:11,369 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 06:59:11,369 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 06:59:11,369 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 06:59:11,369 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 06:59:11,370 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 06:59:11,370 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 06:59:11,370 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 06:59:11,370 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 06:59:11,370 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 06:59:11,370 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 06:59:11,370 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 06:59:11,371 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 06:59:11,371 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 06:59:11,371 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 06:59:11,371 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 06:59:11,371 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 06:59:11,371 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 06:59:11,372 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 06:59:11,372 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 06:59:11,372 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 06:59:11,372 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 06:59:11,392 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 06:59:11,393 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 06:59:11,423 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 06:59:11,423 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 06:59:11,459 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 06:59:11,459 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 06:59:11,609 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 06:59:11,609 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 06:59:11,717 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 06:59:11,717 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 06:59:11,750 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 06:59:11,750 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 06:59:11,751 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 06:59:11,751 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 06:59:11,782 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 06:59:11,783 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 06:59:11,783 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 06:59:11,784 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 06:59:13,049 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 06:59:13,087 - INFO - DLL cache initialized successfully
+2025-12-29 06:59:40,792 - INFO - Navigation drawer destination changed: 1
+2025-12-29 06:59:40,821 - INFO - Loading games from database...
+2025-12-29 06:59:40,837 - INFO - Navigation drawer dismissed
+2025-12-29 06:59:40,856 - INFO - Fetching Steam image for Arc Raiders (app_id: 1808500)
+2025-12-29 06:59:40,879 - INFO - Fetching Steam image for BlackMythWukong (app_id: 2358720)
+2025-12-29 06:59:40,902 - INFO - Fetching Steam image for DuneAwakening (app_id: 1172710)
+2025-12-29 06:59:40,930 - INFO - Fetching Steam image for Dying Light 2 (app_id: 534380)
+2025-12-29 06:59:40,946 - INFO - Fetching Steam image for Expedition 33 (app_id: 1903340)
+2025-12-29 06:59:40,967 - INFO - Fetching Steam image for Ghost of Tsushima DIRECTOR'S CUT (app_id: 2215430)
+2025-12-29 06:59:40,990 - INFO - Fetching Steam image for Helldivers 2 (app_id: 553850)
+2025-12-29 06:59:41,013 - INFO - Fetching Steam image for MarvelRivals (app_id: 2767030)
+2025-12-29 06:59:41,014 - INFO - Fetching Steam image for No Man's Sky (app_id: 275850)
+2025-12-29 06:59:41,056 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 06:59:41,083 - INFO - Navigated to view index: 1
+2025-12-29 06:59:41,110 - INFO - Fetching Steam image for Overwatch (app_id: 2357570)
+2025-12-29 06:59:41,316 - INFO - Fetching Steam image for Warframe (app_id: 230410)
+2025-12-29 06:59:41,817 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\1172710.webp (2936 bytes)
+2025-12-29 06:59:41,858 - INFO - Fetched and cached thumbnail for Steam app 1172710
+2025-12-29 06:59:41,859 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\1808500.webp (3136 bytes)
+2025-12-29 06:59:41,911 - INFO - Fetched and cached thumbnail for Steam app 1808500
+2025-12-29 06:59:41,952 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\534380.webp (3170 bytes)
+2025-12-29 06:59:41,952 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\2358720.webp (2406 bytes)
+2025-12-29 06:59:41,995 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\1903340.webp (3518 bytes)
+2025-12-29 06:59:42,023 - INFO - Successfully loaded image for DuneAwakening
+2025-12-29 06:59:42,094 - INFO - Fetched and cached thumbnail for Steam app 534380
+2025-12-29 06:59:42,095 - INFO - Fetched and cached thumbnail for Steam app 2358720
+2025-12-29 06:59:42,151 - INFO - Fetched and cached thumbnail for Steam app 1903340
+2025-12-29 06:59:42,301 - INFO - Successfully loaded image for Arc Raiders
+2025-12-29 06:59:42,499 - INFO - Successfully loaded image for Dying Light 2
+2025-12-29 06:59:42,513 - INFO - Successfully loaded image for BlackMythWukong
+2025-12-29 06:59:42,584 - INFO - Successfully loaded image for Expedition 33
+2025-12-29 06:59:42,648 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\2215430.webp (2852 bytes)
+2025-12-29 06:59:42,692 - INFO - Fetched and cached thumbnail for Steam app 2215430
+2025-12-29 06:59:42,750 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\553850.webp (3804 bytes)
+2025-12-29 06:59:42,794 - INFO - Fetched and cached thumbnail for Steam app 553850
+2025-12-29 06:59:42,810 - INFO - Successfully loaded image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 06:59:42,810 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\275850.webp (3604 bytes)
+2025-12-29 06:59:42,811 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\2767030.webp (3802 bytes)
+2025-12-29 06:59:42,935 - INFO - Fetched and cached thumbnail for Steam app 275850
+2025-12-29 06:59:42,936 - INFO - Fetched and cached thumbnail for Steam app 2767030
+2025-12-29 06:59:43,034 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\2357570.webp (3880 bytes)
+2025-12-29 06:59:43,076 - INFO - Successfully loaded image for Helldivers 2
+2025-12-29 06:59:43,104 - INFO - Fetched and cached thumbnail for Steam app 2357570
+2025-12-29 06:59:43,242 - INFO - Successfully loaded image for No Man's Sky
+2025-12-29 06:59:43,257 - INFO - Successfully loaded image for MarvelRivals
+2025-12-29 06:59:43,394 - INFO - Successfully loaded image for Overwatch
+2025-12-29 06:59:43,442 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\230410.webp (3918 bytes)
+2025-12-29 06:59:43,470 - INFO - Fetched and cached thumbnail for Steam app 230410
+2025-12-29 06:59:43,597 - INFO - Successfully loaded image for Warframe
+2025-12-29 07:03:58,823 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 07:03:58,837 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 07:03:58,843 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 07:03:58,843 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 07:03:58,844 - INFO - Checking dependencies...
+2025-12-29 07:03:58,858 - WARNING - Application requires administrator privileges
+2025-12-29 07:03:58,858 - INFO - Attempting to restart with admin rights...
+2025-12-29 07:03:58,858 - INFO - Re-running script with admin privileges...
+2025-12-29 07:04:00,301 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 07:04:00,315 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 07:04:00,317 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 07:04:00,317 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 07:04:00,318 - INFO - Checking dependencies...
+2025-12-29 07:04:00,331 - INFO - Admin privileges confirmed
+2025-12-29 07:04:00,331 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 07:04:00,539 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 07:04:00,540 - INFO - Initializing database...
+2025-12-29 07:04:00,542 - INFO - Database schema created successfully
+2025-12-29 07:04:00,546 - INFO - Connection pool initialized (5 connections)
+2025-12-29 07:04:00,547 - INFO - Database initialized successfully
+2025-12-29 07:04:00,547 - INFO - Database initialized successfully
+2025-12-29 07:04:00,548 - INFO - No duplicate backups found
+2025-12-29 07:04:00,553 - INFO - No duplicate games found
+2025-12-29 07:04:05,555 - INFO - Initializing main view...
+2025-12-29 07:04:05,556 - INFO - Migrating image cache to WebP thumbnail format...
+2025-12-29 07:04:05,564 - INFO - Cleared 11 steam image cache entries
+2025-12-29 07:04:05,566 - INFO - Image cache migration complete - old cache purged
+2025-12-29 07:04:05,567 - INFO - Image cache migrated to WebP thumbnail format
+2025-12-29 07:04:05,567 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 07:04:05,578 - INFO - Discord invite banner displayed
+2025-12-29 07:04:05,578 - INFO - Main view initialized
+2025-12-29 07:04:05,592 - INFO - UI initialized successfully
+2025-12-29 07:04:05,593 - INFO - Initializing whitelist...
+2025-12-29 07:04:05,601 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 07:04:05,673 - INFO - Initializing DLL cache (async)...
+2025-12-29 07:04:05,673 - INFO - Initializing DLL cache (async)
+2025-12-29 07:04:05,808 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 07:04:05,808 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 07:04:05,809 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 07:04:05,809 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 07:04:05,809 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 07:04:05,809 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 07:04:05,810 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 07:04:05,810 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 07:04:05,810 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 07:04:05,810 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 07:04:05,828 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 07:04:05,828 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 07:04:05,828 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 07:04:05,828 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 07:04:05,828 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 07:04:05,828 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 07:04:05,828 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 07:04:05,828 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 07:04:05,829 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 07:04:05,829 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 07:04:05,842 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 07:04:05,842 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 07:04:05,843 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 07:04:05,843 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 07:04:05,843 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 07:04:05,843 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 07:04:05,871 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 07:04:05,871 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 07:04:05,871 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 07:04:05,871 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 07:04:05,899 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 07:04:05,899 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 07:04:05,927 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 07:04:05,928 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 07:04:05,942 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 07:04:05,942 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 07:04:05,957 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 07:04:05,957 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 07:04:05,957 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 07:04:05,958 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 07:04:05,958 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 07:04:05,958 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 07:04:07,016 - INFO - Whitelist initialized with 32 games
+2025-12-29 07:04:07,169 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 07:04:07,205 - INFO - DLL cache initialized successfully
+2025-12-29 07:04:11,656 - INFO - Navigation drawer destination changed: 1
+2025-12-29 07:04:11,685 - INFO - Loading games from database...
+2025-12-29 07:04:11,701 - INFO - Navigation drawer dismissed
+2025-12-29 07:04:11,720 - INFO - Fetching Steam image for Arc Raiders (app_id: 1808500)
+2025-12-29 07:04:11,740 - INFO - Fetching Steam image for BlackMythWukong (app_id: 2358720)
+2025-12-29 07:04:11,763 - INFO - Fetching Steam image for DuneAwakening (app_id: 1172710)
+2025-12-29 07:04:11,787 - INFO - Fetching Steam image for Dying Light 2 (app_id: 534380)
+2025-12-29 07:04:11,795 - INFO - Fetching Steam image for Expedition 33 (app_id: 1903340)
+2025-12-29 07:04:11,841 - INFO - Fetching Steam image for Ghost of Tsushima DIRECTOR'S CUT (app_id: 2215430)
+2025-12-29 07:04:11,859 - INFO - Fetching Steam image for Helldivers 2 (app_id: 553850)
+2025-12-29 07:04:11,891 - INFO - Fetching Steam image for MarvelRivals (app_id: 2767030)
+2025-12-29 07:04:11,893 - INFO - Fetching Steam image for No Man's Sky (app_id: 275850)
+2025-12-29 07:04:11,934 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 07:04:11,962 - INFO - Navigated to view index: 1
+2025-12-29 07:04:11,962 - INFO - Fetching Steam image for Overwatch (app_id: 2357570)
+2025-12-29 07:04:12,085 - INFO - Fetching Steam image for Warframe (app_id: 230410)
+2025-12-29 07:04:12,194 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\1172710.webp (8710 bytes)
+2025-12-29 07:04:12,195 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\2358720.webp (8588 bytes)
+2025-12-29 07:04:12,282 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\1808500.webp (7876 bytes)
+2025-12-29 07:04:12,282 - INFO - Fetched and cached thumbnail for Steam app 1172710
+2025-12-29 07:04:12,283 - INFO - Fetched and cached thumbnail for Steam app 2358720
+2025-12-29 07:04:12,395 - INFO - Fetched and cached thumbnail for Steam app 1808500
+2025-12-29 07:04:12,533 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\1903340.webp (11844 bytes)
+2025-12-29 07:04:12,576 - INFO - Successfully loaded image for DuneAwakening
+2025-12-29 07:04:12,604 - INFO - Fetched and cached thumbnail for Steam app 1903340
+2025-12-29 07:04:12,619 - INFO - Successfully loaded image for BlackMythWukong
+2025-12-29 07:04:12,674 - INFO - Successfully loaded image for Arc Raiders
+2025-12-29 07:04:12,871 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\534380.webp (11754 bytes)
+2025-12-29 07:04:12,945 - INFO - Successfully loaded image for Expedition 33
+2025-12-29 07:04:12,945 - INFO - Fetched and cached thumbnail for Steam app 534380
+2025-12-29 07:04:13,093 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\553850.webp (12690 bytes)
+2025-12-29 07:04:13,093 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\2215430.webp (9830 bytes)
+2025-12-29 07:04:13,165 - INFO - Successfully loaded image for Dying Light 2
+2025-12-29 07:04:13,165 - INFO - Fetched and cached thumbnail for Steam app 553850
+2025-12-29 07:04:13,166 - INFO - Fetched and cached thumbnail for Steam app 2215430
+2025-12-29 07:04:13,239 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\2767030.webp (13432 bytes)
+2025-12-29 07:04:13,355 - INFO - Fetched and cached thumbnail for Steam app 2767030
+2025-12-29 07:04:13,471 - INFO - Successfully loaded image for Helldivers 2
+2025-12-29 07:04:13,485 - INFO - Successfully loaded image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 07:04:13,500 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\275850.webp (11848 bytes)
+2025-12-29 07:04:13,586 - INFO - Successfully loaded image for MarvelRivals
+2025-12-29 07:04:13,615 - INFO - Fetched and cached thumbnail for Steam app 275850
+2025-12-29 07:04:13,732 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\2357570.webp (12908 bytes)
+2025-12-29 07:04:13,780 - INFO - Fetched and cached thumbnail for Steam app 2357570
+2025-12-29 07:04:13,843 - INFO - Successfully loaded image for No Man's Sky
+2025-12-29 07:04:13,947 - INFO - Successfully loaded image for Overwatch
+2025-12-29 07:04:14,053 - DEBUG - Saved thumbnail: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images\230410.webp (13558 bytes)
+2025-12-29 07:04:14,084 - INFO - Fetched and cached thumbnail for Steam app 230410
+2025-12-29 07:04:14,196 - INFO - Successfully loaded image for Warframe
+2025-12-29 07:04:21,477 - INFO - Menu expanded
+2025-12-29 07:04:22,591 - INFO - Menu collapsed
+2025-12-29 07:04:22,957 - INFO - Menu expanded
+2025-12-29 07:04:24,807 - INFO - Menu collapsed
+2025-12-29 07:04:26,420 - INFO - Discord banner dismissed permanently
+2025-12-29 08:41:45,792 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 08:41:45,852 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 08:41:45,859 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 08:41:45,859 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 08:41:45,862 - INFO - Checking dependencies...
+2025-12-29 08:41:45,907 - WARNING - Application requires administrator privileges
+2025-12-29 08:41:45,907 - INFO - Attempting to restart with admin rights...
+2025-12-29 08:41:45,907 - INFO - Re-running script with admin privileges...
+2025-12-29 08:41:47,662 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 08:41:47,690 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 08:41:47,694 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 08:41:47,694 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 08:41:47,696 - INFO - Checking dependencies...
+2025-12-29 08:41:47,714 - INFO - Admin privileges confirmed
+2025-12-29 08:41:47,714 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 08:41:48,077 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 08:41:48,078 - INFO - Initializing database...
+2025-12-29 08:41:48,092 - INFO - Database schema created successfully
+2025-12-29 08:41:48,099 - INFO - Connection pool initialized (5 connections)
+2025-12-29 08:41:48,099 - INFO - Database initialized successfully
+2025-12-29 08:41:48,100 - INFO - Database initialized successfully
+2025-12-29 08:41:48,101 - INFO - No duplicate backups found
+2025-12-29 08:41:48,107 - INFO - No duplicate games found
+2025-12-29 08:41:53,109 - INFO - Initializing main view...
+2025-12-29 08:41:53,111 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 08:41:53,122 - INFO - Main view initialized
+2025-12-29 08:41:53,141 - INFO - UI initialized successfully
+2025-12-29 08:41:53,141 - INFO - Initializing whitelist...
+2025-12-29 08:41:53,153 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 08:41:53,249 - INFO - Initializing DLL cache (async)...
+2025-12-29 08:41:53,250 - INFO - Initializing DLL cache (async)
+2025-12-29 08:41:53,540 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 08:41:53,541 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 08:41:53,541 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 08:41:53,542 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 08:41:53,542 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 08:41:53,543 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 08:41:53,543 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 08:41:53,543 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 08:41:53,544 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 08:41:53,545 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 08:41:53,545 - INFO - Whitelist initialized with 32 games
+2025-12-29 08:41:53,570 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 08:41:53,570 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 08:41:53,571 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 08:41:53,571 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 08:41:53,571 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 08:41:53,571 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 08:41:53,572 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 08:41:53,572 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 08:41:53,610 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 08:41:53,610 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 08:41:53,646 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 08:41:53,646 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 08:41:53,647 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 08:41:53,647 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 08:41:53,647 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 08:41:53,647 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 08:41:53,674 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 08:41:53,674 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 08:41:53,675 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 08:41:53,675 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 08:41:53,701 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 08:41:53,701 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 08:41:53,841 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 08:41:53,842 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 08:41:53,842 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 08:41:53,842 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 08:41:53,843 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 08:41:53,843 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 08:41:53,843 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 08:41:53,843 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 08:41:53,938 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 08:41:53,938 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 08:41:55,610 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 08:41:55,664 - INFO - DLL cache initialized successfully
+2025-12-29 08:42:07,108 - INFO - Navigation drawer destination changed: 1
+2025-12-29 08:42:07,141 - INFO - Loading games from database...
+2025-12-29 08:42:07,160 - INFO - Navigation drawer dismissed
+2025-12-29 08:42:07,263 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 08:42:07,273 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 08:42:07,333 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 08:42:07,344 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 08:42:07,406 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 08:42:07,433 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 08:42:07,507 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 08:42:07,532 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 08:42:07,571 - INFO - Navigated to view index: 1
+2025-12-29 08:42:07,626 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 08:42:07,684 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 08:42:07,891 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 08:42:07,960 - DEBUG - Loaded cached image for Warframe
+2025-12-29 09:15:11,858 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 09:15:11,877 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 09:15:11,885 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 09:15:11,885 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 09:15:11,886 - INFO - Checking dependencies...
+2025-12-29 09:15:11,901 - WARNING - Application requires administrator privileges
+2025-12-29 09:15:11,901 - INFO - Attempting to restart with admin rights...
+2025-12-29 09:15:11,901 - INFO - Re-running script with admin privileges...
+2025-12-29 09:15:13,252 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 09:15:13,266 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 09:15:13,268 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 09:15:13,268 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 09:15:13,269 - INFO - Checking dependencies...
+2025-12-29 09:15:13,282 - INFO - Admin privileges confirmed
+2025-12-29 09:15:13,282 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 09:15:13,494 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 09:15:13,495 - INFO - Initializing database...
+2025-12-29 09:15:13,497 - INFO - Database schema created successfully
+2025-12-29 09:15:13,500 - INFO - Connection pool initialized (5 connections)
+2025-12-29 09:15:13,501 - INFO - Database initialized successfully
+2025-12-29 09:15:13,501 - INFO - Database initialized successfully
+2025-12-29 09:15:13,502 - INFO - No duplicate backups found
+2025-12-29 09:15:13,507 - INFO - No duplicate games found
+2025-12-29 09:15:18,519 - INFO - Initializing main view...
+2025-12-29 09:15:18,520 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 09:15:18,530 - INFO - Main view initialized
+2025-12-29 09:15:18,544 - INFO - UI initialized successfully
+2025-12-29 09:15:18,545 - INFO - Initializing whitelist...
+2025-12-29 09:15:18,553 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 09:15:18,619 - INFO - Initializing DLL cache (async)...
+2025-12-29 09:15:18,619 - INFO - Initializing DLL cache (async)
+2025-12-29 09:15:18,855 - INFO - Whitelist initialized with 32 games
+2025-12-29 09:15:18,895 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:15:18,895 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:15:18,896 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:15:18,896 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:15:18,896 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 09:15:18,896 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 09:15:18,897 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:15:18,897 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:15:18,897 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:15:18,897 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:15:18,897 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:15:18,897 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:15:18,897 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 09:15:18,897 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 09:15:18,897 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 09:15:18,898 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 09:15:18,914 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:15:18,914 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:15:18,914 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 09:15:18,914 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 09:15:18,914 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 09:15:18,914 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 09:15:18,929 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:15:18,929 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:15:18,936 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:15:18,937 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:15:18,951 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:15:18,951 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:15:18,965 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 09:15:18,966 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 09:15:18,981 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 09:15:18,981 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 09:15:18,995 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 09:15:18,996 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 09:15:19,010 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 09:15:19,010 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 09:15:19,142 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 09:15:19,142 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 09:15:19,143 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 09:15:19,143 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 09:15:19,143 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 09:15:19,143 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 09:15:20,608 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 09:15:20,645 - INFO - DLL cache initialized successfully
+2025-12-29 09:15:27,247 - INFO - Navigation drawer destination changed: 1
+2025-12-29 09:15:27,278 - INFO - Loading games from database...
+2025-12-29 09:15:27,293 - INFO - Navigation drawer dismissed
+2025-12-29 09:15:27,376 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 09:15:27,392 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 09:15:27,411 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 09:15:27,433 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 09:15:27,440 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 09:15:27,468 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 09:15:27,538 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 09:15:27,583 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 09:15:27,614 - INFO - Navigated to view index: 1
+2025-12-29 09:15:27,629 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 09:15:27,673 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 09:15:27,839 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 09:15:27,900 - DEBUG - Loaded cached image for Warframe
+2025-12-29 09:27:41,831 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 09:27:41,850 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 09:27:41,859 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 09:27:41,859 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 09:27:41,860 - INFO - Checking dependencies...
+2025-12-29 09:27:41,875 - WARNING - Application requires administrator privileges
+2025-12-29 09:27:41,875 - INFO - Attempting to restart with admin rights...
+2025-12-29 09:27:41,875 - INFO - Re-running script with admin privileges...
+2025-12-29 09:27:43,273 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 09:27:43,287 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 09:27:43,289 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 09:27:43,289 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 09:27:43,290 - INFO - Checking dependencies...
+2025-12-29 09:27:43,305 - INFO - Admin privileges confirmed
+2025-12-29 09:27:43,305 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 09:27:43,544 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 09:27:43,545 - INFO - Initializing database...
+2025-12-29 09:27:43,547 - INFO - Database schema created successfully
+2025-12-29 09:27:43,550 - INFO - Connection pool initialized (5 connections)
+2025-12-29 09:27:43,550 - INFO - Database initialized successfully
+2025-12-29 09:27:43,550 - INFO - Database initialized successfully
+2025-12-29 09:27:43,551 - INFO - No duplicate backups found
+2025-12-29 09:27:43,551 - INFO - No duplicate games found
+2025-12-29 09:27:48,553 - INFO - Initializing main view...
+2025-12-29 09:27:48,555 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 09:27:48,564 - INFO - Main view initialized
+2025-12-29 09:27:48,580 - INFO - UI initialized successfully
+2025-12-29 09:27:48,581 - INFO - Initializing whitelist...
+2025-12-29 09:27:48,589 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 09:27:48,656 - INFO - Initializing DLL cache (async)...
+2025-12-29 09:27:48,656 - INFO - Initializing DLL cache (async)
+2025-12-29 09:27:48,858 - INFO - Whitelist initialized with 32 games
+2025-12-29 09:27:48,895 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:27:48,896 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:27:48,896 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:27:48,896 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:27:48,897 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 09:27:48,897 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 09:27:48,897 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 09:27:48,897 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 09:27:48,897 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 09:27:48,898 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 09:27:48,898 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:27:48,898 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:27:48,898 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:27:48,898 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:27:48,918 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:27:48,918 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:27:48,918 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:27:48,918 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:27:48,933 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 09:27:48,934 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 09:27:48,934 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:27:48,934 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:27:48,941 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:27:48,942 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:27:48,971 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 09:27:48,971 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 09:27:48,971 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 09:27:48,971 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 09:27:48,972 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 09:27:48,972 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 09:27:48,988 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 09:27:48,988 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 09:27:48,988 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 09:27:48,988 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 09:27:49,020 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 09:27:49,021 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 09:27:49,128 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 09:27:49,128 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 09:27:49,129 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 09:27:49,129 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 09:27:49,129 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 09:27:49,129 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 09:27:50,678 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 09:27:50,719 - INFO - DLL cache initialized successfully
+2025-12-29 09:27:56,443 - INFO - Navigation drawer destination changed: 1
+2025-12-29 09:27:56,476 - INFO - Loading games from database...
+2025-12-29 09:27:56,492 - INFO - Navigation drawer dismissed
+2025-12-29 09:27:56,579 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 09:27:56,594 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 09:27:56,617 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 09:27:56,647 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 09:27:56,655 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 09:27:56,680 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 09:27:56,729 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 09:27:56,790 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 09:27:56,799 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 09:27:56,829 - INFO - Navigated to view index: 1
+2025-12-29 09:27:56,921 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 09:27:57,012 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 09:27:57,144 - DEBUG - Loaded cached image for Warframe
+2025-12-29 09:29:12,271 - INFO - Navigation drawer destination changed: 0
+2025-12-29 09:29:12,320 - INFO - Navigated to view index: 0
+2025-12-29 09:29:12,342 - INFO - Navigation drawer dismissed
+2025-12-29 09:29:16,910 - INFO - Menu expanded
+2025-12-29 09:29:33,984 - INFO - Menu collapsed
+2025-12-29 09:29:39,349 - INFO - Navigation drawer destination changed: 1
+2025-12-29 09:29:39,373 - INFO - Loading games from database...
+2025-12-29 09:29:39,407 - INFO - Navigation drawer dismissed
+2025-12-29 09:29:39,545 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 09:29:39,610 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 09:29:39,625 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 09:29:39,655 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 09:29:39,773 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 09:29:39,893 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 09:29:39,974 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 09:29:40,008 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 09:29:40,057 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 09:29:40,090 - INFO - Navigated to view index: 1
+2025-12-29 09:29:40,135 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 09:29:40,301 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 09:29:40,389 - DEBUG - Loaded cached image for Warframe
+2025-12-29 09:29:53,320 - INFO - Navigation drawer destination changed: 0
+2025-12-29 09:29:53,365 - INFO - Navigated to view index: 0
+2025-12-29 09:29:53,388 - INFO - Navigation drawer dismissed
+2025-12-29 10:00:18,437 - INFO - Navigation drawer dismissed
+2025-12-29 10:00:25,903 - INFO - Menu expanded
+2025-12-29 10:00:26,388 - INFO - Menu collapsed
+2025-12-29 10:00:27,306 - INFO - Menu expanded
+2025-12-29 10:00:42,540 - INFO - Menu collapsed
+2025-12-29 10:00:44,679 - INFO - Navigation drawer destination changed: 1
+2025-12-29 10:00:44,706 - INFO - Loading games from database...
+2025-12-29 10:00:44,745 - INFO - Navigation drawer dismissed
+2025-12-29 10:00:44,900 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 10:00:44,986 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 10:00:45,011 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 10:00:45,029 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 10:00:45,182 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 10:00:45,307 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 10:00:45,393 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 10:00:45,493 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 10:00:45,510 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 10:00:45,511 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 10:00:45,546 - INFO - Navigated to view index: 1
+2025-12-29 10:00:45,728 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 10:00:45,881 - DEBUG - Loaded cached image for Warframe
+2025-12-29 10:00:59,001 - INFO - Menu expanded
+2025-12-29 10:00:59,594 - INFO - Menu collapsed
+2025-12-29 10:01:00,029 - INFO - Menu expanded
+2025-12-29 10:01:01,125 - INFO - Menu collapsed
+2025-12-29 10:01:02,448 - INFO - Navigation drawer destination changed: 0
+2025-12-29 10:01:02,502 - INFO - Navigated to view index: 0
+2025-12-29 10:01:02,528 - INFO - Navigation drawer dismissed
+2025-12-29 10:01:45,550 - INFO - Navigation drawer dismissed
+2025-12-29 10:03:27,734 - INFO - Navigation drawer dismissed
+2025-12-29 10:03:38,617 - INFO - Navigation drawer destination changed: 1
+2025-12-29 10:03:38,647 - INFO - Loading games from database...
+2025-12-29 10:03:38,686 - INFO - Navigation drawer dismissed
+2025-12-29 10:03:38,846 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 10:03:38,919 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 10:03:38,936 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 10:03:38,955 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 10:03:39,112 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 10:03:39,241 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 10:03:39,330 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 10:03:39,436 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 10:03:39,455 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 10:03:39,456 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 10:03:39,493 - INFO - Navigated to view index: 1
+2025-12-29 10:03:39,686 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 10:03:39,827 - DEBUG - Loaded cached image for Warframe
+2025-12-29 10:04:06,741 - INFO - Navigation drawer dismissed
+2025-12-29 10:04:07,806 - INFO - Menu expanded
+2025-12-29 10:04:20,497 - INFO - Menu collapsed
+2025-12-29 10:04:29,133 - INFO - Navigation drawer destination changed: 0
+2025-12-29 10:04:29,188 - INFO - Navigated to view index: 0
+2025-12-29 10:04:29,214 - INFO - Navigation drawer dismissed
+2025-12-29 10:04:34,409 - INFO - Menu expanded
+2025-12-29 10:04:46,099 - INFO - Menu collapsed
+2025-12-29 10:04:49,985 - INFO - Navigation drawer dismissed
+2025-12-29 10:04:56,259 - INFO - Navigation drawer destination changed: 2
+2025-12-29 10:04:56,301 - INFO - Loading backups from database...
+2025-12-29 10:04:56,326 - INFO - Loaded 5 backups
+2025-12-29 10:04:56,351 - INFO - Navigated to view index: 2
+2025-12-29 10:04:56,351 - INFO - Navigation drawer dismissed
+2025-12-29 10:05:20,831 - INFO - Navigation drawer destination changed: 1
+2025-12-29 10:05:20,861 - INFO - Loading games from database...
+2025-12-29 10:05:20,899 - INFO - Navigation drawer dismissed
+2025-12-29 10:05:21,076 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 10:05:21,152 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 10:05:21,174 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 10:05:21,192 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 10:05:21,363 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 10:05:21,519 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 10:05:21,616 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 10:05:21,655 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 10:05:21,656 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 10:05:21,697 - INFO - Navigated to view index: 1
+2025-12-29 10:05:21,831 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 10:05:21,943 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 10:05:22,109 - DEBUG - Loaded cached image for Warframe
+2025-12-29 10:30:11,467 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 10:30:11,482 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 10:30:11,485 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 10:30:11,485 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 10:30:11,486 - INFO - Checking dependencies...
+2025-12-29 10:30:11,502 - WARNING - Application requires administrator privileges
+2025-12-29 10:30:11,502 - INFO - Attempting to restart with admin rights...
+2025-12-29 10:30:11,502 - INFO - Re-running script with admin privileges...
+2025-12-29 10:30:12,883 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 10:30:12,897 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 10:30:12,899 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 10:30:12,899 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 10:30:12,900 - INFO - Checking dependencies...
+2025-12-29 10:30:12,913 - INFO - Admin privileges confirmed
+2025-12-29 10:30:12,914 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 10:30:13,143 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 10:30:13,144 - INFO - Initializing database...
+2025-12-29 10:30:13,146 - INFO - Database schema created successfully
+2025-12-29 10:30:13,149 - INFO - Connection pool initialized (5 connections)
+2025-12-29 10:30:13,149 - INFO - Database initialized successfully
+2025-12-29 10:30:13,149 - INFO - Database initialized successfully
+2025-12-29 10:30:13,150 - INFO - No duplicate backups found
+2025-12-29 10:30:13,155 - INFO - No duplicate games found
+2025-12-29 10:30:18,161 - INFO - Initializing main view...
+2025-12-29 10:30:18,162 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 10:30:18,171 - INFO - Main view initialized
+2025-12-29 10:30:18,187 - INFO - UI initialized successfully
+2025-12-29 10:30:18,187 - INFO - Initializing whitelist...
+2025-12-29 10:30:18,195 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 10:30:18,262 - INFO - Initializing DLL cache (async)...
+2025-12-29 10:30:18,262 - INFO - Initializing DLL cache (async)
+2025-12-29 10:30:18,503 - INFO - Whitelist initialized with 32 games
+2025-12-29 10:30:18,522 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 10:30:18,522 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 10:30:18,522 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 10:30:18,522 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 10:30:18,523 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 10:30:18,523 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 10:30:18,523 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 10:30:18,523 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 10:30:18,523 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 10:30:18,523 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 10:30:18,523 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 10:30:18,523 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 10:30:18,524 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 10:30:18,524 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 10:30:18,524 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 10:30:18,525 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 10:30:18,525 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 10:30:18,525 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 10:30:18,525 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 10:30:18,525 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 10:30:18,525 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 10:30:18,525 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 10:30:18,525 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 10:30:18,525 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 10:30:18,525 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 10:30:18,525 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 10:30:18,525 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 10:30:18,526 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 10:30:18,526 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 10:30:18,526 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 10:30:18,526 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 10:30:18,526 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 10:30:18,526 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 10:30:18,526 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 10:30:18,526 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 10:30:18,526 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 10:30:18,526 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 10:30:18,527 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 10:30:18,527 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 10:30:18,527 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 10:30:18,527 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 10:30:18,527 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 10:30:20,189 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 10:30:20,226 - INFO - DLL cache initialized successfully
+2025-12-29 10:30:24,486 - INFO - Navigation drawer destination changed: 1
+2025-12-29 10:30:24,518 - INFO - Loading games from database...
+2025-12-29 10:30:24,533 - INFO - Navigation drawer dismissed
+2025-12-29 10:30:24,561 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 10:30:24,592 - INFO - Navigated to view index: 1
+2025-12-29 10:30:24,892 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 10:30:24,906 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 10:30:24,920 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 10:30:24,934 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 10:30:24,948 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 10:30:24,962 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 10:30:24,976 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 10:30:24,990 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 10:30:25,004 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 10:30:25,019 - DEBUG - Loaded cached image for Warframe
+2025-12-29 10:30:25,046 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 10:32:14,010 - INFO - Navigation drawer destination changed: 2
+2025-12-29 10:32:14,066 - INFO - Loading backups from database...
+2025-12-29 10:32:14,085 - INFO - Loaded 5 backups
+2025-12-29 10:32:14,102 - INFO - Navigated to view index: 2
+2025-12-29 10:32:14,138 - INFO - Navigation drawer dismissed
+2025-12-29 10:32:36,412 - INFO - Loading backups from database...
+2025-12-29 10:32:36,435 - INFO - Loaded 3 backups
+2025-12-29 10:32:41,856 - INFO - Navigation drawer destination changed: 1
+2025-12-29 10:32:41,876 - INFO - Loading games from database...
+2025-12-29 10:32:41,911 - INFO - Navigation drawer dismissed
+2025-12-29 10:32:41,969 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 10:32:42,000 - INFO - Navigated to view index: 1
+2025-12-29 10:32:42,305 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 10:32:42,321 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 10:32:42,337 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 10:32:42,354 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 10:32:42,370 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 10:32:42,387 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 10:32:42,404 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 10:32:42,421 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 10:32:42,438 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 10:32:42,455 - DEBUG - Loaded cached image for Warframe
+2025-12-29 10:32:42,489 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 10:33:11,129 - INFO - Navigation drawer destination changed: 2
+2025-12-29 10:33:11,164 - INFO - Loading backups from database...
+2025-12-29 10:33:11,184 - INFO - Navigation drawer dismissed
+2025-12-29 10:33:11,205 - INFO - Loaded 3 backups
+2025-12-29 10:33:11,223 - INFO - Navigated to view index: 2
+2025-12-29 10:33:24,886 - INFO - Loading backups from database...
+2025-12-29 10:33:24,910 - INFO - Loaded 5 backups
+2025-12-29 11:05:23,922 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:05:23,946 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:05:23,957 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:05:23,957 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:05:23,963 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:05:23,963 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:05:23,967 - INFO - Checking dependencies...
+2025-12-29 11:05:23,981 - WARNING - Application requires administrator privileges
+2025-12-29 11:05:23,981 - INFO - Attempting to restart with admin rights...
+2025-12-29 11:05:23,981 - INFO - Re-running script with admin privileges...
+2025-12-29 11:05:25,463 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:05:25,477 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:05:25,479 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:05:25,479 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:05:25,480 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:05:25,480 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:05:25,481 - INFO - Checking dependencies...
+2025-12-29 11:05:25,495 - INFO - Admin privileges confirmed
+2025-12-29 11:05:25,495 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 11:05:25,720 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 11:05:25,721 - INFO - Initializing database...
+2025-12-29 11:05:25,731 - INFO - Database schema created successfully
+2025-12-29 11:05:25,736 - INFO - Connection pool initialized (5 connections)
+2025-12-29 11:05:25,736 - INFO - Database initialized successfully
+2025-12-29 11:05:25,736 - INFO - Database initialized successfully
+2025-12-29 11:05:25,737 - INFO - No duplicate backups found
+2025-12-29 11:05:25,742 - INFO - No duplicate games found
+2025-12-29 11:05:30,745 - INFO - Initializing main view...
+2025-12-29 11:05:30,746 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 11:05:30,759 - INFO - Main view initialized
+2025-12-29 11:05:30,778 - INFO - UI initialized successfully
+2025-12-29 11:05:30,778 - INFO - Initializing whitelist...
+2025-12-29 11:05:30,788 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 11:05:30,861 - INFO - Initializing DLL cache (async)...
+2025-12-29 11:05:30,862 - INFO - Initializing DLL cache (async)
+2025-12-29 11:05:31,100 - INFO - Whitelist initialized with 32 games
+2025-12-29 11:05:31,135 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:05:31,136 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:05:31,158 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:05:31,158 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:05:31,158 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:05:31,158 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:05:31,183 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:05:31,184 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:05:31,184 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:05:31,184 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:05:31,185 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 11:05:31,185 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 11:05:31,185 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:05:31,185 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:05:31,185 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:05:31,185 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 11:05:31,185 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:05:31,186 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:05:31,186 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:05:31,186 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:05:31,186 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:05:31,186 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:05:31,186 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:05:31,186 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:05:31,186 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:05:31,187 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:05:31,187 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:05:31,187 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 11:05:31,187 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:05:31,187 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:05:31,188 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:05:31,188 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:05:31,188 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 11:05:31,188 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 11:05:31,188 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 11:05:31,188 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 11:05:31,188 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:05:31,188 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:05:31,189 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:05:31,189 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:05:31,189 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:05:31,189 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:05:32,897 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 11:05:32,935 - INFO - DLL cache initialized successfully
+2025-12-29 11:05:36,996 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:05:37,026 - INFO - Loading games from database...
+2025-12-29 11:05:37,042 - INFO - Navigation drawer dismissed
+2025-12-29 11:05:37,074 - INFO - Search index built: 11 games indexed
+2025-12-29 11:05:37,119 - INFO - Search index built: 11 games
+2025-12-29 11:05:37,336 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:05:37,352 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:05:37,368 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:05:37,383 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:05:37,397 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:05:37,411 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:05:37,426 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:05:37,468 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 11:05:37,497 - INFO - Navigated to view index: 1
+2025-12-29 11:05:37,511 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:05:37,526 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:05:37,540 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:05:37,554 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:09:15,419 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:09:15,435 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:09:15,446 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:09:15,446 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:09:15,447 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:09:15,447 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:09:15,448 - INFO - Checking dependencies...
+2025-12-29 11:09:15,462 - WARNING - Application requires administrator privileges
+2025-12-29 11:09:15,462 - INFO - Attempting to restart with admin rights...
+2025-12-29 11:09:15,462 - INFO - Re-running script with admin privileges...
+2025-12-29 11:09:16,831 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:09:16,845 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:09:16,846 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:09:16,847 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:09:16,848 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:09:16,848 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:09:16,848 - INFO - Checking dependencies...
+2025-12-29 11:09:16,861 - INFO - Admin privileges confirmed
+2025-12-29 11:09:16,862 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 11:09:17,079 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 11:09:17,080 - INFO - Initializing database...
+2025-12-29 11:09:17,081 - INFO - Database schema created successfully
+2025-12-29 11:09:17,084 - INFO - Connection pool initialized (5 connections)
+2025-12-29 11:09:17,084 - INFO - Database initialized successfully
+2025-12-29 11:09:17,084 - INFO - Database initialized successfully
+2025-12-29 11:09:17,086 - INFO - No duplicate backups found
+2025-12-29 11:09:17,090 - INFO - No duplicate games found
+2025-12-29 11:09:22,095 - INFO - Initializing main view...
+2025-12-29 11:09:22,096 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 11:09:22,107 - INFO - Main view initialized
+2025-12-29 11:09:22,123 - INFO - UI initialized successfully
+2025-12-29 11:09:22,123 - INFO - Initializing whitelist...
+2025-12-29 11:09:22,132 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 11:09:22,206 - INFO - Initializing DLL cache (async)...
+2025-12-29 11:09:22,206 - INFO - Initializing DLL cache (async)
+2025-12-29 11:09:22,465 - INFO - Whitelist initialized with 32 games
+2025-12-29 11:09:22,510 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:09:22,511 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:09:22,512 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:09:22,512 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:09:22,533 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:09:22,533 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:09:22,533 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:09:22,533 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:09:22,533 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 11:09:22,533 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 11:09:22,534 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:09:22,534 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:09:22,534 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:09:22,534 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:09:22,535 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:09:22,535 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:09:22,535 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:09:22,536 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:09:22,561 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:09:22,561 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 11:09:22,561 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:09:22,561 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:09:22,561 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:09:22,561 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:09:22,562 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:09:22,562 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:09:22,562 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:09:22,562 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:09:22,594 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 11:09:22,595 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 11:09:22,595 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:09:22,595 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 11:09:22,596 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:09:22,596 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:09:22,596 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 11:09:22,596 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 11:09:22,596 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:09:22,597 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:09:22,597 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:09:22,597 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:09:22,597 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:09:22,597 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:09:24,312 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 11:09:24,353 - INFO - DLL cache initialized successfully
+2025-12-29 11:09:29,617 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:09:29,647 - INFO - Loading games from database...
+2025-12-29 11:09:29,665 - INFO - Navigation drawer dismissed
+2025-12-29 11:09:29,696 - INFO - Search index built: 11 games indexed
+2025-12-29 11:09:29,766 - INFO - Search index built: 11 games
+2025-12-29 11:09:30,003 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:09:30,020 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:09:30,036 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:09:30,053 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:09:30,070 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:09:30,087 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:09:30,103 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:09:30,122 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:09:30,177 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 11:09:30,212 - INFO - Navigated to view index: 1
+2025-12-29 11:09:30,229 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:09:30,245 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:09:30,263 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:11:12,028 - DEBUG - Search 'd' found 6 matches
+2025-12-29 11:11:27,496 - DEBUG - Search 'd' found 6 matches
+2025-12-29 11:11:48,020 - INFO - Navigation drawer destination changed: 2
+2025-12-29 11:11:48,064 - INFO - Loading backups from database...
+2025-12-29 11:11:48,081 - INFO - Navigation drawer dismissed
+2025-12-29 11:11:48,098 - INFO - Loaded 5 backups
+2025-12-29 11:11:48,117 - INFO - Navigated to view index: 2
+2025-12-29 11:11:50,122 - INFO - Loading backups from database...
+2025-12-29 11:11:50,147 - INFO - Loaded 3 backups
+2025-12-29 11:11:51,100 - INFO - Loading backups from database...
+2025-12-29 11:11:51,123 - INFO - Loaded 3 backups
+2025-12-29 11:11:52,008 - INFO - Loading backups from database...
+2025-12-29 11:11:52,030 - INFO - Loaded 5 backups
+2025-12-29 11:11:53,784 - INFO - Navigation drawer dismissed
+2025-12-29 11:11:57,935 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:11:57,958 - INFO - Loading games from database...
+2025-12-29 11:11:57,993 - INFO - Navigation drawer dismissed
+2025-12-29 11:11:58,079 - INFO - Search index built: 11 games indexed
+2025-12-29 11:11:58,116 - INFO - Search index built: 11 games
+2025-12-29 11:11:58,390 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 11:11:58,424 - INFO - Navigated to view index: 1
+2025-12-29 11:11:58,459 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:11:58,477 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:11:58,496 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:11:58,513 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:11:58,531 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:11:58,549 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:11:58,566 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:11:58,585 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:11:58,604 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:11:58,623 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:11:58,641 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:12:28,813 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:12:28,828 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:12:28,836 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:12:28,836 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:12:28,837 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:12:28,838 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:12:28,839 - INFO - Checking dependencies...
+2025-12-29 11:12:28,853 - WARNING - Application requires administrator privileges
+2025-12-29 11:12:28,853 - INFO - Attempting to restart with admin rights...
+2025-12-29 11:12:28,853 - INFO - Re-running script with admin privileges...
+2025-12-29 11:12:30,234 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:12:30,248 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:12:30,250 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:12:30,251 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:12:30,252 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:12:30,252 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:12:30,253 - INFO - Checking dependencies...
+2025-12-29 11:12:30,266 - INFO - Admin privileges confirmed
+2025-12-29 11:12:30,266 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 11:12:30,580 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 11:12:30,580 - INFO - Initializing database...
+2025-12-29 11:12:30,582 - INFO - Database schema created successfully
+2025-12-29 11:12:30,585 - INFO - Connection pool initialized (5 connections)
+2025-12-29 11:12:30,585 - INFO - Database initialized successfully
+2025-12-29 11:12:30,585 - INFO - Database initialized successfully
+2025-12-29 11:12:30,586 - INFO - No duplicate backups found
+2025-12-29 11:12:30,586 - INFO - No duplicate games found
+2025-12-29 11:12:35,588 - INFO - Initializing main view...
+2025-12-29 11:12:35,590 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 11:12:35,600 - INFO - Main view initialized
+2025-12-29 11:12:35,615 - INFO - UI initialized successfully
+2025-12-29 11:12:35,615 - INFO - Initializing whitelist...
+2025-12-29 11:12:35,624 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 11:12:35,690 - INFO - Initializing DLL cache (async)...
+2025-12-29 11:12:35,691 - INFO - Initializing DLL cache (async)
+2025-12-29 11:12:35,915 - INFO - Whitelist initialized with 32 games
+2025-12-29 11:12:35,946 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:12:35,947 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:12:35,947 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:12:35,948 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:12:35,948 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:12:35,948 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:12:35,948 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:12:35,948 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:12:35,949 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:12:35,949 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:12:35,949 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:12:35,949 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:12:35,949 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:12:35,949 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:12:35,968 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:12:35,968 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:12:35,968 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:12:35,968 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:12:35,968 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:12:35,968 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:12:35,968 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:12:35,969 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:12:35,969 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 11:12:35,969 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 11:12:35,969 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:12:35,969 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:12:35,992 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 11:12:35,992 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 11:12:35,992 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:12:35,993 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 11:12:36,007 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:12:36,007 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:12:36,007 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:12:36,007 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 11:12:36,022 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 11:12:36,022 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 11:12:36,170 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:12:36,171 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:12:36,171 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:12:36,172 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:12:36,172 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:12:36,172 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:12:37,460 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 11:12:37,498 - INFO - DLL cache initialized successfully
+2025-12-29 11:12:43,254 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:12:43,290 - INFO - Loading games from database...
+2025-12-29 11:12:43,307 - INFO - Navigation drawer dismissed
+2025-12-29 11:12:43,351 - ERROR - Error loading games: Container.__init__() got an unexpected keyword argument 'min_width'
+Traceback (most recent call last):
+  File "C:\Github\DLSS-Updater\dlss_updater\ui_flet\views\games_view.py", line 213, in load_games
+    await self._build_launcher_tabs()
+  File "C:\Github\DLSS-Updater\dlss_updater\ui_flet\views\games_view.py", line 342, in _build_launcher_tabs
+    game_row_container = ft.Container(
+        content=game_row,
+        min_width=320,  # Minimum width to show buttons
+    )
+TypeError: Container.__init__() got an unexpected keyword argument 'min_width'
+2025-12-29 11:12:43,371 - INFO - Navigated to view index: 1
+2025-12-29 11:12:43,530 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:12:43,539 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:12:43,547 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:12:43,556 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:12:43,563 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:12:43,572 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:12:43,580 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:12:43,589 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:12:43,598 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:12:43,606 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:12:43,680 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:14:48,720 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:14:48,737 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:14:48,748 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:14:48,748 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:14:48,750 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:14:48,750 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:14:48,751 - INFO - Checking dependencies...
+2025-12-29 11:14:48,766 - WARNING - Application requires administrator privileges
+2025-12-29 11:14:48,766 - INFO - Attempting to restart with admin rights...
+2025-12-29 11:14:48,767 - INFO - Re-running script with admin privileges...
+2025-12-29 11:14:50,102 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:14:50,115 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:14:50,117 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:14:50,117 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:14:50,118 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:14:50,119 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:14:50,119 - INFO - Checking dependencies...
+2025-12-29 11:14:50,133 - INFO - Admin privileges confirmed
+2025-12-29 11:14:50,133 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 11:14:50,341 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 11:14:50,342 - INFO - Initializing database...
+2025-12-29 11:14:50,343 - INFO - Database schema created successfully
+2025-12-29 11:14:50,346 - INFO - Connection pool initialized (5 connections)
+2025-12-29 11:14:50,346 - INFO - Database initialized successfully
+2025-12-29 11:14:50,347 - INFO - Database initialized successfully
+2025-12-29 11:14:50,348 - INFO - No duplicate backups found
+2025-12-29 11:14:50,353 - INFO - No duplicate games found
+2025-12-29 11:14:55,367 - INFO - Initializing main view...
+2025-12-29 11:14:55,368 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 11:14:55,379 - INFO - Main view initialized
+2025-12-29 11:14:55,395 - INFO - UI initialized successfully
+2025-12-29 11:14:55,395 - INFO - Initializing whitelist...
+2025-12-29 11:14:55,404 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 11:14:55,468 - INFO - Initializing DLL cache (async)...
+2025-12-29 11:14:55,468 - INFO - Initializing DLL cache (async)
+2025-12-29 11:14:55,621 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:14:55,621 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:14:55,656 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:14:55,657 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:14:55,657 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 11:14:55,657 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 11:14:55,658 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:14:55,658 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:14:55,658 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:14:55,658 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 11:14:55,658 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:14:55,658 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:14:55,659 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:14:55,659 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:14:55,659 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:14:55,659 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:14:55,659 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:14:55,659 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:14:55,659 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:14:55,659 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:14:55,659 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:14:55,660 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:14:55,660 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:14:55,660 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:14:55,660 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:14:55,660 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:14:55,660 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 11:14:55,660 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 11:14:55,660 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:14:55,660 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:14:55,660 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:14:55,660 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:14:55,660 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 11:14:55,661 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 11:14:55,661 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:14:55,661 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 11:14:55,661 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:14:55,661 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:14:55,661 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:14:55,662 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:14:55,662 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:14:55,662 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:14:56,911 - INFO - Whitelist initialized with 32 games
+2025-12-29 11:14:57,394 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 11:14:57,434 - INFO - DLL cache initialized successfully
+2025-12-29 11:15:05,518 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:15:05,548 - INFO - Loading games from database...
+2025-12-29 11:15:05,565 - INFO - Navigation drawer dismissed
+2025-12-29 11:15:05,597 - INFO - Search index built: 11 games indexed
+2025-12-29 11:15:05,664 - INFO - Search index built: 11 games
+2025-12-29 11:15:05,900 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:15:05,918 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:15:05,935 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:15:05,952 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:15:05,971 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:15:05,988 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:15:06,005 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:15:06,022 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:15:06,038 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:15:06,088 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 11:15:06,121 - INFO - Navigated to view index: 1
+2025-12-29 11:15:06,138 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:15:06,155 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:15:27,339 - DEBUG - Search 'du' found 1 matches
+2025-12-29 11:15:27,598 - DEBUG - Search 'dune' found 1 matches
+2025-12-29 11:15:28,566 - DEBUG - Search 'dun' found 1 matches
+2025-12-29 11:15:29,158 - DEBUG - Search 'du' found 1 matches
+2025-12-29 11:15:29,452 - DEBUG - Search 'd' found 6 matches
+2025-12-29 11:16:13,217 - INFO - Restore requested for game: DuneAwakening, group: DLSS Frame Generation DLL
+2025-12-29 11:16:31,543 - INFO - Created temporary backup: C:\Users\deckl\AppData\Local\Temp\tmpbt36958p.dll
+2025-12-29 11:16:31,659 - INFO - Successfully restored nvngx_dlssg.dll from backup
+2025-12-29 11:16:31,692 - INFO - Restore group for game 462 (DLSS Frame Generation DLL): Successfully restored all 1 DLL(s)
+2025-12-29 11:17:54,291 - INFO - Navigation drawer dismissed
+2025-12-29 11:19:49,654 - INFO - Navigation drawer destination changed: 2
+2025-12-29 11:19:49,705 - INFO - Loading backups from database...
+2025-12-29 11:19:49,726 - INFO - Navigation drawer dismissed
+2025-12-29 11:19:49,758 - INFO - Loaded 4 backups
+2025-12-29 11:19:49,781 - INFO - Navigated to view index: 2
+2025-12-29 11:20:40,835 - INFO - Navigation drawer dismissed
+2025-12-29 11:21:05,765 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:21:05,789 - INFO - Loading games from database...
+2025-12-29 11:21:05,827 - INFO - Navigation drawer dismissed
+2025-12-29 11:21:05,910 - INFO - Search index built: 11 games indexed
+2025-12-29 11:21:05,948 - INFO - Search index built: 11 games
+2025-12-29 11:21:06,193 - ERROR - Error loading games: 'SearchHistoryEntry' object has no attribute 'get'
+Traceback (most recent call last):
+  File "C:\Github\DLSS-Updater\dlss_updater\ui_flet\views\games_view.py", line 222, in load_games
+    await self._load_search_history()
+  File "C:\Github\DLSS-Updater\dlss_updater\ui_flet\views\games_view.py", line 510, in _load_search_history
+    self.search_bar.update_history(history)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Github\DLSS-Updater\dlss_updater\ui_flet\components\search_bar.py", line 322, in update_history
+    self._create_history_item(item, i)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Github\DLSS-Updater\dlss_updater\ui_flet\components\search_bar.py", line 351, in _create_history_item
+    query = item.get('query', '')
+            ^^^^^^^^
+AttributeError: 'SearchHistoryEntry' object has no attribute 'get'
+2025-12-29 11:21:06,230 - INFO - Navigated to view index: 1
+2025-12-29 11:21:06,267 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:21:06,285 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:21:06,303 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:21:06,322 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:21:06,347 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:21:06,372 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:21:06,393 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:21:06,413 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:21:06,432 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:21:06,452 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:21:06,469 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:22:40,318 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:22:40,333 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:22:40,335 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:22:40,336 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:22:40,339 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:22:40,339 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:22:40,340 - INFO - Checking dependencies...
+2025-12-29 11:22:40,356 - WARNING - Application requires administrator privileges
+2025-12-29 11:22:40,357 - INFO - Attempting to restart with admin rights...
+2025-12-29 11:22:40,357 - INFO - Re-running script with admin privileges...
+2025-12-29 11:22:41,706 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:22:41,720 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:22:41,722 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:22:41,722 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:22:41,723 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:22:41,723 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:22:41,724 - INFO - Checking dependencies...
+2025-12-29 11:22:41,737 - INFO - Admin privileges confirmed
+2025-12-29 11:22:41,737 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 11:22:41,956 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 11:22:41,957 - INFO - Initializing database...
+2025-12-29 11:22:41,959 - INFO - Database schema created successfully
+2025-12-29 11:22:41,964 - INFO - Connection pool initialized (5 connections)
+2025-12-29 11:22:41,964 - INFO - Database initialized successfully
+2025-12-29 11:22:41,964 - INFO - Database initialized successfully
+2025-12-29 11:22:41,965 - INFO - No duplicate backups found
+2025-12-29 11:22:41,974 - INFO - No duplicate games found
+2025-12-29 11:22:46,977 - INFO - Initializing main view...
+2025-12-29 11:22:46,978 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 11:22:46,987 - INFO - Main view initialized
+2025-12-29 11:22:47,003 - INFO - UI initialized successfully
+2025-12-29 11:22:47,003 - INFO - Initializing whitelist...
+2025-12-29 11:22:47,013 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 11:22:47,076 - INFO - Initializing DLL cache (async)...
+2025-12-29 11:22:47,076 - INFO - Initializing DLL cache (async)
+2025-12-29 11:22:47,288 - INFO - Whitelist initialized with 32 games
+2025-12-29 11:22:47,320 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:22:47,320 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:22:47,321 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:22:47,322 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:22:47,322 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:22:47,322 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:22:47,322 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:22:47,322 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:22:47,323 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:22:47,323 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:22:47,342 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:22:47,342 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:22:47,342 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:22:47,342 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:22:47,343 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:22:47,343 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:22:47,343 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:22:47,343 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:22:47,343 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:22:47,343 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:22:47,343 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:22:47,343 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:22:47,343 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:22:47,344 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:22:47,344 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 11:22:47,344 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 11:22:47,365 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 11:22:47,365 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 11:22:47,365 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:22:47,365 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 11:22:47,380 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:22:47,380 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:22:47,381 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:22:47,381 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 11:22:47,381 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 11:22:47,381 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 11:22:47,484 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:22:47,484 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:22:47,485 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:22:47,485 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:22:47,485 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:22:47,485 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:22:49,061 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 11:22:49,098 - INFO - DLL cache initialized successfully
+2025-12-29 11:22:54,288 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:22:54,320 - INFO - Loading games from database...
+2025-12-29 11:22:54,337 - INFO - Navigation drawer dismissed
+2025-12-29 11:22:54,370 - INFO - Search index built: 11 games indexed
+2025-12-29 11:22:54,415 - INFO - Search index built: 11 games
+2025-12-29 11:22:54,631 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:22:54,646 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:22:54,661 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:22:54,675 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:22:54,690 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:22:54,705 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:22:54,719 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:22:54,762 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 11:22:54,791 - INFO - Navigated to view index: 1
+2025-12-29 11:22:54,807 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:22:54,821 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:22:54,837 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:22:54,852 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:30:24,330 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:30:24,345 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:30:24,348 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:30:24,348 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:30:24,351 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:30:24,351 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:30:24,352 - INFO - Checking dependencies...
+2025-12-29 11:30:24,367 - WARNING - Application requires administrator privileges
+2025-12-29 11:30:24,367 - INFO - Attempting to restart with admin rights...
+2025-12-29 11:30:24,367 - INFO - Re-running script with admin privileges...
+2025-12-29 11:30:25,759 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:30:25,773 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:30:25,775 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:30:25,775 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:30:25,776 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:30:25,776 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:30:25,777 - INFO - Checking dependencies...
+2025-12-29 11:30:25,790 - INFO - Admin privileges confirmed
+2025-12-29 11:30:25,790 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 11:30:25,998 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 11:30:25,999 - INFO - Initializing database...
+2025-12-29 11:30:26,000 - INFO - Database schema created successfully
+2025-12-29 11:30:26,003 - INFO - Connection pool initialized (5 connections)
+2025-12-29 11:30:26,003 - INFO - Database initialized successfully
+2025-12-29 11:30:26,004 - INFO - Database initialized successfully
+2025-12-29 11:30:26,004 - INFO - No duplicate backups found
+2025-12-29 11:30:26,005 - INFO - No duplicate games found
+2025-12-29 11:30:31,007 - INFO - Initializing main view...
+2025-12-29 11:30:31,009 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 11:30:31,018 - INFO - Main view initialized
+2025-12-29 11:30:31,034 - INFO - UI initialized successfully
+2025-12-29 11:30:31,034 - INFO - Initializing whitelist...
+2025-12-29 11:30:31,043 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 11:30:31,104 - INFO - Initializing DLL cache (async)...
+2025-12-29 11:30:31,104 - INFO - Initializing DLL cache (async)
+2025-12-29 11:30:31,333 - INFO - Whitelist initialized with 32 games
+2025-12-29 11:30:31,364 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:30:31,365 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:30:31,365 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:30:31,365 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:30:31,366 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:30:31,366 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:30:31,366 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:30:31,366 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:30:31,367 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:30:31,367 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:30:31,367 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:30:31,367 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:30:31,367 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:30:31,367 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:30:31,367 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:30:31,367 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:30:31,386 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:30:31,386 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 11:30:31,386 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 11:30:31,386 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 11:30:31,387 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:30:31,387 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:30:31,409 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 11:30:31,409 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 11:30:31,409 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:30:31,409 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:30:31,424 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:30:31,424 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:30:31,425 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:30:31,425 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:30:31,425 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:30:31,425 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:30:31,439 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:30:31,440 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 11:30:31,440 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 11:30:31,440 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 11:30:31,625 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:30:31,626 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:30:31,626 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:30:31,626 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:30:31,626 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:30:31,626 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:30:32,935 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 11:30:32,976 - INFO - DLL cache initialized successfully
+2025-12-29 11:30:36,863 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:30:36,896 - INFO - Loading games from database...
+2025-12-29 11:30:36,913 - INFO - Navigation drawer dismissed
+2025-12-29 11:30:36,946 - INFO - Search index built: 11 games indexed
+2025-12-29 11:30:37,015 - INFO - Search index built: 11 games
+2025-12-29 11:30:37,249 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:30:37,267 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:30:37,284 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:30:37,302 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:30:37,319 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:30:37,335 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:30:37,353 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:30:37,368 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:30:37,387 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:30:37,434 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 11:30:37,470 - INFO - Navigated to view index: 1
+2025-12-29 11:30:37,489 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:30:37,506 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:30:52,261 - INFO - Search history cleared
+2025-12-29 11:30:52,297 - INFO - Search history cleared
+2025-12-29 11:30:55,515 - DEBUG - Search 'dune' found 1 matches
+2025-12-29 11:30:55,574 - DEBUG - Search 'dune' found 1 matches
+2025-12-29 11:31:29,039 - INFO - Navigation drawer destination changed: 0
+2025-12-29 11:31:29,089 - INFO - Navigated to view index: 0
+2025-12-29 11:31:29,111 - INFO - Navigation drawer dismissed
+2025-12-29 11:31:30,364 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:31:30,389 - INFO - Loading games from database...
+2025-12-29 11:31:30,426 - INFO - Navigation drawer dismissed
+2025-12-29 11:31:30,504 - INFO - Search index built: 11 games indexed
+2025-12-29 11:31:30,542 - INFO - Search index built: 11 games
+2025-12-29 11:31:30,797 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 11:31:30,830 - INFO - Navigated to view index: 1
+2025-12-29 11:31:30,864 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:31:30,881 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:31:30,899 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:31:30,917 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:31:30,934 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:31:30,951 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:31:30,968 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:31:30,987 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:31:31,005 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:31:31,022 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:31:31,040 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:32:02,896 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:32:02,910 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:32:02,918 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:32:02,918 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:32:02,919 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:32:02,920 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:32:02,920 - INFO - Checking dependencies...
+2025-12-29 11:32:02,934 - WARNING - Application requires administrator privileges
+2025-12-29 11:32:02,934 - INFO - Attempting to restart with admin rights...
+2025-12-29 11:32:02,935 - INFO - Re-running script with admin privileges...
+2025-12-29 11:32:04,308 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:32:04,322 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:32:04,323 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:32:04,324 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:32:04,325 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:32:04,325 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:32:04,326 - INFO - Checking dependencies...
+2025-12-29 11:32:04,339 - INFO - Admin privileges confirmed
+2025-12-29 11:32:04,339 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 11:32:04,540 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 11:32:04,541 - INFO - Initializing database...
+2025-12-29 11:32:04,543 - INFO - Database schema created successfully
+2025-12-29 11:32:04,546 - INFO - Connection pool initialized (5 connections)
+2025-12-29 11:32:04,546 - INFO - Database initialized successfully
+2025-12-29 11:32:04,546 - INFO - Database initialized successfully
+2025-12-29 11:32:04,547 - INFO - No duplicate games found
+2025-12-29 11:32:04,548 - INFO - No duplicate backups found
+2025-12-29 11:32:09,561 - INFO - Initializing main view...
+2025-12-29 11:32:09,562 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 11:32:09,574 - INFO - Main view initialized
+2025-12-29 11:32:09,592 - INFO - UI initialized successfully
+2025-12-29 11:32:09,593 - INFO - Initializing whitelist...
+2025-12-29 11:32:09,603 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 11:32:09,667 - INFO - Initializing DLL cache (async)...
+2025-12-29 11:32:09,667 - INFO - Initializing DLL cache (async)
+2025-12-29 11:32:09,913 - INFO - Whitelist initialized with 32 games
+2025-12-29 11:32:09,945 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:09,945 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:09,946 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:09,946 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:09,946 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:32:09,946 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:32:09,946 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:09,946 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:09,947 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:09,947 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:09,947 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:09,947 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:09,967 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:32:09,967 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:32:10,011 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:10,011 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:10,011 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:32:10,011 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:32:10,011 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:10,011 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:10,040 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:10,041 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:10,056 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 11:32:10,057 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 11:32:10,057 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:32:10,057 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 11:32:10,071 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:32:10,071 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:32:10,072 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:10,072 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:10,073 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 11:32:10,073 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 11:32:10,087 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:32:10,087 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 11:32:10,169 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 11:32:10,169 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 11:32:10,169 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:32:10,169 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:32:10,170 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:32:10,170 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:32:10,170 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:32:10,170 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:32:11,467 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 11:32:11,507 - INFO - DLL cache initialized successfully
+2025-12-29 11:32:15,485 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:32:15,518 - INFO - Loading games from database...
+2025-12-29 11:32:15,535 - INFO - Navigation drawer dismissed
+2025-12-29 11:32:15,569 - INFO - Search index built: 11 games indexed
+2025-12-29 11:32:15,649 - INFO - Search index built: 11 games
+2025-12-29 11:32:15,907 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:32:15,926 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:32:15,945 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:32:15,963 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:32:15,981 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:32:15,999 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:32:16,018 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:32:16,034 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:32:16,052 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:32:16,109 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 11:32:16,144 - INFO - Navigated to view index: 1
+2025-12-29 11:32:16,163 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:32:16,181 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:32:38,572 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:32:38,588 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:32:38,590 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:32:38,590 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:32:38,592 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:32:38,592 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:32:38,593 - INFO - Checking dependencies...
+2025-12-29 11:32:38,607 - WARNING - Application requires administrator privileges
+2025-12-29 11:32:38,607 - INFO - Attempting to restart with admin rights...
+2025-12-29 11:32:38,607 - INFO - Re-running script with admin privileges...
+2025-12-29 11:32:40,073 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:32:40,087 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-29 11:32:40,089 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-29 11:32:40,089 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-29 11:32:40,090 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-29 11:32:40,090 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-29 11:32:40,091 - INFO - Checking dependencies...
+2025-12-29 11:32:40,104 - INFO - Admin privileges confirmed
+2025-12-29 11:32:40,104 - INFO - DLL cache will be initialized after UI loads...
+2025-12-29 11:32:40,310 - INFO - DLSS Updater (Flet) starting...
+2025-12-29 11:32:40,310 - INFO - Initializing database...
+2025-12-29 11:32:40,312 - INFO - Database schema created successfully
+2025-12-29 11:32:40,314 - INFO - Connection pool initialized (5 connections)
+2025-12-29 11:32:40,314 - INFO - Database initialized successfully
+2025-12-29 11:32:40,314 - INFO - Database initialized successfully
+2025-12-29 11:32:40,315 - INFO - No duplicate backups found
+2025-12-29 11:32:40,315 - INFO - No duplicate games found
+2025-12-29 11:32:45,320 - INFO - Initializing main view...
+2025-12-29 11:32:45,322 - INFO - Loaded cached scan results: 42 games (scanned 2 days ago)
+2025-12-29 11:32:45,332 - INFO - Main view initialized
+2025-12-29 11:32:45,348 - INFO - UI initialized successfully
+2025-12-29 11:32:45,349 - INFO - Initializing whitelist...
+2025-12-29 11:32:45,357 - INFO - Steam app list cache is up to date (age: 2 days)
+2025-12-29 11:32:45,418 - INFO - Initializing DLL cache (async)...
+2025-12-29 11:32:45,419 - INFO - Initializing DLL cache (async)
+2025-12-29 11:32:45,564 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:45,564 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:45,564 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:45,565 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:45,585 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:45,585 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:45,585 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:32:45,585 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:32:45,600 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:45,600 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:45,629 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:45,629 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:45,629 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:45,629 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:45,629 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-29 11:32:45,630 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-29 11:32:45,630 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-29 11:32:45,630 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-29 11:32:45,630 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:32:45,630 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-29 11:32:45,630 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:45,630 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:45,630 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:32:45,630 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:32:45,630 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:32:45,630 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:32:45,631 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:45,631 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:45,631 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-29 11:32:45,631 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-29 11:32:45,631 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-29 11:32:45,631 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-29 11:32:45,631 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-29 11:32:45,632 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-29 11:32:45,632 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-29 11:32:45,632 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-29 11:32:45,632 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:32:45,633 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:32:45,633 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-29 11:32:45,633 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-29 11:32:45,633 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-29 11:32:45,633 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-29 11:32:46,854 - INFO - Whitelist initialized with 32 games
+2025-12-29 11:32:47,005 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-29 11:32:47,058 - INFO - DLL cache initialized successfully
+2025-12-29 11:32:50,921 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:32:50,952 - INFO - Loading games from database...
+2025-12-29 11:32:50,968 - INFO - Navigation drawer dismissed
+2025-12-29 11:32:51,001 - INFO - Search index built: 11 games indexed
+2025-12-29 11:32:51,063 - INFO - Search index built: 11 games
+2025-12-29 11:32:51,286 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:32:51,301 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:32:51,317 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:32:51,333 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:32:51,349 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:32:51,366 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:32:51,381 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:32:51,432 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 11:32:51,462 - INFO - Navigated to view index: 1
+2025-12-29 11:32:51,478 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:32:51,494 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:32:51,509 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:32:51,524 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:32:53,619 - INFO - Menu expanded
+2025-12-29 11:32:54,188 - INFO - Menu collapsed
+2025-12-29 11:33:42,116 - DEBUG - Search 'dune' found 1 matches
+2025-12-29 11:33:45,830 - INFO - Search history cleared
+2025-12-29 11:33:45,870 - INFO - Search history cleared
+2025-12-29 11:33:47,754 - DEBUG - Search 'd' found 6 matches
+2025-12-29 11:33:48,144 - DEBUG - Search 'dune' found 1 matches
+2025-12-29 11:33:53,775 - DEBUG - Search 'du' found 1 matches
+2025-12-29 11:33:54,001 - DEBUG - Search 'dun' found 1 matches
+2025-12-29 11:34:16,267 - INFO - Navigation drawer destination changed: 2
+2025-12-29 11:34:16,315 - INFO - Loading backups from database...
+2025-12-29 11:34:16,332 - INFO - Navigation drawer dismissed
+2025-12-29 11:34:16,353 - INFO - Loaded 4 backups
+2025-12-29 11:34:16,372 - INFO - Navigated to view index: 2
+2025-12-29 11:34:44,908 - INFO - Navigation drawer destination changed: 1
+2025-12-29 11:34:44,932 - INFO - Loading games from database...
+2025-12-29 11:34:44,977 - INFO - Navigation drawer dismissed
+2025-12-29 11:34:45,072 - INFO - Search index built: 11 games indexed
+2025-12-29 11:34:45,126 - INFO - Search index built: 11 games
+2025-12-29 11:34:45,143 - INFO - Loaded 11 games from 1 launchers
+2025-12-29 11:34:45,177 - INFO - Navigated to view index: 1
+2025-12-29 11:34:45,389 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-29 11:34:45,406 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-29 11:34:45,427 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-29 11:34:45,450 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-29 11:34:45,469 - DEBUG - Loaded cached image for Expedition 33
+2025-12-29 11:34:45,490 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-29 11:34:45,511 - DEBUG - Loaded cached image for Overwatch
+2025-12-29 11:34:45,655 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-29 11:34:45,674 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-29 11:34:45,694 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-29 11:34:45,730 - DEBUG - Loaded cached image for Warframe
+2025-12-29 11:35:40,599 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:35:56,747 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-29 11:36:06,488 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-31 10:08:31,477 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-31 10:08:32,153 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-31 10:08:32,190 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-31 10:08:32,191 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-31 10:08:32,198 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-31 10:08:32,199 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-31 10:08:32,308 - INFO - Checking dependencies...
+2025-12-31 10:08:32,571 - WARNING - Application requires administrator privileges
+2025-12-31 10:08:32,571 - INFO - Attempting to restart with admin rights...
+2025-12-31 10:08:32,571 - INFO - Re-running script with admin privileges...
+2025-12-31 10:08:34,115 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-31 10:08:34,128 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-31 10:08:34,130 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-31 10:08:34,130 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-31 10:08:34,131 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-31 10:08:34,131 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-31 10:08:34,141 - INFO - Checking dependencies...
+2025-12-31 10:08:34,155 - INFO - Admin privileges confirmed
+2025-12-31 10:08:34,155 - INFO - DLL cache will be initialized after UI loads...
+2025-12-31 10:08:34,552 - INFO - DLSS Updater (Flet) starting...
+2025-12-31 10:08:34,553 - INFO - Initializing database...
+2025-12-31 10:08:34,564 - INFO - Database schema created successfully
+2025-12-31 10:08:34,569 - INFO - Connection pool initialized (5 connections)
+2025-12-31 10:08:34,569 - INFO - Database initialized successfully
+2025-12-31 10:08:34,569 - INFO - Database initialized successfully
+2025-12-31 10:08:34,571 - INFO - No duplicate backups found
+2025-12-31 10:08:34,574 - INFO - No duplicate games found
+2025-12-31 10:08:39,580 - INFO - Initializing main view...
+2025-12-31 10:08:39,591 - INFO - Loaded cached scan results: 42 games (scanned 4 days ago)
+2025-12-31 10:08:39,602 - INFO - Keyboard shortcuts enabled (F1 for help)
+2025-12-31 10:08:39,602 - INFO - Main view initialized
+2025-12-31 10:08:39,618 - INFO - UI initialized successfully
+2025-12-31 10:08:39,619 - INFO - Initializing whitelist...
+2025-12-31 10:08:39,633 - INFO - Steam app list cache is up to date (age: 4 days)
+2025-12-31 10:08:39,716 - INFO - Initializing DLL cache (async)...
+2025-12-31 10:08:39,716 - INFO - Initializing DLL cache (async)
+2025-12-31 10:08:39,941 - INFO - Whitelist initialized with 32 games
+2025-12-31 10:08:40,023 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-31 10:08:40,024 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-31 10:08:40,024 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:08:40,025 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:08:40,025 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:08:40,025 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:08:40,025 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:08:40,025 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:08:40,025 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-31 10:08:40,025 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-31 10:08:40,026 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:08:40,026 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:08:40,026 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:08:40,026 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:08:40,026 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:08:40,026 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:08:40,026 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:08:40,026 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:08:40,027 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:08:40,027 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:08:40,027 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:08:40,028 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:08:40,028 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-31 10:08:40,028 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-31 10:08:40,028 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-31 10:08:40,028 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-31 10:08:40,028 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-31 10:08:40,028 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-31 10:08:40,029 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:08:40,029 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:08:40,029 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-31 10:08:40,029 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-31 10:08:40,029 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-31 10:08:40,029 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-31 10:08:40,029 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:08:40,029 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:08:40,625 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:08:40,626 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:08:40,626 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-31 10:08:40,626 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-31 10:08:40,627 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-31 10:08:40,627 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-31 10:08:41,947 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-31 10:08:41,987 - INFO - DLL cache initialized successfully
+2025-12-31 10:08:47,757 - INFO - Navigation drawer destination changed: 3
+2025-12-31 10:08:47,792 - INFO - Loading dashboard data...
+2025-12-31 10:08:47,810 - INFO - Navigation drawer dismissed
+2025-12-31 10:08:47,830 - ERROR - Error loading dashboard: LineChartData.__init__() got an unexpected keyword argument 'below_line_fill'. Did you mean 'below_line_bgcolor'?
+Traceback (most recent call last):
+  File "C:\Github\DLSS-Updater\dlss_updater\ui_flet\views\dashboard_view.py", line 690, in load_dashboard_data
+    await self._build_dashboard_content(stats, version_matrix, timeline, distribution, recent_updates)
+  File "C:\Github\DLSS-Updater\dlss_updater\ui_flet\views\dashboard_view.py", line 816, in _build_dashboard_content
+    content=UpdateTimelineChart(timeline),
+            ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Github\DLSS-Updater\dlss_updater\ui_flet\views\dashboard_view.py", line 281, in __init__
+    ft.LineChartData(
+    ~~~~~~~~~~~~~~~~^
+        data_points=data_points,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        point_size=6,
+        ^^^^^^^^^^^^^
+    )
+    ^
+TypeError: LineChartData.__init__() got an unexpected keyword argument 'below_line_fill'. Did you mean 'below_line_bgcolor'?
+2025-12-31 10:08:47,861 - INFO - Navigated to view index: 3
+2025-12-31 10:09:29,930 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-31 10:09:29,944 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-31 10:09:29,947 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-31 10:09:29,947 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-31 10:09:29,948 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-31 10:09:29,949 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-31 10:09:29,963 - INFO - Checking dependencies...
+2025-12-31 10:09:29,978 - WARNING - Application requires administrator privileges
+2025-12-31 10:09:29,978 - INFO - Attempting to restart with admin rights...
+2025-12-31 10:09:29,978 - INFO - Re-running script with admin privileges...
+2025-12-31 10:09:31,533 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-31 10:09:31,547 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-31 10:09:31,550 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-31 10:09:31,550 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-31 10:09:31,551 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-31 10:09:31,551 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-31 10:09:31,560 - INFO - Checking dependencies...
+2025-12-31 10:09:31,574 - INFO - Admin privileges confirmed
+2025-12-31 10:09:31,574 - INFO - DLL cache will be initialized after UI loads...
+2025-12-31 10:09:31,780 - INFO - DLSS Updater (Flet) starting...
+2025-12-31 10:09:31,781 - INFO - Initializing database...
+2025-12-31 10:09:31,782 - INFO - Database schema created successfully
+2025-12-31 10:09:31,785 - INFO - Connection pool initialized (5 connections)
+2025-12-31 10:09:31,785 - INFO - Database initialized successfully
+2025-12-31 10:09:31,786 - INFO - Database initialized successfully
+2025-12-31 10:09:31,787 - INFO - No duplicate backups found
+2025-12-31 10:09:31,791 - INFO - No duplicate games found
+2025-12-31 10:09:36,805 - INFO - Initializing main view...
+2025-12-31 10:09:36,807 - INFO - Loaded cached scan results: 42 games (scanned 4 days ago)
+2025-12-31 10:09:36,816 - INFO - Keyboard shortcuts enabled (F1 for help)
+2025-12-31 10:09:36,816 - INFO - Main view initialized
+2025-12-31 10:09:36,838 - INFO - UI initialized successfully
+2025-12-31 10:09:36,838 - INFO - Initializing whitelist...
+2025-12-31 10:09:36,846 - INFO - Steam app list cache is up to date (age: 4 days)
+2025-12-31 10:09:36,925 - INFO - Initializing DLL cache (async)...
+2025-12-31 10:09:36,925 - INFO - Initializing DLL cache (async)
+2025-12-31 10:09:37,066 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:09:37,066 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:09:37,104 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:09:37,104 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:09:37,104 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:09:37,104 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:09:37,104 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-31 10:09:37,105 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-31 10:09:37,105 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:09:37,105 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:09:37,105 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:09:37,105 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:09:37,105 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-31 10:09:37,105 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-31 10:09:37,105 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:09:37,105 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:09:37,105 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:09:37,105 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:09:37,106 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:09:37,106 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:09:37,106 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-31 10:09:37,106 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-31 10:09:37,106 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-31 10:09:37,106 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-31 10:09:37,107 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:09:37,107 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:09:37,107 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-31 10:09:37,107 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-31 10:09:37,107 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-31 10:09:37,107 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-31 10:09:37,108 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-31 10:09:37,108 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-31 10:09:37,108 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:09:37,108 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:09:37,108 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-31 10:09:37,108 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-31 10:09:37,108 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:09:37,108 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:09:37,108 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:09:37,108 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:09:37,108 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-31 10:09:37,109 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-31 10:09:38,383 - INFO - Whitelist initialized with 32 games
+2025-12-31 10:09:38,545 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-31 10:09:38,584 - INFO - DLL cache initialized successfully
+2025-12-31 10:09:45,202 - INFO - Navigation drawer destination changed: 2
+2025-12-31 10:09:45,236 - INFO - Loading backups from database...
+2025-12-31 10:09:45,253 - INFO - Navigation drawer dismissed
+2025-12-31 10:09:45,273 - INFO - Loaded 4 backups
+2025-12-31 10:09:45,292 - INFO - Navigated to view index: 2
+2025-12-31 10:09:47,515 - INFO - Navigation drawer destination changed: 3
+2025-12-31 10:09:47,547 - INFO - Loading dashboard data...
+2025-12-31 10:09:47,565 - INFO - Navigation drawer dismissed
+2025-12-31 10:09:47,603 - INFO - Dashboard data loaded successfully
+2025-12-31 10:09:47,627 - INFO - Navigated to view index: 3
+2025-12-31 10:13:54,878 - INFO - Navigation drawer dismissed
+2025-12-31 10:13:56,591 - INFO - Navigation drawer dismissed
+2025-12-31 10:13:58,211 - INFO - Navigation drawer destination changed: 0
+2025-12-31 10:13:58,255 - INFO - Navigated to view index: 0
+2025-12-31 10:13:58,279 - INFO - Navigation drawer dismissed
+2025-12-31 10:14:02,785 - INFO - Navigation drawer destination changed: 3
+2025-12-31 10:14:02,817 - INFO - Loading dashboard data...
+2025-12-31 10:14:02,850 - INFO - Navigation drawer dismissed
+2025-12-31 10:14:02,916 - INFO - Dashboard data loaded successfully
+2025-12-31 10:14:02,948 - INFO - Navigated to view index: 3
+2025-12-31 10:19:58,047 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-31 10:19:58,075 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-31 10:19:58,077 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-31 10:19:58,078 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-31 10:19:58,079 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-31 10:19:58,079 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-31 10:19:58,092 - INFO - Checking dependencies...
+2025-12-31 10:19:58,106 - WARNING - Application requires administrator privileges
+2025-12-31 10:19:58,106 - INFO - Attempting to restart with admin rights...
+2025-12-31 10:19:58,106 - INFO - Re-running script with admin privileges...
+2025-12-31 10:19:59,789 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-31 10:19:59,803 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-31 10:19:59,805 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-31 10:19:59,806 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-31 10:19:59,807 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-31 10:19:59,807 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-31 10:19:59,815 - INFO - Checking dependencies...
+2025-12-31 10:19:59,829 - INFO - Admin privileges confirmed
+2025-12-31 10:19:59,829 - INFO - DLL cache will be initialized after UI loads...
+2025-12-31 10:20:00,039 - INFO - DLSS Updater (Flet) starting...
+2025-12-31 10:20:00,040 - INFO - Initializing database...
+2025-12-31 10:20:00,042 - INFO - Database schema created successfully
+2025-12-31 10:20:00,045 - INFO - Connection pool initialized (5 connections)
+2025-12-31 10:20:00,045 - INFO - Database initialized successfully
+2025-12-31 10:20:00,045 - INFO - Database initialized successfully
+2025-12-31 10:20:00,047 - INFO - No duplicate games found
+2025-12-31 10:20:00,054 - INFO - No duplicate backups found
+2025-12-31 10:20:05,068 - INFO - Initializing main view...
+2025-12-31 10:20:05,069 - INFO - Loaded cached scan results: 42 games (scanned 4 days ago)
+2025-12-31 10:20:05,080 - INFO - Keyboard shortcuts enabled (F1 for help)
+2025-12-31 10:20:05,080 - INFO - Main view initialized
+2025-12-31 10:20:05,105 - INFO - UI initialized successfully
+2025-12-31 10:20:05,105 - INFO - Initializing whitelist...
+2025-12-31 10:20:05,114 - INFO - Steam app list cache is up to date (age: 4 days)
+2025-12-31 10:20:05,196 - INFO - Initializing DLL cache (async)...
+2025-12-31 10:20:05,196 - INFO - Initializing DLL cache (async)
+2025-12-31 10:20:05,452 - INFO - Whitelist initialized with 32 games
+2025-12-31 10:20:05,488 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:20:05,489 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:20:05,489 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:20:05,490 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:20:05,490 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:20:05,490 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:20:05,490 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:20:05,490 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:20:05,490 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:20:05,491 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:20:05,491 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:20:05,491 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:20:05,512 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-31 10:20:05,512 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-31 10:20:05,513 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:20:05,513 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:20:05,513 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:20:05,513 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:20:05,513 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:20:05,513 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:20:05,513 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-31 10:20:05,513 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-31 10:20:05,514 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-31 10:20:05,514 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-31 10:20:05,514 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-31 10:20:05,514 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-31 10:20:05,514 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-31 10:20:05,514 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-31 10:20:05,514 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-31 10:20:05,514 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-31 10:20:05,530 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-31 10:20:05,530 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-31 10:20:05,530 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:20:05,530 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:20:05,546 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-31 10:20:05,546 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-31 10:20:05,689 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:20:05,689 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:20:05,690 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:20:05,690 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:20:05,690 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-31 10:20:05,690 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-31 10:20:07,032 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-31 10:20:07,071 - INFO - DLL cache initialized successfully
+2025-12-31 10:20:31,736 - INFO - Navigation drawer destination changed: 3
+2025-12-31 10:20:31,767 - INFO - Loading dashboard data...
+2025-12-31 10:20:31,785 - INFO - Navigation drawer dismissed
+2025-12-31 10:20:31,815 - INFO - Dashboard data loaded successfully
+2025-12-31 10:20:31,836 - INFO - Navigated to view index: 3
+2025-12-31 10:24:48,490 - INFO - Menu expanded
+2025-12-31 10:25:03,088 - DEBUG - Menu item selected: keyboard_shortcuts
+2025-12-31 10:25:03,101 - INFO - Keyboard shortcuts dialog opened
+2025-12-31 10:25:09,463 - DEBUG - Keyboard event: key=1, ctrl=True, shift=False
+2025-12-31 10:25:09,481 - INFO - Navigated to view index: 0
+2025-12-31 10:25:12,454 - INFO - Menu collapsed
+2025-12-31 10:25:12,956 - INFO - Menu expanded
+2025-12-31 10:25:15,371 - DEBUG - Menu item selected: keyboard_shortcuts
+2025-12-31 10:25:15,388 - INFO - Keyboard shortcuts dialog opened
+2025-12-31 10:25:42,015 - INFO - Navigation drawer destination changed: 1
+2025-12-31 10:25:42,072 - INFO - Loading games from database...
+2025-12-31 10:25:42,122 - INFO - Navigation drawer dismissed
+2025-12-31 10:25:42,194 - INFO - Search index built: 11 games indexed
+2025-12-31 10:25:42,255 - INFO - Search index built: 11 games
+2025-12-31 10:25:42,622 - INFO - Loaded 11 games from 1 launchers
+2025-12-31 10:25:42,667 - INFO - Navigated to view index: 1
+2025-12-31 10:25:42,713 - DEBUG - Loaded cached image for Arc Raiders
+2025-12-31 10:25:42,737 - DEBUG - Loaded cached image for Expedition 33
+2025-12-31 10:25:42,763 - DEBUG - Loaded cached image for BlackMythWukong
+2025-12-31 10:25:42,789 - DEBUG - Loaded cached image for Ghost of Tsushima DIRECTOR'S CUT
+2025-12-31 10:25:42,816 - DEBUG - Loaded cached image for Dying Light 2
+2025-12-31 10:25:42,842 - DEBUG - Loaded cached image for DuneAwakening
+2025-12-31 10:25:42,867 - DEBUG - Loaded cached image for MarvelRivals
+2025-12-31 10:25:42,892 - DEBUG - Loaded cached image for Overwatch
+2025-12-31 10:25:42,918 - DEBUG - Loaded cached image for No Man's Sky
+2025-12-31 10:25:42,944 - DEBUG - Loaded cached image for Helldivers 2
+2025-12-31 10:25:42,979 - DEBUG - Loaded cached image for Warframe
+2025-12-31 10:25:44,090 - INFO - Menu collapsed
+2025-12-31 10:25:48,871 - DEBUG - Keyboard event: key=f, ctrl=False, shift=False
+2025-12-31 10:25:49,766 - DEBUG - Keyboard event: key=f, ctrl=False, shift=False
+2025-12-31 10:25:55,253 - INFO - Navigation drawer destination changed: 0
+2025-12-31 10:25:55,335 - INFO - Navigated to view index: 0
+2025-12-31 10:25:55,391 - INFO - Navigation drawer dismissed
+2025-12-31 10:25:57,352 - INFO - Navigation drawer destination changed: 3
+2025-12-31 10:25:57,397 - INFO - Loading dashboard data...
+2025-12-31 10:25:57,441 - INFO - Navigation drawer dismissed
+2025-12-31 10:25:57,558 - INFO - Dashboard data loaded successfully
+2025-12-31 10:25:57,601 - INFO - Navigated to view index: 3
+2025-12-31 10:27:46,149 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-31 10:27:46,178 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-31 10:27:46,180 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-31 10:27:46,180 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-31 10:27:46,181 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-31 10:27:46,182 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-31 10:27:46,200 - INFO - Checking dependencies...
+2025-12-31 10:27:46,214 - WARNING - Application requires administrator privileges
+2025-12-31 10:27:46,214 - INFO - Attempting to restart with admin rights...
+2025-12-31 10:27:46,214 - INFO - Re-running script with admin privileges...
+2025-12-31 10:27:47,466 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2025-12-31 10:27:47,479 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2025-12-31 10:27:47,482 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2025-12-31 10:27:47,482 - INFO - Steam app list cache file: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_app_list.json
+2025-12-31 10:27:47,483 - INFO - Fuzzy matching disabled (rapidfuzz not installed)
+2025-12-31 10:27:47,483 - INFO - GameSearchService initialized (fuzzy=False)
+2025-12-31 10:27:47,492 - INFO - Checking dependencies...
+2025-12-31 10:27:47,505 - INFO - Admin privileges confirmed
+2025-12-31 10:27:47,505 - INFO - DLL cache will be initialized after UI loads...
+2025-12-31 10:27:47,710 - INFO - DLSS Updater (Flet) starting...
+2025-12-31 10:27:47,711 - INFO - Initializing database...
+2025-12-31 10:27:47,712 - INFO - Database schema created successfully
+2025-12-31 10:27:47,715 - INFO - Connection pool initialized (5 connections)
+2025-12-31 10:27:47,715 - INFO - Database initialized successfully
+2025-12-31 10:27:47,715 - INFO - Database initialized successfully
+2025-12-31 10:27:47,716 - INFO - No duplicate games found
+2025-12-31 10:27:47,717 - INFO - No duplicate backups found
+2025-12-31 10:27:52,719 - INFO - Initializing main view...
+2025-12-31 10:27:52,721 - INFO - Loaded cached scan results: 42 games (scanned 4 days ago)
+2025-12-31 10:27:52,734 - INFO - Keyboard shortcuts enabled (F1 for help)
+2025-12-31 10:27:52,735 - INFO - Main view initialized
+2025-12-31 10:27:52,766 - INFO - UI initialized successfully
+2025-12-31 10:27:52,767 - INFO - Initializing whitelist...
+2025-12-31 10:27:52,778 - INFO - Steam app list cache is up to date (age: 4 days)
+2025-12-31 10:27:52,872 - INFO - Initializing DLL cache (async)...
+2025-12-31 10:27:52,872 - INFO - Initializing DLL cache (async)
+2025-12-31 10:27:53,085 - INFO - Whitelist initialized with 32 games
+2025-12-31 10:27:53,128 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:27:53,128 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:27:53,129 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:27:53,129 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:27:53,130 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:27:53,130 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:27:53,151 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:27:53,152 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:27:53,152 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-31 10:27:53,152 - INFO - libxess_dx11.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-31 10:27:53,152 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:27:53,152 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:27:53,152 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:27:53,152 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:27:53,153 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-31 10:27:53,153 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-31 10:27:53,153 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:27:53,153 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:27:53,153 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:27:53,153 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:27:53,170 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2025-12-31 10:27:53,170 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2025-12-31 10:27:53,170 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2025-12-31 10:27:53,170 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2025-12-31 10:27:53,170 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2025-12-31 10:27:53,170 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2025-12-31 10:27:53,186 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2025-12-31 10:27:53,187 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2025-12-31 10:27:53,187 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2025-12-31 10:27:53,187 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2025-12-31 10:27:53,229 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2025-12-31 10:27:53,229 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2025-12-31 10:27:53,230 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:27:53,230 - INFO - nvngx_dlssg.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:27:53,230 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2025-12-31 10:27:53,230 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2025-12-31 10:27:53,250 - INFO - Comparing versions for nvngx_dlss.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:27:53,250 - INFO - nvngx_dlss.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:27:53,250 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,4,0,0 (310.4.0) remote=310.4.0.0 (310.4.0)
+2025-12-31 10:27:53,250 - INFO - nvngx_dlssd.dll is up to date (local: 310,4,0,0, remote: 310.4.0.0)
+2025-12-31 10:27:53,250 - INFO - Comparing versions for libxess.dll: local=2.0.1.41 (2.0.1) remote=2.0.1.41 (2.0.1)
+2025-12-31 10:27:53,250 - INFO - libxess.dll is up to date (local: 2.0.1.41, remote: 2.0.1.41)
+2025-12-31 10:27:54,749 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2025-12-31 10:27:54,790 - INFO - DLL cache initialized successfully
+2025-12-31 10:27:58,996 - INFO - Navigation drawer destination changed: 3
+2025-12-31 10:27:59,029 - INFO - Loading dashboard data...
+2025-12-31 10:27:59,047 - INFO - Navigation drawer dismissed
+2025-12-31 10:27:59,078 - INFO - Dashboard data loaded successfully
+2025-12-31 10:27:59,102 - INFO - Navigated to view index: 3

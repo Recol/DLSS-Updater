@@ -1,3 +1,46 @@
+Version 3.2.0:
+New Features:
+DLL Version Dashboard - comprehensive statistics and visualizations:
+  - Stat cards showing total games, DLLs updated, and pending updates.
+  - Timeline chart showing update history over the last 30 days with proper date labels.
+  - Technology distribution pie chart grouped by category (DLSS, XeSS, FSR, DirectStorage, Streamline).
+  - Recent updates list with time-ago formatting.
+  - Responsive layout adapting to window size.
+
+Favorites & Game Grouping system:
+  - Star/favorite games with animated toggle button.
+  - Custom tags with color picker (create, edit, delete tags).
+  - Tag chips displayed on game cards with remove option.
+  - Sort/filter bar with smart group options (Favorites, Recently Updated, Needs Update, Has Backups).
+  - Sort options: Name A-Z/Z-A, Recently Updated, Favorites First.
+  - Database schema for favorites and tags with optimized indexes.
+
+System Tray Minimization:
+  - Minimize to system tray option (configurable in Preferences).
+  - Close to tray option (minimize on X button instead of exiting).
+  - Tray notification preferences.
+  - Context menu: Open Window, Scan for Games, Update All, Exit.
+  - Window geometry persistence across restarts.
+
+Keyboard Shortcuts:
+  - Global hotkeys within the application window.
+  - Ctrl+1/2/3/4: Navigate between Launchers/Games/Backups/Dashboard.
+  - Ctrl+R: Refresh current view, Ctrl+S: Scan for games, Ctrl+U: Update all.
+  - Ctrl+F: Focus search bar, Ctrl+L: Toggle logger panel.
+  - F1: Show help dialog, F11: Toggle fullscreen, Escape: Clear/close.
+  - Keyboard shortcuts help dialog accessible from menu or F1.
+
+Discord Rich Presence integration:
+  - Show DLSS Updater activity in Discord (opt-in, privacy-focused).
+  - Privacy controls: toggle game count, activity status, elapsed time.
+  - Activity preview showing how presence appears in Discord.
+  - Connection status indicator and test button.
+  - States: Idle, Scanning, Updating, Restoring.
+
+New Dependencies:
+  - pystray>=0.19.5 (Windows system tray support)
+  - pypresence>=4.6.1 (Discord Rich Presence)
+
 Version 3.1.0:
 Game search - real-time search bar with instant filtering:
   - Search bar in Games tab header with 150ms debouncing.

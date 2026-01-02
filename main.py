@@ -21,6 +21,8 @@ import flet as ft
 from dlss_updater.logger import setup_logger
 from dlss_updater.utils import check_dependencies, is_admin, run_as_admin
 from dlss_updater.ui_flet.views.main_view import MainView
+from dlss_updater.config import config_manager
+from dlss_updater.system_tray import system_tray_manager
 
 
 async def main(page: ft.Page):
@@ -161,6 +163,52 @@ async def main(page: ft.Page):
     page.update()
 
     logger.info("UI initialized successfully")
+
+    # Initialize system tray if enabled
+    if system_tray_manager.is_enabled and system_tray_manager.is_available:
+        # Set up tray callbacks
+        def on_show_window():
+            page.window.visible = True
+            page.window.focused = True
+            page.update()
+
+        async def on_scan_games():
+            if hasattr(main_view, '_on_scan_clicked'):
+                await main_view._on_scan_clicked(None)
+
+        async def on_update_all():
+            if hasattr(main_view, '_on_update_clicked'):
+                await main_view._on_update_clicked(None)
+
+        def on_exit():
+            page.window.destroy()
+
+        system_tray_manager.on_show_window = on_show_window
+        system_tray_manager.on_scan_games = on_scan_games
+        system_tray_manager.on_update_all = on_update_all
+        system_tray_manager.on_exit = on_exit
+
+        # Start system tray
+        if system_tray_manager.start():
+            logger.info("System tray initialized")
+
+            # Handle minimize to tray
+            async def on_window_event(e):
+                if e.data == "minimize" and config_manager.get_minimize_to_tray():
+                    page.window.visible = False
+                    page.update()
+                    logger.debug("Window minimized to tray")
+                elif e.data == "close" and config_manager.get_close_to_tray():
+                    page.window.visible = False
+                    page.window.prevent_close = True
+                    page.update()
+                    logger.debug("Window closed to tray")
+
+            page.window.on_event = on_window_event
+
+            # Enable close prevention if close_to_tray is enabled
+            if config_manager.get_close_to_tray():
+                page.window.prevent_close = True
 
     # Now initialize DLL cache, whitelist, and Steam list in background (after UI is visible)
     # This allows the user to see the app immediately while heavy init happens

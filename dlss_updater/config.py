@@ -542,6 +542,136 @@ class ConfigManager(configparser.ConfigParser):
         self["UpdatePreferences"]["HighPerformanceMode"] = str(enabled).lower()
         self.save()
 
+    # =========================================================================
+    # System Tray Configuration
+    # =========================================================================
+
+    def _ensure_system_tray_section(self):
+        """Ensure SystemTray section exists with defaults"""
+        if not self.has_section("SystemTray"):
+            self.add_section("SystemTray")
+            self["SystemTray"]["MinimizeToTray"] = "false"
+            self["SystemTray"]["ShowTrayNotifications"] = "true"
+            self["SystemTray"]["CloseToTray"] = "false"
+            self.save()
+
+    def get_minimize_to_tray(self) -> bool:
+        """Get whether to minimize to system tray instead of taskbar"""
+        self._ensure_system_tray_section()
+        return self["SystemTray"].getboolean("MinimizeToTray", False)
+
+    def set_minimize_to_tray(self, enabled: bool) -> None:
+        """Set minimize to tray preference"""
+        self._ensure_system_tray_section()
+        self["SystemTray"]["MinimizeToTray"] = str(enabled).lower()
+        self.save()
+
+    def get_show_tray_notifications(self) -> bool:
+        """Get whether to show tray balloon notifications"""
+        self._ensure_system_tray_section()
+        return self["SystemTray"].getboolean("ShowTrayNotifications", True)
+
+    def set_show_tray_notifications(self, enabled: bool) -> None:
+        """Set tray notifications preference"""
+        self._ensure_system_tray_section()
+        self["SystemTray"]["ShowTrayNotifications"] = str(enabled).lower()
+        self.save()
+
+    def get_close_to_tray(self) -> bool:
+        """Get whether to minimize to tray on close instead of exiting"""
+        self._ensure_system_tray_section()
+        return self["SystemTray"].getboolean("CloseToTray", False)
+
+    def set_close_to_tray(self, enabled: bool) -> None:
+        """Set close to tray preference"""
+        self._ensure_system_tray_section()
+        self["SystemTray"]["CloseToTray"] = str(enabled).lower()
+        self.save()
+
+    # =========================================================================
+    # Window Geometry Persistence
+    # =========================================================================
+
+    def _ensure_window_geometry_section(self):
+        """Ensure WindowGeometry section exists"""
+        if not self.has_section("WindowGeometry"):
+            self.add_section("WindowGeometry")
+            self.save()
+
+    def get_window_geometry(self) -> dict:
+        """Get saved window geometry (x, y, width, height, maximized)"""
+        self._ensure_window_geometry_section()
+        return {
+            "x": int(self["WindowGeometry"].get("X", "0")) or None,
+            "y": int(self["WindowGeometry"].get("Y", "0")) or None,
+            "width": int(self["WindowGeometry"].get("Width", "900")),
+            "height": int(self["WindowGeometry"].get("Height", "700")),
+            "maximized": self["WindowGeometry"].getboolean("Maximized", False),
+        }
+
+    def save_window_geometry(self, x: int = None, y: int = None,
+                             width: int = None, height: int = None,
+                             maximized: bool = None) -> None:
+        """Save window geometry for persistence across restarts"""
+        self._ensure_window_geometry_section()
+        if x is not None:
+            self["WindowGeometry"]["X"] = str(x)
+        if y is not None:
+            self["WindowGeometry"]["Y"] = str(y)
+        if width is not None:
+            self["WindowGeometry"]["Width"] = str(width)
+        if height is not None:
+            self["WindowGeometry"]["Height"] = str(height)
+        if maximized is not None:
+            self["WindowGeometry"]["Maximized"] = str(maximized).lower()
+        self.save()
+
+    # =========================================================================
+    # Discord Rich Presence Configuration
+    # =========================================================================
+
+    def _ensure_discord_presence_section(self):
+        """Ensure DiscordPresence section exists with defaults"""
+        if not self.has_section("DiscordPresence"):
+            self.add_section("DiscordPresence")
+            self["DiscordPresence"]["Enabled"] = "false"  # Off by default for privacy
+            self["DiscordPresence"]["ShowGameCount"] = "true"
+            self["DiscordPresence"]["ShowActivity"] = "true"
+            self.save()
+
+    def get_discord_presence_enabled(self) -> bool:
+        """Get whether Discord Rich Presence is enabled"""
+        self._ensure_discord_presence_section()
+        return self["DiscordPresence"].getboolean("Enabled", False)
+
+    def set_discord_presence_enabled(self, enabled: bool) -> None:
+        """Set Discord Rich Presence enabled state"""
+        self._ensure_discord_presence_section()
+        self["DiscordPresence"]["Enabled"] = str(enabled).lower()
+        self.save()
+
+    def get_discord_show_game_count(self) -> bool:
+        """Get whether to show game count in Discord presence"""
+        self._ensure_discord_presence_section()
+        return self["DiscordPresence"].getboolean("ShowGameCount", True)
+
+    def set_discord_show_game_count(self, enabled: bool) -> None:
+        """Set whether to show game count in Discord presence"""
+        self._ensure_discord_presence_section()
+        self["DiscordPresence"]["ShowGameCount"] = str(enabled).lower()
+        self.save()
+
+    def get_discord_show_activity(self) -> bool:
+        """Get whether to show current activity in Discord presence"""
+        self._ensure_discord_presence_section()
+        return self["DiscordPresence"].getboolean("ShowActivity", True)
+
+    def set_discord_show_activity(self, enabled: bool) -> None:
+        """Set whether to show current activity in Discord presence"""
+        self._ensure_discord_presence_section()
+        self["DiscordPresence"]["ShowActivity"] = str(enabled).lower()
+        self.save()
+
 
 config_manager = ConfigManager()
 

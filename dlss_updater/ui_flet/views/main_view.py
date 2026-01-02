@@ -26,9 +26,13 @@ from dlss_updater.ui_flet.dialogs.release_notes_dialog import ReleaseNotesDialog
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.dialogs.high_perf_warning_dialog import HighPerfWarningDialog
+from dlss_updater.ui_flet.dialogs.keyboard_shortcuts_dialog import KeyboardShortcutHandler, KeyboardShortcutsDialog
+from dlss_updater.ui_flet.dialogs.system_tray_dialog import SystemTrayDialog
+from dlss_updater.ui_flet.dialogs.discord_rpc_dialog import DiscordRPCDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
 from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
+from dlss_updater.ui_flet.views.dashboard_view import DashboardView
 from dlss_updater.ui_flet.components.navigation_drawer import CustomNavigationDrawer
 from dlss_updater.ui_flet.components.dll_cache_snackbar import DLLCacheProgressSnackbar
 from dlss_updater.ui_flet.components.app_menu_selector import AppMenuSelector, MenuCategory, MenuItem
@@ -79,8 +83,11 @@ class MainView(ft.Column):
         # Discord banner
         self.discord_banner: Optional[ft.Banner] = None
 
+        # Keyboard shortcut handler
+        self.keyboard_handler: Optional[KeyboardShortcutHandler] = None
+
         # Navigation state
-        self.current_view_index = 0  # 0=Launchers, 1=Games, 2=Backups
+        self.current_view_index = 0  # 0=Launchers, 1=Games, 2=Backups, 3=Dashboard
 
         # Scan state management - store last scan results for update operations
         self.last_scan_results: Optional[Dict] = None
@@ -137,6 +144,11 @@ class MainView(ft.Column):
             self.page.open(self.discord_banner)
             self.logger.info("Discord invite banner displayed")
 
+        # Initialize keyboard shortcut handler
+        self.keyboard_handler = KeyboardShortcutHandler(self.page, self.logger, self)
+        self.page.on_keyboard_event = self.keyboard_handler.handle_keyboard_event
+        self.logger.info("Keyboard shortcuts enabled (F1 for help)")
+
         self.logger.info("Main view initialized")
 
     async def _build_ui(self):
@@ -150,6 +162,7 @@ class MainView(ft.Column):
         # Create other views
         self.games_view = GamesView(self.page, self.logger)
         self.backups_view = BackupsView(self.page, self.logger)
+        self.dashboard_view = DashboardView(self.page, self.logger)
 
         # Create AnimatedSwitcher for smooth view transitions
         self.content_switcher = ft.AnimatedSwitcher(
@@ -594,6 +607,20 @@ class MainView(ft.Column):
                         on_click=self._on_high_performance_clicked,
                     ),
                     MenuItem(
+                        id="system_tray",
+                        title="System Tray",
+                        description="Minimize to tray settings",
+                        icon=ft.Icons.NOTIFICATIONS,
+                        on_click=self._on_system_tray_clicked,
+                    ),
+                    MenuItem(
+                        id="discord_rpc",
+                        title="Discord Rich Presence",
+                        description="Show activity in Discord",
+                        icon=ft.Icons.DISCORD,
+                        on_click=self._on_discord_rpc_clicked,
+                    ),
+                    MenuItem(
                         id="theme",
                         title="Theme: Dark Mode",
                         description="Disabled (light theme has issues)",
@@ -616,6 +643,13 @@ class MainView(ft.Column):
                         icon=ft.Icons.SYSTEM_UPDATE,
                         on_click=self._on_check_updates_clicked,
                         show_badge=False,
+                    ),
+                    MenuItem(
+                        id="keyboard_shortcuts",
+                        title="Keyboard Shortcuts",
+                        description="View hotkeys (F1)",
+                        icon=ft.Icons.KEYBOARD,
+                        on_click=self._on_keyboard_shortcuts_clicked,
                     ),
                 ],
             ),
@@ -795,6 +829,10 @@ class MainView(ft.Column):
             self.content_switcher.content = self.backups_view
             # Load backups when navigating to backups view
             await self.backups_view.load_backups()
+        elif self.current_view_index == 3:
+            self.content_switcher.content = self.dashboard_view
+            # Load dashboard data when navigating to dashboard view
+            await self.dashboard_view.load_dashboard_data()
 
         self.page.update()
         self.logger.info(f"Navigated to view index: {self.current_view_index}")
@@ -924,6 +962,21 @@ class MainView(ft.Column):
         """Handle check for updates button click"""
         dialog = AppUpdateDialog(self.page, self.logger)
         await dialog.check_and_show()
+
+    async def _on_keyboard_shortcuts_clicked(self, e):
+        """Handle keyboard shortcuts menu click"""
+        dialog = KeyboardShortcutsDialog(self.page, self.logger)
+        await dialog.show()
+
+    async def _on_system_tray_clicked(self, e):
+        """Handle system tray settings menu click"""
+        dialog = SystemTrayDialog(self.page, self.logger)
+        await dialog.show()
+
+    async def _on_discord_rpc_clicked(self, e):
+        """Handle Discord Rich Presence settings menu click"""
+        dialog = DiscordRPCDialog(self.page, self.logger)
+        await dialog.show()
 
     async def _on_blacklist_clicked(self, e):
         """Handle blacklist button click"""

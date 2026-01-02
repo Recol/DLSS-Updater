@@ -1,6 +1,6 @@
 [project]
 name = "dlss-updater"
-version = "3.0.2"
+version = "3.2.0"
 description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -38,6 +38,8 @@ dependencies = [
     # "scandir-rs>=2.9.3; platform_system == 'Windows'",
     "winloop>=0.1.7; platform_system == 'Windows'",
     "pytest-codspeed>=4.2.0",
+    "pystray>=0.19.5; platform_system == 'Windows'",  # System tray support
+    "pypresence>=4.6.1",  # Discord Rich Presence
 ]
 
 [project.optional-dependencies]

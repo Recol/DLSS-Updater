@@ -64,6 +64,12 @@ class CustomNavigationDrawer:
                 selected_icon=ft.Icons.RESTORE,
                 index=2
             ),
+            NavigationDrawerItem(
+                label="Dashboard",
+                icon=ft.Icons.DASHBOARD_OUTLINED,
+                selected_icon=ft.Icons.DASHBOARD,
+                index=3
+            ),
         ]
 
         # Build the drawer
