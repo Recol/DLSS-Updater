@@ -13,3 +13,6 @@
 *dlss_updater.log
 *.AppDir/
 libmpv.so.1
+flet_client/
+flet-linux.tar.gz
+appimagetool-x86_64.AppImage

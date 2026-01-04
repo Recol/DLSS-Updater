@@ -1,0 +1,166 @@
+name: Build AppImage
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., 3.3.1)'
+        required: false
+        default: ''
+  release:
+    types: [published]
+
+jobs:
+  build-appimage:
+    runs-on: ubuntu-22.04  # GLIBC 2.35 for AppImage Hub compatibility
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            # Strip 'v' or 'V' prefix from tag
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+            VERSION="${VERSION#V}"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          else
+            # Read from version.py
+            VERSION=$(grep -oP '__version__\s*=\s*"\K[^"]+' dlss_updater/version.py)
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            wget \
+            file \
+            libfuse2 \
+            libmpv1 \
+            libgtk-3-0 \
+            libwebkit2gtk-4.0-37 \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            libgstreamer1.0-0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.14 (free-threaded)
+        run: |
+          uv python install 3.14t
+          uv python pin 3.14t
+
+      - name: Install Python dependencies
+        run: uv sync
+
+      - name: Download Flet client for bundling
+        env:
+          FLET_VERSION: "0.28.3"
+        run: |
+          mkdir -p flet_client
+          wget -q "https://github.com/flet-dev/flet/releases/download/v${FLET_VERSION}/flet-linux-amd64.tar.gz" -O flet-linux.tar.gz
+          tar -xzf flet-linux.tar.gz -C flet_client/
+          rm flet-linux.tar.gz
+          echo "Downloaded Flet client v${FLET_VERSION}"
+          ls -la flet_client/
+
+      - name: Build with PyInstaller
+        run: |
+          uv run pyinstaller DLSS_Updater_Linux.spec
+          ls -la dist/
+
+      - name: Create AppImage
+        env:
+          APP_NAME: "DLSS_Updater"
+          APP_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "Building AppImage v${APP_VERSION}..."
+
+          # Clean up any previous AppDir
+          rm -rf ${APP_NAME}.AppDir
+
+          # Create AppDir structure
+          mkdir -p ${APP_NAME}.AppDir/usr/bin
+          mkdir -p ${APP_NAME}.AppDir/usr/lib
+          mkdir -p ${APP_NAME}.AppDir/usr/share/metainfo
+
+          # Copy PyInstaller binary
+          cp dist/DLSS_Updater ${APP_NAME}.AppDir/usr/bin/
+
+          # Create AppRun script
+          cat > ${APP_NAME}.AppDir/AppRun << 'APPRUN'
+          #!/bin/bash
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+          exec "${HERE}/usr/bin/DLSS_Updater" "$@"
+          APPRUN
+          chmod +x ${APP_NAME}.AppDir/AppRun
+
+          # Create .desktop file
+          cat > ${APP_NAME}.AppDir/io.github.recol.dlss-updater.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Type=Application
+          Name=DLSS Updater
+          Exec=DLSS_Updater
+          Icon=io.github.recol.dlss-updater
+          Categories=Game;Utility;
+          Comment=Update DLSS/XeSS/FSR DLLs for games
+          DESKTOP
+
+          # Copy icon
+          if [ -f appimagex_png.png ]; then
+            cp appimagex_png.png ${APP_NAME}.AppDir/io.github.recol.dlss-updater.png
+            echo "Icon copied"
+          else
+            echo "Warning: appimagex_png.png not found"
+          fi
+
+          # Copy AppStream metadata
+          if [ -f io.github.recol.dlss-updater.metainfo.xml ]; then
+            cp io.github.recol.dlss-updater.metainfo.xml ${APP_NAME}.AppDir/usr/share/metainfo/
+            echo "AppStream metadata copied"
+          fi
+
+          # Bundle libmpv if available
+          if [ -f /usr/lib/x86_64-linux-gnu/libmpv.so.1 ]; then
+            cp /usr/lib/x86_64-linux-gnu/libmpv.so.1 ${APP_NAME}.AppDir/usr/lib/
+            echo "Bundled libmpv"
+          fi
+
+          # Download appimagetool
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+
+          # Build AppImage (use --appimage-extract-and-run for CI compatibility)
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run \
+            ${APP_NAME}.AppDir \
+            dist/${APP_NAME}_Linux-${APP_VERSION}-x86_64.AppImage
+
+          echo "AppImage created:"
+          ls -lh dist/*.AppImage
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DLSS_Updater-Linux-AppImage
+          path: dist/*.AppImage
+          retention-days: 30
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

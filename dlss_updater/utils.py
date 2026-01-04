@@ -233,6 +233,11 @@ def check_update_error():
 
 
 def check_dependencies():
+    # Skip check in frozen/bundled environments (PyInstaller, flet pack, etc.)
+    # Dependencies are bundled with the executable
+    if getattr(sys, 'frozen', False):
+        return True
+
     try:
         from importlib.metadata import distributions
 
