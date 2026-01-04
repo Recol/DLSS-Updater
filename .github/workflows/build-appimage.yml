@@ -127,8 +127,8 @@ jobs:
           fi
 
           # Copy AppStream metadata
-          if [ -f io.github.recol.dlss-updater.metainfo.xml ]; then
-            cp io.github.recol.dlss-updater.metainfo.xml ${APP_NAME}.AppDir/usr/share/metainfo/
+          if [ -f io.github.recol.dlss-updater.appdata.xml ]; then
+            cp io.github.recol.dlss-updater.appdata.xml ${APP_NAME}.AppDir/usr/share/metainfo/
             echo "AppStream metadata copied"
           fi
 

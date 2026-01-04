@@ -31,6 +31,7 @@ dependencies = [
     "flet-desktop==0.28.3",  # Desktop runtime (must match flet version)
     "msgspec>=0.20.0",
     "aiohttp",
+    "requests",  # Fallback for DLL downloads when aiohttp fails
     "pyinstaller",
     "aiosqlite>=0.22.0",
     "aiofiles>=25.1.0",

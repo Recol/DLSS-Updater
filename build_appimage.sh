@@ -81,11 +81,11 @@ fi
 
 # Copy AppStream metadata
 echo "Step 6: Copying AppStream metadata..."
-if [ -f io.github.recol.dlss-updater.metainfo.xml ]; then
-    cp io.github.recol.dlss-updater.metainfo.xml ${APP_NAME}.AppDir/usr/share/metainfo/
+if [ -f io.github.recol.dlss-updater.appdata.xml ]; then
+    cp io.github.recol.dlss-updater.appdata.xml ${APP_NAME}.AppDir/usr/share/metainfo/
     echo "  AppStream metadata installed"
 else
-    echo "Warning: io.github.recol.dlss-updater.metainfo.xml not found, skipping"
+    echo "Warning: io.github.recol.dlss-updater.appdata.xml not found, skipping"
 fi
 
 # Bundle libmpv
