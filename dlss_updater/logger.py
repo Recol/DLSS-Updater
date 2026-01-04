@@ -3,6 +3,26 @@ import sys
 from pathlib import Path
 
 
+def _get_log_directory() -> Path:
+    """
+    Get the appropriate log directory based on platform and execution context.
+
+    Returns:
+        Path to the log directory (created if necessary).
+    """
+    if sys.platform == 'linux':
+        # On Linux, use XDG-compliant location (works for AppImage and native)
+        log_dir = Path.home() / '.local' / 'share' / 'dlss-updater'
+        log_dir.mkdir(parents=True, exist_ok=True)
+        return log_dir
+    elif getattr(sys, "frozen", False):
+        # Windows frozen: use executable directory
+        return Path(sys.executable).parent
+    else:
+        # Development: use module directory
+        return Path(__file__).parent
+
+
 def setup_logger(log_file_name="dlss_updater.log"):
     """
     Setups the initial logger.
@@ -15,11 +35,7 @@ def setup_logger(log_file_name="dlss_updater.log"):
     if not logger.handlers:
         logger.setLevel(logging.DEBUG)
 
-        log_file_path = (
-            Path(sys.executable).parent / log_file_name
-            if getattr(sys, "frozen", False)
-            else Path(__file__).parent / log_file_name
-        )
+        log_file_path = _get_log_directory() / log_file_name
 
         # Create handlers
         console_handler = logging.StreamHandler(sys.stdout)

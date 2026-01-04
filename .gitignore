@@ -11,3 +11,5 @@
 .codspeed/
 .pytest_cache/
 *dlss_updater.log
+*.AppDir/
+libmpv.so.1

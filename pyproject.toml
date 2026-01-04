@@ -12,9 +12,11 @@ keywords = ["dlss", "nvidia", "gaming", "xess", "directstorage", "fsr", "streaml
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Win32 (MS Windows)",
+    "Environment :: X11 Applications",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: GNU Affero General Public License v3",
     "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.14",
     "Topic :: Games/Entertainment",
     "Topic :: Utilities",
@@ -37,6 +39,7 @@ dependencies = [
     # Falls back to os.walk when unavailable (e.g., free-threaded Python)
     # "scandir-rs>=2.9.3; platform_system == 'Windows'",
     "winloop>=0.1.7; platform_system == 'Windows'",
+    "uvloop>=0.21.0; platform_system == 'Linux'",
     "pytest-codspeed>=4.2.0",
 ]
 
@@ -65,9 +68,10 @@ build-backend = "hatchling.build"
 packages = ["dlss_updater"]
 
 [tool.uv]
-# Windows-only application
+# Cross-platform application (Windows and Linux)
 required-environments = [
     "sys_platform == 'win32'",
+    "sys_platform == 'linux'",
 ]
 # Fix for Flet on Windows: uv symlinks cause silent exit (no GUI)
 # See: https://github.com/flet-dev/website/pull/454

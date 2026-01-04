@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import msgspec
 import aiohttp
 from packaging import version
@@ -14,10 +15,29 @@ GITHUB_RELEASES_URL = "https://github.com/Recol/DLSS-Updater/releases/latest"
 _json_decoder = msgspec.json.Decoder()
 
 
-async def check_for_updates_async() -> tuple[str | None, bool]:
+def get_platform_asset_pattern() -> str:
+    """Get the expected asset filename pattern for the current platform."""
+    if sys.platform == 'win32':
+        return "DLSS.Updater"  # Matches DLSS.Updater.X.Y.Z.zip
+    elif sys.platform == 'linux':
+        return "DLSS_Updater_Linux"  # Matches DLSS_Updater_Linux_X.Y.Z.tar.gz
+    return ""
+
+
+def get_platform_name() -> str:
+    """Get friendly platform name for display."""
+    if sys.platform == 'win32':
+        return "Windows"
+    elif sys.platform == 'linux':
+        return "Linux"
+    return "Unknown"
+
+
+async def check_for_updates_async() -> tuple[str | None, bool, str | None]:
     """
     Check for available updates by comparing versions (async version).
-    Returns (latest_version, is_update_available) tuple or (None, False) if check fails.
+    Returns (latest_version, is_update_available, download_url) tuple.
+    download_url is the platform-specific asset URL if available, otherwise generic releases page.
     """
     try:
         logger.info("Checking for updates...")
@@ -30,29 +50,41 @@ async def check_for_updates_async() -> tuple[str | None, bool]:
             ) as response:
                 if response.status != 200:
                     logger.error(f"GitHub API returned status {response.status}")
-                    return None, False
+                    return None, False, None
 
                 content = await response.read()
                 latest_release = _json_decoder.decode(content)
 
         latest_version = latest_release["tag_name"].lstrip("Vv")
 
+        # Find platform-specific download URL
+        download_url = GITHUB_RELEASES_URL  # Default to generic releases page
+        asset_pattern = get_platform_asset_pattern()
+
+        if asset_pattern and "assets" in latest_release:
+            for asset in latest_release["assets"]:
+                asset_name = asset.get("name", "")
+                if asset_pattern in asset_name:
+                    download_url = asset.get("browser_download_url", GITHUB_RELEASES_URL)
+                    logger.info(f"Found platform-specific asset: {asset_name}")
+                    break
+
         if version.parse(latest_version) > version.parse(__version__):
-            logger.info(f"New version available: {latest_version}")
-            return latest_version, True
+            logger.info(f"New version available: {latest_version} ({get_platform_name()})")
+            return latest_version, True, download_url
         else:
             logger.info("You have the latest version.")
-            return latest_version, False
+            return latest_version, False, download_url
 
     except asyncio.TimeoutError:
         logger.error("Timeout checking for updates")
-        return None, False
+        return None, False, None
     except aiohttp.ClientError as e:
         logger.error(f"Error checking for updates: {e}")
-        return None, False
+        return None, False, None
     except Exception as e:
         logger.error(f"Unexpected error checking for updates: {e}")
-        return None, False
+        return None, False, None
 
 
 def check_for_updates() -> tuple[str | None, bool]:

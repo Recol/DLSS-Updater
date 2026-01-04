@@ -4,11 +4,51 @@ Checks for application updates from GitHub
 """
 
 import logging
+import subprocess
 import webbrowser
 import flet as ft
 
-from dlss_updater.auto_updater import check_for_updates_async
+from dlss_updater.auto_updater import check_for_updates_async, get_platform_name
 from dlss_updater.version import __version__
+
+
+def _open_url(url: str) -> bool:
+    """Open a URL in the default browser (cross-platform)."""
+    import sys
+    import os
+
+    # On Linux (including WSL2), try multiple methods
+    if sys.platform == 'linux':
+        # Check if running in WSL
+        is_wsl = 'microsoft' in os.uname().release.lower() or os.path.exists('/mnt/c/Windows')
+
+        if is_wsl:
+            # In WSL2, use cmd.exe to open URL in Windows browser
+            try:
+                subprocess.Popen(
+                    ['cmd.exe', '/c', 'start', '', url],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                return True
+            except Exception:
+                pass
+
+        # Try xdg-open for native Linux
+        try:
+            subprocess.Popen(['xdg-open', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except Exception:
+            pass
+
+    # On Windows/other platforms, use webbrowser
+    try:
+        webbrowser.open(url)
+        return True
+    except Exception:
+        pass
+
+    return False
 
 
 class AppUpdateDialog:
@@ -43,23 +83,27 @@ class AppUpdateDialog:
 
         try:
             # Check for updates asynchronously (non-blocking)
-            # Returns tuple: (latest_version, is_update_available)
-            latest_version, is_update_available = await check_for_updates_async()
+            # Returns tuple: (latest_version, is_update_available, download_url)
+            latest_version, is_update_available, download_url = await check_for_updates_async()
 
             # Close checking dialog
             self.page.close(checking_dialog)
 
-            if is_update_available:
-                # Update available
+            # Fallback URL if none returned
+            if not download_url:
                 download_url = "https://github.com/Recol/DLSS-Updater/releases/latest"
 
+            platform_name = get_platform_name()
+
+            if is_update_available:
+                # Update available
                 def open_download(e):
-                    webbrowser.open(download_url)
+                    _open_url(download_url)
                     self.page.close(update_dialog)
 
                 update_dialog = ft.AlertDialog(
                     modal=True,
-                    title=ft.Text("Update Available"),
+                    title=ft.Text(f"Update Available ({platform_name})"),
                     content=ft.Container(
                         content=ft.Column(
                             controls=[

@@ -5,12 +5,64 @@ Async-based Material Design interface with expandable launcher cards
 
 import asyncio
 import logging
+import subprocess
 import webbrowser
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List
 
 import flet as ft
+
+
+def open_url(url: str) -> bool:
+    """
+    Open a URL in the default browser (cross-platform).
+
+    Args:
+        url: The URL to open
+
+    Returns:
+        True if successful, False otherwise
+    """
+    import sys
+    import os
+
+    # On Linux (including WSL2), try multiple methods
+    if sys.platform == 'linux':
+        # Check if running in WSL by looking for Windows interop
+        is_wsl = 'microsoft' in os.uname().release.lower() or os.path.exists('/mnt/c/Windows')
+
+        if is_wsl:
+            # In WSL2, use cmd.exe to open URL in Windows browser
+            try:
+                subprocess.Popen(
+                    ['cmd.exe', '/c', 'start', '', url],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                return True
+            except Exception:
+                pass
+
+        # Try xdg-open for native Linux
+        try:
+            subprocess.Popen(
+                ['xdg-open', url],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            return True
+        except Exception:
+            pass
+
+    # On Windows/other platforms, use webbrowser
+    try:
+        webbrowser.open(url)
+        return True
+    except Exception:
+        pass
+
+    return False
 
 from dlss_updater.config import config_manager, LauncherPathName, get_config_path
 from dlss_updater.models import ScanCacheData, GameCardData, DLLInfo, encode_json, decode_json, format_json
@@ -26,6 +78,7 @@ from dlss_updater.ui_flet.dialogs.release_notes_dialog import ReleaseNotesDialog
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
+from dlss_updater.platform_utils import FEATURES, IS_LINUX, IS_WINDOWS
 from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
 from dlss_updater.ui_flet.components.dll_cache_snackbar import DLLCacheProgressSnackbar
@@ -469,7 +522,7 @@ class MainView(ft.Column):
             icon=ft.Icons.FAVORITE,
             color="#E91E63",  # Pink
             tooltip="Support Development - Buy me a coffee",
-            on_click=lambda _: webbrowser.open("https://buymeacoffee.com/decouk"),
+            on_click=lambda _: open_url("https://buymeacoffee.com/decouk"),
         )
 
         # Create More menu button with colored circle
@@ -578,7 +631,7 @@ class MainView(ft.Column):
                         title="Support Development",
                         description="Buy me a coffee",
                         icon=ft.Icons.COFFEE,
-                        on_click=lambda _: webbrowser.open("https://buymeacoffee.com/decouk"),
+                        on_click=lambda _: open_url("https://buymeacoffee.com/decouk"),
                         tooltip="Support the developer",
                     ),
                     MenuItem(
@@ -586,21 +639,21 @@ class MainView(ft.Column):
                         title="Report Bug",
                         description="Submit an issue on GitHub",
                         icon=ft.Icons.BUG_REPORT,
-                        on_click=lambda _: webbrowser.open("https://github.com/Recol/DLSS-Updater/issues"),
+                        on_click=lambda _: open_url("https://github.com/Recol/DLSS-Updater/issues"),
                     ),
                     MenuItem(
                         id="twitter",
                         title="Twitter",
                         description="Follow on Twitter",
                         icon=ft.Icons.TAG,
-                        on_click=lambda _: webbrowser.open("https://x.com/iDeco_UK"),
+                        on_click=lambda _: open_url("https://x.com/iDeco_UK"),
                     ),
                     MenuItem(
                         id="discord",
                         title="Discord",
                         description="Message on Discord",
                         icon=ft.Icons.CHAT,
-                        on_click=lambda _: webbrowser.open("https://discord.com/users/162568099839606784"),
+                        on_click=lambda _: open_url("https://discord.com/users/162568099839606784"),
                     ),
                     MenuItem(
                         id="discord_invite",
@@ -641,9 +694,12 @@ class MainView(ft.Column):
                     MenuItem(
                         id="dlss_overlay",
                         title="DLSS Debug Overlay",
-                        description="Toggle in-game DLSS indicator",
+                        description="Toggle in-game DLSS indicator" if FEATURES.dlss_overlay
+                                    else "Windows only - requires registry access",
                         icon=ft.Icons.BUG_REPORT,
                         on_click=self._on_dlss_overlay_clicked,
+                        is_disabled=not FEATURES.dlss_overlay,
+                        tooltip="Requires Windows registry access" if not FEATURES.dlss_overlay else None,
                     ),
                     MenuItem(
                         id="theme",
@@ -736,7 +792,7 @@ class MainView(ft.Column):
 
     async def _on_join_discord_clicked(self, e):
         """Open Discord invite link and dismiss banner"""
-        webbrowser.open("https://discord.gg/xTah8XCauN")
+        open_url("https://discord.gg/xTah8XCauN")
         await self._on_dismiss_discord_banner(e)
 
     async def _on_dismiss_discord_banner(self, e):
@@ -816,8 +872,81 @@ class MainView(ft.Column):
         async def handler(e):
             self.current_launcher_selecting = launcher
             self.is_adding_subfolder = True  # Add subfolder adds to existing paths
-            self.file_picker.get_directory_path(dialog_title="Add Sub-Folder")
+
+            if IS_LINUX:
+                # On Linux, show a text input dialog since native file pickers
+                # may not work properly with WSLg or some desktop environments
+                await self._show_path_input_dialog(launcher)
+            else:
+                # On Windows, use the native file picker
+                self.file_picker.get_directory_path(dialog_title="Add Sub-Folder")
         return handler
+
+    async def _show_path_input_dialog(self, launcher: LauncherPathName):
+        """Show a text input dialog for entering a path (Linux fallback)"""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+
+        is_dark = self.theme_manager.is_dark
+        path_input = ft.TextField(
+            label="Enter folder path",
+            hint_text="/path/to/games",
+            expand=True,
+            autofocus=True,
+        )
+
+        async def on_submit(e):
+            path = path_input.value.strip()
+            if path:
+                # Validate the path exists
+                if Path(path).is_dir():
+                    self.page.close(dialog)
+                    # Add the path to the launcher
+                    added = config_manager.add_launcher_path(launcher, path)
+                    if added:
+                        all_paths = config_manager.get_launcher_paths(launcher)
+                        card = self.launcher_cards.get(launcher)
+                        if card:
+                            await card.set_paths(all_paths)
+                        await self._show_snackbar(f"Path added: {path}")
+                    else:
+                        await self._show_snackbar("Path already exists or limit reached")
+                else:
+                    path_input.error_text = "Directory does not exist"
+                    self.page.update()
+            else:
+                path_input.error_text = "Please enter a path"
+                self.page.update()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Add Folder Path"),
+            content=ft.Column(
+                controls=[
+                    ft.Text(
+                        "Enter the full path to your games folder:",
+                        size=14,
+                        color=MD3Colors.get_on_surface_variant(is_dark),
+                    ),
+                    path_input,
+                    ft.Text(
+                        "Example: /home/user/.steam/steam/steamapps/common",
+                        size=12,
+                        color=MD3Colors.get_on_surface_variant(is_dark),
+                        italic=True,
+                    ),
+                ],
+                spacing=12,
+                tight=True,
+                width=400,
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=lambda e: self.page.close(dialog)),
+                ft.FilledButton("Add", on_click=on_submit),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        self.page.open(dialog)
 
     async def _on_tab_clicked(self, index: int):
         """Handle tab click - switch to selected tab"""

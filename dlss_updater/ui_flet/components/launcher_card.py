@@ -4,12 +4,14 @@ Expandable card showing launcher configuration and detected games using Material
 """
 
 import logging
+import subprocess
 from pathlib import Path
 from typing import Optional, Callable, List, Dict
 
 import flet as ft
 
 from dlss_updater.config import LauncherPathName, config_manager
+from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
 from dlss_updater.models import GameCardData, DLLInfo, MAX_PATHS_PER_LAUNCHER
 from dlss_updater.ui_flet.theme.colors import MD3Colors, LauncherColors
 
@@ -199,13 +201,15 @@ class LauncherCard(ft.ExpansionTile):
         )
 
         # Config menu (replaces Browse button)
+        # Platform-appropriate text for file manager
+        open_folder_text = "Open in Explorer" if IS_WINDOWS else "Open in File Manager"
         self.config_menu = ft.PopupMenuButton(
             icon=ft.Icons.MORE_VERT,
             icon_color=MD3Colors.get_on_surface_variant(is_dark),
             tooltip="More options",
             items=[
                 ft.PopupMenuItem(text="Copy Path(s)", icon=ft.Icons.CONTENT_COPY, on_click=self._on_copy_paths),
-                ft.PopupMenuItem(text="Open in Explorer", icon=ft.Icons.FOLDER_OPEN, on_click=self._on_open_explorer),
+                ft.PopupMenuItem(text=open_folder_text, icon=ft.Icons.FOLDER_OPEN, on_click=self._on_open_explorer),
                 ft.PopupMenuItem(text="Auto-Detect", icon=ft.Icons.AUTO_FIX_HIGH, on_click=self._on_auto_detect),
                 ft.PopupMenuItem(),  # Divider
                 ft.PopupMenuItem(text="Clear All", icon=ft.Icons.DELETE_OUTLINE, on_click=self.on_reset_callback),
@@ -473,10 +477,21 @@ class LauncherCard(ft.ExpansionTile):
             self.page.update()
 
     async def _on_open_explorer(self, e):
-        """Open first path in Windows Explorer"""
+        """Open first path in file manager (cross-platform)"""
         if self.current_paths:
-            import os
-            os.startfile(self.current_paths[0])
+            path = self.current_paths[0]
+            try:
+                if IS_WINDOWS:
+                    import os
+                    os.startfile(path)
+                elif IS_LINUX:
+                    # Use xdg-open on Linux to open default file manager
+                    subprocess.Popen(['xdg-open', path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception as ex:
+                self.logger.error(f"Failed to open path in file manager: {ex}")
+                self.page.snack_bar = ft.SnackBar(ft.Text(f"Could not open: {path}"))
+                self.page.snack_bar.open = True
+                self.page.update()
 
     async def _on_auto_detect(self, e):
         """Attempt to auto-detect launcher path"""

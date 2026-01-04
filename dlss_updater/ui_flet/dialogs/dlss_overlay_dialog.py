@@ -1,18 +1,21 @@
 """
 DLSS Debug Overlay Dialog
-Toggle NVIDIA DLSS debug overlay via registry settings
+Toggle NVIDIA DLSS debug overlay via registry settings.
+Only available on Windows - shows unavailable message on other platforms.
 """
 
 import logging
 import flet as ft
 
 from dlss_updater.registry_utils import get_dlss_overlay_state, set_dlss_overlay_state
+from dlss_updater.platform_utils import FEATURES
 
 
 class DLSSOverlayDialog:
     """
     Dialog for enabling/disabling the DLSS debug overlay.
     Reads state directly from registry and applies changes immediately.
+    On non-Windows platforms, shows an unavailable message.
     """
 
     def __init__(self, page: ft.Page, logger: logging.Logger):
@@ -23,6 +26,7 @@ class DLSSOverlayDialog:
         self.loading_ring: ft.ProgressRing = None
         self.error_container: ft.Container = None
         self.dialog: ft.AlertDialog = None
+        self.is_available = FEATURES.dlss_overlay
 
     async def _load_current_state(self):
         """Load current overlay state from registry"""
@@ -104,8 +108,48 @@ class DLSSOverlayDialog:
 
         self.page.update()
 
+    async def _show_unavailable_dialog(self):
+        """Show dialog explaining feature is Windows-only"""
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.INFO_OUTLINE, color="#2D6E88"),
+                    ft.Text("Feature Not Available"),
+                ],
+                spacing=8,
+            ),
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Text(
+                            "DLSS Debug Overlay is only available on Windows.",
+                            size=14,
+                        ),
+                        ft.Container(height=8),
+                        ft.Text(
+                            "This feature requires direct access to the Windows "
+                            "registry to enable NVIDIA's debug overlay indicator.",
+                            size=12,
+                            color=ft.Colors.GREY,
+                        ),
+                    ],
+                    spacing=4,
+                ),
+                width=400,
+            ),
+            actions=[
+                ft.FilledButton("OK", on_click=lambda e: self.page.close(dialog)),
+            ],
+        )
+        self.page.open(dialog)
+
     async def show(self):
         """Show the DLSS overlay settings dialog"""
+        # Check if feature is available on this platform
+        if not self.is_available:
+            await self._show_unavailable_dialog()
+            return
 
         # Create switch
         self.overlay_switch = ft.Switch(

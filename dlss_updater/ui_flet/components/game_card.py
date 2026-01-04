@@ -514,6 +514,10 @@ class GameCard(ft.Card):
     async def _fade_in_image(self, image_path: str):
         """Fade in image smoothly with UI lock to prevent race conditions"""
         async with self._ui_lock:
+            # Check if page is still available (may be None if view was closed)
+            if not self.page:
+                return
+
             # Update image source
             self.image_widget.src = image_path
 
@@ -525,8 +529,9 @@ class GameCard(ft.Card):
 
             # Small delay then fade in
             await asyncio.sleep(0.05)
-            self.image_container.opacity = 1
-            self.page.update()
+            if self.page:  # Check again after await
+                self.image_container.opacity = 1
+                self.page.update()
 
     def _on_hover(self, e):
         """Handle hover effect with multi-layer shadow and border glow"""

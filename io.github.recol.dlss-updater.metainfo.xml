@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.recol.dlss-updater</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <name>DLSS Updater</name>
+  <summary>Update DLSS, FSR, and XeSS DLLs for your games</summary>
+
+  <description>
+    <p>
+      DLSS Updater automatically detects and updates NVIDIA DLSS, AMD FSR, and Intel XeSS
+      DLLs across your entire game library. It supports multiple game launchers including
+      Steam, Epic Games, GOG Galaxy, Ubisoft Connect, EA Play, Battle.net, and Xbox Game Pass.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Cross-platform support for Windows and Linux</li>
+      <li>Automatic detection of games from multiple launchers</li>
+      <li>Support for Steam Proton and Wine prefixes on Linux</li>
+      <li>Built-in backup system for restoring original DLLs</li>
+      <li>Updates for DLSS, FSR, XeSS, Ray Reconstruction, Frame Generation, and Streamline</li>
+      <li>Individual game updates for specific binaries</li>
+      <li>Custom folder support for games in non-standard locations</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.recol.dlss-updater.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main application window showing detected games</caption>
+      <image>https://github.com/user-attachments/assets/59732e2c-add3-4ad2-ac85-0e0fed6e7ee9</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/Recol/DLSS-Updater</url>
+  <url type="bugtracker">https://github.com/Recol/DLSS-Updater/issues</url>
+  <url type="donation">https://buymeacoffee.com/decouk</url>
+
+  <developer id="io.github.recol">
+    <name>Recol</name>
+  </developer>
+
+  <provides>
+    <binary>DLSS_Updater</binary>
+  </provides>
+
+  <categories>
+    <category>Game</category>
+    <category>Utility</category>
+  </categories>
+
+  <keywords>
+    <keyword>DLSS</keyword>
+    <keyword>FSR</keyword>
+    <keyword>XeSS</keyword>
+    <keyword>NVIDIA</keyword>
+    <keyword>AMD</keyword>
+    <keyword>Intel</keyword>
+    <keyword>gaming</keyword>
+    <keyword>upscaling</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="3.3.0" date="2026-01-04">
+      <description>
+        <p>Added Linux support with AppImage distribution</p>
+        <ul>
+          <li>Cross-platform support for Windows and Linux</li>
+          <li>Steam Proton and Wine prefix detection on Linux</li>
+          <li>AppImage packaging with bundled dependencies</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.2.0" date="2024-12-15">
+      <description>
+        <p>Performance improvements and bug fixes</p>
+      </description>
+    </release>
+  </releases>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+</component>

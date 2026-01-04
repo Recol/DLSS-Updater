@@ -6,6 +6,7 @@ from .whitelist import is_whitelisted
 from .constants import DLL_GROUPS
 from .utils import find_game_root
 from .vdf_parser import VDFParser
+from .platform_utils import IS_WINDOWS, IS_LINUX
 import asyncio
 import concurrent.futures
 from dlss_updater.logger import setup_logger
@@ -136,26 +137,41 @@ _SKIP_DIRECTORIES: frozenset = frozenset({
 
 
 def get_steam_install_path():
-    """Get Steam install path, auto-detecting from registry if not configured."""
+    """
+    Get Steam install path, auto-detecting from registry (Windows) or
+    common paths (Linux) if not configured.
+    """
     try:
-        # Check for configured paths first
+        # Check for configured paths first (works on both platforms)
         existing_paths = config_manager.get_launcher_paths(LauncherPathName.STEAM)
         if existing_paths:
             # Return first path (main Steam installation)
             path = existing_paths[0]
-            # Remove \steamapps\common if it exists
-            path = path.replace("\\steamapps\\common", "")
+            # Remove steamapps/common if it exists (handle both path separators)
+            path = path.replace("\\steamapps\\common", "").replace("/steamapps/common", "")
             logger.debug(f"Using configured Steam path: {path}")
             return path
 
-        import winreg
+        if IS_WINDOWS:
+            # Windows: Use registry detection
+            import winreg
 
-        key = winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam"
-        )
-        value, _ = winreg.QueryValueEx(key, "InstallPath")
-        config_manager.add_launcher_path(LauncherPathName.STEAM, str(value))
-        return value
+            key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam"
+            )
+            value, _ = winreg.QueryValueEx(key, "InstallPath")
+            config_manager.add_launcher_path(LauncherPathName.STEAM, str(value))
+            return value
+
+        elif IS_LINUX:
+            # Linux: Check common Steam installation paths
+            from dlss_updater.linux_paths import get_linux_steam_path_sync
+            steam_path = get_linux_steam_path_sync()
+            if steam_path:
+                config_manager.add_launcher_path(LauncherPathName.STEAM, str(steam_path))
+                return str(steam_path)
+            return None
+
     except (FileNotFoundError, ImportError) as e:
         logger.debug(f"Could not find Steam install path: {e}")
         return None
@@ -282,12 +298,19 @@ async def get_ea_games():
 
 
 def get_ubisoft_install_path():
-    """Get Ubisoft install path from registry (auto-detection for first path)."""
+    """
+    Get Ubisoft install path from registry (auto-detection for first path).
+    Only available on Windows - returns None on Linux.
+    """
     try:
-        # Check if we already have configured paths
+        # Check if we already have configured paths (works on both platforms)
         existing_paths = config_manager.get_launcher_paths(LauncherPathName.UBISOFT)
         if existing_paths:
             return existing_paths[0]  # Return first path for backward compat
+
+        # Registry detection only available on Windows
+        if not IS_WINDOWS:
+            return None
 
         import winreg
 
@@ -376,6 +399,11 @@ def auto_detect_launcher_path(launcher: LauncherPathName) -> Optional[str]:
         This function does NOT automatically add paths to config_manager.
         The caller is responsible for that if desired.
     """
+    # Registry detection only available on Windows
+    if not IS_WINDOWS:
+        logger.debug(f"Auto-detection not available on Linux for {launcher.name}")
+        return None
+
     # Get registry info for this launcher
     registry_info = _LAUNCHER_REGISTRY_INFO.get(launcher)
 
@@ -815,8 +843,8 @@ async def find_all_dlls(progress_callback=None):
         dll_names.extend(DLL_GROUPS["DLSS"])
     if update_streamline:
         dll_names.extend(DLL_GROUPS["Streamline"])
-    # DirectStorage DLLs are optional, so only add if requested
-    if update_ds:
+    # DirectStorage DLLs are optional and Windows-only
+    if update_ds and "DirectStorage" in DLL_GROUPS:
         dll_names.extend(DLL_GROUPS["DirectStorage"])
     if update_xess and DLL_GROUPS["XeSS"]:  # Only add if there are XeSS DLLs defined
         dll_names.extend(DLL_GROUPS["XeSS"])

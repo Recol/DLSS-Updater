@@ -10,19 +10,26 @@
 ![dlss_updater](https://github.com/user-attachments/assets/b7d7fb4d-e204-412d-8e92-61a7173abfaf)
 
 What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on your system?
+
 ## Features
 
+- **Cross-Platform Support:** Works on both Windows and Linux
 - Supports updating games from the following launchers:
-  - Steam
+  - Steam (including Proton games on Linux)
   - Ubisoft
   - EA Play
-  - Xbox Game Pass (PC)
+  - Xbox Game Pass (PC) - Windows only
   - Epic Games Launcher
   - GOG Galaxy
   - Battle.net (Note for Battle.net: Please ensure that the launcher is **open** before updating this launcher (this does not apply if you are entering a custom folder))
+- **Linux Support:**
+  - Scans Steam Proton prefixes for Windows games
+  - Supports Wine prefixes (Lutris, standalone Wine)
+  - Automatic Steam path detection on Linux
+  - Custom folder support for any game location
 - A built in backup system for restoring game binaries if needed.
 - Support for updating Ray Reconstruction/Frame Generation/Streamline (Reflex Low Latency etc) DLL's.
-- Support for updating XeSS/FSR/DirectStorage DLL's.
+- Support for updating XeSS/FSR/DirectStorage DLL's (DirectStorage is Windows-only).
 - A GUI!
 - Support for manual folder locations.
 - Backups of updated games to be restored.
@@ -62,21 +69,47 @@ The games that are blacklisted can be disabled manually by clicking the "Manage 
 
 ## Execution Instructions
 
-### Running the Pre-built Application
+### Windows
+
+#### Running the Pre-built Application
 
 1. Download the latest release from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page.
-2. Extract the downloaded folder.
-3. Navigate to the `dist/DLSS_Updater` directory.
-4. Run the `DLSS_Updater.exe` executable as an administrator.
-5. The program will now boot.
+2. Extract the downloaded `DLSS.Updater.X.Y.Z.zip` file.
+3. Run the `DLSS_Updater.exe` executable as an administrator.
+4. The program will now boot.
 
-## Winget
+#### Winget
 
-1. Download DLSS Updater using ``winget install DLSS Updater``.
+```sh
+winget install "DLSS Updater"
+```
 
-## Chocolatey
+#### Chocolatey
 
-1. Download DLSS Updater from [here](https://community.chocolatey.org/packages/dlss-updater/).
+Download DLSS Updater from [Chocolatey](https://community.chocolatey.org/packages/dlss-updater/).
+
+### Linux
+
+#### AppImage
+
+1. Download `DLSS_Updater_Linux-X.Y.Z-x86_64.AppImage` from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page.
+2. Make executable:
+   ```sh
+   chmod +x DLSS_Updater_Linux-*.AppImage
+   ```
+3. Run with elevated privileges:
+   ```sh
+   sudo ./DLSS_Updater_Linux-X.Y.Z-x86_64.AppImage
+   ```
+
+No additional dependencies required - libmpv is bundled in the AppImage.
+
+#### Linux Notes
+
+- **Steam Proton Games:** The application automatically detects Proton prefixes at `~/.steam/steam/steamapps/compatdata/`.
+- **Wine Games:** Standard Wine prefixes at `~/.wine/` and Lutris games at `~/Games/` are scanned.
+- **Elevated Privileges:** Required to modify game DLL files. The app will prompt for elevation if not already running as root.
+- **Windows-Only Features:** DLSS Debug Overlay and DirectStorage updates are disabled on Linux (shown as grayed out with tooltips).
 
 
 ### Building from Source
@@ -89,7 +122,7 @@ If you prefer to build the application yourself, follow these steps:
 - Git
 - uv (Python package installer)
 
-#### Steps
+#### Steps (Windows)
 
 1. **Clone the Repository:**
 
@@ -98,45 +131,49 @@ If you prefer to build the application yourself, follow these steps:
     cd DLSS-Updater
     ```
 
-2. **Create and Activate a Virtual Environment:**
+2. **Install Dependencies:**
 
     ```sh
-    python -m venv venv
-    venv\Scripts\activate
+    uv sync --frozen
     ```
 
-3. **Install Dependencies:**
+3. **Build the Executable:**
 
     ```sh
-    uv sync
+    uv run pyinstaller DLSS_Updater.spec
     ```
 
-4. **Build the Executable:**
-
-    Ensure you have `pyinstaller` installed:
+4. **Run the Built Executable:**
 
     ```sh
-    uv pip install pyinstaller
+    .\dist\DLSS_Updater.exe
     ```
 
-    Run PyInstaller to build the executable:
+#### Steps (Linux)
+
+1. **Clone the Repository:**
 
     ```sh
-    pyinstaller DLSS_Updater.spec
+    git clone https://github.com/Recol/DLSS-Updater.git
+    cd DLSS-Updater
     ```
 
-5. **Run the Built Executable:**
-
-    Navigate to the `dist` directory:
+2. **Install Dependencies:**
 
     ```sh
-    cd dist/DLSS_Updater
+    uv sync --frozen
     ```
 
-    Run the `DLSS_Updater.exe` executable:
+3. **Build the Executable:**
 
     ```sh
-    .\DLSS_Updater.exe
+    uv run pyinstaller DLSS_Updater_Linux.spec
+    ```
+
+4. **Run the Built Executable:**
+
+    ```sh
+    sudo ./dist/DLSS_Updater
     ```
 
 ## Easy Anti Cheat

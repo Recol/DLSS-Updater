@@ -5,10 +5,14 @@ import threading
 from typing import List, Tuple, Dict, Optional
 import sys
 from pathlib import Path
-import ctypes
 from dlss_updater.logger import setup_logger
 from dlss_updater.config import config_manager, Concurrency
 from dlss_updater.models import ProcessedDLLResult
+from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
+
+# Only import ctypes on Windows (not available/needed on Linux for our use case)
+if IS_WINDOWS:
+    import ctypes
 
 
 logger = setup_logger()
@@ -249,17 +253,53 @@ def check_dependencies():
 
 
 def run_as_admin():
-    script = Path(sys.argv[0]).resolve()
-    params = " ".join([str(script)] + sys.argv[1:])
-    logger.info("Re-running script with admin privileges...")
-    ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, None, 1)
+    """
+    Request elevated privileges.
+    On Windows: Uses ShellExecuteW with 'runas' verb.
+    On Linux: Uses pkexec (if available) or sudo.
+    """
+    if IS_WINDOWS:
+        script = Path(sys.argv[0]).resolve()
+        params = " ".join([str(script)] + sys.argv[1:])
+        logger.info("Re-running script with admin privileges...")
+        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, None, 1)
+    elif IS_LINUX:
+        import subprocess
+        import shutil
+
+        script = sys.argv[0]
+        args = sys.argv[1:]
+
+        logger.info("Re-running script with elevated privileges...")
+
+        # Try pkexec first (GUI-friendly), fall back to sudo
+        if os.environ.get('DISPLAY') and shutil.which('pkexec'):
+            # GUI environment - use pkexec for graphical sudo prompt
+            try:
+                subprocess.Popen(['pkexec', sys.executable, script] + args)
+            except Exception as e:
+                logger.warning(f"pkexec failed: {e}, falling back to sudo")
+                subprocess.Popen(['sudo', sys.executable, script] + args)
+        else:
+            # Terminal environment or pkexec not available - use sudo
+            subprocess.Popen(['sudo', sys.executable, script] + args)
 
 
 def is_admin():
-    try:
-        return ctypes.windll.shell32.IsUserAnAdmin()
-    except:
-        return False
+    """
+    Check if running with elevated privileges.
+    On Windows: Checks IsUserAnAdmin().
+    On Linux: Checks if running as root (euid == 0).
+    """
+    if IS_WINDOWS:
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except Exception:
+            return False
+    elif IS_LINUX:
+        # On Linux, check if running as root
+        return os.geteuid() == 0
+    return False
 
 
 def find_game_root(dll_path: Path, launcher: str) -> Path:

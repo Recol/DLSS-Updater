@@ -1,3 +1,15 @@
+Version 3.3.0:
+Linux Support - Cross-platform compatibility for Wine/Proton games:
+  - Full support for updating DLLs in games running through Steam Proton.
+  - Wine prefix scanning for games installed via Lutris or standalone Wine.
+  - Automatic Steam path detection on Linux (~/.steam/steam/).
+  - Proton prefix scanning (~/.steam/steam/steamapps/compatdata/).
+  - Platform-aware admin elevation using pkexec/sudo on Linux.
+  - uvloop event loop optimization for Linux (similar to winloop on Windows).
+  - Windows-only features (DLSS Overlay, DirectStorage) gracefully disabled with tooltips.
+  - Single executable distribution via PyInstaller for Linux.
+  - All Windows functionality remains unchanged.
+
 Version 3.2.0:
 Condensed DLL Badges - Replaced individual DLL badges with compact popout:
   - Single "+N DLLs" badge shows count of detected DLLs per game card.

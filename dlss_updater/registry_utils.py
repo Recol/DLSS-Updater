@@ -1,11 +1,14 @@
 """
 Registry Utilities Module
 Provides async-safe Windows registry operations for NVIDIA DLSS settings.
+On non-Windows platforms, returns appropriate fallback values.
 """
 
 import asyncio
 import logging
 from typing import Optional, Tuple
+
+from dlss_updater.platform_utils import IS_WINDOWS
 
 logger = logging.getLogger("DLSSUpdater")
 
@@ -23,9 +26,12 @@ async def get_dlss_overlay_state() -> Tuple[bool, Optional[str]]:
         Tuple[bool, Optional[str]]: (is_enabled, error_message)
         - is_enabled: True if overlay is enabled, False otherwise
         - error_message: None on success, error string on failure
+        - On Linux: Returns (False, "DLSS overlay is only available on Windows")
 
     Runs blocking winreg operations in thread pool.
     """
+    if not IS_WINDOWS:
+        return (False, "DLSS overlay is only available on Windows")
 
     def _read_registry() -> Tuple[bool, Optional[str]]:
         import winreg
@@ -64,9 +70,12 @@ async def set_dlss_overlay_state(enabled: bool) -> Tuple[bool, Optional[str]]:
         Tuple[bool, Optional[str]]: (success, error_message)
         - success: True if operation succeeded
         - error_message: None on success, error string on failure
+        - On Linux: Returns (False, "DLSS overlay is only available on Windows")
 
     Runs blocking winreg operations in thread pool.
     """
+    if not IS_WINDOWS:
+        return (False, "DLSS overlay is only available on Windows")
 
     def _write_registry() -> Tuple[bool, Optional[str]]:
         import winreg

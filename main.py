@@ -5,13 +5,19 @@ Async/await-based modern Material Design interface
 
 import sys
 
-# Install faster event loop on Windows (must be done before any asyncio usage)
+# Install faster event loop based on platform (must be done before any asyncio usage)
 if sys.platform == 'win32':
     try:
         import winloop
         winloop.install()
     except ImportError:
         pass  # winloop not installed, use default event loop
+elif sys.platform == 'linux':
+    try:
+        import uvloop
+        uvloop.install()
+    except ImportError:
+        pass  # uvloop not installed, use default event loop
 
 import asyncio
 import logging
