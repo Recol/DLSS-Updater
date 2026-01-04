@@ -6,7 +6,6 @@ set -e
 
 APP_NAME="DLSS_Updater"
 APP_VERSION="3.3.1"
-FLET_VERSION="0.28.3"
 
 echo "=== Building DLSS Updater AppImage v${APP_VERSION} ==="
 
@@ -16,20 +15,7 @@ if [[ "$OSTYPE" != "linux-gnu"* ]]; then
     exit 1
 fi
 
-# Download Flet client for bundling (not included in Python package)
-echo "Step 0: Downloading Flet client for bundling..."
-FLET_CLIENT_DIR="flet_client"
-if [ ! -f "${FLET_CLIENT_DIR}/flet/flet" ]; then
-    mkdir -p "${FLET_CLIENT_DIR}"
-    wget -q "https://github.com/flet-dev/flet/releases/download/v${FLET_VERSION}/flet-linux-amd64.tar.gz" -O flet-linux.tar.gz
-    tar -xzf flet-linux.tar.gz -C "${FLET_CLIENT_DIR}/"
-    rm flet-linux.tar.gz
-    echo "  Downloaded Flet client v${FLET_VERSION}"
-else
-    echo "  Flet client already downloaded"
-fi
-
-# Build PyInstaller binary (spec file bundles Flet desktop client)
+# Build PyInstaller binary (Flet runtime downloads on first launch)
 echo "Step 1: Building PyInstaller binary..."
 uv run pyinstaller DLSS_Updater_Linux.spec
 
@@ -41,6 +27,7 @@ echo "Step 2: Creating AppDir structure..."
 mkdir -p ${APP_NAME}.AppDir/usr/bin
 mkdir -p ${APP_NAME}.AppDir/usr/lib
 mkdir -p ${APP_NAME}.AppDir/usr/share/metainfo
+mkdir -p ${APP_NAME}.AppDir/usr/share/applications
 
 # Copy PyInstaller binary
 cp dist/DLSS_Updater ${APP_NAME}.AppDir/usr/bin/
@@ -57,7 +44,7 @@ exec "${HERE}/usr/bin/DLSS_Updater" "$@"
 EOF
 chmod +x ${APP_NAME}.AppDir/AppRun
 
-# Create .desktop file
+# Create .desktop file (at root for AppImage, and in usr/share/applications for appstreamcli)
 echo "Step 4: Creating desktop entry..."
 cat > ${APP_NAME}.AppDir/io.github.recol.dlss-updater.desktop << EOF
 [Desktop Entry]
@@ -65,9 +52,11 @@ Type=Application
 Name=DLSS Updater
 Exec=DLSS_Updater
 Icon=io.github.recol.dlss-updater
-Categories=Game;Utility;
+Categories=Utility;
 Comment=Update DLSS/XeSS/FSR DLLs for games
 EOF
+# Copy to standard location for appstreamcli validation
+cp ${APP_NAME}.AppDir/io.github.recol.dlss-updater.desktop ${APP_NAME}.AppDir/usr/share/applications/
 
 # Copy icon
 echo "Step 5: Copying icon..."

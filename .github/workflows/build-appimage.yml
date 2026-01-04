@@ -62,17 +62,6 @@ jobs:
       - name: Install Python dependencies
         run: uv sync
 
-      - name: Download Flet client for bundling
-        env:
-          FLET_VERSION: "0.28.3"
-        run: |
-          mkdir -p flet_client
-          wget -q "https://github.com/flet-dev/flet/releases/download/v${FLET_VERSION}/flet-linux-amd64.tar.gz" -O flet-linux.tar.gz
-          tar -xzf flet-linux.tar.gz -C flet_client/
-          rm flet-linux.tar.gz
-          echo "Downloaded Flet client v${FLET_VERSION}"
-          ls -la flet_client/
-
       - name: Build with PyInstaller
         run: |
           uv run pyinstaller DLSS_Updater_Linux.spec
@@ -92,6 +81,7 @@ jobs:
           mkdir -p ${APP_NAME}.AppDir/usr/bin
           mkdir -p ${APP_NAME}.AppDir/usr/lib
           mkdir -p ${APP_NAME}.AppDir/usr/share/metainfo
+          mkdir -p ${APP_NAME}.AppDir/usr/share/applications
 
           # Copy PyInstaller binary
           cp dist/DLSS_Updater ${APP_NAME}.AppDir/usr/bin/
@@ -107,16 +97,17 @@ jobs:
           APPRUN
           chmod +x ${APP_NAME}.AppDir/AppRun
 
-          # Create .desktop file
+          # Create .desktop file (at root for AppImage, and in usr/share/applications for appstreamcli)
           cat > ${APP_NAME}.AppDir/io.github.recol.dlss-updater.desktop << 'DESKTOP'
           [Desktop Entry]
           Type=Application
           Name=DLSS Updater
           Exec=DLSS_Updater
           Icon=io.github.recol.dlss-updater
-          Categories=Game;Utility;
+          Categories=Utility;
           Comment=Update DLSS/XeSS/FSR DLLs for games
           DESKTOP
+          cp ${APP_NAME}.AppDir/io.github.recol.dlss-updater.desktop ${APP_NAME}.AppDir/usr/share/applications/
 
           # Copy icon
           if [ -f appimagex_png.png ]; then

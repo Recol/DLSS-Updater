@@ -9,10 +9,6 @@ block_cipher = None
 dlss_updater_imports = collect_submodules('dlss_updater')
 dlss_updater_datas = collect_data_files('dlss_updater')
 
-# Collect Flet Python package data (not the client binary - that's separate)
-flet_datas = collect_data_files('flet')
-flet_desktop_datas = collect_data_files('flet_desktop')
-
 a = Analysis(
     ['main.py'],
     pathex=['.'],
@@ -21,9 +17,7 @@ a = Analysis(
         ('dlss_updater', 'dlss_updater'),
         ('release_notes.txt', '.'),
         ('dlss_updater/icons/*.png', 'icons/'),
-        # Bundle the pre-downloaded Flet client (downloaded by build_appimage.sh)
-        ('flet_client/flet', 'flet_desktop/app'),
-    ] + flet_datas + flet_desktop_datas,
+    ],
     hiddenimports=[
         'pefile',  # Still needed for DLL version parsing
         'psutil',
@@ -31,14 +25,13 @@ a = Analysis(
         'packaging',
         'concurrent.futures',
         'flet',
-        'flet_desktop',
         'msgspec',
         'aiohttp',
         'aiosqlite',
         'aiofiles',
         'uvloop',  # Linux event loop (optional but included)
     ] + dlss_updater_imports,
-    hookspath=[],  # Use PyInstaller's built-in hooks
+    hookspath=['./hooks'],  # Use custom hooks for proper packaging
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
