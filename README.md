@@ -76,8 +76,6 @@ The games that are blacklisted can be disabled manually by clicking the "Manage 
 1. Download the latest release from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page.
 2. Extract the downloaded `DLSS.Updater.X.Y.Z.zip` file.
 3. Run the `DLSS_Updater.exe` executable as an administrator.
-Note: There are plans in place which will remove this requirement in the future, but it will take time to implement successfully.
-5. The program will now boot.
 
 #### Winget
 
@@ -102,6 +100,7 @@ Download DLSS Updater from [Chocolatey](https://community.chocolatey.org/package
    ```sh
    sudo ./DLSS_Updater_Linux-X.Y.Z-x86_64.AppImage
    ```
+Note: There are plans in place to remove this in the next oncoming release.
 
 No additional dependencies required - libmpv is bundled in the AppImage.
 
