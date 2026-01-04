@@ -76,7 +76,8 @@ The games that are blacklisted can be disabled manually by clicking the "Manage 
 1. Download the latest release from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page.
 2. Extract the downloaded `DLSS.Updater.X.Y.Z.zip` file.
 3. Run the `DLSS_Updater.exe` executable as an administrator.
-4. The program will now boot.
+Note: There are plans in place which will remove this requirement in the future, but it will take time to implement successfully.
+5. The program will now boot.
 
 #### Winget
 
