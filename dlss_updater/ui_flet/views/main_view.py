@@ -192,7 +192,26 @@ class MainView(ft.Column):
             self.page.open(self.discord_banner)
             self.logger.info("Discord invite banner displayed")
 
+        # Show Linux privilege warning if running without root
+        await self._show_linux_privilege_banner()
+
         self.logger.info("Main view initialized")
+
+    async def _show_linux_privilege_banner(self):
+        """Show informational banner on Linux when not running as root."""
+        from dlss_updater.platform_utils import IS_LINUX
+
+        if not IS_LINUX:
+            return
+
+        from dlss_updater.utils import is_admin
+
+        if is_admin():
+            return  # Running as root, no warning needed
+
+        self.linux_privilege_banner = self._create_linux_privilege_banner()
+        self.page.open(self.linux_privilege_banner)
+        self.logger.info("Linux privilege warning banner displayed")
 
     async def _build_ui(self):
         """Build the main UI structure with top navigation tabs"""
@@ -798,9 +817,37 @@ class MainView(ft.Column):
     async def _on_dismiss_discord_banner(self, e):
         """Dismiss banner and persist preference"""
         config_manager.set_discord_banner_dismissed(True)
-        if self.discord_banner:
-            self.page.close(self.discord_banner)
-        self.logger.info("Discord banner dismissed permanently")
+
+    def _create_linux_privilege_banner(self) -> ft.Banner:
+        """Create informational banner for Linux when running without elevated privileges."""
+        banner = ft.Banner(
+            bgcolor="#E65100",  # Orange/amber warning color
+            leading=ft.Icon(
+                ft.Icons.INFO_OUTLINE,
+                color=ft.Colors.WHITE,
+                size=24,
+            ),
+            content=ft.Text(
+                "Running without elevated privileges. System-installed Wine/Proton paths will be skipped. "
+                "Most Steam Proton games work without root.",
+                color=ft.Colors.WHITE,
+                size=13,
+            ),
+            actions=[
+                ft.TextButton(
+                    "Dismiss",
+                    style=ft.ButtonStyle(color=ft.Colors.WHITE),
+                    on_click=self._on_dismiss_linux_privilege_banner,
+                ),
+            ],
+        )
+        return banner
+
+    async def _on_dismiss_linux_privilege_banner(self, e):
+        """Dismiss the Linux privilege warning banner."""
+        if hasattr(self, 'linux_privilege_banner') and self.linux_privilege_banner:
+            self.page.close(self.linux_privilege_banner)
+            self.linux_privilege_banner = None
 
     async def show_discord_banner(self):
         """Show Discord invite banner (for re-showing from menu)"""

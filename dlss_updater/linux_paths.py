@@ -7,9 +7,12 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple, Any
 
 logger = logging.getLogger("DLSSUpdater")
+
+# System-level path prefixes that typically require root access
+SYSTEM_PATH_PREFIXES = ('/usr/', '/opt/', '/lib/', '/var/')
 
 # Common Linux Steam installation paths
 STEAM_PATHS = [
@@ -32,6 +35,89 @@ LUTRIS_PATHS = [
     Path.home() / "Games",
     Path.home() / ".local" / "share" / "lutris" / "runners" / "wine",
 ]
+
+
+def is_system_path(path: Path) -> bool:
+    """
+    Check if a path is a system-level installation (requires root).
+
+    System paths include:
+    - /usr/share/* - System-wide packages
+    - /opt/* - Optional software packages
+    - /lib/* - System libraries
+    - /var/* - Variable data
+
+    Args:
+        path: Path to check
+
+    Returns:
+        True if this is a system-level path
+    """
+    path_str = str(path)
+    return any(path_str.startswith(prefix) for prefix in SYSTEM_PATH_PREFIXES)
+
+
+def can_write_path(path: Path) -> bool:
+    """
+    Check if current user has write permission to a path.
+
+    Args:
+        path: Path to check
+
+    Returns:
+        True if writable, False otherwise
+    """
+    try:
+        if path.is_dir():
+            return os.access(path, os.W_OK)
+        elif path.exists():
+            return os.access(path.parent, os.W_OK)
+        else:
+            # Check parent for non-existent paths
+            parent = path.parent
+            while not parent.exists() and parent != parent.parent:
+                parent = parent.parent
+            return os.access(parent, os.W_OK) if parent.exists() else False
+    except (OSError, PermissionError):
+        return False
+
+
+async def can_write_path_async(path: Path) -> bool:
+    """Async version of can_write_path."""
+    return await asyncio.to_thread(can_write_path, path)
+
+
+async def filter_accessible_paths(
+    paths: List[Path],
+    collect_skipped: bool = True
+) -> Tuple[List[Path], List[Dict[str, str]]]:
+    """
+    Filter paths to only those accessible by current user.
+
+    Args:
+        paths: List of paths to check
+        collect_skipped: Whether to collect info about skipped paths
+
+    Returns:
+        Tuple of (accessible_paths, skipped_info)
+        skipped_info contains dicts with 'path', 'reason' keys
+    """
+    accessible: List[Path] = []
+    skipped: List[Dict[str, str]] = []
+
+    for path in paths:
+        if await can_write_path_async(path):
+            accessible.append(path)
+        elif collect_skipped:
+            is_sys = is_system_path(path)
+            reason = "System path (requires root)" if is_sys else "Permission denied"
+            skipped.append({
+                'path': str(path),
+                'reason': reason
+            })
+            logger.debug(f"Skipping inaccessible path: {path} ({reason})")
+
+    return accessible, skipped
 
 
 def get_linux_steam_path_sync() -> Optional[Path]:
@@ -246,7 +332,7 @@ async def scan_proton_games(prefix: Path) -> List[Path]:
     return await asyncio.to_thread(_find_games)
 
 
-async def get_all_linux_game_paths() -> Dict[str, List[Path]]:
+async def get_all_linux_game_paths() -> Dict[str, Any]:
     """
     Get all game paths on Linux for scanning.
 
@@ -255,34 +341,54 @@ async def get_all_linux_game_paths() -> Dict[str, List[Path]]:
         - 'steam_native': Native Steam library paths (steamapps/common)
         - 'proton': Proton prefix game directories
         - 'wine': Wine prefix game directories
+        - 'skipped_paths': List of paths skipped due to permissions
     """
-    result: Dict[str, List[Path]] = {
+    result: Dict[str, Any] = {
         'steam_native': [],
         'proton': [],
         'wine': [],
+        'skipped_paths': [],
     }
+
+    all_skipped: List[Dict[str, str]] = []
 
     # Native Steam
     steam_path = await get_linux_steam_path()
     if steam_path:
-        result['steam_native'] = await get_linux_steam_libraries(steam_path)
+        steam_libs = await get_linux_steam_libraries(steam_path)
+        # Filter Steam libraries for accessibility
+        result['steam_native'], steam_skipped = await filter_accessible_paths(steam_libs)
+        all_skipped.extend(steam_skipped)
 
         # Proton games within Steam
         proton_prefixes = await get_proton_prefixes(steam_path)
+        proton_games: List[Path] = []
         for prefix in proton_prefixes:
             games = await scan_proton_games(prefix)
-            result['proton'].extend(games)
+            proton_games.extend(games)
+        # Filter Proton games for accessibility
+        result['proton'], proton_skipped = await filter_accessible_paths(proton_games)
+        all_skipped.extend(proton_skipped)
 
     # Non-Steam Wine games
     wine_prefixes = await get_wine_prefixes()
+    wine_games: List[Path] = []
     for prefix in wine_prefixes:
         games = await scan_proton_games(prefix)
-        result['wine'].extend(games)
+        wine_games.extend(games)
+    # Filter Wine games for accessibility
+    result['wine'], wine_skipped = await filter_accessible_paths(wine_games)
+    all_skipped.extend(wine_skipped)
+
+    result['skipped_paths'] = all_skipped
 
     total = len(result['steam_native']) + len(result['proton']) + len(result['wine'])
     logger.info(f"Found {total} total Linux game paths "
                 f"({len(result['steam_native'])} Steam, "
                 f"{len(result['proton'])} Proton, "
                 f"{len(result['wine'])} Wine)")
+
+    if all_skipped:
+        logger.warning(f"Skipped {len(all_skipped)} inaccessible paths (run with sudo for full access)")
 
     return result

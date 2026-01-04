@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Optional, List
 from datetime import datetime, timedelta
 import aiohttp
-import appdirs
 
 from dlss_updater.logger import setup_logger
 from dlss_updater.database import db_manager
@@ -45,14 +44,12 @@ class SteamIntegration:
     IMAGE_SEMAPHORE = 5  # Max 5 concurrent image downloads
 
     def __init__(self):
-        app_name = "DLSS-Updater"
-        app_author = "Recol"
-        config_dir = appdirs.user_config_dir(app_name, app_author)
-        self.image_cache_dir = Path(config_dir) / "steam_images"
+        from dlss_updater.platform_utils import APP_CONFIG_DIR
+        self.image_cache_dir = APP_CONFIG_DIR / "steam_images"
         self.image_cache_dir.mkdir(parents=True, exist_ok=True)
 
         # Local cache file for Steam app list (used for downloading, then stored in DB)
-        self.app_list_cache_file = Path(config_dir) / "steam_app_list.json"
+        self.app_list_cache_file = APP_CONFIG_DIR / "steam_app_list.json"
 
         # Database-backed storage replaces in-memory indexes
         # This saves ~20-30 MB RAM by eliminating the 207K-entry dictionaries

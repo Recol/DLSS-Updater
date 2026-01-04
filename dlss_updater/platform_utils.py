@@ -3,7 +3,9 @@ Platform Utilities Module
 Provides centralized platform detection and feature availability for cross-platform compatibility.
 """
 
+import os
 import sys
+from pathlib import Path
 from enum import Enum, auto
 from typing import NamedTuple
 
@@ -92,3 +94,46 @@ PLATFORM = get_platform()
 IS_WINDOWS = PLATFORM == Platform.WINDOWS
 IS_LINUX = PLATFORM == Platform.LINUX
 FEATURES = get_feature_support()
+
+
+def _is_root() -> bool:
+    """Check if running as root/admin on Linux."""
+    try:
+        return os.geteuid() == 0
+    except AttributeError:
+        return False
+
+
+def get_app_config_dir() -> Path:
+    """
+    Get the application config directory based on platform and privileges.
+
+    - Windows: Uses appdirs (typically AppData/Local/Recol/DLSS-Updater)
+    - Linux as root: Uses appdirs (~/.config/DLSS-Updater)
+    - Linux as non-root: Uses ~/.local/share/dlss-updater (avoids root-owned dirs)
+
+    Returns:
+        Path to the config directory (created if doesn't exist)
+    """
+    if IS_WINDOWS:
+        import appdirs
+        config_dir = Path(appdirs.user_config_dir("DLSS-Updater", "Recol"))
+    elif IS_LINUX:
+        if _is_root():
+            # Running as root - use standard appdirs location
+            import appdirs
+            config_dir = Path(appdirs.user_config_dir("DLSS-Updater", "Recol"))
+        else:
+            # Running as normal user - use XDG data dir to avoid root-owned config
+            config_dir = Path.home() / ".local" / "share" / "dlss-updater"
+    else:
+        # Fallback for unknown platforms
+        import appdirs
+        config_dir = Path(appdirs.user_config_dir("DLSS-Updater", "Recol"))
+
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir
+
+
+# Pre-computed config dir for performance
+APP_CONFIG_DIR = get_app_config_dir()

@@ -5,7 +5,7 @@
 set -e
 
 APP_NAME="DLSS_Updater"
-APP_VERSION="3.3.0"
+APP_VERSION="3.3.1"
 
 echo "=== Building DLSS Updater AppImage v${APP_VERSION} ==="
 
@@ -116,4 +116,5 @@ echo ""
 echo "=== Build Complete ==="
 echo "Created: dist/${APP_NAME}_Linux-${APP_VERSION}-x86_64.AppImage"
 echo ""
-echo "To run: sudo ./dist/${APP_NAME}_Linux-${APP_VERSION}-x86_64.AppImage"
+echo "To run: ./dist/${APP_NAME}_Linux-${APP_VERSION}-x86_64.AppImage"
+echo "Note: Most games work without sudo. Use sudo only for system-installed Wine/Proton."

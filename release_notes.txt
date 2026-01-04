@@ -1,3 +1,13 @@
+Version 3.3.1:
+Linux Improvements - Removed sudo requirement for user-space games:
+  - Removed forced sudo/root elevation requirement on Linux.
+  - Application now boots and runs without elevated privileges by default.
+  - System-level Wine/Proton paths (/usr/share/, /opt/) are detected and skipped.
+  - Informational banner displays when running without elevation.
+  - Most Steam Proton and Lutris games work without sudo (installed in ~/.steam, ~/Games).
+  - Optional: Run with sudo only if you need to update system-installed Wine/Proton.
+  - Updated documentation and build scripts to reflect new behavior.
+
 Version 3.3.0:
 Linux Support - Cross-platform compatibility for Wine/Proton games:
   - Full support for updating DLLs in games running through Steam Proton.

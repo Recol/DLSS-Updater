@@ -4,7 +4,6 @@ import configparser
 import threading
 from enum import StrEnum
 from typing import List
-import appdirs
 import msgspec
 from .logger import setup_logger
 from .models import UpdatePreferencesConfig, LauncherPathsConfig, PerformanceConfig, MAX_PATHS_PER_LAUNCHER
@@ -92,12 +91,9 @@ _dll_paths_lock = threading.Lock()
 
 
 def get_config_path():
-    """Get the path for storing configuration files"""
-    app_name = "DLSS-Updater"
-    app_author = "Recol"
-    config_dir = appdirs.user_config_dir(app_name, app_author)
-    os.makedirs(config_dir, exist_ok=True)
-    return os.path.join(config_dir, "config.ini")
+    """Get the path for storing configuration files using centralized config dir."""
+    from dlss_updater.platform_utils import APP_CONFIG_DIR
+    return str(APP_CONFIG_DIR / "config.ini")
 
 
 def resource_path(relative_path):

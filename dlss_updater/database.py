@@ -16,11 +16,11 @@ from pathlib import Path
 from typing import Optional, List, Dict, Tuple, Any
 from contextlib import asynccontextmanager
 from datetime import datetime
-import appdirs
 
 import aiosqlite
 
 from dlss_updater.logger import setup_logger
+from dlss_updater.platform_utils import APP_CONFIG_DIR
 from dlss_updater.models import (
     Game, GameDLL, DLLBackup, UpdateHistory, SteamImage,
     GameDLLBackup, GameBackupSummary, GameWithBackupCount
@@ -49,11 +49,7 @@ class DatabaseManager:
 
     def __init__(self):
         if not hasattr(self, 'initialized'):
-            app_name = "DLSS-Updater"
-            app_author = "Recol"
-            config_dir = appdirs.user_config_dir(app_name, app_author)
-            self.db_path = Path(config_dir) / "games.db"
-            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            self.db_path = APP_CONFIG_DIR / "games.db"
             self.initialized = False
 
             # Connection pool for async operations (aiosqlite)
@@ -553,6 +549,14 @@ class DatabaseManager:
             logger.info(f"Cleaned up {merged_count} duplicate game entries")
             return merged_count
 
+        except sqlite3.OperationalError as e:
+            if "readonly database" in str(e):
+                logger.warning(f"Database is read-only (may have been created as root). "
+                              f"To fix: sudo chown $USER:$USER {self.db_path}")
+            else:
+                logger.error(f"Error cleaning up duplicate games: {e}", exc_info=True)
+            conn.rollback()
+            return 0
         except Exception as e:
             logger.error(f"Error cleaning up duplicate games: {e}", exc_info=True)
             conn.rollback()
@@ -1073,6 +1077,14 @@ class DatabaseManager:
 
             return affected_rows
 
+        except sqlite3.OperationalError as e:
+            if "readonly database" in str(e):
+                logger.warning(f"Database is read-only (may have been created as root). "
+                              f"To fix: sudo chown $USER:$USER {self.db_path}")
+            else:
+                logger.error(f"Error cleaning up duplicate backups: {e}", exc_info=True)
+            conn.rollback()
+            return 0
         except Exception as e:
             logger.error(f"Error cleaning up duplicate backups: {e}", exc_info=True)
             conn.rollback()

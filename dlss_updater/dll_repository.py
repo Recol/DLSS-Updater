@@ -18,9 +18,13 @@ GITHUB_DLL_REPO = "Recol/DLSS-Updater-DLLs"
 GITHUB_API_BASE = f"https://api.github.com/repos/{GITHUB_DLL_REPO}"
 GITHUB_RAW_BASE = f"https://raw.githubusercontent.com/{GITHUB_DLL_REPO}/main"
 DLL_MANIFEST_URL = f"{GITHUB_RAW_BASE}/manifest.json"
-LOCAL_DLL_CACHE_DIR = os.path.join(
-    os.path.expanduser("~"), ".dlss_updater", "dll_cache"
-)
+def _get_dll_cache_dir():
+    """Get the DLL cache directory using centralized config path."""
+    from dlss_updater.platform_utils import APP_CONFIG_DIR
+    return str(APP_CONFIG_DIR / "dll_cache")
+
+
+LOCAL_DLL_CACHE_DIR = _get_dll_cache_dir()
 
 # Thread-safety locks for free-threading (Python 3.14+)
 _session_lock = threading.Lock()

@@ -96,19 +96,20 @@ Download DLSS Updater from [Chocolatey](https://community.chocolatey.org/package
    ```sh
    chmod +x DLSS_Updater_Linux-*.AppImage
    ```
-3. Run with elevated privileges:
+3. Run:
    ```sh
-   sudo ./DLSS_Updater_Linux-X.Y.Z-x86_64.AppImage
+   ./DLSS_Updater_Linux-X.Y.Z-x86_64.AppImage
    ```
-Note: There are plans in place to remove this in the next oncoming release.
+
+No elevated privileges required. Steam Proton and Lutris games in your home directory work without root.
 
 No additional dependencies required - libmpv is bundled in the AppImage.
 
 #### Linux Notes
 
-- **Steam Proton Games:** The application automatically detects Proton prefixes at `~/.steam/steam/steamapps/compatdata/`.
-- **Wine Games:** Standard Wine prefixes at `~/.wine/` and Lutris games at `~/Games/` are scanned.
-- **Elevated Privileges:** Required to modify game DLL files. The app will prompt for elevation if not already running as root.
+- **Steam Proton Games:** Auto-detects Proton prefixes at `~/.steam/steam/steamapps/compatdata/`.
+- **Wine Games:** Scans `~/.wine/` and Lutris games at `~/Games/`.
+- **System Paths:** System-installed Wine/Proton (`/usr/share/`) requires `sudo` - these paths are skipped with a warning when running normally.
 - **Windows-Only Features:** DLSS Debug Overlay and DirectStorage updates are disabled on Linux (shown as grayed out with tooltips).
 
 
@@ -173,7 +174,7 @@ If you prefer to build the application yourself, follow these steps:
 4. **Run the Built Executable:**
 
     ```sh
-    sudo ./dist/DLSS_Updater
+    ./dist/DLSS_Updater
     ```
 
 ## Easy Anti Cheat

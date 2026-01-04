@@ -828,6 +828,7 @@ async def find_all_dlls(progress_callback=None):
         "Custom Folder 2": [],
         "Custom Folder 3": [],
         "Custom Folder 4": [],
+        "_skipped_paths": [],  # Paths skipped due to permissions (Linux)
     }
 
     # Get user preferences
@@ -1161,6 +1162,18 @@ async def find_all_dlls(progress_callback=None):
         logger.error(f"Error recording games in database: {e}", exc_info=True)
         if progress_callback:
             await progress_callback(100, 100, "Scan complete (database recording failed)")
+
+    # On Linux, collect any skipped paths due to permissions
+    if IS_LINUX:
+        try:
+            from dlss_updater.linux_paths import get_all_linux_game_paths
+            linux_paths_result = await get_all_linux_game_paths()
+            skipped = linux_paths_result.get('skipped_paths', [])
+            if skipped:
+                all_dll_paths['_skipped_paths'] = skipped
+                logger.info(f"Linux: {len(skipped)} paths skipped due to permissions")
+        except Exception as e:
+            logger.debug(f"Could not collect Linux skipped paths: {e}")
 
     return all_dll_paths
 

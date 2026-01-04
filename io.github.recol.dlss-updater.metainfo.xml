@@ -64,6 +64,17 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="3.3.1" date="2026-01-04">
+      <description>
+        <p>Linux improvements - removed sudo requirement</p>
+        <ul>
+          <li>Removed forced sudo/root requirement for Linux</li>
+          <li>App now runs in user space by default</li>
+          <li>System-level Wine/Proton paths skipped with warning banner</li>
+          <li>Most Steam Proton/Lutris games work without elevation</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.3.0" date="2026-01-04">
       <description>
         <p>Added Linux support with AppImage distribution</p>
