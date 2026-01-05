@@ -5,7 +5,7 @@ Shows warning and system info when user enables high-performance mode
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Callable, Any
 
 import flet as ft
 import psutil
@@ -30,8 +30,8 @@ class HighPerfWarningDialog:
         self.page = page
         self.logger = logger
         self._confirmed = False
-        self._dialog: Optional[ft.AlertDialog] = None
-        self._close_event: Optional[asyncio.Event] = None
+        self._dialog: ft.AlertDialog | None = None
+        self._close_event: asyncio.Event | None = None
 
     def _get_memory_stats(self) -> tuple[float, float, float]:
         """

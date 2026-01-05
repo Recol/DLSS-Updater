@@ -9,7 +9,7 @@ import subprocess
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Callable, Any
 
 import flet as ft
 
@@ -30,7 +30,7 @@ def open_url(url: str) -> bool:
     # On Linux (including WSL2), try multiple methods
     if sys.platform == 'linux':
         # Check if running in WSL by looking for Windows interop
-        is_wsl = 'microsoft' in os.uname().release.lower() or os.path.exists('/mnt/c/Windows')
+        is_wsl = 'microsoft' in os.uname().release.lower() or Path('/mnt/c/Windows').exists()
 
         if is_wsl:
             # In WSL2, use cmd.exe to open URL in Windows browser
@@ -101,14 +101,14 @@ class MainView(ft.Column):
 
         # File picker for launcher paths
         self.file_picker = ft.FilePicker(on_result=self._on_folder_selected)
-        self.current_launcher_selecting: Optional[LauncherPathName] = None
+        self.current_launcher_selecting: LauncherPathName | None = None
         self.is_adding_subfolder: bool = False  # Track if adding subfolder vs setting primary path
 
         # Loading overlay
         self.loading_overlay = LoadingOverlay()
 
         # Launcher cards dictionary
-        self.launcher_cards: Dict[LauncherPathName, LauncherCard] = {}
+        self.launcher_cards: dict[LauncherPathName, LauncherCard] = {}
 
         # Async update coordinator
         self.update_coordinator = AsyncUpdateCoordinator(logger)
@@ -121,22 +121,22 @@ class MainView(ft.Column):
         self.theme_toggle_btn = None  # Will be created in _create_app_bar
 
         # DLL cache progress snackbar
-        self.dll_cache_snackbar: Optional[DLLCacheProgressSnackbar] = None
+        self.dll_cache_snackbar: DLLCacheProgressSnackbar | None = None
 
         # Menu state
         self.menu_expanded = False
         self.app_menu_selector = None  # Will be created in _create_app_bar
 
         # Discord banner
-        self.discord_banner: Optional[ft.Banner] = None
+        self.discord_banner: ft.Banner | None = None
 
         # Navigation state
         self.current_view_index = 0  # 0=Launchers, 1=Games, 2=Backups
         self.last_view_index = 0  # Track previous view for cleanup
 
         # Scan state management - store last scan results for update operations
-        self.last_scan_results: Optional[Dict] = None
-        self.last_scan_timestamp: Optional[str] = None
+        self.last_scan_results: dict | None = None
+        self.last_scan_timestamp: str | None = None
         self.scan_cache_path = Path(get_config_path()).parent / "scan_cache.json"
 
         # View instances (will be created in _build_ui)
@@ -1259,7 +1259,7 @@ class MainView(ft.Column):
             )
             self.page.open(error_dialog)
 
-    async def _populate_launcher_cards(self, dll_dict: Dict):
+    async def _populate_launcher_cards(self, dll_dict: dict):
         """
         Populate launcher cards with game data from scan results
 

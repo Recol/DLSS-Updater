@@ -24,7 +24,6 @@ import msgspec
 # Maximum number of paths (sub-folders) allowed per launcher
 MAX_PATHS_PER_LAUNCHER = 5
 from datetime import datetime
-from typing import Optional, List, Dict
 
 
 # =============================================================================
@@ -130,7 +129,7 @@ class ScanCacheData(msgspec.Struct):
     Stores the mapping of launcher names to lists of DLL paths found during scan.
     Includes timestamp to track when the scan was performed.
     """
-    scan_results: Dict[str, List[str]]  # launcher -> DLL paths
+    scan_results: dict[str, list[str]]  # launcher -> DLL paths
     timestamp: str  # ISO format datetime string
 
     def __post_init__(self):
@@ -164,9 +163,9 @@ class UpdateResult(msgspec.Struct):
 
     Contains summary of what was updated, skipped, and any errors encountered.
     """
-    updated_games: List[str]
-    skipped_games: List[str]
-    errors: List[Dict[str, str]]
+    updated_games: list[str]
+    skipped_games: list[str]
+    errors: list[dict[str, str]]
     backup_created: bool
     total_processed: int
 
@@ -185,7 +184,7 @@ class Game(msgspec.Struct):
     name: str
     path: str
     launcher: str
-    steam_app_id: Optional[int] = None
+    steam_app_id: int | None = None
     last_scanned: datetime = msgspec.field(default_factory=datetime.now)
     created_at: datetime = msgspec.field(default_factory=datetime.now)
 
@@ -201,7 +200,7 @@ class GameDLL(msgspec.Struct):
     dll_type: str
     dll_filename: str
     dll_path: str
-    current_version: Optional[str] = None
+    current_version: str | None = None
     detected_at: datetime = msgspec.field(default_factory=datetime.now)
 
 
@@ -217,7 +216,7 @@ class DLLBackup(msgspec.Struct):
     dll_filename: str
     backup_path: str
     backup_size: int
-    original_version: Optional[str] = None
+    original_version: str | None = None
     backup_created_at: datetime = msgspec.field(default_factory=datetime.now)
     is_active: bool = True
 
@@ -237,7 +236,7 @@ class GameDLLBackup(msgspec.Struct):
     dll_filename: str
     backup_path: str
     backup_size: int
-    original_version: Optional[str] = None
+    original_version: str | None = None
     backup_created_at: datetime = msgspec.field(default_factory=datetime.now)
     is_active: bool = True
 
@@ -253,9 +252,9 @@ class GameBackupSummary(msgspec.Struct):
     game_name: str
     backup_count: int
     total_backup_size: int
-    dll_types: List[str]
-    oldest_backup: Optional[datetime] = None
-    newest_backup: Optional[datetime] = None
+    dll_types: list[str]
+    oldest_backup: datetime | None = None
+    newest_backup: datetime | None = None
 
 
 class GameWithBackupCount(msgspec.Struct):
@@ -279,8 +278,8 @@ class UpdateHistory(msgspec.Struct):
     id: int
     game_dll_id: int
     success: bool
-    from_version: Optional[str] = None
-    to_version: Optional[str] = None
+    from_version: str | None = None
+    to_version: str | None = None
     updated_at: datetime = msgspec.field(default_factory=datetime.now)
 
 
@@ -292,7 +291,7 @@ class SteamImage(msgspec.Struct):
     """
     steam_app_id: int
     image_url: str
-    local_path: Optional[str] = None
+    local_path: str | None = None
     cached_at: datetime = msgspec.field(default_factory=datetime.now)
     fetch_failed: bool = False
 
@@ -322,17 +321,17 @@ class LauncherPathsConfig(msgspec.Struct):
 
     Stores custom paths for each game launcher.
     """
-    steam_path: Optional[str] = None
-    ea_path: Optional[str] = None
-    epic_path: Optional[str] = None
-    gog_path: Optional[str] = None
-    ubisoft_path: Optional[str] = None
-    battle_net_path: Optional[str] = None
-    xbox_path: Optional[str] = None
-    custom_path_1: Optional[str] = None
-    custom_path_2: Optional[str] = None
-    custom_path_3: Optional[str] = None
-    custom_path_4: Optional[str] = None
+    steam_path: str | None = None
+    ea_path: str | None = None
+    epic_path: str | None = None
+    gog_path: str | None = None
+    ubisoft_path: str | None = None
+    battle_net_path: str | None = None
+    xbox_path: str | None = None
+    custom_path_1: str | None = None
+    custom_path_2: str | None = None
+    custom_path_3: str | None = None
+    custom_path_4: str | None = None
 
 
 class PerformanceConfig(msgspec.Struct):
@@ -360,7 +359,7 @@ class ProcessedDLLResult(msgspec.Struct):
     Returned by update_dll() function to indicate success/failure.
     """
     success: bool
-    backup_path: Optional[str] = None
+    backup_path: str | None = None
     dll_type: str = "Unknown"
 
 
@@ -373,8 +372,8 @@ class DLLDiscoveryResult(msgspec.Struct):
     dll_path: str
     launcher: str
     dll_type: str
-    current_version: Optional[str] = None
-    latest_version: Optional[str] = None
+    current_version: str | None = None
+    latest_version: str | None = None
     update_available: bool = False
 
 
@@ -402,7 +401,7 @@ class GameCardData(msgspec.Struct):
     """
     name: str
     path: str
-    dlls: List[DLLInfo]
+    dlls: list[DLLInfo]
 
 
 # =============================================================================
@@ -443,7 +442,7 @@ class BatchUpdateResult(msgspec.Struct):
     updates_skipped: int
     memory_peak_mb: float
     duration_seconds: float
-    errors: List[Dict[str, str]] = msgspec.field(default_factory=list)
+    errors: list[dict[str, str]] = msgspec.field(default_factory=list)
     # Detailed tracking: list of dicts with game_name, dll_name, old_version, new_version
-    detailed_updates: List[Dict[str, str]] = msgspec.field(default_factory=list)
-    detailed_skipped: List[Dict[str, str]] = msgspec.field(default_factory=list)
+    detailed_updates: list[dict[str, str]] = msgspec.field(default_factory=list)
+    detailed_skipped: list[dict[str, str]] = msgspec.field(default_factory=list)

@@ -10,7 +10,6 @@ import tempfile
 import asyncio
 import aiofiles
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict
 
 from dlss_updater.logger import setup_logger
 from dlss_updater.database import db_manager
@@ -39,7 +38,7 @@ async def async_copy2(src: Path, dst: Path, chunk_size: int = 65536) -> None:
     await asyncio.to_thread(shutil.copystat, src, dst)
 
 
-def record_backup_metadata_sync(dll_path: Path, backup_path: Path) -> Optional[int]:
+def record_backup_metadata_sync(dll_path: Path, backup_path: Path) -> int | None:
     """
     Record backup metadata in database (synchronous version).
 
@@ -90,7 +89,7 @@ def record_backup_metadata_sync(dll_path: Path, backup_path: Path) -> Optional[i
         return None
 
 
-async def record_backup_metadata(dll_path: Path, backup_path: Path) -> Optional[int]:
+async def record_backup_metadata(dll_path: Path, backup_path: Path) -> int | None:
     """
     Record backup metadata in database (async version).
 
@@ -143,7 +142,7 @@ async def record_backup_metadata(dll_path: Path, backup_path: Path) -> Optional[
         return None
 
 
-async def restore_dll_from_backup(backup_id: int) -> Tuple[bool, str]:
+async def restore_dll_from_backup(backup_id: int) -> tuple[bool, str]:
     """
     Restore a DLL from backup
 
@@ -252,7 +251,7 @@ async def restore_dll_from_backup(backup_id: int) -> Tuple[bool, str]:
         return False, f"Unexpected error during restore: {str(e)}"
 
 
-async def delete_backup(backup_id: int) -> Tuple[bool, str]:
+async def delete_backup(backup_id: int) -> tuple[bool, str]:
     """
     Delete a backup file and mark it inactive in database
 
@@ -292,7 +291,7 @@ async def delete_backup(backup_id: int) -> Tuple[bool, str]:
         return False, f"Error deleting backup: {str(e)}"
 
 
-async def validate_backup(backup_id: int) -> Tuple[bool, str]:
+async def validate_backup(backup_id: int) -> tuple[bool, str]:
     """
     Validate that a backup file exists and is accessible
 
@@ -336,9 +335,9 @@ async def validate_backup(backup_id: int) -> Tuple[bool, str]:
 
 
 async def validate_backups_batch(
-    backup_ids: List[int],
+    backup_ids: list[int],
     max_concurrent: int = None
-) -> dict[int, Tuple[bool, str]]:
+) -> dict[int, tuple[bool, str]]:
     """
     Validate multiple backups in parallel with maximum concurrency.
 
@@ -357,7 +356,7 @@ async def validate_backups_batch(
     # Maximum concurrency for backup validation (async file I/O scales extremely well)
     semaphore = asyncio.Semaphore(max_concurrent)
 
-    async def bounded_validate(backup_id: int) -> Tuple[int, Tuple[bool, str]]:
+    async def bounded_validate(backup_id: int) -> tuple[int, tuple[bool, str]]:
         async with semaphore:
             result = await validate_backup(backup_id)
             return backup_id, result
@@ -372,7 +371,7 @@ async def validate_backups_batch(
 async def restore_group_for_game(
     game_id: int,
     group: str,  # "all" or specific group name like "DLSS"
-) -> Tuple[bool, str, List[Dict[str, str]]]:
+) -> tuple[bool, str, list[dict[str, str]]]:
     """
     Restore all backups for a game, optionally filtered by DLL group.
 
@@ -414,7 +413,7 @@ async def restore_group_for_game(
         # This prevents overwhelming the filesystem while still achieving parallelism
         semaphore = asyncio.Semaphore(Concurrency.IO_HEAVY)
 
-        async def bounded_restore(backup) -> Dict[str, str]:
+        async def bounded_restore(backup) -> dict[str, str]:
             """Perform a single restore operation with semaphore-bounded concurrency."""
             async with semaphore:
                 success, message = await restore_dll_from_backup(backup.id)

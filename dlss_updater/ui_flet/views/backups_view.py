@@ -4,7 +4,7 @@ Backups View - Browse and restore DLL backups
 
 import asyncio
 import math
-from typing import List, Optional
+from typing import Callable, Any
 import flet as ft
 
 from dlss_updater.database import db_manager, DLLBackup
@@ -25,17 +25,17 @@ class BackupsView(ft.Column):
         self.spacing = 0
 
         # State
-        self.backups: List[GameDLLBackup] = []
+        self.backups: list[GameDLLBackup] = []
         self.is_loading = False
         self.refresh_button_ref = ft.Ref[ft.IconButton]()
 
         # Button references for state management
-        self.clear_all_button: Optional[ft.ElevatedButton] = None
+        self.clear_all_button: ft.ElevatedButton | None = None
 
         # Game filter state
-        self.selected_game_id: Optional[int] = None
-        self.game_filter_dropdown: Optional[ft.Dropdown] = None
-        self.games_with_backups: List[GameWithBackupCount] = []
+        self.selected_game_id: int | None = None
+        self.game_filter_dropdown: ft.Dropdown | None = None
+        self.games_with_backups: list[GameWithBackupCount] = []
 
         # Build initial UI
         self._build_ui()
@@ -114,7 +114,7 @@ class BackupsView(ft.Column):
                 self.selected_game_id = None
                 self.game_filter_dropdown.value = "all"
 
-    def set_game_filter(self, game_id: Optional[int]):
+    def set_game_filter(self, game_id: int | None):
         """Set game filter programmatically (for navigation from Games view)"""
         self.selected_game_id = game_id
         if self.game_filter_dropdown:

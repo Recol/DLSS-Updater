@@ -5,7 +5,7 @@ Based on Material Design 3 specifications and DLSS Updater UX proposal.
 """
 
 import flet as ft
-from typing import Dict, List, Optional, Union
+from typing import Callable, Any
 
 
 class MD3ColorSystem:
@@ -305,7 +305,7 @@ class MD3Typography:
     )
 
     @classmethod
-    def get_text_style(cls, variant: str, color: Optional[str] = None) -> ft.TextStyle:
+    def get_text_style(cls, variant: str, color: str | None = None) -> ft.TextStyle:
         """Get text style by variant name with optional color override"""
         style_map = {
             'display_large': cls.DISPLAY_LARGE,
@@ -561,7 +561,7 @@ class MD3Spacing:
 
     # ==================== HELPER METHODS ====================
     @classmethod
-    def spacing(cls, multiplier: Union[int, float]) -> int:
+    def spacing(cls, multiplier: int | float) -> int:
         """Get spacing based on base unit multiplier"""
         return int(cls.BASE_UNIT * multiplier)
 
@@ -671,7 +671,7 @@ class MD3Shadows:
 
     # ==================== BRAND-COLORED SHADOWS ====================
     @classmethod
-    def brand_shadow(cls, color: str, elevation: int = 2) -> List[ft.BoxShadow]:
+    def brand_shadow(cls, color: str, elevation: int = 2) -> list[ft.BoxShadow]:
         """Create brand-colored shadow with specified elevation"""
         base_shadows = {
             1: [(0, 1, 2, 0.12)],
@@ -713,15 +713,15 @@ class MD3Shadows:
 
 def create_md3_container(
     content: ft.Control,
-    bgcolor: Optional[str] = None,
-    padding: Union[int, ft.Padding] = MD3Spacing.PADDING_MEDIUM,
+    bgcolor: str | None = None,
+    padding: int | ft.Padding = MD3Spacing.PADDING_MEDIUM,
     border_radius: int = MD3Spacing.RADIUS_MEDIUM,
-    shadow: Optional[Union[ft.BoxShadow, List[ft.BoxShadow]]] = MD3Shadows.LEVEL_2,
-    border: Optional[ft.Border] = None,
-    width: Optional[int] = None,
-    height: Optional[int] = None,
-    expand: Union[bool, int] = False,
-    animate: Optional[ft.Animation] = None,
+    shadow: ft.BoxShadow | list[ft.BoxShadow] | None = MD3Shadows.LEVEL_2,
+    border: ft.Border | None = None,
+    width: int | None = None,
+    height: int | None = None,
+    expand: bool | int = False,
+    animate: ft.Animation | None = None,
 ) -> ft.Container:
     """
     Create MD3-styled container with sensible defaults
@@ -767,8 +767,8 @@ def create_md3_card(
     on_hover=None,
     elevation: int = 2,
     interactive: bool = False,
-    width: Optional[int] = None,
-    height: Optional[int] = None,
+    width: int | None = None,
+    height: int | None = None,
 ) -> ft.Container:
     """
     Create MD3-styled interactive card
@@ -812,9 +812,9 @@ def create_md3_button(
     text: str,
     on_click=None,
     style: str = "filled",  # filled, outlined, text, elevated, tonal
-    icon: Optional[str] = None,
+    icon: str | None = None,
     disabled: bool = False,
-    width: Optional[int] = None,
+    width: int | None = None,
     height: int = MD3Spacing.BUTTON_HEIGHT_MEDIUM,
 ) -> ft.ElevatedButton:
     """
@@ -886,10 +886,10 @@ def create_md3_button(
 def create_md3_text(
     text: str,
     variant: str = "body_medium",
-    color: Optional[str] = None,
+    color: str | None = None,
     selectable: bool = False,
     text_align: ft.TextAlign = ft.TextAlign.LEFT,
-    max_lines: Optional[int] = None,
+    max_lines: int | None = None,
     overflow: ft.TextOverflow = ft.TextOverflow.FADE,
 ) -> ft.Text:
     """
@@ -925,9 +925,9 @@ def create_md3_text(
 def create_md3_icon_button(
     icon: str,
     on_click=None,
-    icon_color: Optional[str] = None,
-    bgcolor: Optional[str] = None,
-    tooltip: Optional[str] = None,
+    icon_color: str | None = None,
+    bgcolor: str | None = None,
+    tooltip: str | None = None,
     size: int = MD3Spacing.ICON_BUTTON_SIZE_MEDIUM,
     icon_size: int = MD3Spacing.ICON_SIZE_MEDIUM,
 ) -> ft.IconButton:

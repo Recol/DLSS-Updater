@@ -6,7 +6,7 @@ Features colored icon circles, hover effects, and smooth animations.
 """
 
 from dataclasses import dataclass, field
-from typing import Callable, Optional, List, Dict
+from typing import Callable
 
 import flet as ft
 
@@ -20,10 +20,10 @@ class MenuItem:
     title: str
     description: str
     icon: str
-    on_click: Optional[Callable] = None
+    on_click: Callable | None = None
     is_disabled: bool = False
     show_badge: bool = False
-    tooltip: Optional[str] = None
+    tooltip: str | None = None
 
 
 @dataclass
@@ -33,7 +33,7 @@ class MenuCategory:
     title: str
     icon: str
     color: str  # Hex color for the category
-    items: List[MenuItem] = field(default_factory=list)
+    items: list[MenuItem] = field(default_factory=list)
 
 
 class AppMenuSelector(ft.Container):
@@ -47,8 +47,8 @@ class AppMenuSelector(ft.Container):
     def __init__(
         self,
         page: ft.Page,
-        categories: List[MenuCategory],
-        on_item_selected: Optional[Callable[[str], None]] = None,
+        categories: list[MenuCategory],
+        on_item_selected: Callable[[str], None] | None = None,
         initially_expanded: bool = False,
         is_dark: bool = True,
     ):
@@ -58,13 +58,13 @@ class AppMenuSelector(ft.Container):
         self.on_item_selected = on_item_selected
         self.is_expanded = initially_expanded
         self._is_dark = is_dark
-        self.selected_item_id: Optional[str] = None
+        self.selected_item_id: str | None = None
 
         # Badge references for dynamic updates
-        self._badge_refs: Dict[str, ft.Container] = {}
+        self._badge_refs: dict[str, ft.Container] = {}
 
         # Item container refs for hover effects
-        self._item_refs: Dict[str, ft.Container] = {}
+        self._item_refs: dict[str, ft.Container] = {}
 
         # Build the component
         self._build()

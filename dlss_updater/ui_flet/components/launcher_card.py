@@ -6,7 +6,7 @@ Expandable card showing launcher configuration and detected games using Material
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional, Callable, List, Dict
+from typing import Callable, Any
 
 import flet as ft
 
@@ -43,9 +43,9 @@ class LauncherCard(ft.ExpansionTile):
         self.logger = logger
 
         # State - multi-path support
-        self.current_paths: List[str] = []  # List of configured paths
+        self.current_paths: list[str] = []  # List of configured paths
         self.games_count: int = 0
-        self.games_data: List[Dict] = []  # List of detected games
+        self.games_data: list[dict] = []  # List of detected games
 
         # Get theme state
         is_dark = page.session.get("is_dark_theme") if page and page.session.contains_key("is_dark_theme") else True
@@ -376,7 +376,7 @@ class LauncherCard(ft.ExpansionTile):
         if self.page:
             self.page.update()
 
-    async def set_paths(self, paths: List[str]):
+    async def set_paths(self, paths: list[str]):
         """
         Update the launcher paths (multi-path support).
 
@@ -420,7 +420,7 @@ class LauncherCard(ft.ExpansionTile):
         else:
             await self.set_paths([])
 
-    async def set_games(self, games_data: List[Dict]):
+    async def set_games(self, games_data: list[dict]):
         """
         Update the game list for this launcher
 

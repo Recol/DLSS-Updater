@@ -6,7 +6,6 @@ On non-Windows platforms, returns appropriate fallback values.
 
 import asyncio
 import logging
-from typing import Optional, Tuple
 
 from dlss_updater.platform_utils import IS_WINDOWS
 
@@ -18,12 +17,12 @@ DLSS_INDICATOR_KEY = "ShowDlssIndicator"
 DLSS_INDICATOR_ENABLED_VALUE = 0x00000400  # 1024 decimal
 
 
-async def get_dlss_overlay_state() -> Tuple[bool, Optional[str]]:
+async def get_dlss_overlay_state() -> tuple[bool, str | None]:
     """
     Read current DLSS debug overlay state from registry.
 
     Returns:
-        Tuple[bool, Optional[str]]: (is_enabled, error_message)
+        tuple[bool, str | None]: (is_enabled, error_message)
         - is_enabled: True if overlay is enabled, False otherwise
         - error_message: None on success, error string on failure
         - On Linux: Returns (False, "DLSS overlay is only available on Windows")
@@ -33,7 +32,7 @@ async def get_dlss_overlay_state() -> Tuple[bool, Optional[str]]:
     if not IS_WINDOWS:
         return (False, "DLSS overlay is only available on Windows")
 
-    def _read_registry() -> Tuple[bool, Optional[str]]:
+    def _read_registry() -> tuple[bool, str | None]:
         import winreg
 
         try:
@@ -59,7 +58,7 @@ async def get_dlss_overlay_state() -> Tuple[bool, Optional[str]]:
     return await asyncio.to_thread(_read_registry)
 
 
-async def set_dlss_overlay_state(enabled: bool) -> Tuple[bool, Optional[str]]:
+async def set_dlss_overlay_state(enabled: bool) -> tuple[bool, str | None]:
     """
     Set DLSS debug overlay state in registry.
 
@@ -67,7 +66,7 @@ async def set_dlss_overlay_state(enabled: bool) -> Tuple[bool, Optional[str]]:
         enabled: True to enable overlay, False to disable
 
     Returns:
-        Tuple[bool, Optional[str]]: (success, error_message)
+        tuple[bool, str | None]: (success, error_message)
         - success: True if operation succeeded
         - error_message: None on success, error string on failure
         - On Linux: Returns (False, "DLSS overlay is only available on Windows")
@@ -77,7 +76,7 @@ async def set_dlss_overlay_state(enabled: bool) -> Tuple[bool, Optional[str]]:
     if not IS_WINDOWS:
         return (False, "DLSS overlay is only available on Windows")
 
-    def _write_registry() -> Tuple[bool, Optional[str]]:
+    def _write_registry() -> tuple[bool, str | None]:
         import winreg
 
         try:

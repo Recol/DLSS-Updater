@@ -11,7 +11,7 @@ Thread-safe for free-threaded Python 3.14+.
 """
 
 import asyncio
-from typing import Callable, List, Optional, Dict, Any, Union
+from typing import Callable, Any
 import flet as ft
 
 from dlss_updater.logger import setup_logger
@@ -49,12 +49,12 @@ class SearchBar(ft.Container):
 
     def __init__(
         self,
-        on_search: Optional[Callable[[str], None]] = None,
-        on_clear: Optional[Callable[[], None]] = None,
-        on_history_selected: Optional[Callable[[str], None]] = None,
-        on_focus_change: Optional[Callable[[bool], None]] = None,
+        on_search: Callable[[str], None] | None = None,
+        on_clear: Callable[[], None] | None = None,
+        on_history_selected: Callable[[str], None] | None = None,
+        on_focus_change: Callable[[bool], None] | None = None,
         placeholder: str = "Search games...",
-        width: Optional[int] = None,
+        width: int | None = None,
     ):
         super().__init__()
         self.on_search_callback = on_search
@@ -66,8 +66,8 @@ class SearchBar(ft.Container):
 
         # State
         self._is_focused = False
-        self._history_items: List[Any] = []
-        self._debounce_task: Optional[asyncio.Task] = None
+        self._history_items: list[Any] = []
+        self._debounce_task: asyncio.Task | None = None
 
         # Build UI
         self._build_ui()
@@ -234,7 +234,7 @@ class SearchBar(ft.Container):
             if asyncio.iscoroutine(result):
                 await result
 
-    def update_history(self, history_items: List[Any]):
+    def update_history(self, history_items: list[Any]):
         """
         Update search history popup menu items.
 

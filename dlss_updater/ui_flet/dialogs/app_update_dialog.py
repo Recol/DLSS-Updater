@@ -16,11 +16,12 @@ def _open_url(url: str) -> bool:
     """Open a URL in the default browser (cross-platform)."""
     import sys
     import os
+    from pathlib import Path
 
     # On Linux (including WSL2), try multiple methods
     if sys.platform == 'linux':
         # Check if running in WSL
-        is_wsl = 'microsoft' in os.uname().release.lower() or os.path.exists('/mnt/c/Windows')
+        is_wsl = 'microsoft' in os.uname().release.lower() or Path('/mnt/c/Windows').exists()
 
         if is_wsl:
             # In WSL2, use cmd.exe to open URL in Windows browser

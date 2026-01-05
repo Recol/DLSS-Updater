@@ -1,6 +1,8 @@
 import os
 import asyncio
+import inspect
 import threading
+from pathlib import Path
 import msgspec
 import aiohttp
 import aiofiles
@@ -70,7 +72,7 @@ async def close_http_session() -> None:
 
 def ensure_cache_dir():
     """Ensure local cache directory exists"""
-    os.makedirs(LOCAL_DLL_CACHE_DIR, exist_ok=True)
+    Path(LOCAL_DLL_CACHE_DIR).mkdir(parents=True, exist_ok=True)
 
 
 def get_local_dll_path(dll_name, skip_update_check=False):
@@ -81,12 +83,12 @@ def get_local_dll_path(dll_name, skip_update_check=False):
         skip_update_check: If True, skip version comparison (used after cache init)
     """
     ensure_cache_dir()
-    local_path = os.path.join(LOCAL_DLL_CACHE_DIR, dll_name)
+    local_path = Path(LOCAL_DLL_CACHE_DIR) / dll_name
 
     # If it doesn't exist locally, try to download
-    if not os.path.exists(local_path):
+    if not local_path.exists():
         if download_latest_dll(dll_name):
-            return local_path
+            return str(local_path)
         else:
             logger.error(f"Failed to download {dll_name} and no local copy exists")
             return None
@@ -99,7 +101,7 @@ def get_local_dll_path(dll_name, skip_update_check=False):
         if check_for_dll_update(dll_name):
             download_latest_dll(dll_name)
 
-    return local_path
+    return str(local_path)
 
 
 async def get_remote_manifest_async() -> dict | None:
@@ -115,7 +117,7 @@ async def get_remote_manifest_async() -> dict | None:
                 return None
             content = await response.read()
             return _json_decoder.decode(content)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("Timeout fetching DLL manifest")
         return None
     except aiohttp.ClientError as e:
@@ -140,8 +142,8 @@ def get_remote_manifest():
 
 def get_cached_manifest():
     """Get the cached manifest if available (sync version)"""
-    manifest_path = os.path.join(LOCAL_DLL_CACHE_DIR, "manifest.json")
-    if os.path.exists(manifest_path):
+    manifest_path = Path(LOCAL_DLL_CACHE_DIR) / "manifest.json"
+    if manifest_path.exists():
         try:
             with open(manifest_path, "rb") as f:
                 return _json_decoder.decode(f.read())
@@ -152,8 +154,8 @@ def get_cached_manifest():
 
 async def get_cached_manifest_async():
     """Get the cached manifest if available (async version)"""
-    manifest_path = os.path.join(LOCAL_DLL_CACHE_DIR, "manifest.json")
-    if os.path.exists(manifest_path):
+    manifest_path = Path(LOCAL_DLL_CACHE_DIR) / "manifest.json"
+    if manifest_path.exists():
         try:
             async with aiofiles.open(manifest_path, "rb") as f:
                 content = await f.read()
@@ -165,7 +167,7 @@ async def get_cached_manifest_async():
 
 def update_cached_manifest(manifest):
     """Update the cached manifest (sync version)"""
-    manifest_path = os.path.join(LOCAL_DLL_CACHE_DIR, "manifest.json")
+    manifest_path = Path(LOCAL_DLL_CACHE_DIR) / "manifest.json"
     try:
         with open(manifest_path, "wb") as f:
             f.write(msgspec.json.format(msgspec.json.encode(manifest), indent=2))
@@ -177,7 +179,7 @@ def update_cached_manifest(manifest):
 
 async def update_cached_manifest_async(manifest):
     """Update the cached manifest (async version)"""
-    manifest_path = os.path.join(LOCAL_DLL_CACHE_DIR, "manifest.json")
+    manifest_path = Path(LOCAL_DLL_CACHE_DIR) / "manifest.json"
     try:
         encoded = msgspec.json.format(msgspec.json.encode(manifest), indent=2)
         async with aiofiles.open(manifest_path, "wb") as f:
@@ -192,13 +194,13 @@ async def check_for_dll_update_async(dll_name: str, manifest: dict | None = None
     """Check if a newer version of the DLL is available (async version)"""
     from .updater import get_dll_version, parse_version
 
-    local_path = os.path.join(LOCAL_DLL_CACHE_DIR, dll_name)
-    if not os.path.exists(local_path):
+    local_path = Path(LOCAL_DLL_CACHE_DIR) / dll_name
+    if not local_path.exists():
         logger.info(f"No local copy of {dll_name} exists, download needed")
         return True
 
     # get_dll_version is CPU-bound (reads PE headers), run in thread
-    local_version = await asyncio.to_thread(get_dll_version, local_path)
+    local_version = await asyncio.to_thread(get_dll_version, str(local_path))
     if not local_version:
         logger.info(f"Could not determine version of local {dll_name}, assuming update needed")
         return True
@@ -243,12 +245,12 @@ def check_for_dll_update(dll_name):
     """Check if a newer version of the DLL is available (sync version)"""
     from .updater import get_dll_version, parse_version
 
-    local_path = os.path.join(LOCAL_DLL_CACHE_DIR, dll_name)
-    if not os.path.exists(local_path):
+    local_path = Path(LOCAL_DLL_CACHE_DIR) / dll_name
+    if not local_path.exists():
         logger.info(f"No local copy of {dll_name} exists, download needed")
         return True
 
-    local_version = get_dll_version(local_path)
+    local_version = get_dll_version(str(local_path))
     if not local_version:
         logger.info(f"Could not determine version of local {dll_name}, assuming update needed")
         return True
@@ -306,8 +308,8 @@ async def download_latest_dll_async(dll_name: str, manifest: dict | None = None,
 
     dll_info = manifest[dll_name]
     download_url = f"{GITHUB_RAW_BASE}/dlls/{dll_name}"
-    local_path = os.path.join(LOCAL_DLL_CACHE_DIR, dll_name)
-    temp_path = f"{local_path}.tmp"
+    local_path = Path(LOCAL_DLL_CACHE_DIR) / dll_name
+    temp_path = local_path.with_suffix(local_path.suffix + ".tmp")
 
     try:
         session = await get_http_session()
@@ -328,20 +330,20 @@ async def download_latest_dll_async(dll_name: str, manifest: dict | None = None,
                     downloaded += len(chunk)
 
                     if progress_callback and total_size > 0:
-                        if asyncio.iscoroutinefunction(progress_callback):
+                        if inspect.iscoroutinefunction(progress_callback):
                             await progress_callback(downloaded, total_size, dll_name)
                         else:
                             progress_callback(downloaded, total_size, dll_name)
 
-        # Replace existing file (sync but fast)
-        if os.path.exists(local_path):
-            os.remove(local_path)
-        os.rename(temp_path, local_path)
+        # Replace existing file using Python 3.14 Path.move()
+        if local_path.exists():
+            local_path.unlink()
+        temp_path.move(local_path)
 
         logger.info(f"Successfully downloaded {dll_name} v{dll_info['version']}")
         return True
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(f"Timeout downloading {dll_name}")
         return False
     except aiohttp.ClientError as e:
@@ -349,9 +351,9 @@ async def download_latest_dll_async(dll_name: str, manifest: dict | None = None,
         return False
     except Exception as e:
         logger.error(f"Failed to download {dll_name}: {e}")
-        if os.path.exists(temp_path):
+        if temp_path.exists():
             try:
-                os.remove(temp_path)
+                temp_path.unlink()
             except:
                 pass
         return False
@@ -378,14 +380,14 @@ def download_latest_dll(dll_name, progress_callback=None):
 
     dll_info = manifest[dll_name]
     download_url = f"{GITHUB_RAW_BASE}/dlls/{dll_name}"
-    local_path = os.path.join(LOCAL_DLL_CACHE_DIR, dll_name)
+    local_path = Path(LOCAL_DLL_CACHE_DIR) / dll_name
 
     try:
         response = requests.get(download_url, stream=True, timeout=30)
         response.raise_for_status()
 
         total_size = int(response.headers.get('content-length', 0))
-        temp_path = f"{local_path}.tmp"
+        temp_path = local_path.with_suffix(local_path.suffix + ".tmp")
         downloaded = 0
 
         with open(temp_path, "wb") as f:
@@ -396,9 +398,9 @@ def download_latest_dll(dll_name, progress_callback=None):
                 if progress_callback and total_size > 0:
                     progress_callback(downloaded, total_size, dll_name)
 
-        if os.path.exists(local_path):
-            os.remove(local_path)
-        os.rename(temp_path, local_path)
+        if local_path.exists():
+            local_path.unlink()
+        temp_path.move(local_path)
 
         logger.info(f"Successfully downloaded {dll_name} v{dll_info['version']}")
         return True
@@ -432,7 +434,7 @@ async def initialize_dll_cache_async(progress_callback=None):
 
     async def report_progress(current, total, message):
         if progress_callback:
-            if asyncio.iscoroutinefunction(progress_callback):
+            if inspect.iscoroutinefunction(progress_callback):
                 await progress_callback(current, total, message)
             else:
                 progress_callback(current, total, message)

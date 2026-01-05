@@ -24,7 +24,6 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Optional, Set
 
 import aiofiles
 
@@ -94,8 +93,8 @@ class CacheStats:
     total_entries: int
     total_size_bytes: int
     memory_mapped_count: int
-    oldest_entry: Optional[datetime]
-    newest_entry: Optional[datetime]
+    oldest_entry: datetime | None
+    newest_entry: datetime | None
     evictions_performed: int
     cleanup_runs: int
 
@@ -106,7 +105,7 @@ class _RegisteredCache:
     name: str
     cache_dir: Path
     policy: CachePolicy
-    entries: Dict[str, CacheEntry] = field(default_factory=dict)
+    entries: dict[str, CacheEntry] = field(default_factory=dict)
     evictions_performed: int = 0
     cleanup_runs: int = 0
 
@@ -189,13 +188,13 @@ class UnifiedCacheManager:
         self._mmap_lock = asyncio.Lock()
 
         # Registered caches: name -> _RegisteredCache
-        self._caches: Dict[str, _RegisteredCache] = {}
+        self._caches: dict[str, _RegisteredCache] = {}
 
         # Memory-mapped files: path_str -> MmapHandle
-        self._mmaps: Dict[str, MmapHandle] = {}
+        self._mmaps: dict[str, MmapHandle] = {}
 
         # Background task handle
-        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_task: asyncio.Task | None = None
         self._running = False
 
         # Global stats
@@ -212,7 +211,7 @@ class UnifiedCacheManager:
         self,
         name: str,
         cache_dir: Path,
-        policy: Optional[CachePolicy] = None
+        policy: CachePolicy | None = None
     ) -> None:
         """
         Register a cache directory with the manager.
@@ -572,7 +571,7 @@ class UnifiedCacheManager:
     # Cleanup and Eviction
     # =========================================================================
 
-    async def cleanup(self, cache_name: Optional[str] = None) -> int:
+    async def cleanup(self, cache_name: str | None = None) -> int:
         """
         Run cleanup/eviction on caches.
 
@@ -635,7 +634,7 @@ class UnifiedCacheManager:
             cache = self._caches[name]
             entries = cache.entries
             evicted_count = 0
-            to_remove: Set[str] = set()
+            to_remove: set[str] = set()
 
             now = datetime.now()
 
@@ -693,7 +692,7 @@ class UnifiedCacheManager:
     # Statistics
     # =========================================================================
 
-    async def get_stats(self) -> Dict[str, CacheStats]:
+    async def get_stats(self) -> dict[str, CacheStats]:
         """
         Get statistics for all registered caches.
 
@@ -727,7 +726,7 @@ class UnifiedCacheManager:
 
             return stats
 
-    async def get_global_stats(self) -> Dict[str, int]:
+    async def get_global_stats(self) -> dict[str, int]:
         """
         Get global cache manager statistics.
 

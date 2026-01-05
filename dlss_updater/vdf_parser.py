@@ -11,7 +11,7 @@ Uses pre-compiled regex for O(1) key-value extraction and aiofiles for async I/O
 import re
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 import aiofiles
 
@@ -37,7 +37,7 @@ class VDFParser:
     _BLOCK_START = re.compile(r'"([^"]+)"\s*$')
 
     @classmethod
-    async def parse_file(cls, file_path: Path, encoding: str = 'utf-8') -> Dict[str, Any]:
+    async def parse_file(cls, file_path: Path, encoding: str = 'utf-8') -> dict[str, Any]:
         """
         Parse a VDF file and return its contents as a nested dictionary.
 
@@ -58,7 +58,7 @@ class VDFParser:
             return {}
 
     @classmethod
-    def _parse_vdf_content(cls, content: str) -> Dict[str, Any]:
+    def _parse_vdf_content(cls, content: str) -> dict[str, Any]:
         """
         Parse VDF content string into nested dictionary.
 
@@ -104,7 +104,7 @@ class VDFParser:
         return result
 
     @classmethod
-    async def parse_library_folders(cls, vdf_path: Path) -> List[Path]:
+    async def parse_library_folders(cls, vdf_path: Path) -> list[Path]:
         """
         Parse libraryfolders.vdf to extract all Steam library paths.
 
@@ -149,7 +149,7 @@ class VDFParser:
         return libraries
 
     @classmethod
-    async def parse_appmanifest(cls, acf_path: Path) -> Optional[Dict[str, str]]:
+    async def parse_appmanifest(cls, acf_path: Path) -> dict[str, str] | None:
         """
         Parse appmanifest_*.acf to extract game metadata.
 
@@ -192,7 +192,7 @@ class VDFParser:
             return None
 
     @classmethod
-    async def enumerate_steam_games(cls, steam_path: Path) -> List[Dict[str, Any]]:
+    async def enumerate_steam_games(cls, steam_path: Path) -> list[dict[str, Any]]:
         """
         Enumerate all installed Steam games using appmanifest files.
 
@@ -224,7 +224,7 @@ class VDFParser:
             return games
 
         # Process all libraries in parallel
-        async def process_library(steamapps_dir: Path) -> List[Dict[str, Any]]:
+        async def process_library(steamapps_dir: Path) -> list[dict[str, Any]]:
             library_games = []
 
             # Find all appmanifest files

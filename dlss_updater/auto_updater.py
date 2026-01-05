@@ -76,7 +76,7 @@ async def check_for_updates_async() -> tuple[str | None, bool, str | None]:
             logger.info("You have the latest version.")
             return latest_version, False, download_url
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("Timeout checking for updates")
         return None, False, None
     except aiohttp.ClientError as e:
