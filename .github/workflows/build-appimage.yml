@@ -142,7 +142,7 @@ jobs:
           ls -lh dist/*.AppImage
 
       - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DLSS_Updater-Linux-AppImage
           path: dist/*.AppImage
