@@ -28,7 +28,7 @@ dependencies = [
     "packaging",
     "appdirs",
     "flet==0.28.3",  # Pinned to stable version (1.0 beta has performance issues)
-    "flet-desktop==0.28.3",  # Desktop runtime (must match flet version)
+    "flet-desktop==0.80.1",  # Desktop runtime (must match flet version)
     "msgspec>=0.20.0",
     "aiohttp",
     "requests",  # Fallback for DLL downloads when aiohttp fails
