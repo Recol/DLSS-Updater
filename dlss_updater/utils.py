@@ -2,7 +2,6 @@ import os
 import asyncio
 import concurrent.futures
 import threading
-from typing import List, Tuple, Dict, Optional
 import sys
 from pathlib import Path
 from dlss_updater.logger import setup_logger
@@ -210,26 +209,24 @@ except ImportError as e:
 def find_file_in_directory(directory, filename):
     for root, _, files in os.walk(directory):
         if filename in files:
-            return os.path.join(root, filename)
+            return str(Path(root) / filename)
     return None
 
 
 def check_update_completion():
-    update_log_path = os.path.join(os.path.dirname(sys.executable), "update_log.txt")
-    if os.path.exists(update_log_path):
+    update_log_path = Path(sys.executable).parent / "update_log.txt"
+    if update_log_path.exists():
         with open(update_log_path, "r") as f:
             logger.info(f"Update completed: {f.read()}")
-        os.remove(update_log_path)
+        update_log_path.unlink()
 
 
 def check_update_error():
-    error_log_path = os.path.join(
-        os.path.dirname(sys.executable), "update_error_log.txt"
-    )
-    if os.path.exists(error_log_path):
+    error_log_path = Path(sys.executable).parent / "update_error_log.txt"
+    if error_log_path.exists():
         with open(error_log_path, "r") as f:
             logger.error(f"Update error occurred: {f.read()}")
-        os.remove(error_log_path)
+        error_log_path.unlink()
 
 
 def check_dependencies():

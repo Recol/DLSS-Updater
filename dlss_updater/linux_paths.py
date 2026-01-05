@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional, Dict, Tuple, Any
+from typing import Any
 
 logger = logging.getLogger("DLSSUpdater")
 
@@ -88,9 +88,9 @@ async def can_write_path_async(path: Path) -> bool:
 
 
 async def filter_accessible_paths(
-    paths: List[Path],
+    paths: list[Path],
     collect_skipped: bool = True
-) -> Tuple[List[Path], List[Dict[str, str]]]:
+) -> tuple[list[Path], list[dict[str, str]]]:
     """
     Filter paths to only those accessible by current user.
 
@@ -102,8 +102,8 @@ async def filter_accessible_paths(
         Tuple of (accessible_paths, skipped_info)
         skipped_info contains dicts with 'path', 'reason' keys
     """
-    accessible: List[Path] = []
-    skipped: List[Dict[str, str]] = []
+    accessible: list[Path] = []
+    skipped: list[dict[str, str]] = []
 
     for path in paths:
         if await can_write_path_async(path):
@@ -120,7 +120,7 @@ async def filter_accessible_paths(
     return accessible, skipped
 
 
-def get_linux_steam_path_sync() -> Optional[Path]:
+def get_linux_steam_path_sync() -> Path | None:
     """
     Detect native Steam installation on Linux (synchronous version).
 
@@ -134,7 +134,7 @@ def get_linux_steam_path_sync() -> Optional[Path]:
     return None
 
 
-async def get_linux_steam_path() -> Optional[Path]:
+async def get_linux_steam_path() -> Path | None:
     """
     Detect native Steam installation on Linux.
 
@@ -144,7 +144,7 @@ async def get_linux_steam_path() -> Optional[Path]:
     return await asyncio.to_thread(get_linux_steam_path_sync)
 
 
-async def get_linux_steam_libraries(steam_path: Path) -> List[Path]:
+async def get_linux_steam_libraries(steam_path: Path) -> list[Path]:
     """
     Get all Steam library folders on Linux.
     Parses libraryfolders.vdf (same format as Windows).
@@ -158,7 +158,7 @@ async def get_linux_steam_libraries(steam_path: Path) -> List[Path]:
     libraries = []
     library_file = steam_path / "steamapps" / "libraryfolders.vdf"
 
-    def _parse_libraries() -> List[Path]:
+    def _parse_libraries() -> list[Path]:
         result = []
         if not library_file.exists():
             return result
@@ -195,7 +195,7 @@ async def get_linux_steam_libraries(steam_path: Path) -> List[Path]:
     return libraries
 
 
-async def get_proton_prefixes(steam_path: Path) -> List[Path]:
+async def get_proton_prefixes(steam_path: Path) -> list[Path]:
     """
     Find all Proton prefix directories (Windows compatibility layers).
 
@@ -216,7 +216,7 @@ async def get_proton_prefixes(steam_path: Path) -> List[Path]:
     if not compatdata_base.exists():
         return prefixes
 
-    def _find_prefixes() -> List[Path]:
+    def _find_prefixes() -> list[Path]:
         result = []
         try:
             for app_dir in compatdata_base.iterdir():
@@ -238,7 +238,7 @@ async def get_proton_prefixes(steam_path: Path) -> List[Path]:
     return prefixes
 
 
-async def get_wine_prefixes() -> List[Path]:
+async def get_wine_prefixes() -> list[Path]:
     """
     Find Wine prefixes for non-Steam Windows launchers (Lutris, etc.).
 
@@ -251,7 +251,7 @@ async def get_wine_prefixes() -> List[Path]:
     """
     prefixes = []
 
-    def _find_wine_prefixes() -> List[Path]:
+    def _find_wine_prefixes() -> list[Path]:
         result = []
 
         # Standard Wine prefixes
@@ -289,7 +289,7 @@ async def get_wine_prefixes() -> List[Path]:
     return prefixes
 
 
-async def scan_proton_games(prefix: Path) -> List[Path]:
+async def scan_proton_games(prefix: Path) -> list[Path]:
     """
     Scan a Proton/Wine prefix for game directories containing DLLs.
 
@@ -306,7 +306,7 @@ async def scan_proton_games(prefix: Path) -> List[Path]:
         List of game directory paths.
     """
 
-    def _find_games() -> List[Path]:
+    def _find_games() -> list[Path]:
         result = []
         search_dirs = [
             prefix / "Program Files",
@@ -332,7 +332,7 @@ async def scan_proton_games(prefix: Path) -> List[Path]:
     return await asyncio.to_thread(_find_games)
 
 
-async def get_all_linux_game_paths() -> Dict[str, Any]:
+async def get_all_linux_game_paths() -> dict[str, Any]:
     """
     Get all game paths on Linux for scanning.
 
@@ -343,14 +343,14 @@ async def get_all_linux_game_paths() -> Dict[str, Any]:
         - 'wine': Wine prefix game directories
         - 'skipped_paths': List of paths skipped due to permissions
     """
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         'steam_native': [],
         'proton': [],
         'wine': [],
         'skipped_paths': [],
     }
 
-    all_skipped: List[Dict[str, str]] = []
+    all_skipped: list[dict[str, str]] = []
 
     # Native Steam
     steam_path = await get_linux_steam_path()
@@ -362,7 +362,7 @@ async def get_all_linux_game_paths() -> Dict[str, Any]:
 
         # Proton games within Steam
         proton_prefixes = await get_proton_prefixes(steam_path)
-        proton_games: List[Path] = []
+        proton_games: list[Path] = []
         for prefix in proton_prefixes:
             games = await scan_proton_games(prefix)
             proton_games.extend(games)
@@ -372,7 +372,7 @@ async def get_all_linux_game_paths() -> Dict[str, Any]:
 
     # Non-Steam Wine games
     wine_prefixes = await get_wine_prefixes()
-    wine_games: List[Path] = []
+    wine_games: list[Path] = []
     for prefix in wine_prefixes:
         games = await scan_proton_games(prefix)
         wine_games.extend(games)

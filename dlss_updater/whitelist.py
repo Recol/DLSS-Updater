@@ -1,7 +1,7 @@
-import os
 import csv
 import threading
 from io import StringIO
+from pathlib import Path
 import asyncio
 import aiohttp
 from dlss_updater.logger import setup_logger
@@ -46,7 +46,7 @@ async def fetch_whitelist_async() -> set:
                 reader = csv.reader(csv_data)
                 return set(row[0].strip() for row in reader if row and row[0].strip())
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("Timeout fetching whitelist")
         return set()
     except aiohttp.ClientError as e:
@@ -124,8 +124,8 @@ async def is_whitelisted(game_path):
     # Get the whitelist (will initialize if needed)
     whitelist = await get_whitelist()
 
-    # Extract path components
-    path_parts = [p for p in game_path.split(os.path.sep) if p]
+    # Extract path components using pathlib
+    path_parts = list(Path(game_path).parts)
 
     # Skip if the path is too short
     if len(path_parts) < 3:

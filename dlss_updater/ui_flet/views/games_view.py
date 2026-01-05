@@ -4,7 +4,7 @@ Games View - Display all games organized by launcher with Steam images
 
 import asyncio
 import math
-from typing import Dict, List, Optional, Any
+from typing import Callable, Any
 import flet as ft
 
 from dlss_updater.database import db_manager, Game
@@ -27,22 +27,22 @@ class GamesView(ft.Column):
         self.spacing = 0
 
         # State
-        self.games_by_launcher: Dict[str, List[Game]] = {}
+        self.games_by_launcher: dict[str, list[Game]] = {}
         self.is_loading = False
         self.refresh_button_ref = ft.Ref[ft.IconButton]()
 
         # Game card tracking for single-game updates
-        self.game_cards: Dict[int, GameCard] = {}  # game_id -> GameCard
-        self.game_card_containers: Dict[int, ft.Container] = {}  # game_id -> container wrapper
-        self.update_coordinator: Optional[AsyncUpdateCoordinator] = None
+        self.game_cards: dict[int, GameCard] = {}  # game_id -> GameCard
+        self.game_card_containers: dict[int, ft.Container] = {}  # game_id -> container wrapper
+        self.update_coordinator: AsyncUpdateCoordinator | None = None
 
         # Button references for state management
-        self.delete_db_button: Optional[ft.ElevatedButton] = None
+        self.delete_db_button: ft.ElevatedButton | None = None
 
         # Search state
         self.search_query: str = ""
         self._search_generation: int = 0
-        self.search_bar: Optional[SearchBar] = None
+        self.search_bar: SearchBar | None = None
 
         # Build initial UI
         self._build_ui()
@@ -349,7 +349,7 @@ class GamesView(ft.Column):
         else:
             await self._show_all_games()
 
-    async def _animate_cards_in(self, game_cards: List[GameCard]):
+    async def _animate_cards_in(self, game_cards: list[GameCard]):
         """Animate game cards with staggered fade-in for grid layout"""
         # Small initial delay
         await asyncio.sleep(0.1)
@@ -460,7 +460,7 @@ class GamesView(ft.Column):
         if self.page:
             self.page.update()
 
-    def _get_current_launcher(self) -> Optional[str]:
+    def _get_current_launcher(self) -> str | None:
         """Get the currently selected launcher tab."""
         if not hasattr(self, 'tabs_control') or not self.tabs_control:
             return None
@@ -735,7 +735,7 @@ class GamesView(ft.Column):
         if self.page:
             self.page.update()
 
-    async def _show_update_results_dialog(self, game_name: str, result: Dict[str, Any]):
+    async def _show_update_results_dialog(self, game_name: str, result: dict[str, Any]):
         """Show results dialog after single-game update"""
         # Build result content
         content_controls = []

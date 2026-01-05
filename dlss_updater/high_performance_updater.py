@@ -25,8 +25,6 @@ Performance characteristics:
 - Adaptive memory management prevents OOM conditions
 """
 
-from __future__ import annotations
-
 import asyncio
 import concurrent.futures
 import mmap
@@ -39,7 +37,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Any
+from typing import Callable, Any
 
 import psutil
 
@@ -98,7 +96,7 @@ class BackupFailedError(Exception):
     Batch operations should abort and cleanup partial backups when this occurs.
     """
 
-    def __init__(self, message: str, failed_path: str, partial_backups: List[str]):
+    def __init__(self, message: str, failed_path: str, partial_backups: list[str]):
         super().__init__(message)
         self.failed_path = failed_path
         self.partial_backups = partial_backups
@@ -182,7 +180,7 @@ class MemoryPressureMonitor:
         """Initialize the memory pressure monitor."""
         self._lock = threading.Lock()
         self._last_check_time: float = 0.0
-        self._cached_status: Optional[MemoryStatus] = None
+        self._cached_status: MemoryStatus | None = None
         self._cache_ttl_seconds: float = 1.0  # Cache status for 1 second
 
     def get_pressure_level(self) -> MemoryPressureLevel:
@@ -339,7 +337,7 @@ class SourceDLLMemoryCache:
         cache.release_all()
     """
 
-    def __init__(self, memory_monitor: Optional[MemoryPressureMonitor] = None):
+    def __init__(self, memory_monitor: MemoryPressureMonitor | None = None):
         """
         Initialize the source DLL cache.
 
@@ -348,9 +346,9 @@ class SourceDLLMemoryCache:
                             If not provided, a new one is created.
         """
         self._lock = threading.Lock()
-        self._cache: Dict[str, Tuple[mmap.mmap, int]] = {}  # dll_name -> (mmap_obj, file_handle)
-        self._file_handles: Dict[str, int] = {}  # dll_name -> file descriptor
-        self._sizes: Dict[str, int] = {}  # dll_name -> size in bytes
+        self._cache: dict[str, tuple[mmap.mmap, int]] = {}  # dll_name -> (mmap_obj, file_handle)
+        self._file_handles: dict[str, int] = {}  # dll_name -> file descriptor
+        self._sizes: dict[str, int] = {}  # dll_name -> size in bytes
         self._memory_monitor = memory_monitor or MemoryPressureMonitor()
         self._stats = CacheStats(
             dlls_cached=0,
@@ -424,7 +422,7 @@ class SourceDLLMemoryCache:
             logger.error(f"[CACHE] Failed to load {dll_name}: {e}", exc_info=True)
             return False
 
-    def load_all_sources(self, dll_paths_dict: Dict[str, str]) -> int:
+    def load_all_sources(self, dll_paths_dict: dict[str, str]) -> int:
         """
         Load multiple source DLLs into cache.
 
@@ -446,7 +444,7 @@ class SourceDLLMemoryCache:
         )
         return loaded_count
 
-    def get_source_data(self, dll_name: str) -> Optional[bytes]:
+    def get_source_data(self, dll_name: str) -> bytes | None:
         """
         Get cached source DLL data as bytes.
 
@@ -484,7 +482,7 @@ class SourceDLLMemoryCache:
             mm.seek(0)
             return mm.read()
 
-    def get_source_view(self, dll_name: str) -> Optional[memoryview]:
+    def get_source_view(self, dll_name: str) -> memoryview | None:
         """
         Get a memory view of the cached source DLL.
 
@@ -631,7 +629,7 @@ class BackupManifest:
     def __init__(self):
         """Initialize the backup manifest."""
         self._lock = threading.Lock()
-        self._entries: List[BackupEntry] = []
+        self._entries: list[BackupEntry] = []
 
     def add_backup(
         self,
@@ -657,7 +655,7 @@ class BackupManifest:
             self._entries.append(entry)
             logger.debug(f"[MANIFEST] Added backup: {Path(original_path).name}")
 
-    def get_entries(self) -> List[BackupEntry]:
+    def get_entries(self) -> list[BackupEntry]:
         """
         Get all backup entries.
 
@@ -667,7 +665,7 @@ class BackupManifest:
         with self._lock:
             return list(self._entries)
 
-    def get_backup_path(self, original_path: str) -> Optional[str]:
+    def get_backup_path(self, original_path: str) -> str | None:
         """
         Get the backup path for an original file.
 
@@ -685,7 +683,7 @@ class BackupManifest:
                     return entry.backup_path
         return None
 
-    def verify_all(self) -> Tuple[bool, List[str]]:
+    def verify_all(self) -> tuple[bool, list[str]]:
         """
         Verify all backups in the manifest.
 
@@ -695,9 +693,9 @@ class BackupManifest:
         - Backup file is readable
 
         Returns:
-            Tuple of (all_valid: bool, error_messages: List[str])
+            Tuple of (all_valid: bool, error_messages: list[str])
         """
-        errors: List[str] = []
+        errors: list[str] = []
 
         with self._lock:
             for i, entry in enumerate(self._entries):
@@ -743,7 +741,7 @@ class BackupManifest:
 
         return all_valid, errors
 
-    def rollback_all(self) -> Dict[str, Any]:
+    def rollback_all(self) -> dict[str, Any]:
         """
         Rollback all backups by restoring original files.
 
@@ -901,17 +899,17 @@ class HighPerformanceUpdateManager:
         """Initialize the high-performance update manager."""
         self._lock = threading.Lock()
         self._memory_monitor = MemoryPressureMonitor()
-        self._source_cache: Optional[SourceDLLMemoryCache] = None
-        self._backup_manifest: Optional[BackupManifest] = None
+        self._source_cache: SourceDLLMemoryCache | None = None
+        self._backup_manifest: BackupManifest | None = None
         self._start_time: float = 0.0
         self._peak_memory_mb: float = 0.0
-        self._executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+        self._executor: concurrent.futures.ThreadPoolExecutor | None = None
 
     async def execute(
         self,
-        dll_tasks: List[DLLTask],
-        settings: Dict[str, Any],
-        progress_callback: Optional[Callable[[int, int, str], None]] = None
+        dll_tasks: list[DLLTask],
+        settings: dict[str, Any],
+        progress_callback: Callable[[int, int, str], None] | None = None
     ) -> BatchUpdateResult:
         """
         Execute the high-performance update pipeline.
@@ -942,9 +940,9 @@ class HighPerformanceUpdateManager:
 
         self._start_time = time.monotonic()
         self._peak_memory_mb = 0.0
-        errors: List[Dict[str, str]] = []
-        detailed_updates: List[Dict[str, str]] = []
-        detailed_skipped: List[Dict[str, str]] = []
+        errors: list[dict[str, str]] = []
+        detailed_updates: list[dict[str, str]] = []
+        detailed_skipped: list[dict[str, str]] = []
         mode_used = "high_performance"
 
         total_steps = len(dll_tasks) * 3  # backup + update + verify
@@ -1156,7 +1154,7 @@ class HighPerformanceUpdateManager:
             detailed_skipped=detailed_skipped
         )
 
-    async def _phase0_load_sources(self, dll_tasks: List[DLLTask]) -> int:
+    async def _phase0_load_sources(self, dll_tasks: list[DLLTask]) -> int:
         """
         Phase 0: Load all required source DLLs into memory cache.
 
@@ -1172,7 +1170,7 @@ class HighPerformanceUpdateManager:
             MemoryPressureError: If memory pressure becomes critical
         """
         # Identify unique source DLLs needed
-        unique_sources: Dict[str, str] = {}
+        unique_sources: dict[str, str] = {}
 
         for task in dll_tasks:
             if task.source_dll_name not in unique_sources:
@@ -1194,7 +1192,7 @@ class HighPerformanceUpdateManager:
 
         return loaded
 
-    def _check_needs_update(self, task: DLLTask) -> Tuple[bool, str]:
+    def _check_needs_update(self, task: DLLTask) -> tuple[bool, str]:
         """
         Check if a single DLL needs updating (runs in thread pool).
 
@@ -1229,9 +1227,9 @@ class HighPerformanceUpdateManager:
 
     async def _filter_tasks_needing_update(
         self,
-        dll_tasks: List[DLLTask],
-        progress_callback: Optional[Callable[[str], None]] = None
-    ) -> Tuple[List[DLLTask], int]:
+        dll_tasks: list[DLLTask],
+        progress_callback: Callable[[str], None] | None = None
+    ) -> tuple[list[DLLTask], int]:
         """
         Filter DLL tasks to only those that need updates.
 
@@ -1247,11 +1245,11 @@ class HighPerformanceUpdateManager:
         """
         logger.info(f"[PRE-FILTER] Checking versions for {len(dll_tasks)} DLLs")
 
-        tasks_needing_update: List[DLLTask] = []
+        tasks_needing_update: list[DLLTask] = []
         skipped_count = 0
 
         # Submit version checks in parallel
-        futures: Dict[concurrent.futures.Future, DLLTask] = {}
+        futures: dict[concurrent.futures.Future, DLLTask] = {}
 
         for task in dll_tasks:
             future = self._executor.submit(
@@ -1284,8 +1282,8 @@ class HighPerformanceUpdateManager:
 
     async def _phase1_create_all_backups(
         self,
-        dll_tasks: List[DLLTask],
-        progress_callback: Optional[Callable[[str], None]] = None
+        dll_tasks: list[DLLTask],
+        progress_callback: Callable[[str], None] | None = None
     ) -> int:
         """
         Phase 1: Create backups for all target DLLs in parallel.
@@ -1306,8 +1304,7 @@ class HighPerformanceUpdateManager:
         logger.info(f"[PHASE 1] Creating backups for {len(dll_tasks)} DLLs")
 
         # Submit all backup tasks
-        loop = asyncio.get_event_loop()
-        futures: Dict[concurrent.futures.Future, DLLTask] = {}
+        futures: dict[concurrent.futures.Future, DLLTask] = {}
 
         for task in dll_tasks:
             target_path = Path(task.target_path)
@@ -1323,7 +1320,7 @@ class HighPerformanceUpdateManager:
 
         # Wait for all backups to complete
         backups_created = 0
-        partial_backups: List[str] = []
+        partial_backups: list[str] = []
 
         for future in concurrent.futures.as_completed(futures):
             task = futures[future]
@@ -1372,7 +1369,7 @@ class HighPerformanceUpdateManager:
         self._update_peak_memory()
         return backups_created
 
-    def _create_single_backup(self, target_path: str) -> Dict[str, Any]:
+    def _create_single_backup(self, target_path: str) -> dict[str, Any]:
         """
         Create a single backup (runs in thread pool).
 
@@ -1414,9 +1411,9 @@ class HighPerformanceUpdateManager:
 
     async def _phase2_parallel_updates(
         self,
-        dll_tasks: List[DLLTask],
-        progress_callback: Optional[Callable[[str], None]] = None
-    ) -> List[Dict[str, Any]]:
+        dll_tasks: list[DLLTask],
+        progress_callback: Callable[[str], None] | None = None
+    ) -> list[dict[str, Any]]:
         """
         Phase 2: Apply updates in parallel from memory cache.
 
@@ -1432,10 +1429,10 @@ class HighPerformanceUpdateManager:
         """
         logger.info(f"[PHASE 2] Applying {len(dll_tasks)} updates from cache")
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
 
         # Submit all update tasks
-        futures: Dict[concurrent.futures.Future, DLLTask] = {}
+        futures: dict[concurrent.futures.Future, DLLTask] = {}
 
         for task in dll_tasks:
             future = self._executor.submit(
@@ -1470,7 +1467,7 @@ class HighPerformanceUpdateManager:
         self._update_peak_memory()
         return results
 
-    def _apply_single_update(self, task: DLLTask) -> Dict[str, Any]:
+    def _apply_single_update(self, task: DLLTask) -> dict[str, Any]:
         """
         Apply a single DLL update from cache (runs in thread pool).
 
@@ -1486,7 +1483,7 @@ class HighPerformanceUpdateManager:
 
         # Base result dict with common fields
         def make_result(success: bool, error: str = None, skipped: bool = False,
-                       old_version: str = None, new_version: str = None) -> Dict[str, Any]:
+                       old_version: str = None, new_version: str = None) -> dict[str, Any]:
             return {
                 "success": success,
                 "path": str(target_path),
@@ -1613,7 +1610,7 @@ class HighPerformanceUpdateManager:
 
     async def _phase3_verify_cleanup(
         self,
-        update_results: List[Dict[str, Any]]
+        update_results: list[dict[str, Any]]
     ) -> None:
         """
         Phase 3: Verify updates and cleanup resources.
@@ -1659,9 +1656,9 @@ class HighPerformanceUpdateManager:
 
 
 async def execute_high_performance_update(
-    dll_tasks: List[DLLTask],
-    settings: Dict[str, Any],
-    progress_callback: Optional[Callable[[int, int, str], None]] = None
+    dll_tasks: list[DLLTask],
+    settings: dict[str, Any],
+    progress_callback: Callable[[int, int, str], None] | None = None
 ) -> BatchUpdateResult:
     """
     Execute a high-performance batch DLL update.
@@ -1684,7 +1681,7 @@ async def execute_high_performance_update(
     return await manager.execute(dll_tasks, settings, progress_callback)
 
 
-def check_memory_for_high_performance_mode() -> Tuple[bool, str]:
+def check_memory_for_high_performance_mode() -> tuple[bool, str]:
     """
     Check if high-performance mode can be used.
 

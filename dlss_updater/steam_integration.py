@@ -8,7 +8,6 @@ import re
 import threading
 import msgspec
 from pathlib import Path
-from typing import Optional, List
 from datetime import datetime, timedelta
 import aiohttp
 
@@ -159,7 +158,7 @@ class SteamIntegration:
                             else:
                                 logger.warning(f"Unexpected format from {url}")
 
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         logger.warning(f"Timeout downloading {url}")
                         continue
                     except Exception as e:
@@ -245,7 +244,7 @@ class SteamIntegration:
 
         return normalized
 
-    async def find_steam_app_id_by_name(self, game_name: str) -> Optional[int]:
+    async def find_steam_app_id_by_name(self, game_name: str) -> int | None:
         """
         Find Steam app ID by game name using database-backed FTS5 search.
 
@@ -288,7 +287,7 @@ class SteamIntegration:
             logger.error(f"Error finding Steam app ID for '{game_name}': {e}", exc_info=True)
             return None
 
-    async def search_steam_apps(self, query: str, limit: int = 10) -> List[tuple[int, str]]:
+    async def search_steam_apps(self, query: str, limit: int = 10) -> list[tuple[int, str]]:
         """
         Search Steam apps by name using FTS5 full-text search.
 
@@ -307,7 +306,7 @@ class SteamIntegration:
             logger.error(f"Error searching Steam apps: {e}", exc_info=True)
             return []
 
-    async def detect_steam_app_id_from_manifest(self, game_dir: Path) -> Optional[int]:
+    async def detect_steam_app_id_from_manifest(self, game_dir: Path) -> int | None:
         """
         Detect Steam app ID from appmanifest files (for Steam launcher games)
         This is faster and more accurate than name matching
@@ -360,7 +359,7 @@ class SteamIntegration:
             logger.error(f"Error detecting Steam app ID from manifest for {game_dir}: {e}", exc_info=True)
             return None
 
-    async def fetch_steam_header_image(self, app_id: int) -> Optional[Path]:
+    async def fetch_steam_header_image(self, app_id: int) -> Path | None:
         """
         Fetch Steam game header image and save as optimized WebP thumbnail.
 
@@ -424,7 +423,7 @@ class SteamIntegration:
                                     logger.debug(f"Image not found (404) for app {app_id} at {url}")
                                     continue
 
-                        except asyncio.TimeoutError:
+                        except TimeoutError:
                             logger.debug(f"Timeout fetching image from {url}")
                             continue
                         except Exception as e:
@@ -440,7 +439,7 @@ class SteamIntegration:
             logger.error(f"Error fetching Steam image for app {app_id}: {e}", exc_info=True)
             return None
 
-    async def queue_image_downloads(self, app_ids: List[int]):
+    async def queue_image_downloads(self, app_ids: list[int]):
         """
         Queue multiple image downloads with concurrency control
 
@@ -466,17 +465,17 @@ async def update_steam_app_list_if_needed():
     await steam_integration.update_app_list_if_needed()
 
 
-async def find_steam_app_id_by_name(game_name: str) -> Optional[int]:
+async def find_steam_app_id_by_name(game_name: str) -> int | None:
     """Find Steam app ID by game name"""
     return await steam_integration.find_steam_app_id_by_name(game_name)
 
 
-async def detect_steam_app_id_from_manifest(game_dir: Path) -> Optional[int]:
+async def detect_steam_app_id_from_manifest(game_dir: Path) -> int | None:
     """Detect Steam app ID from appmanifest files"""
     return await steam_integration.detect_steam_app_id_from_manifest(game_dir)
 
 
-async def fetch_steam_image(app_id: int) -> Optional[Path]:
+async def fetch_steam_image(app_id: int) -> Path | None:
     """Fetch Steam header image"""
     return await steam_integration.fetch_steam_header_image(app_id)
 
@@ -493,12 +492,12 @@ async def migrate_image_cache_if_needed() -> bool:
     return await steam_integration.migrate_image_cache()
 
 
-async def queue_image_downloads(app_ids: List[int]):
+async def queue_image_downloads(app_ids: list[int]):
     """Queue multiple image downloads"""
     await steam_integration.queue_image_downloads(app_ids)
 
 
-async def search_steam_apps(query: str, limit: int = 10) -> List[tuple[int, str]]:
+async def search_steam_apps(query: str, limit: int = 10) -> list[tuple[int, str]]:
     """
     Search Steam apps by name using FTS5 full-text search.
 

@@ -133,8 +133,9 @@ def get_dll_version(dll_path):
 
     try:
         # Get file modification time for cache invalidation
-        path_str = str(dll_path)
-        mtime = os.path.getmtime(path_str)
+        path_obj = Path(dll_path)
+        path_str = str(path_obj)
+        mtime = path_obj.stat().st_mtime
         cache_key = (path_str, mtime)
 
         # Check cache first (thread-safe read)
@@ -240,7 +241,7 @@ async def is_file_in_use_async(file_path, timeout=5):
     Process iteration is run in a thread pool to avoid blocking.
     """
     import asyncio
-    start_time = asyncio.get_event_loop().time()
+    start_time = time.monotonic()
 
     def _check_process_using_file(path):
         """Check which process has the file open (runs in thread)"""
@@ -254,7 +255,7 @@ async def is_file_in_use_async(file_path, timeout=5):
                 pass
         return False
 
-    while asyncio.get_event_loop().time() - start_time < timeout:
+    while time.monotonic() - start_time < timeout:
         try:
             # Quick test - try to open for reading
             with open(file_path, "rb"):
@@ -270,7 +271,7 @@ async def is_file_in_use_async(file_path, timeout=5):
 
 
 def normalize_path(path):
-    return os.path.normpath(path)
+    return str(Path(path).resolve())
 
 
 def record_update_history_sync(dll_path, from_version, to_version, success):
@@ -302,8 +303,8 @@ def create_backup(dll_path):
     try:
         logger.info(f"[BACKUP] Attempting to create backup at: {backup_path}")
 
-        # Pre-flight check 1: Verify write permission to directory
-        if not os.access(dll_path.parent, os.W_OK):
+        # Pre-flight check 1: Verify write permission to directory (use os.access for portability)
+        if not os.access(str(dll_path.parent), os.W_OK):
             logger.error(f"[BACKUP] No write permission to directory: {dll_path.parent}")
             return None
 
@@ -339,8 +340,8 @@ def create_backup(dll_path):
 
         # Set directory permissions
         try:
-            dir_path = os.path.dirname(backup_path)
-            os.chmod(dir_path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+            dir_path = backup_path.parent
+            os.chmod(str(dir_path), stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
         except Exception as e:
             logger.warning(f"[BACKUP] Could not set directory permissions: {e}")
             # Continue anyway - not always critical

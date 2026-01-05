@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List, Dict, Set, Any, Optional
+from typing import Any
 from .config import LauncherPathName, config_manager, Concurrency
 from .whitelist import is_whitelisted
 from .constants import DLL_GROUPS
@@ -36,7 +36,7 @@ else:
     logger.info("Scanner: Using parallel os.scandir() with GIL enabled (I/O parallelism)")
 
 
-def _parallel_scandir_walk(root_path: str, dll_names_lower: frozenset, max_workers: int = None) -> List[str]:
+def _parallel_scandir_walk(root_path: str, dll_names_lower: frozenset, max_workers: int = None) -> list[str]:
     """
     High-performance parallel directory scanner using os.scandir().
 
@@ -66,7 +66,7 @@ def _parallel_scandir_walk(root_path: str, dll_names_lower: frozenset, max_worke
 
     results = []
 
-    def scan_directory_recursive(directory: str) -> List[str]:
+    def scan_directory_recursive(directory: str) -> list[str]:
         """Recursively scan a directory for DLLs using os.scandir()"""
         found = []
         try:
@@ -177,7 +177,7 @@ def get_steam_install_path():
         return None
 
 
-def get_steam_manual_paths() -> List[Path]:
+def get_steam_manual_paths() -> list[Path]:
     """
     Get manually configured Steam paths (sub-folders).
 
@@ -372,7 +372,7 @@ _LAUNCHER_REGISTRY_INFO: dict = {
 }
 
 
-def auto_detect_launcher_path(launcher: LauncherPathName) -> Optional[str]:
+def auto_detect_launcher_path(launcher: LauncherPathName) -> str | None:
     """
     Auto-detect launcher installation path from Windows registry.
 
@@ -470,7 +470,7 @@ def auto_detect_launcher_path(launcher: LauncherPathName) -> Optional[str]:
 
                 # Standard path handling
                 if games_subdir:
-                    detected_path = os.path.join(value_str, games_subdir)
+                    detected_path = str(Path(value_str) / games_subdir)
                 else:
                     detected_path = value_str
 
@@ -509,7 +509,7 @@ def auto_detect_launcher_path(launcher: LauncherPathName) -> Optional[str]:
         return None
 
 
-async def auto_detect_all_launcher_paths() -> dict[LauncherPathName, Optional[str]]:
+async def auto_detect_all_launcher_paths() -> dict[LauncherPathName, str | None]:
     """
     Auto-detect paths for all launchers that support registry detection.
 
@@ -525,7 +525,7 @@ async def auto_detect_all_launcher_paths() -> dict[LauncherPathName, Optional[st
         ...     if path:
         ...         print(f"{launcher.name}: {path}")
     """
-    results: dict[LauncherPathName, Optional[str]] = {}
+    results: dict[LauncherPathName, str | None] = {}
 
     # Get all launchers that support registry detection
     detectable_launchers = [
@@ -537,7 +537,7 @@ async def auto_detect_all_launcher_paths() -> dict[LauncherPathName, Optional[st
         return results
 
     # Run detection in parallel using thread pool (registry I/O is blocking)
-    async def detect_single(launcher: LauncherPathName) -> tuple[LauncherPathName, Optional[str]]:
+    async def detect_single(launcher: LauncherPathName) -> tuple[LauncherPathName, str | None]:
         path = await asyncio.to_thread(auto_detect_launcher_path, launcher)
         return launcher, path
 
@@ -608,7 +608,7 @@ async def get_custom_folder(folder_num):
     return [Path(p) for p in custom_paths if Path(p).exists()]
 
 
-async def scan_game_for_dlls(game_path: Path, dll_names_lower: frozenset) -> List[str]:
+async def scan_game_for_dlls(game_path: Path, dll_names_lower: frozenset) -> list[str]:
     """
     Scan a single game directory for DLLs using optimized os.scandir().
 
@@ -625,7 +625,7 @@ async def scan_game_for_dlls(game_path: Path, dll_names_lower: frozenset) -> Lis
     Returns:
         List of found DLL paths
     """
-    def _scan_sync() -> List[str]:
+    def _scan_sync() -> list[str]:
         """Synchronous scanning using os.scandir() (runs in thread pool)"""
         results = []
         dirs_to_scan = [str(game_path)]
@@ -656,10 +656,10 @@ async def scan_game_for_dlls(game_path: Path, dll_names_lower: frozenset) -> Lis
 
 
 async def scan_games_for_dlls_parallel(
-    games: List[Dict[str, Any]],
+    games: list[dict[str, Any]],
     dll_names_lower: frozenset,
     max_concurrent: int = None
-) -> Dict[str, List[str]]:
+) -> dict[str, list[str]]:
     """
     Scan multiple game directories for DLLs in parallel with maximum concurrency.
 
@@ -676,7 +676,7 @@ async def scan_games_for_dlls_parallel(
     results = {}
     semaphore = asyncio.Semaphore(max_concurrent)
 
-    async def scan_with_limit(game: Dict[str, Any]):
+    async def scan_with_limit(game: dict[str, Any]):
         async with semaphore:
             game_path = game['path']
             dlls = await scan_game_for_dlls(game_path, dll_names_lower)
@@ -699,7 +699,7 @@ async def scan_games_for_dlls_parallel(
     return results
 
 
-async def enumerate_steam_games_fast(steam_path: str) -> List[Dict[str, Any]]:
+async def enumerate_steam_games_fast(steam_path: str) -> list[dict[str, Any]]:
     """
     Enumerate Steam games using appmanifest files (FAST).
 
@@ -723,7 +723,7 @@ async def enumerate_steam_games_fast(steam_path: str) -> List[Dict[str, Any]]:
         return []
 
 
-async def scan_steam_fast(steam_path: str, dll_names: List[str]) -> List[str]:
+async def scan_steam_fast(steam_path: str, dll_names: list[str]) -> list[str]:
     """
     Optimized Steam scanning using appmanifest enumeration + targeted scanning.
 
@@ -1024,7 +1024,7 @@ async def find_all_dlls(progress_callback=None):
 
             for dll_path in dll_paths:
                 game_dir = find_game_root(Path(dll_path), launcher)
-                game_dir_normalized = os.path.normpath(str(game_dir)).lower()
+                game_dir_normalized = str(game_dir.resolve()).lower()
 
                 if game_dir_normalized not in games_dict:
                     games_dict[game_dir_normalized] = []
@@ -1179,16 +1179,14 @@ async def find_all_dlls(progress_callback=None):
 
 
 def find_all_dlls_sync():
-    """Synchronous wrapper for find_all_dlls to use in non-async contexts"""
-    import asyncio
+    """Synchronous wrapper for find_all_dlls to use in non-async contexts.
 
+    Uses asyncio.run() which is the recommended way to run async code from
+    sync contexts in Python 3.14+. This handles event loop creation and cleanup
+    automatically.
+    """
     try:
-        # Use a new event loop to avoid conflicts with Qt
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(find_all_dlls())
-        loop.close()
-        return result
+        return asyncio.run(find_all_dlls())
     except Exception as e:
         logger.error(f"Error in find_all_dlls_sync: {e}")
         import traceback

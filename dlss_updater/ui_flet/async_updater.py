@@ -6,7 +6,7 @@ Bridges Flet UI with existing scanner/updater modules using async patterns
 import asyncio
 import logging
 from pathlib import Path
-from typing import Callable, Optional, Dict, List, Any
+from typing import Callable, Any
 
 from dlss_updater.scanner import find_all_dlls
 from dlss_updater.utils import update_dlss_versions, process_single_dll
@@ -22,13 +22,13 @@ class AsyncUpdateCoordinator:
 
     def __init__(self, logger: logging.Logger):
         self.logger = logger
-        self._progress_callback: Optional[Callable] = None
+        self._progress_callback: Callable | None = None
         self._cancel_requested = False
 
     async def scan_for_games(
         self,
-        progress_callback: Optional[Callable[[UpdateProgress], None]] = None
-    ) -> Dict[str, List]:
+        progress_callback: Callable[[UpdateProgress], None] | None = None
+    ) -> dict[str, list]:
         """
         Scan all configured launchers for games with DLLs
 
@@ -74,8 +74,8 @@ class AsyncUpdateCoordinator:
 
     async def update_games(
         self,
-        dll_dict: Dict[str, List],
-        progress_callback: Optional[Callable[[UpdateProgress], None]] = None
+        dll_dict: dict[str, list],
+        progress_callback: Callable[[UpdateProgress], None] | None = None
     ) -> UpdateResult:
         """
         Update DLLs for discovered games
@@ -243,7 +243,7 @@ class AsyncUpdateCoordinator:
 
     async def scan_and_update(
         self,
-        progress_callback: Optional[Callable[[UpdateProgress], None]] = None
+        progress_callback: Callable[[UpdateProgress], None] | None = None
     ) -> UpdateResult:
         """
         Convenience method: scan then update in one operation
@@ -296,9 +296,9 @@ class AsyncUpdateCoordinator:
         self,
         game_id: int,
         game_name: str,
-        dll_groups: Optional[List[str]] = None,
-        progress_callback: Optional[Callable[[UpdateProgress], None]] = None
-    ) -> Dict[str, Any]:
+        dll_groups: list[str] | None = None,
+        progress_callback: Callable[[UpdateProgress], None] | None = None
+    ) -> dict[str, Any]:
         """
         Update DLLs for a single game
 
@@ -316,7 +316,7 @@ class AsyncUpdateCoordinator:
         self.logger.info(f"Starting single-game update for: {game_name} (id: {game_id}, groups: {groups_str})")
         self._progress_callback = progress_callback
 
-        results: Dict[str, Any] = {
+        results: dict[str, Any] = {
             'updated': [],
             'skipped': [],
             'errors': [],

@@ -5,7 +5,7 @@ Individual game card with Steam image, DLL badges, and action buttons
 
 import asyncio
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Callable, Any
 import flet as ft
 
 from dlss_updater.database import GameDLL
@@ -18,7 +18,7 @@ from dlss_updater.constants import DLL_GROUPS
 class GameCard(ft.Card):
     """Individual game card with image, DLL info, and actions"""
 
-    def __init__(self, game, dlls: List[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: Optional[Dict[str, List]] = None):
+    def __init__(self, game, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None):
         super().__init__()
         self.game = game
         self.dlls = dlls
@@ -31,13 +31,13 @@ class GameCard(ft.Card):
         self.has_backups = bool(backup_groups)
 
         # Button references for loading state
-        self.update_button: Optional[ft.PopupMenuButton] = None
-        self.restore_button: Optional[ft.PopupMenuButton] = None
+        self.update_button: ft.PopupMenuButton | None = None
+        self.restore_button: ft.PopupMenuButton | None = None
         self.is_updating = False
 
         # Reference to dll_badges for refresh
-        self.dll_badges_container: Optional[ft.Container] = None
-        self.right_content: Optional[ft.Column] = None
+        self.dll_badges_container: ft.Container | None = None
+        self.right_content: ft.Column | None = None
 
         # Async lock for UI updates to prevent race conditions
         self._ui_lock = asyncio.Lock()
@@ -113,7 +113,7 @@ class GameCard(ft.Card):
                 continue
         return False
 
-    def _build_dll_popover_items(self) -> List[ft.PopupMenuItem]:
+    def _build_dll_popover_items(self) -> list[ft.PopupMenuItem]:
         """Build popup menu items for all DLLs with color coding and update status"""
         from dlss_updater.config import LATEST_DLL_VERSIONS
         from dlss_updater.updater import parse_version
@@ -327,7 +327,7 @@ class GameCard(ft.Card):
             height=28,
         )
 
-    def _get_dll_groups_for_game(self) -> List[str]:
+    def _get_dll_groups_for_game(self) -> list[str]:
         """Get unique DLL technology groups present in this game"""
         groups_present = set()
         for dll in self.dlls:
@@ -565,7 +565,7 @@ class GameCard(ft.Card):
             self.update_button.disabled = is_updating
             self.update_button.update()
 
-    async def refresh_dlls(self, new_dlls: List[GameDLL]):
+    async def refresh_dlls(self, new_dlls: list[GameDLL]):
         """Refresh DLL badges with new data after update (async for UI lock)"""
         async with self._ui_lock:
             self.dlls = new_dlls
@@ -579,7 +579,7 @@ class GameCard(ft.Card):
                 self.dll_badges_container = new_badges
                 self.right_content.update()
 
-    async def refresh_restore_button(self, new_backup_groups: Dict[str, List]):
+    async def refresh_restore_button(self, new_backup_groups: dict[str, list]):
         """Refresh restore button with new backup data after restore"""
         async with self._ui_lock:
             self.backup_groups = new_backup_groups

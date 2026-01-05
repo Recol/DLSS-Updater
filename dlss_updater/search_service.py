@@ -28,7 +28,7 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Callable, Any, Tuple
+from typing import Callable, Any
 from datetime import datetime
 
 import msgspec
@@ -74,14 +74,14 @@ class SearchHistoryEntry(msgspec.Struct):
     """
     query: str
     timestamp: datetime
-    launcher: Optional[str] = None
+    launcher: str | None = None
     result_count: int = 0
 
 
 @dataclass
 class SearchCacheEntry:
     """LRU cache entry for search results."""
-    results: List[SearchResult]
+    results: list[SearchResult]
     created_at: float = field(default_factory=time.time)
     ttl_seconds: float = 60.0  # 1 minute TTL
 
@@ -109,19 +109,19 @@ class GameSearchIndex:
         self._lock = threading.Lock()
 
         # Hash map: normalized_name -> Game
-        self._exact_index: Dict[str, Game] = {}
+        self._exact_index: dict[str, Game] = {}
 
         # Prefix index: prefix -> list of (normalized_name, Game)
-        self._prefix_index: Dict[str, List[Tuple[str, Game]]] = {}
+        self._prefix_index: dict[str, list[tuple[str, Game]]] = {}
 
         # Word index: word -> list of (normalized_name, Game)
-        self._word_index: Dict[str, List[Tuple[str, Game]]] = {}
+        self._word_index: dict[str, list[tuple[str, Game]]] = {}
 
         # Launcher filter index: launcher -> list of Game
-        self._launcher_index: Dict[str, List[Game]] = {}
+        self._launcher_index: dict[str, list[Game]] = {}
 
         # All games list for full iteration when needed
-        self._all_games: List[Game] = []
+        self._all_games: list[Game] = []
 
         self._is_built = False
 
@@ -129,14 +129,14 @@ class GameSearchIndex:
         """Normalize text for matching (lowercase, strip)."""
         return text.lower().strip()
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         """Split text into searchable tokens."""
         # Split on common separators
         import re
         tokens = re.split(r'[\s\-_:]+', text.lower())
         return [t for t in tokens if len(t) >= 2]  # Min 2 chars
 
-    def build(self, games_by_launcher: Dict[str, List[Game]]):
+    def build(self, games_by_launcher: dict[str, list[Game]]):
         """
         Build the search index from games data.
 
@@ -182,9 +182,9 @@ class GameSearchIndex:
     def search(
         self,
         query: str,
-        launcher: Optional[str] = None,
+        launcher: str | None = None,
         limit: int = 50
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """
         Search for games matching query.
 
@@ -208,7 +208,7 @@ class GameSearchIndex:
         query_normalized = self._normalize(query)
         query_words = self._tokenize(query)
 
-        results: Dict[int, SearchResult] = {}  # game_id -> SearchResult
+        results: dict[int, SearchResult] = {}  # game_id -> SearchResult
 
         with self._lock:
             # Filter by launcher if specified
@@ -279,7 +279,7 @@ class GameSearchIndex:
 
         return sorted_results[:limit]
 
-    def get_all_games(self, launcher: Optional[str] = None) -> List[Game]:
+    def get_all_games(self, launcher: str | None = None) -> list[Game]:
         """Get all games, optionally filtered by launcher."""
         with self._lock:
             if launcher:
@@ -323,12 +323,12 @@ class SearchResultCache:
         self._hits = 0
         self._misses = 0
 
-    def _make_key(self, query: str, launcher: Optional[str]) -> str:
+    def _make_key(self, query: str, launcher: str | None) -> str:
         """Create cache key from query parameters."""
         launcher_part = launcher or "__all__"
         return f"{query.lower().strip()}::{launcher_part}"
 
-    def get(self, query: str, launcher: Optional[str] = None) -> Optional[List[SearchResult]]:
+    def get(self, query: str, launcher: str | None = None) -> list[SearchResult] | None:
         """Get cached results if available and not expired."""
         key = self._make_key(query, launcher)
 
@@ -349,7 +349,7 @@ class SearchResultCache:
             self._hits += 1
             return entry.results
 
-    def put(self, query: str, launcher: Optional[str], results: List[SearchResult]):
+    def put(self, query: str, launcher: str | None, results: list[SearchResult]):
         """Cache search results."""
         key = self._make_key(query, launcher)
 
@@ -368,7 +368,7 @@ class SearchResultCache:
         with self._lock:
             self._cache.clear()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         with self._lock:
             total = self._hits + self._misses
@@ -423,7 +423,7 @@ class GameSearchService:
         self._cache = SearchResultCache(max_size=100, ttl_seconds=60.0)
 
         # Search history (in-memory, synced to DB)
-        self._history: List[SearchHistoryEntry] = []
+        self._history: list[SearchHistoryEntry] = []
         self._history_max = 50
 
         # Fuzzy matching support (optional)
@@ -459,7 +459,7 @@ class GameSearchService:
     # Index Management
     # =========================================================================
 
-    async def build_index(self, games_by_launcher: Optional[Dict[str, List[Game]]] = None):
+    async def build_index(self, games_by_launcher: dict[str, list[Game]] | None = None):
         """
         Build or rebuild the search index.
 
@@ -497,12 +497,12 @@ class GameSearchService:
     async def search(
         self,
         query: str,
-        launcher: Optional[str] = None,
+        launcher: str | None = None,
         limit: int = 50,
         use_fuzzy: bool = False,
         fuzzy_threshold: int = 60,
         record_history: bool = True
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """
         Search for games matching query.
 
@@ -580,10 +580,10 @@ class GameSearchService:
     async def _fuzzy_search(
         self,
         query: str,
-        launcher: Optional[str],
+        launcher: str | None,
         limit: int,
         threshold: int
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """Perform fuzzy matching search using rapidfuzz."""
         if not self._fuzzy_enabled:
             return []
@@ -621,9 +621,9 @@ class GameSearchService:
     async def _database_search(
         self,
         query: str,
-        launcher: Optional[str],
+        launcher: str | None,
         limit: int
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """
         Fallback database search using SQL LIKE.
 
@@ -660,7 +660,7 @@ class GameSearchService:
     # Search History
     # =========================================================================
 
-    async def _record_history(self, query: str, launcher: Optional[str], result_count: int):
+    async def _record_history(self, query: str, launcher: str | None, result_count: int):
         """Record a search in history."""
         entry = SearchHistoryEntry(
             query=query,
@@ -686,7 +686,7 @@ class GameSearchService:
         except Exception as e:
             logger.debug(f"Failed to persist search history: {e}")
 
-    async def get_search_history(self, limit: int = 10) -> List[SearchHistoryEntry]:
+    async def get_search_history(self, limit: int = 10) -> list[SearchHistoryEntry]:
         """
         Get recent search history.
 
@@ -741,7 +741,7 @@ class GameSearchService:
     # Utilities
     # =========================================================================
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         """Get search cache statistics."""
         return self._cache.get_stats()
 

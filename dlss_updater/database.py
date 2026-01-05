@@ -13,7 +13,7 @@ import asyncio
 import logging
 import threading
 from pathlib import Path
-from typing import Optional, List, Dict, Tuple, Any
+from typing import Any
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -53,10 +53,10 @@ class DatabaseManager:
             self.initialized = False
 
             # Connection pool for async operations (aiosqlite)
-            self._async_pool: List[Any] = []  # List of aiosqlite.Connection
+            self._async_pool: list[Any] = []  # List of aiosqlite.Connection
             self._pool_size = 5
             self._pool_lock = asyncio.Lock()
-            self._pool_semaphore: Optional[asyncio.Semaphore] = None
+            self._pool_semaphore: asyncio.Semaphore | None = None
             self._pool_active = False  # Track pool lifecycle state
 
             # Thread-local storage for sync operations (connection reuse)
@@ -355,11 +355,11 @@ class DatabaseManager:
 
     # ===== Game Operations =====
 
-    async def upsert_game(self, game_data: Dict[str, Any]) -> Optional[Game]:
+    async def upsert_game(self, game_data: dict[str, Any]) -> Game | None:
         """Insert or update game record"""
         return await asyncio.to_thread(self._upsert_game, game_data)
 
-    def _upsert_game(self, game_data: Dict[str, Any]) -> Optional[Game]:
+    def _upsert_game(self, game_data: dict[str, Any]) -> Game | None:
         """Upsert game (runs in thread) - uses thread-local connection"""
         conn = self._get_thread_connection()
         cursor = conn.cursor()
@@ -401,11 +401,11 @@ class DatabaseManager:
             return None
         # Note: Don't close thread-local connection - it's reused
 
-    async def get_games_grouped_by_launcher(self) -> Dict[str, List[Game]]:
+    async def get_games_grouped_by_launcher(self) -> dict[str, list[Game]]:
         """Get all games grouped by launcher"""
         return await asyncio.to_thread(self._get_games_grouped_by_launcher)
 
-    def _get_games_grouped_by_launcher(self) -> Dict[str, List[Game]]:
+    def _get_games_grouped_by_launcher(self) -> dict[str, list[Game]]:
         """Get games grouped by launcher (runs in thread) - uses thread-local connection"""
         conn = self._get_thread_connection()
         cursor = conn.cursor()
@@ -566,11 +566,11 @@ class DatabaseManager:
 
     # ===== GameDLL Operations =====
 
-    async def upsert_game_dll(self, dll_data: Dict[str, Any]) -> Optional[GameDLL]:
+    async def upsert_game_dll(self, dll_data: dict[str, Any]) -> GameDLL | None:
         """Insert or update game DLL record"""
         return await asyncio.to_thread(self._upsert_game_dll, dll_data)
 
-    def _upsert_game_dll(self, dll_data: Dict[str, Any]) -> Optional[GameDLL]:
+    def _upsert_game_dll(self, dll_data: dict[str, Any]) -> GameDLL | None:
         """Upsert game DLL (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -616,11 +616,11 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_game_dll_by_path(self, dll_path: str) -> Optional[GameDLL]:
+    async def get_game_dll_by_path(self, dll_path: str) -> GameDLL | None:
         """Get game DLL by path"""
         return await asyncio.to_thread(self._get_game_dll_by_path, dll_path)
 
-    def _get_game_dll_by_path(self, dll_path: str) -> Optional[GameDLL]:
+    def _get_game_dll_by_path(self, dll_path: str) -> GameDLL | None:
         """Get game DLL by path (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -651,11 +651,11 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_dlls_for_game(self, game_id: int) -> List[GameDLL]:
+    async def get_dlls_for_game(self, game_id: int) -> list[GameDLL]:
         """Get all DLLs for a specific game"""
         return await asyncio.to_thread(self._get_dlls_for_game, game_id)
 
-    def _get_dlls_for_game(self, game_id: int) -> List[GameDLL]:
+    def _get_dlls_for_game(self, game_id: int) -> list[GameDLL]:
         """Get DLLs for game (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -687,11 +687,11 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_game_dll_by_path(self, dll_path: str) -> Optional[GameDLL]:
+    async def get_game_dll_by_path(self, dll_path: str) -> GameDLL | None:
         """Get DLL record by file path"""
         return await asyncio.to_thread(self._get_game_dll_by_path, dll_path)
 
-    def _get_game_dll_by_path(self, dll_path: str) -> Optional[GameDLL]:
+    def _get_game_dll_by_path(self, dll_path: str) -> GameDLL | None:
         """Get DLL by path (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -748,7 +748,7 @@ class DatabaseManager:
 
     # ===== Batch Operations (Performance Optimized) =====
 
-    async def batch_upsert_games(self, games: List[Dict[str, Any]]) -> Dict[str, Game]:
+    async def batch_upsert_games(self, games: list[dict[str, Any]]) -> dict[str, Game]:
         """
         Batch upsert multiple games in a single transaction.
 
@@ -766,7 +766,7 @@ class DatabaseManager:
 
         return await asyncio.to_thread(self._batch_upsert_games, games)
 
-    def _batch_upsert_games(self, games: List[Dict[str, Any]]) -> Dict[str, Game]:
+    def _batch_upsert_games(self, games: list[dict[str, Any]]) -> dict[str, Game]:
         """Batch upsert games (runs in thread) - uses thread-local connection"""
         conn = self._get_thread_connection()
         cursor = conn.cursor()
@@ -820,7 +820,7 @@ class DatabaseManager:
             conn.rollback()
             return {}
 
-    async def batch_upsert_dlls(self, dlls: List[Dict[str, Any]]) -> int:
+    async def batch_upsert_dlls(self, dlls: list[dict[str, Any]]) -> int:
         """
         Batch upsert multiple DLLs in a single transaction.
 
@@ -837,7 +837,7 @@ class DatabaseManager:
 
         return await asyncio.to_thread(self._batch_upsert_dlls, dlls)
 
-    def _batch_upsert_dlls(self, dlls: List[Dict[str, Any]]) -> int:
+    def _batch_upsert_dlls(self, dlls: list[dict[str, Any]]) -> int:
         """Batch upsert DLLs (runs in thread) - uses thread-local connection"""
         conn = self._get_thread_connection()
         cursor = conn.cursor()
@@ -871,11 +871,11 @@ class DatabaseManager:
 
     # ===== Backup Operations =====
 
-    async def insert_backup(self, backup_data: Dict[str, Any]) -> Optional[int]:
+    async def insert_backup(self, backup_data: dict[str, Any]) -> int | None:
         """Insert backup record"""
         return await asyncio.to_thread(self._insert_backup, backup_data)
 
-    def _insert_backup(self, backup_data: Dict[str, Any]) -> Optional[int]:
+    def _insert_backup(self, backup_data: dict[str, Any]) -> int | None:
         """Insert backup (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -903,11 +903,11 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_all_backups(self) -> List[DLLBackup]:
+    async def get_all_backups(self) -> list[DLLBackup]:
         """Get all active backups"""
         return await asyncio.to_thread(self._get_all_backups)
 
-    def _get_all_backups(self) -> List[DLLBackup]:
+    def _get_all_backups(self) -> list[DLLBackup]:
         """Get all backups (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -947,11 +947,11 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_backup_by_id(self, backup_id: int) -> Optional[DLLBackup]:
+    async def get_backup_by_id(self, backup_id: int) -> DLLBackup | None:
         """Get backup by ID"""
         return await asyncio.to_thread(self._get_backup_by_id, backup_id)
 
-    def _get_backup_by_id(self, backup_id: int) -> Optional[DLLBackup]:
+    def _get_backup_by_id(self, backup_id: int) -> DLLBackup | None:
         """Get backup by ID (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1124,11 +1124,11 @@ class DatabaseManager:
 
     # ===== Update History Operations =====
 
-    async def record_update_history(self, history_data: Dict[str, Any]):
+    async def record_update_history(self, history_data: dict[str, Any]):
         """Record update history"""
         return await asyncio.to_thread(self._record_update_history, history_data)
 
-    def _record_update_history(self, history_data: Dict[str, Any]):
+    def _record_update_history(self, history_data: dict[str, Any]):
         """Record update history (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1180,11 +1180,11 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def find_steam_app_by_name(self, game_name: str) -> Optional[int]:
+    async def find_steam_app_by_name(self, game_name: str) -> int | None:
         """Find Steam app ID by game name"""
         return await asyncio.to_thread(self._find_steam_app_by_name, game_name)
 
-    def _find_steam_app_by_name(self, game_name: str) -> Optional[int]:
+    def _find_steam_app_by_name(self, game_name: str) -> int | None:
         """Find Steam app by name (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1223,11 +1223,11 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_steam_app_list_timestamp(self) -> Optional[datetime]:
+    async def get_steam_app_list_timestamp(self) -> datetime | None:
         """Get timestamp of last Steam app list update"""
         return await asyncio.to_thread(self._get_steam_app_list_timestamp)
 
-    def _get_steam_app_list_timestamp(self) -> Optional[datetime]:
+    def _get_steam_app_list_timestamp(self) -> datetime | None:
         """Get Steam app list timestamp (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1279,11 +1279,11 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_cached_image_path(self, app_id: int) -> Optional[str]:
+    async def get_cached_image_path(self, app_id: int) -> str | None:
         """Get cached image path for Steam app"""
         return await asyncio.to_thread(self._get_cached_image_path, app_id)
 
-    def _get_cached_image_path(self, app_id: int) -> Optional[str]:
+    def _get_cached_image_path(self, app_id: int) -> str | None:
         """Get cached image path (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1380,7 +1380,7 @@ class DatabaseManager:
 
     # ===== Steam Apps FTS5 Operations (Phase 3) =====
 
-    async def upsert_steam_apps(self, apps: List[Tuple[int, str, str]]) -> int:
+    async def upsert_steam_apps(self, apps: list[tuple[int, str, str]]) -> int:
         """
         Bulk insert/update Steam apps with FTS5 indexing.
 
@@ -1400,7 +1400,7 @@ class DatabaseManager:
 
         return await asyncio.to_thread(self._upsert_steam_apps, apps)
 
-    def _upsert_steam_apps(self, apps: List[Tuple[int, str, str]]) -> int:
+    def _upsert_steam_apps(self, apps: list[tuple[int, str, str]]) -> int:
         """Bulk upsert Steam apps (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1437,7 +1437,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def search_steam_app(self, query: str, limit: int = 10) -> List[Tuple[int, str]]:
+    async def search_steam_app(self, query: str, limit: int = 10) -> list[tuple[int, str]]:
         """
         FTS5 full-text search for Steam apps by name.
 
@@ -1452,7 +1452,7 @@ class DatabaseManager:
         """
         return await asyncio.to_thread(self._search_steam_app, query, limit)
 
-    def _search_steam_app(self, query: str, limit: int) -> List[Tuple[int, str]]:
+    def _search_steam_app(self, query: str, limit: int) -> list[tuple[int, str]]:
         """FTS5 search for Steam app (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1512,7 +1512,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_steam_app_by_name(self, name_normalized: str) -> Optional[int]:
+    async def get_steam_app_by_name(self, name_normalized: str) -> int | None:
         """
         Exact match lookup for Steam app by normalized name.
 
@@ -1526,7 +1526,7 @@ class DatabaseManager:
         """
         return await asyncio.to_thread(self._get_steam_app_by_name, name_normalized)
 
-    def _get_steam_app_by_name(self, name_normalized: str) -> Optional[int]:
+    def _get_steam_app_by_name(self, name_normalized: str) -> int | None:
         """Get Steam app by normalized name (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1599,7 +1599,7 @@ class DatabaseManager:
 
     # ===== Per-Game Backup Operations =====
 
-    async def get_backups_for_game(self, game_id: int) -> List[GameDLLBackup]:
+    async def get_backups_for_game(self, game_id: int) -> list[GameDLLBackup]:
         """
         Get all active backups for a specific game.
 
@@ -1611,7 +1611,7 @@ class DatabaseManager:
         """
         return await asyncio.to_thread(self._get_backups_for_game, game_id)
 
-    def _get_backups_for_game(self, game_id: int) -> List[GameDLLBackup]:
+    def _get_backups_for_game(self, game_id: int) -> list[GameDLLBackup]:
         """Get backups for game (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1692,7 +1692,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_game_backup_summary(self, game_id: int) -> Optional[GameBackupSummary]:
+    async def get_game_backup_summary(self, game_id: int) -> GameBackupSummary | None:
         """
         Get summary of backups for a specific game.
 
@@ -1706,7 +1706,7 @@ class DatabaseManager:
         """
         return await asyncio.to_thread(self._get_game_backup_summary, game_id)
 
-    def _get_game_backup_summary(self, game_id: int) -> Optional[GameBackupSummary]:
+    def _get_game_backup_summary(self, game_id: int) -> GameBackupSummary | None:
         """Get game backup summary (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1759,7 +1759,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_backups_grouped_by_dll_type(self, game_id: int) -> Dict[str, List[DLLBackup]]:
+    async def get_backups_grouped_by_dll_type(self, game_id: int) -> dict[str, list[DLLBackup]]:
         """
         Get backups for a game grouped by DLL type.
 
@@ -1773,7 +1773,7 @@ class DatabaseManager:
         """
         return await asyncio.to_thread(self._get_backups_grouped_by_dll_type, game_id)
 
-    def _get_backups_grouped_by_dll_type(self, game_id: int) -> Dict[str, List[DLLBackup]]:
+    def _get_backups_grouped_by_dll_type(self, game_id: int) -> dict[str, list[DLLBackup]]:
         """Get backups grouped by DLL type (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1791,7 +1791,7 @@ class DatabaseManager:
                 ORDER BY gd.dll_type, b.backup_created_at DESC
             """, (game_id,))
 
-            grouped: Dict[str, List[DLLBackup]] = {}
+            grouped: dict[str, list[DLLBackup]] = {}
             for row in cursor.fetchall():
                 dll_type = row[9]
                 backup = DLLBackup(
@@ -1818,7 +1818,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_games_with_backups(self) -> List[GameWithBackupCount]:
+    async def get_games_with_backups(self) -> list[GameWithBackupCount]:
         """
         Get all games that have active backups with their backup counts.
 
@@ -1829,7 +1829,7 @@ class DatabaseManager:
         """
         return await asyncio.to_thread(self._get_games_with_backups)
 
-    def _get_games_with_backups(self) -> List[GameWithBackupCount]:
+    def _get_games_with_backups(self) -> list[GameWithBackupCount]:
         """Get games with backups (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1869,8 +1869,8 @@ class DatabaseManager:
 
     async def get_all_backups_filtered(
         self,
-        game_id: Optional[int] = None
-    ) -> List[GameDLLBackup]:
+        game_id: int | None = None
+    ) -> list[GameDLLBackup]:
         """
         Get all active backups, optionally filtered by game.
 
@@ -1884,8 +1884,8 @@ class DatabaseManager:
 
     def _get_all_backups_filtered(
         self,
-        game_id: Optional[int] = None
-    ) -> List[GameDLLBackup]:
+        game_id: int | None = None
+    ) -> list[GameDLLBackup]:
         """Get all backups with optional game filter (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1942,8 +1942,8 @@ class DatabaseManager:
 
     async def batch_check_games_have_backups(
         self,
-        game_ids: List[int]
-    ) -> Dict[int, bool]:
+        game_ids: list[int]
+    ) -> dict[int, bool]:
         """
         Check multiple games for backup existence in a single query.
 
@@ -1962,8 +1962,8 @@ class DatabaseManager:
 
     def _batch_check_games_have_backups(
         self,
-        game_ids: List[int]
-    ) -> Dict[int, bool]:
+        game_ids: list[int]
+    ) -> dict[int, bool]:
         """Batch check games for backups (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -1998,9 +1998,9 @@ class DatabaseManager:
     async def search_games(
         self,
         query: str,
-        launcher: Optional[str] = None,
+        launcher: str | None = None,
         limit: int = 50
-    ) -> List[Game]:
+    ) -> list[Game]:
         """
         Search games by name using case-insensitive LIKE matching.
 
@@ -2020,9 +2020,9 @@ class DatabaseManager:
     def _search_games(
         self,
         query: str,
-        launcher: Optional[str],
+        launcher: str | None,
         limit: int
-    ) -> List[Game]:
+    ) -> list[Game]:
         """Search games (runs in thread) - uses thread-local connection"""
         conn = self._get_thread_connection()
         cursor = conn.cursor()
@@ -2100,7 +2100,7 @@ class DatabaseManager:
     async def add_search_history(
         self,
         query: str,
-        launcher: Optional[str] = None,
+        launcher: str | None = None,
         result_count: int = 0
     ):
         """
@@ -2120,7 +2120,7 @@ class DatabaseManager:
     def _add_search_history(
         self,
         query: str,
-        launcher: Optional[str],
+        launcher: str | None,
         result_count: int
     ):
         """Add search history (runs in thread)"""
@@ -2158,7 +2158,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    async def get_search_history(self, limit: int = 10) -> List[Dict[str, Any]]:
+    async def get_search_history(self, limit: int = 10) -> list[dict[str, Any]]:
         """
         Get recent search history.
 
@@ -2170,7 +2170,7 @@ class DatabaseManager:
         """
         return await asyncio.to_thread(self._get_search_history, limit)
 
-    def _get_search_history(self, limit: int) -> List[Dict[str, Any]]:
+    def _get_search_history(self, limit: int) -> list[dict[str, Any]]:
         """Get search history (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()

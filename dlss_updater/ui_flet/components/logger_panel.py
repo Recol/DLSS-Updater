@@ -7,7 +7,7 @@ Thread-safe implementation using page.run_task()
 import logging
 import asyncio
 import threading
-from typing import Optional, List
+from typing import Callable, Any
 import flet as ft
 from dlss_updater.ui_flet.theme.colors import MD3Colors, Animations, Shadows
 
@@ -294,7 +294,7 @@ class LoggerPanel(ft.Container):
         self.shadow = Shadows.LEVEL_2
         self.border_radius = 0  # Bottom panel, no radius
 
-    def _create_filter_chips(self) -> List[ft.Container]:
+    def _create_filter_chips(self) -> list[ft.Container]:
         """Create filter chips for log levels"""
         levels = ["ALL", "DEBUG", "INFO", "WARNING", "ERROR"]
         chips = []

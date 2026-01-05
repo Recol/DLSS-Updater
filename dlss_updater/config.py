@@ -2,8 +2,8 @@ import os
 import sys
 import configparser
 import threading
+from pathlib import Path
 from enum import StrEnum
-from typing import List
 import msgspec
 from .logger import setup_logger
 from .models import UpdatePreferencesConfig, LauncherPathsConfig, PerformanceConfig, MAX_PATHS_PER_LAUNCHER
@@ -99,10 +99,10 @@ def get_config_path():
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
     try:
-        base_path = sys._MEIPASS
+        base_path = Path(sys._MEIPASS)
     except Exception:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+        base_path = Path(".").resolve()
+    return str(base_path / relative_path)
 
 
 # Version information without paths (paths will be resolved at runtime)
@@ -260,7 +260,7 @@ class ConfigManager(configparser.ConfigParser):
     # Multi-Path Methods (Sub-Folder Support)
     # =========================================================================
 
-    def get_launcher_paths(self, launcher: LauncherPathName) -> List[str]:
+    def get_launcher_paths(self, launcher: LauncherPathName) -> list[str]:
         """
         Get all paths for a launcher (multi-path support).
 
@@ -288,7 +288,7 @@ class ConfigManager(configparser.ConfigParser):
         # Fallback: treat as single path (legacy format)
         return [raw_value] if raw_value else []
 
-    def set_launcher_paths(self, launcher: LauncherPathName, paths: List[str]):
+    def set_launcher_paths(self, launcher: LauncherPathName, paths: list[str]):
         """
         Set all paths for a launcher (multi-path support).
 
@@ -329,9 +329,9 @@ class ConfigManager(configparser.ConfigParser):
             return False
 
         # Check for duplicate (case-insensitive on Windows)
-        normalized_new = os.path.normpath(new_path).lower()
+        normalized_new = str(Path(new_path).resolve()).lower()
         for existing in paths:
-            if os.path.normpath(existing).lower() == normalized_new:
+            if str(Path(existing).resolve()).lower() == normalized_new:
                 self.logger.debug(f"Path already exists for {launcher}: {new_path}")
                 return False
 
@@ -354,12 +354,12 @@ class ConfigManager(configparser.ConfigParser):
         paths = self.get_launcher_paths(launcher)
 
         # Find and remove (case-insensitive on Windows)
-        normalized_remove = os.path.normpath(path_to_remove).lower()
+        normalized_remove = str(Path(path_to_remove).resolve()).lower()
         new_paths = []
         removed = False
 
         for p in paths:
-            if os.path.normpath(p).lower() == normalized_remove:
+            if str(Path(p).resolve()).lower() == normalized_remove:
                 removed = True
             else:
                 new_paths.append(p)
