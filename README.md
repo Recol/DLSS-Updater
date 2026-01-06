@@ -27,7 +27,9 @@ What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on yo
   - Supports Wine prefixes (Lutris, standalone Wine)
   - Automatic Steam path detection on Linux
   - Custom folder support for any game location
+  - Enable the DLSS Debug Overlay
 - **DLSS SR Preset Override:**
+  - **This is currently bugged within the Nvidia driver, not the software, if it doesn't apply, use the Nvidia App for now**
   - Configure DLSS Super Resolution presets (K/L/M) with GPU-based recommendations
   - RTX 20/30 → Preset K recommended, RTX 40/50 → Preset M or K
   - Preset L is heavier and may reduce performance
