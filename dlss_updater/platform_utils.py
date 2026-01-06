@@ -25,6 +25,10 @@ class FeatureSupport(NamedTuple):
     directstorage: bool
     auto_launcher_detection: bool
     admin_elevation: bool
+    # DLSS Preset Override features
+    dlss_preset_override: bool      # Can apply system-wide presets via registry (Windows only)
+    dlss_linux_overlay: bool        # Can use debug overlay via env vars (Linux only)
+    nvidia_gpu_detected: bool       # NVIDIA GPU present (checked at startup)
 
 
 def get_platform() -> Platform:
@@ -53,6 +57,27 @@ def is_linux() -> bool:
     return get_platform() == Platform.LINUX
 
 
+def _check_nvidia_gpu_present() -> bool:
+    """
+    Check if an NVIDIA GPU is present using NVML.
+
+    This is a synchronous check performed at import time to determine
+    whether NVIDIA-specific features should be available.
+
+    Returns:
+        True if NVIDIA GPU detected, False otherwise.
+    """
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        device_count = pynvml.nvmlDeviceGetCount()
+        pynvml.nvmlShutdown()
+        return device_count > 0
+    except Exception:
+        # pynvml not installed, NVML not available, or no GPU
+        return False
+
+
 def get_feature_support() -> FeatureSupport:
     """
     Get feature availability for current platform.
@@ -61,6 +86,7 @@ def get_feature_support() -> FeatureSupport:
         FeatureSupport tuple indicating which features are available.
     """
     platform = get_platform()
+    nvidia_gpu = _check_nvidia_gpu_present()
 
     if platform == Platform.WINDOWS:
         return FeatureSupport(
@@ -69,14 +95,20 @@ def get_feature_support() -> FeatureSupport:
             directstorage=True,
             auto_launcher_detection=True,
             admin_elevation=True,
+            dlss_preset_override=nvidia_gpu,    # Only if NVIDIA GPU present
+            dlss_linux_overlay=False,           # Windows doesn't need this
+            nvidia_gpu_detected=nvidia_gpu,
         )
     elif platform == Platform.LINUX:
         return FeatureSupport(
             registry_access=False,  # No native Windows registry
-            dlss_overlay=False,     # Requires Windows registry for NVIDIA settings
+            dlss_overlay=nvidia_gpu,  # Linux: via DXVK-NVAPI env vars
             directstorage=False,    # Windows-only technology
             auto_launcher_detection=False,  # No registry for launcher paths
             admin_elevation=True,   # sudo/pkexec available
+            dlss_preset_override=nvidia_gpu,    # Can generate env vars if NVIDIA GPU
+            dlss_linux_overlay=nvidia_gpu,      # Linux overlay via DXVK-NVAPI
+            nvidia_gpu_detected=nvidia_gpu,
         )
     else:
         # Unknown/unsupported platform - conservative defaults
@@ -86,6 +118,9 @@ def get_feature_support() -> FeatureSupport:
             directstorage=False,
             auto_launcher_detection=False,
             admin_elevation=False,
+            dlss_preset_override=False,
+            dlss_linux_overlay=False,
+            nvidia_gpu_detected=False,
         )
 
 

@@ -139,6 +139,9 @@ async def main(page: ft.Page):
             logger.info("DLL cache initialized successfully")
             await snackbar.show_complete()
 
+            # Show DLSS preset dialog for first-time NVIDIA GPU users
+            await main_view.on_dll_cache_complete()
+
         except Exception as e:
             logger.error(f"Failed to initialize DLL cache: {e}", exc_info=True)
             await snackbar.show_error(f"Cache init failed: {str(e)[:40]}")

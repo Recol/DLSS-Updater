@@ -64,6 +64,20 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="3.4.0" date="2026-01-06">
+      <description>
+        <p>DLSS SR Preset Override - GPU-based preset recommendations</p>
+        <ul>
+          <li>Configure DLSS Super Resolution presets (K/L/M) with automatic GPU detection</li>
+          <li>RTX 20/30 series recommended Preset K, RTX 40/50 series use Preset M or K</li>
+          <li>Preset L is heavier and may reduce performance</li>
+          <li>Windows: System-wide registry override for all games</li>
+          <li>Linux: Generate Steam launch options with copy-to-clipboard</li>
+          <li>First-time setup dialog appears automatically for NVIDIA GPU users</li>
+          <li>Re-configurable anytime via Preferences menu</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.3.1" date="2026-01-04">
       <description>
         <p>Linux improvements - removed sudo requirement</p>
@@ -75,7 +89,7 @@
         </ul>
       </description>
     </release>
-    <release version="3.3.0" date="2026-01-04">
+    <release version="3.3.0" date="2026-01-02">
       <description>
         <p>Added Linux support with AppImage distribution</p>
         <ul>

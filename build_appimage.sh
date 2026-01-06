@@ -5,7 +5,7 @@
 set -e
 
 APP_NAME="DLSS_Updater"
-APP_VERSION="3.3.1"
+APP_VERSION="3.4.0"
 
 echo "=== Building DLSS Updater AppImage v${APP_VERSION} ==="
 

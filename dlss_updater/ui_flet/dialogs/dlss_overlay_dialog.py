@@ -1,22 +1,26 @@
 """
 DLSS Debug Overlay Dialog
-Toggle NVIDIA DLSS debug overlay via registry settings.
-Only available on Windows - shows unavailable message on other platforms.
+Toggle NVIDIA DLSS debug overlay.
+- Windows: via registry settings
+- Linux: via DXVK-NVAPI environment variables (copy to clipboard)
 """
 
 import logging
 import flet as ft
 
 from dlss_updater.registry_utils import get_dlss_overlay_state, set_dlss_overlay_state
-from dlss_updater.platform_utils import FEATURES
+from dlss_updater.platform_utils import FEATURES, IS_LINUX, IS_WINDOWS
 
 
 class DLSSOverlayDialog:
     """
     Dialog for enabling/disabling the DLSS debug overlay.
-    Reads state directly from registry and applies changes immediately.
-    On non-Windows platforms, shows an unavailable message.
+    - Windows: Reads state directly from registry and applies changes immediately.
+    - Linux: Shows environment variable to copy for Steam launch options.
     """
+
+    # Linux DXVK-NVAPI environment variable for debug overlay
+    LINUX_OVERLAY_ENV = "DXVK_NVAPI_SET_NGX_DEBUG_OPTIONS=DLSSIndicator=1024"
 
     def __init__(self, page: ft.Page, logger: logging.Logger):
         self.page = page
@@ -27,6 +31,8 @@ class DLSSOverlayDialog:
         self.error_container: ft.Container = None
         self.dialog: ft.AlertDialog = None
         self.is_available = FEATURES.dlss_overlay
+        # Linux-specific
+        self.launch_options_field: ft.TextField = None
 
     async def _load_current_state(self):
         """Load current overlay state from registry"""
@@ -144,11 +150,115 @@ class DLSSOverlayDialog:
         )
         self.page.open(dialog)
 
+    async def _on_copy_clicked(self, e):
+        """Copy launch options to clipboard (Linux)"""
+        launch_opts = f"{self.LINUX_OVERLAY_ENV} %command%"
+        self.page.set_clipboard(launch_opts)
+        self.page.snack_bar = ft.SnackBar(
+            content=ft.Text("Launch options copied to clipboard!"),
+            bgcolor="#4CAF50",
+        )
+        self.page.snack_bar.open = True
+        self.page.update()
+        self.logger.info("Linux DLSS overlay launch options copied to clipboard")
+
+    async def _show_linux_dialog(self):
+        """Show Linux-specific dialog with environment variable instructions"""
+        launch_opts = f"{self.LINUX_OVERLAY_ENV} %command%"
+
+        self.launch_options_field = ft.TextField(
+            value=launch_opts,
+            read_only=True,
+            multiline=True,
+            min_lines=1,
+            max_lines=2,
+            text_size=11,
+            bgcolor="#2C2C2C",
+        )
+
+        copy_button = ft.FilledButton(
+            "Copy to Clipboard",
+            icon=ft.Icons.COPY,
+            on_click=self._on_copy_clicked,
+        )
+
+        # Info container
+        info_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text(
+                        "On Linux, the DLSS debug overlay is enabled via DXVK-NVAPI "
+                        "environment variables. Add the launch options below to Steam's "
+                        "'Set Launch Options' for each game.",
+                        size=12,
+                        color=ft.Colors.GREY,
+                    ),
+                    ft.Container(height=4),
+                    ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.AMBER),
+                            ft.Text(
+                                "Works with Proton/Wine games using DXVK-NVAPI.",
+                                size=11,
+                                color=ft.Colors.AMBER,
+                                italic=True,
+                            ),
+                        ],
+                        spacing=4,
+                    ),
+                ],
+                spacing=4,
+            ),
+            bgcolor="#3C3C3C",
+            padding=ft.padding.all(12),
+            border_radius=4,
+        )
+
+        self.dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.BUG_REPORT, color="#4CAF50"),
+                    ft.Text("DLSS Debug Overlay"),
+                ],
+                spacing=8,
+            ),
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        info_container,
+                        ft.Divider(),
+                        ft.Text("Steam Launch Options:", weight=ft.FontWeight.BOLD, size=14),
+                        self.launch_options_field,
+                        ft.Row(
+                            controls=[copy_button],
+                            alignment=ft.MainAxisAlignment.END,
+                        ),
+                    ],
+                    spacing=12,
+                    tight=True,
+                ),
+                width=500,
+            ),
+            actions=[
+                ft.FilledButton(
+                    "Close", on_click=lambda e: self.page.close(self.dialog)
+                ),
+            ],
+        )
+
+        self.page.open(self.dialog)
+
     async def show(self):
         """Show the DLSS overlay settings dialog"""
         # Check if feature is available on this platform
         if not self.is_available:
             await self._show_unavailable_dialog()
+            return
+
+        # Linux: Show environment variable instructions
+        if IS_LINUX:
+            await self._show_linux_dialog()
             return
 
         # Create switch

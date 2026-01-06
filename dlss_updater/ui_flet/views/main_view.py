@@ -77,6 +77,7 @@ from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDial
 from dlss_updater.ui_flet.dialogs.release_notes_dialog import ReleaseNotesDialog
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
+from dlss_updater.ui_flet.dialogs.dlss_preset_dialog import DLSSPresetDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
 from dlss_updater.platform_utils import FEATURES, IS_LINUX, IS_WINDOWS
 from dlss_updater.ui_flet.views.games_view import GamesView
@@ -636,6 +637,71 @@ class MainView(ft.Column):
         self.page.update()
         self.logger.info(f"Menu {'expanded' if self.menu_expanded else 'collapsed'}")
 
+    def _create_preferences_category(self) -> MenuCategory:
+        """
+        Create the Preferences menu category with conditional items.
+
+        DLSS preset item is only included when NVIDIA GPU is detected,
+        as per user requirement to completely hide it for non-NVIDIA users.
+        """
+        items = [
+            MenuItem(
+                id="update_prefs",
+                title="Update Preferences",
+                description="Configure update settings",
+                icon=ft.Icons.SETTINGS,
+                on_click=self._on_settings_clicked,
+            ),
+            MenuItem(
+                id="blacklist",
+                title="Manage Blacklist",
+                description="Exclude specific games",
+                icon=ft.Icons.BLOCK,
+                on_click=self._on_blacklist_clicked,
+            ),
+            MenuItem(
+                id="dlss_overlay",
+                title="DLSS Debug Overlay",
+                description="Toggle in-game DLSS indicator" if FEATURES.dlss_overlay
+                            else "Requires NVIDIA GPU",
+                icon=ft.Icons.BUG_REPORT,
+                on_click=self._on_dlss_overlay_clicked,
+                is_disabled=not FEATURES.dlss_overlay,
+                tooltip="Requires NVIDIA GPU" if not FEATURES.dlss_overlay else None,
+            ),
+        ]
+
+        # Only add DLSS preset item when NVIDIA GPU is detected
+        if FEATURES.nvidia_gpu_detected:
+            items.append(
+                MenuItem(
+                    id="dlss_preset",
+                    title="DLSS SR Preset Override",
+                    description="Configure Super Resolution presets",
+                    icon=ft.Icons.TUNE,
+                    on_click=self._on_dlss_preset_clicked,
+                )
+            )
+
+        items.append(
+            MenuItem(
+                id="theme",
+                title="Theme: Dark Mode",
+                description="Disabled (light theme has issues)",
+                icon=ft.Icons.BRIGHTNESS_6,
+                is_disabled=True,
+                tooltip="Theme switching is temporarily disabled",
+            )
+        )
+
+        return MenuCategory(
+            id="preferences",
+            title="Preferences",
+            icon=ft.Icons.TUNE,
+            color="#FF9800",  # Orange
+            items=items,
+        )
+
     def _create_app_menu(self) -> AppMenuSelector:
         """Create the AppMenuSelector with all categories"""
         categories = [
@@ -690,46 +756,7 @@ class MainView(ft.Column):
                     ),
                 ],
             ),
-            MenuCategory(
-                id="preferences",
-                title="Preferences",
-                icon=ft.Icons.TUNE,
-                color="#FF9800",  # Orange
-                items=[
-                    MenuItem(
-                        id="update_prefs",
-                        title="Update Preferences",
-                        description="Configure update settings",
-                        icon=ft.Icons.SETTINGS,
-                        on_click=self._on_settings_clicked,
-                    ),
-                    MenuItem(
-                        id="blacklist",
-                        title="Manage Blacklist",
-                        description="Exclude specific games",
-                        icon=ft.Icons.BLOCK,
-                        on_click=self._on_blacklist_clicked,
-                    ),
-                    MenuItem(
-                        id="dlss_overlay",
-                        title="DLSS Debug Overlay",
-                        description="Toggle in-game DLSS indicator" if FEATURES.dlss_overlay
-                                    else "Windows only - requires registry access",
-                        icon=ft.Icons.BUG_REPORT,
-                        on_click=self._on_dlss_overlay_clicked,
-                        is_disabled=not FEATURES.dlss_overlay,
-                        tooltip="Requires Windows registry access" if not FEATURES.dlss_overlay else None,
-                    ),
-                    MenuItem(
-                        id="theme",
-                        title="Theme: Dark Mode",
-                        description="Disabled (light theme has issues)",
-                        icon=ft.Icons.BRIGHTNESS_6,
-                        is_disabled=True,
-                        tooltip="Theme switching is temporarily disabled",
-                    ),
-                ],
-            ),
+            self._create_preferences_category(),
             MenuCategory(
                 id="application",
                 title="Application",
@@ -817,6 +844,9 @@ class MainView(ft.Column):
     async def _on_dismiss_discord_banner(self, e):
         """Dismiss banner and persist preference"""
         config_manager.set_discord_banner_dismissed(True)
+        if self.discord_banner:
+            self.page.close(self.discord_banner)
+            self.discord_banner = None
 
     def _create_linux_privilege_banner(self) -> ft.Banner:
         """Create informational banner for Linux when running without elevated privileges."""
@@ -1179,6 +1209,34 @@ class MainView(ft.Column):
     async def _on_dlss_overlay_clicked(self, e):
         """Handle DLSS overlay settings button click"""
         dialog = DLSSOverlayDialog(self.page, self.logger)
+        await dialog.show()
+
+    async def _on_dlss_preset_clicked(self, e):
+        """Handle DLSS preset settings button click"""
+        dialog = DLSSPresetDialog(self.page, self.logger)
+        await dialog.show()
+
+    async def on_dll_cache_complete(self):
+        """
+        Called after DLL cache initialization completes.
+
+        Shows the DLSS preset dialog for first-time NVIDIA GPU users.
+        This allows them to configure optimal presets before updating games.
+        """
+        # Only show for NVIDIA GPU users who haven't seen the dialog
+        if not FEATURES.nvidia_gpu_detected:
+            self.logger.debug("DLSS preset dialog skipped - no NVIDIA GPU detected")
+            return
+
+        if config_manager.get_dlss_preset_dialog_shown():
+            self.logger.debug("DLSS preset dialog skipped - already shown")
+            return
+
+        # Mark as shown before opening (prevents multiple shows on errors)
+        config_manager.set_dlss_preset_dialog_shown(True)
+
+        self.logger.info("Showing DLSS preset dialog for first-time NVIDIA GPU user")
+        dialog = DLSSPresetDialog(self.page, self.logger)
         await dialog.show()
 
     async def _on_settings_clicked(self, e):

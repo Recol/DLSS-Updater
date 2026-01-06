@@ -1,3 +1,23 @@
+Version 3.4.0:
+DLSS SR Preset Override - GPU-based preset recommendations:
+  - Configure DLSS Super Resolution presets (K/L/M) with automatic GPU detection.
+  - RTX 20/30 series (Turing/Ampere) → Preset K recommended.
+  - RTX 40/50 series (Ada Lovelace/Blackwell) → Preset M or K.
+  - Preset L is heavier and may reduce performance.
+  - Windows: System-wide registry override applied to all games.
+  - Linux: Generate Steam launch options with copy-to-clipboard.
+  - Linux: DLSS debug overlay support via DXVK-NVAPI environment variables.
+  - First-time setup: Dialog appears automatically on first launch for NVIDIA GPU users.
+  - Re-configurable anytime via Preferences > DLSS SR Preset Override.
+  - Feature only visible to NVIDIA GPU users (hidden for AMD/Intel).
+  - Note: Multi-GPU configurations not supported (uses primary GPU).
+Security:
+  - Updated aiohttp to latest version.
+Dependencies:
+  - Added nvidia-ml-py for GPU architecture detection.
+External:
+  - Bug fix associated with the Discord banner not closing on Linux.
+
 Version 3.3.1:
 Linux Improvements - Removed sudo requirement for user-space games:
   - Removed forced sudo/root elevation requirement on Linux.

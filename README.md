@@ -27,6 +27,12 @@ What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on yo
   - Supports Wine prefixes (Lutris, standalone Wine)
   - Automatic Steam path detection on Linux
   - Custom folder support for any game location
+- **DLSS SR Preset Override:**
+  - Configure DLSS Super Resolution presets (K/L/M) with GPU-based recommendations
+  - RTX 20/30 → Preset K recommended, RTX 40/50 → Preset M or K
+  - Preset L is heavier and may reduce performance
+  - Windows: System-wide registry override for all games
+  - Linux: Generate Steam launch options with copy-to-clipboard
 - A built in backup system for restoring game binaries if needed.
 - Support for updating Ray Reconstruction/Frame Generation/Streamline (Reflex Low Latency etc) DLL's.
 - Support for updating XeSS/FSR/DirectStorage DLL's (DirectStorage is Windows-only).
