@@ -27,8 +27,7 @@ dependencies = [
     "psutil>=7.2.0",
     "packaging",
     "appdirs",
-    "flet==0.28.3",  # Pinned to stable version (1.0 beta has performance issues)
-    "flet-desktop==0.28.3",  # Desktop runtime (must match flet version)
+    "flet[all]==0.28.3",  # Pinned to stable version - includes flet-cli for builds
     "msgspec>=0.20.0",
     "aiohttp",
     "nvidia-ml-py>=12.560.30",  # NVIDIA GPU detection for DLSS preset recommendations
@@ -90,3 +89,12 @@ ignore = ["E501"]  # Line too long (handled by formatter)
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.flet]
+# Flet build configuration for `flet build linux/windows/etc`
+project = "DLSS_Updater"
+product = "DLSS Updater"
+org = "io.github.recol"
+description = "Update DLSS/XeSS/FSR DLLs for games"
+# Entry point module (main.py in root)
+module_name = "main"
