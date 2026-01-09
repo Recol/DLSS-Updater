@@ -978,7 +978,12 @@ class GamesView(ft.Column):
         self.page.open(results_dialog)
 
     async def on_view_hidden(self):
-        """Called when view is hidden - release resources"""
+        """Called when view is hidden - release resources if not persisting"""
+        from dlss_updater.config import config_manager
         from dlss_updater.search_service import search_service
-        search_service.clear_index()
-        self.logger.debug("Games view hidden - resources released")
+
+        if not config_manager.get_keep_games_in_memory():
+            search_service.clear_index()
+            self.logger.debug("Games view hidden - search index cleared")
+        else:
+            self.logger.debug("Games view hidden - keeping search index in memory (user preference)")

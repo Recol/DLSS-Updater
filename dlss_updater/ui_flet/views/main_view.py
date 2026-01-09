@@ -71,10 +71,9 @@ from dlss_updater.ui_flet.components.loading_overlay import LoadingOverlay
 from dlss_updater.ui_flet.components.logger_panel import LoggerPanel
 from dlss_updater.ui_flet.components.theme_manager import ThemeManager
 from dlss_updater.ui_flet.theme.colors import Shadows
-from dlss_updater.ui_flet.dialogs.update_preferences_dialog import UpdatePreferencesDialog
-from dlss_updater.ui_flet.dialogs.blacklist_dialog import BlacklistDialog
 from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDialog
-from dlss_updater.ui_flet.dialogs.release_notes_dialog import ReleaseNotesDialog
+from dlss_updater.ui_flet.components.slide_panel import PanelManager
+from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.dialogs.dlss_preset_dialog import DLSSPresetDialog
@@ -653,6 +652,13 @@ class MainView(ft.Column):
                 on_click=self._on_settings_clicked,
             ),
             MenuItem(
+                id="ui_prefs",
+                title="UI Preferences",
+                description="Interface and performance",
+                icon=ft.Icons.DISPLAY_SETTINGS,
+                on_click=self._on_ui_preferences_clicked,
+            ),
+            MenuItem(
                 id="blacklist",
                 title="Manage Blacklist",
                 description="Exclude specific games",
@@ -1193,8 +1199,9 @@ class MainView(ft.Column):
 
     async def _on_release_notes_clicked(self, e):
         """Handle release notes button click"""
-        dialog = ReleaseNotesDialog(self.page, self.logger)
-        await dialog.show()
+        panel_manager = PanelManager.get_instance(self.page, self.logger)
+        panel = ReleaseNotesPanel(self.page, self.logger)
+        await panel_manager.show_content(panel)
 
     async def _on_check_updates_clicked(self, e):
         """Handle check for updates button click"""
@@ -1203,8 +1210,9 @@ class MainView(ft.Column):
 
     async def _on_blacklist_clicked(self, e):
         """Handle blacklist button click"""
-        dialog = BlacklistDialog(self.page, self.logger)
-        await dialog.show()
+        panel_manager = PanelManager.get_instance(self.page, self.logger)
+        panel = BlacklistPanel(self.page, self.logger)
+        await panel_manager.show_content(panel)
 
     async def _on_dlss_overlay_clicked(self, e):
         """Handle DLSS overlay settings button click"""
@@ -1241,9 +1249,15 @@ class MainView(ft.Column):
 
     async def _on_settings_clicked(self, e):
         """Handle settings button click"""
-        # Show preferences dialog
-        dialog = UpdatePreferencesDialog(self.page, self.logger)
-        await dialog.show()
+        panel_manager = PanelManager.get_instance(self.page, self.logger)
+        panel = PreferencesPanel(self.page, self.logger)
+        await panel_manager.show_content(panel)
+
+    async def _on_ui_preferences_clicked(self, e):
+        """Handle UI preferences button click"""
+        panel_manager = PanelManager.get_instance(self.page, self.logger)
+        panel = UIPreferencesPanel(self.page, self.logger)
+        await panel_manager.show_content(panel)
 
     async def _on_scan_clicked(self, e):
         """Handle scan button click - scans for games and populates cards"""

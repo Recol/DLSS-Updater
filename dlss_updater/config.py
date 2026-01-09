@@ -455,6 +455,21 @@ class ConfigManager(configparser.ConfigParser):
             self["UIPreferences"]["SmoothScrolling"] = str(enabled).lower()
             self.save()  # Persist to disk immediately
 
+    def get_keep_games_in_memory(self) -> bool:
+        """Get keep games in memory preference (default: enabled)"""
+        with _config_lock:
+            if not self.has_section("UIPreferences"):
+                return True  # Default enabled
+            return self["UIPreferences"].getboolean("KeepGamesInMemory", True)
+
+    def set_keep_games_in_memory(self, enabled: bool):
+        """Set keep games in memory preference and persist to config file"""
+        with _config_lock:
+            if not self.has_section("UIPreferences"):
+                self.add_section("UIPreferences")
+            self["UIPreferences"]["KeepGamesInMemory"] = str(enabled).lower()
+            self.save()
+
     def get_all_blacklist_skips(self):
         """Get all games to skip in the blacklist"""
         if not self.has_section("BlacklistSkips"):

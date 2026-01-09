@@ -1,3 +1,28 @@
+Version 3.5.0:
+Keep Games in Memory Option - New UI preference for faster tab switching:
+  - Optional setting to retain search index when leaving Games tab.
+  - Faster re-entry to Games tab (no rebuild delay).
+  - Enabled by default for optimal responsiveness.
+  - Disable to reduce memory usage on low-RAM systems.
+  - Note: Requires app restart to take effect.
+UI Preferences Panel - New dedicated panel for interface settings:
+  - Moved Smooth Scrolling from Update Preferences to new UI Preferences panel.
+  - Accessible via Preferences > UI Preferences.
+  - Separates interface settings from DLL update configuration.
+New Slide-Out Panel UI - Modern settings panels replace popup dialogs:
+  - Settings, release notes, and blacklist now open in smooth slide-out panels.
+  - Panels slide in from the right side with fluid 300ms animations.
+Blacklist Manager Improvements:
+  - New search/filter field to quickly find games in large blacklists.
+  - Improved toggle cards with clearer status indicators.
+  - Real-time filtering as you type.
+Bug Fixes:
+  - Fixed settings dialog content truncation on smaller screens (Issue #113).
+  - Fixed UI preferences section being cut off on certain window managers.
+  - Experimental fix for the Epic Games launcher, with DLL's being detected as games.
+  - Improvements to the build script for Linux to enable support for LTS variants who are using glibc libraries older than 2.38.
+
+
 Version 3.4.0:
 DLSS SR Preset Override - GPU-based preset recommendations:
   - Configure DLSS Super Resolution presets (K/L/M) with automatic GPU detection.
