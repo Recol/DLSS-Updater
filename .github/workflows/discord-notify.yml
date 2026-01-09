@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Get release data
-        id: get_release
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
@@ -19,27 +18,29 @@ jobs:
             echo '${{ toJSON(github.event.release) }}' > release.json
           fi
       
-      - name: Send Discord notification
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      - name: Build Discord payload
         run: |
-          cat > filter.jq << 'JQEOF'
+          cat > filter.jq <<'EOF'
           {
             content: "🎉 **New Release Published!**",
             embeds: [{
-              title: $release[0].name,
-              url: $release[0].html_url,
-              description: ($release[0].body | if length > 4096 then .[0:4093] + "..." else . end),
+              title: .[0].name,
+              url: .[0].html_url,
+              description: (.[0].body | if length > 4096 then .[0:4093] + "..." else . end),
               color: 5814783,
               fields: [{
                 name: "Version",
-                value: $release[0].tag_name,
+                value: .[0].tag_name,
                 inline: true
               }]
             }]
           }
-          JQEOF
+          EOF
           
-          jq -n --slurpfile release release.json -f filter.jq > payload.json
-          
+          jq --slurp -f filter.jq release.json > payload.json
+      
+      - name: Send to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
           curl -H "Content-Type: application/json" -d @payload.json "$DISCORD_WEBHOOK"
