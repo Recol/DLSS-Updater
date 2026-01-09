@@ -1048,7 +1048,7 @@ async def find_all_dlls(progress_callback=None):
 
         async def prepare_game_data(launcher: str, game_dir_str: str, game_dlls: list):
             game_dir = Path(game_dir_str)
-            game_name = extract_game_name(str(game_dlls[0]), launcher)
+            game_name = game_dir.name  # Use directory name directly instead of parsing DLL path
 
             # Try to find Steam app ID
             app_id = None

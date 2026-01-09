@@ -421,7 +421,10 @@ def extract_game_name(dll_path, launcher_name):
         elif "Ubisoft Game Launcher" in parts:
             return parts[parts.index("games") + 1]
         elif "Epic Games" in parts:
-            return parts[parts.index("Epic Games") + 2]
+            epic_idx = parts.index("Epic Games")
+            if epic_idx + 1 < len(parts):
+                return parts[epic_idx + 1]
+            return parts[-2]  # Fallback for non-standard paths
         elif "GOG Galaxy" in parts:
             gog_index = parts.index("GOG Galaxy")
             if "Games" in parts:
@@ -433,8 +436,8 @@ def extract_game_name(dll_path, launcher_name):
                     return parts[gog_index + 1]
         elif "Battle.net" in parts:
             return parts[parts.index("Battle.net") + 1]
-        elif "Custom Path" in launcher_name:
-            # For custom paths, try to get parent directory name
+        elif "Custom Folder" in launcher_name:
+            # For custom folders, try to get parent directory name
             return parts[-2]
         else:
             # If we can't determine the game name, use the parent directory name
