@@ -1677,11 +1677,54 @@ class MainView(ft.Column):
             self.logger.debug("Games view resources cleaned up")
 
     async def shutdown(self):
-        """Graceful shutdown on app close"""
+        """Graceful shutdown with timeout and comprehensive cleanup."""
+        import sys
+        import asyncio
+
         self.logger.info("Shutting down application...")
-        from dlss_updater.database import db_manager
-        await db_manager.close()
-        self.logger.info("Application shutdown complete")
+        SHUTDOWN_TIMEOUT = 5.0
+
+        try:
+            async with asyncio.timeout(SHUTDOWN_TIMEOUT):
+                # 1. Cancel all registered background tasks
+                try:
+                    from dlss_updater.task_registry import cancel_all_tasks
+                    await cancel_all_tasks(timeout=3.0)
+                except Exception as e:
+                    self.logger.warning(f"Error cancelling background tasks: {e}")
+
+                # 2. Stop cache manager (releases memory maps, stops cleanup loop)
+                try:
+                    from dlss_updater.cache_manager import cache_manager
+                    await cache_manager.stop()
+                    self.logger.info("Cache manager stopped")
+                except Exception as e:
+                    self.logger.warning(f"Error stopping cache manager: {e}")
+
+                # 3. Close HTTP session
+                try:
+                    from dlss_updater.dll_repository import close_http_session
+                    await close_http_session()
+                    self.logger.info("HTTP session closed")
+                except Exception as e:
+                    self.logger.warning(f"Error closing HTTP session: {e}")
+
+                # 4. Close database connections
+                try:
+                    from dlss_updater.database import db_manager
+                    await db_manager.close()
+                    self.logger.info("Database connections closed")
+                except Exception as e:
+                    self.logger.warning(f"Error closing database: {e}")
+
+            self.logger.info("Application shutdown complete")
+
+        except asyncio.TimeoutError:
+            self.logger.error(f"Shutdown timed out after {SHUTDOWN_TIMEOUT}s - forcing exit")
+            sys.exit(0)
+        except Exception as e:
+            self.logger.error(f"Shutdown error: {e} - forcing exit")
+            sys.exit(0)
 
     def get_dll_cache_snackbar(self) -> DLLCacheProgressSnackbar:
         """Get the DLL cache progress snackbar for external use"""

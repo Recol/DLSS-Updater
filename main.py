@@ -28,6 +28,7 @@ from dlss_updater.logger import setup_logger
 from dlss_updater.utils import check_dependencies, is_admin, run_as_admin  # Admin functions used on Windows only
 from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
 from dlss_updater.ui_flet.views.main_view import MainView
+from dlss_updater.task_registry import register_task
 
 
 async def main(page: ft.Page):
@@ -90,6 +91,9 @@ async def main(page: ft.Page):
         try:
             from dlss_updater.whitelist import initialize_whitelist
             await initialize_whitelist()
+        except asyncio.CancelledError:
+            logger.info("Whitelist initialization cancelled")
+            raise
         except Exception as e:
             logger.warning(f"Failed to initialize whitelist: {e}")
             # Non-critical, continue without whitelist
@@ -142,6 +146,9 @@ async def main(page: ft.Page):
             # Show DLSS preset dialog for first-time NVIDIA GPU users
             await main_view.on_dll_cache_complete()
 
+        except asyncio.CancelledError:
+            logger.info("DLL cache initialization cancelled")
+            raise
         except Exception as e:
             logger.error(f"Failed to initialize DLL cache: {e}", exc_info=True)
             await snackbar.show_error(f"Cache init failed: {str(e)[:40]}")
@@ -151,6 +158,9 @@ async def main(page: ft.Page):
         try:
             from dlss_updater.steam_integration import update_steam_app_list_if_needed
             await update_steam_app_list_if_needed()
+        except asyncio.CancelledError:
+            logger.info("Steam list update cancelled")
+            raise
         except Exception as e:
             logger.warning(f"Failed to update Steam app list: {e}")
             # Non-critical, continue
@@ -180,9 +190,10 @@ async def main(page: ft.Page):
 
     # Now initialize DLL cache, whitelist, and Steam list in background (after UI is visible)
     # This allows the user to see the app immediately while heavy init happens
-    asyncio.create_task(init_whitelist())
-    asyncio.create_task(init_dll_cache())
-    asyncio.create_task(update_steam_list())
+    # Register tasks for graceful shutdown cancellation
+    register_task(asyncio.create_task(init_whitelist()), "init_whitelist")
+    register_task(asyncio.create_task(init_dll_cache()), "init_dll_cache")
+    register_task(asyncio.create_task(update_steam_list()), "update_steam_list")
 
 
 def check_prerequisites():
