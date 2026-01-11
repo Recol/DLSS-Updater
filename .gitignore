@@ -16,3 +16,10 @@ libmpv.so.1
 flet_client/
 flet-linux.tar.gz
 appimagetool-x86_64.AppImage
+*.dist/
+
+# Flatpak build artifacts
+.flatpak-builder/
+build-dir/
+repo/ n
+*.flatpak

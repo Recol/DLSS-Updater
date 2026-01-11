@@ -256,9 +256,9 @@ def check_dependencies():
 
 def run_as_admin():
     """
-    Request elevated privileges.
-    On Windows: Uses ShellExecuteW with 'runas' verb.
-    On Linux: Uses pkexec (if available) or sudo.
+    Request elevated privileges (Windows only).
+    Uses ShellExecuteW with 'runas' verb on Windows.
+    Linux does not support elevation - Flatpak sandboxing handles permissions.
     """
     if IS_WINDOWS:
         script = Path(sys.argv[0]).resolve()
@@ -266,41 +266,22 @@ def run_as_admin():
         logger.info("Re-running script with admin privileges...")
         ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, None, 1)
     elif IS_LINUX:
-        import subprocess
-        import shutil
-
-        script = sys.argv[0]
-        args = sys.argv[1:]
-
-        logger.info("Re-running script with elevated privileges...")
-
-        # Try pkexec first (GUI-friendly), fall back to sudo
-        if os.environ.get('DISPLAY') and shutil.which('pkexec'):
-            # GUI environment - use pkexec for graphical sudo prompt
-            try:
-                subprocess.Popen(['pkexec', sys.executable, script] + args)
-            except Exception as e:
-                logger.warning(f"pkexec failed: {e}, falling back to sudo")
-                subprocess.Popen(['sudo', sys.executable, script] + args)
-        else:
-            # Terminal environment or pkexec not available - use sudo
-            subprocess.Popen(['sudo', sys.executable, script] + args)
+        # Linux: No elevation support - Flatpak handles filesystem permissions
+        logger.warning("Admin elevation not supported on Linux Flatpak")
 
 
 def is_admin():
     """
-    Check if running with elevated privileges.
+    Check if running with elevated privileges (Windows only).
     On Windows: Checks IsUserAnAdmin().
-    On Linux: Checks if running as root (euid == 0).
+    On Linux: Always returns False (elevation not supported with Flatpak).
     """
     if IS_WINDOWS:
         try:
             return ctypes.windll.shell32.IsUserAnAdmin()
         except Exception:
             return False
-    elif IS_LINUX:
-        # On Linux, check if running as root
-        return os.geteuid() == 0
+    # Linux: Always False - Flatpak sandboxing handles permissions
     return False
 
 

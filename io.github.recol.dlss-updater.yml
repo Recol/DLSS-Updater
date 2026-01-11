@@ -1,0 +1,64 @@
+# Flatpak manifest for DLSS Updater
+# This manifest wraps the Flet-built Linux application
+#
+# Build process:
+# 1. Build with Flet: flet build linux
+# 2. Run flatpak-builder with this manifest
+#
+# Local build (WSL2):
+#   uv run flet build linux --project DLSS_Updater --product "DLSS Updater" --org io.github.recol
+#   cp -r build/linux/* dist/
+#   flatpak-builder --force-clean --repo=repo build-dir io.github.recol.dlss-updater.yml
+#   flatpak build-bundle repo DLSS_Updater.flatpak io.github.recol.dlss-updater
+
+app-id: io.github.recol.dlss-updater
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+
+command: dlss-updater
+
+finish-args:
+  # Display & Graphics (required for Flutter UI)
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --share=ipc
+
+  # Network (for DLSS update checks and downloads)
+  - --share=network
+
+  # Filesystem - broad coverage for game directories
+  # Read-only access to detect and scan game installations
+  - --filesystem=home:ro
+  - --filesystem=/mnt:ro
+  - --filesystem=/media:ro
+  - --filesystem=/run/media:ro
+  # Read-write access for app config, cache, and data
+  - --filesystem=xdg-config/DLSS-Updater:rw
+  - --filesystem=xdg-cache/DLSS-Updater:rw
+  - --filesystem=~/.local/share/dlss-updater:create
+
+  # Portal support
+  - --talk-name=org.freedesktop.portal.FileChooser
+
+modules:
+  - name: dlss-updater
+    buildsystem: simple
+    build-commands:
+      # Install the PyInstaller-built executable
+      - install -Dm755 dist/DLSS_Updater /app/bin/dlss_updater
+      # Create wrapper script
+      - |
+        cat > /app/bin/dlss-updater << 'EOF'
+        #!/bin/bash
+        exec /app/bin/dlss_updater "$@"
+        EOF
+      - chmod +x /app/bin/dlss-updater
+      # Install desktop integration files
+      - install -Dm644 io.github.recol.dlss-updater.appdata.xml /app/share/metainfo/io.github.recol.dlss-updater.metainfo.xml
+      - install -Dm644 flatpak/io.github.recol.dlss-updater.desktop /app/share/applications/io.github.recol.dlss-updater.desktop
+      - install -Dm644 appimagex_png.png /app/share/icons/hicolor/256x256/apps/io.github.recol.dlss-updater.png
+    sources:
+      - type: dir
+        path: .

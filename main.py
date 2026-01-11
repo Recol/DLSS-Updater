@@ -25,7 +25,7 @@ import flet as ft
 
 # Core imports
 from dlss_updater.logger import setup_logger
-from dlss_updater.utils import check_dependencies, is_admin, run_as_admin
+from dlss_updater.utils import check_dependencies, is_admin, run_as_admin  # Admin functions used on Windows only
 from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
 from dlss_updater.ui_flet.views.main_view import MainView
 
@@ -195,7 +195,7 @@ def check_prerequisites():
         logger.error("Dependency check failed")
         sys.exit(1)
 
-    # Check admin privileges - Windows requires elevation, Linux does not
+    # Check admin privileges - Windows requires elevation for writing to game directories
     if IS_WINDOWS:
         if not is_admin():
             logger.warning("Application requires administrator privileges")
@@ -203,12 +203,7 @@ def check_prerequisites():
             run_as_admin()
             sys.exit(0)
         logger.info("Admin privileges confirmed")
-    elif IS_LINUX:
-        # Linux: informational only, user-space paths work without elevation
-        if is_admin():
-            logger.info("Running with elevated privileges")
-        else:
-            logger.info("Running without elevated privileges - system paths may be skipped")
+    # Linux: No elevation needed - Flatpak sandboxing handles filesystem permissions
 
     # DLL cache initialization is now done asynchronously after UI loads
     # to avoid blocking the window from appearing

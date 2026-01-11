@@ -1,0 +1,103 @@
+name: Build Flatpak
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., 3.5.0)'
+        required: false
+        default: ''
+  release:
+    types: [published]
+
+jobs:
+  build-flatpak:
+    runs-on: ubuntu-22.04  # Match AppImage build environment for GLIBC compatibility
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Get version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+            VERSION="${VERSION#V}"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(grep -oP '__version__\s*=\s*"\K[^"]+' dlss_updater/version.py)
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            flatpak \
+            flatpak-builder \
+            libmpv1 \
+            libgtk-3-0 \
+            libwebkit2gtk-4.0-37 \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            libgstreamer1.0-0
+
+      - name: Set up Flatpak
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.14 (free-threaded)
+        run: |
+          uv python install 3.14t
+          uv python pin 3.14t
+
+      - name: Install Python dependencies
+        run: uv sync
+
+      - name: Build with Flet
+        run: |
+          # Use flet build linux - the recommended way to build Linux apps
+          uv run flet build linux \
+            --project "DLSS_Updater" \
+            --product "DLSS Updater" \
+            --org "io.github.recol" \
+            --description "Update DLSS/XeSS/FSR DLLs for games" \
+            --build-version "${{ steps.version.outputs.version }}"
+
+          # Move build output to expected location for Flatpak
+          mkdir -p dist
+          cp -r build/linux/* dist/
+          ls -la dist/
+          # Verify binary was created
+          test -f dist/dlss_updater || { echo "Flet build failed"; exit 1; }
+
+      - name: Build Flatpak
+        run: |
+          flatpak-builder --user --force-clean --repo=repo build-dir io.github.recol.dlss-updater.yml
+          flatpak build-bundle repo "DLSS_Updater-${{ steps.version.outputs.version }}.flatpak" io.github.recol.dlss-updater
+          ls -lh *.flatpak
+
+      - name: Upload Flatpak artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: DLSS_Updater-Linux-Flatpak
+          path: "*.flatpak"
+          retention-days: 30
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.flatpak"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

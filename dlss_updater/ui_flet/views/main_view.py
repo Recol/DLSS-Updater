@@ -5,6 +5,7 @@ Async-based Material Design interface with expandable launcher cards
 
 import asyncio
 import logging
+import os
 import subprocess
 import webbrowser
 from datetime import datetime
@@ -79,6 +80,7 @@ from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.dialogs.dlss_preset_dialog import DLSSPresetDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
 from dlss_updater.platform_utils import FEATURES, IS_LINUX, IS_WINDOWS
+from dlss_updater.linux_paths import is_flatpak, get_flatpak_override_command
 from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
 from dlss_updater.ui_flet.components.dll_cache_snackbar import DLLCacheProgressSnackbar
@@ -192,26 +194,7 @@ class MainView(ft.Column):
             self.page.open(self.discord_banner)
             self.logger.info("Discord invite banner displayed")
 
-        # Show Linux privilege warning if running without root
-        await self._show_linux_privilege_banner()
-
         self.logger.info("Main view initialized")
-
-    async def _show_linux_privilege_banner(self):
-        """Show informational banner on Linux when not running as root."""
-        from dlss_updater.platform_utils import IS_LINUX
-
-        if not IS_LINUX:
-            return
-
-        from dlss_updater.utils import is_admin
-
-        if is_admin():
-            return  # Running as root, no warning needed
-
-        self.linux_privilege_banner = self._create_linux_privilege_banner()
-        self.page.open(self.linux_privilege_banner)
-        self.logger.info("Linux privilege warning banner displayed")
 
     async def _build_ui(self):
         """Build the main UI structure with top navigation tabs"""
@@ -854,37 +837,6 @@ class MainView(ft.Column):
             self.page.close(self.discord_banner)
             self.discord_banner = None
 
-    def _create_linux_privilege_banner(self) -> ft.Banner:
-        """Create informational banner for Linux when running without elevated privileges."""
-        banner = ft.Banner(
-            bgcolor="#E65100",  # Orange/amber warning color
-            leading=ft.Icon(
-                ft.Icons.INFO_OUTLINE,
-                color=ft.Colors.WHITE,
-                size=24,
-            ),
-            content=ft.Text(
-                "Running without elevated privileges. System-installed Wine/Proton paths will be skipped. "
-                "Most Steam Proton games work without root.",
-                color=ft.Colors.WHITE,
-                size=13,
-            ),
-            actions=[
-                ft.TextButton(
-                    "Dismiss",
-                    style=ft.ButtonStyle(color=ft.Colors.WHITE),
-                    on_click=self._on_dismiss_linux_privilege_banner,
-                ),
-            ],
-        )
-        return banner
-
-    async def _on_dismiss_linux_privilege_banner(self, e):
-        """Dismiss the Linux privilege warning banner."""
-        if hasattr(self, 'linux_privilege_banner') and self.linux_privilege_banner:
-            self.page.close(self.linux_privilege_banner)
-            self.linux_privilege_banner = None
-
     async def show_discord_banner(self):
         """Show Discord invite banner (for re-showing from menu)"""
         if not self.discord_banner:
@@ -1097,6 +1049,13 @@ class MainView(ft.Column):
 
             self.logger.info(f"{'Adding' if is_adding else 'Setting'} path for {launcher.name}: {path}")
 
+            # Check if running in Flatpak and path is inaccessible
+            if IS_LINUX and is_flatpak() and not os.access(path, os.R_OK):
+                await self._show_flatpak_permission_dialog(path)
+                self.current_launcher_selecting = None
+                self.is_adding_subfolder = False
+                return
+
             card = self.launcher_cards.get(launcher)
 
             if is_adding:
@@ -1170,6 +1129,61 @@ class MainView(ft.Column):
             actions=[
                 ft.TextButton("Cancel", on_click=lambda e: self.page.close(dialog)),
                 ft.FilledButton("Reset", on_click=confirm_reset),
+            ],
+        )
+
+        self.page.open(dialog)
+
+    async def _show_flatpak_permission_dialog(self, path: str):
+        """
+        Show dialog explaining how to grant Flatpak filesystem permissions.
+
+        This is shown when running in Flatpak and the user selects a folder
+        that is outside the sandbox's allowed filesystem paths.
+
+        Args:
+            path: The filesystem path that needs permission
+        """
+        override_cmd = get_flatpak_override_command(path)
+
+        # Create a text field with the command for easy copying
+        cmd_field = ft.TextField(
+            value=override_cmd,
+            read_only=True,
+            multiline=True,
+            min_lines=2,
+            max_lines=3,
+            text_size=12,
+            border_color=ft.Colors.OUTLINE,
+        )
+
+        async def copy_command(e):
+            """Copy the override command to clipboard"""
+            await self.page.set_clipboard_async(override_cmd)
+            await self._show_snackbar("Command copied to clipboard")
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Flatpak Permission Required"),
+            content=ft.Column([
+                ft.Text(
+                    "This folder is outside the Flatpak sandbox. "
+                    "To grant access, run the following command in a terminal:",
+                    size=14,
+                ),
+                ft.Container(height=8),
+                cmd_field,
+                ft.Container(height=8),
+                ft.Text(
+                    "Then restart the application for changes to take effect.",
+                    size=12,
+                    italic=True,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
+                ),
+            ], tight=True, spacing=4),
+            actions=[
+                ft.TextButton("Copy Command", on_click=copy_command),
+                ft.FilledButton("OK", on_click=lambda e: self.page.close(dialog)),
             ],
         )
 

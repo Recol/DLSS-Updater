@@ -551,8 +551,8 @@ class DatabaseManager:
 
         except sqlite3.OperationalError as e:
             if "readonly database" in str(e):
-                logger.warning(f"Database is read-only (may have been created as root). "
-                              f"To fix: sudo chown $USER:$USER {self.db_path}")
+                logger.warning(f"Database is read-only. "
+                              f"To fix: chown $USER:$USER {self.db_path}")
             else:
                 logger.error(f"Error cleaning up duplicate games: {e}", exc_info=True)
             conn.rollback()
@@ -1079,8 +1079,8 @@ class DatabaseManager:
 
         except sqlite3.OperationalError as e:
             if "readonly database" in str(e):
-                logger.warning(f"Database is read-only (may have been created as root). "
-                              f"To fix: sudo chown $USER:$USER {self.db_path}")
+                logger.warning(f"Database is read-only. "
+                              f"To fix: chown $USER:$USER {self.db_path}")
             else:
                 logger.error(f"Error cleaning up duplicate backups: {e}", exc_info=True)
             conn.rollback()

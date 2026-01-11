@@ -105,7 +105,7 @@ def get_feature_support() -> FeatureSupport:
             dlss_overlay=nvidia_gpu,  # Linux: via DXVK-NVAPI env vars
             directstorage=False,    # Windows-only technology
             auto_launcher_detection=False,  # No registry for launcher paths
-            admin_elevation=True,   # sudo/pkexec available
+            admin_elevation=False,  # Flatpak sandboxing handles permissions
             dlss_preset_override=nvidia_gpu,    # Can generate env vars if NVIDIA GPU
             dlss_linux_overlay=nvidia_gpu,      # Linux overlay via DXVK-NVAPI
             nvidia_gpu_detected=nvidia_gpu,
@@ -131,21 +131,12 @@ IS_LINUX = PLATFORM == Platform.LINUX
 FEATURES = get_feature_support()
 
 
-def _is_root() -> bool:
-    """Check if running as root/admin on Linux."""
-    try:
-        return os.geteuid() == 0
-    except AttributeError:
-        return False
-
-
 def get_app_config_dir() -> Path:
     """
-    Get the application config directory based on platform and privileges.
+    Get the application config directory based on platform.
 
     - Windows: Uses appdirs (typically AppData/Local/Recol/DLSS-Updater)
-    - Linux as root: Uses appdirs (~/.config/DLSS-Updater)
-    - Linux as non-root: Uses ~/.local/share/dlss-updater (avoids root-owned dirs)
+    - Linux: Uses ~/.local/share/dlss-updater (XDG-compliant, Flatpak-compatible)
 
     Returns:
         Path to the config directory (created if doesn't exist)
@@ -154,13 +145,8 @@ def get_app_config_dir() -> Path:
         import appdirs
         config_dir = Path(appdirs.user_config_dir("DLSS-Updater", "Recol"))
     elif IS_LINUX:
-        if _is_root():
-            # Running as root - use standard appdirs location
-            import appdirs
-            config_dir = Path(appdirs.user_config_dir("DLSS-Updater", "Recol"))
-        else:
-            # Running as normal user - use XDG data dir to avoid root-owned config
-            config_dir = Path.home() / ".local" / "share" / "dlss-updater"
+        # Use XDG data dir for Flatpak compatibility
+        config_dir = Path.home() / ".local" / "share" / "dlss-updater"
     else:
         # Fallback for unknown platforms
         import appdirs

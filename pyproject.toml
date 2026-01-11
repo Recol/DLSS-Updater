@@ -1,6 +1,6 @@
 [project]
 name = "dlss-updater"
-version = "3.5.0"
+version = "3.5.1"
 description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -29,7 +29,7 @@ dependencies = [
     "appdirs",
     "flet==0.28.3; platform_system == 'Windows'",  # Core framework for Windows
     "flet-desktop==0.28.3; platform_system == 'Windows'",  # Desktop runtime for Windows
-    "flet[all]==0.28.3; platform_system == 'Linux'",  # Full package with runtime for Linux AppImage builds - this is for build_appimage.sh
+    "flet[all]==0.28.3; platform_system == 'Linux'",  # Full package with runtime for Linux Flatpak builds
     "msgspec>=0.20.0",
     "aiohttp",
     "nvidia-ml-py>=12.560.30",  # NVIDIA GPU detection for DLSS preset recommendations

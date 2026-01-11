@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts must use LF line endings (for WSL2/Linux compatibility)
+*.sh text eol=lf
+
+# Desktop files must use LF line endings (Flatpak requirement)
+*.desktop text eol=lf

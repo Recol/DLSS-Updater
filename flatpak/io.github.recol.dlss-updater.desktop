@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=DLSS Updater
+GenericName=DLL Updater
+Comment=Update DLSS, FSR, XeSS, and DirectStorage DLLs for games
+Exec=dlss-updater
+Icon=io.github.recol.dlss-updater
+Categories=Game;Utility;
+Keywords=DLSS;FSR;XeSS;NVIDIA;AMD;Intel;gaming;upscaling;
+StartupNotify=true
+Terminal=false

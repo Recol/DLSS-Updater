@@ -1,3 +1,14 @@
+Version 3.5.1:
+Flatpak Distribution (Linux) - Replaces AppImage for improved Linux compatibility:
+  - Flatpak package available on Flathub and GitHub Releases.
+  - Eliminates library compatibility issues across different Linux distributions.
+  - Consistent runtime environment (Freedesktop 24.08) with all dependencies included.
+  - Automatic filesystem access for Steam, Wine, and common game directories.
+  - In-app dialog guides users to grant permissions for custom game locations.
+  - AppImage distribution has been discontinued in favor of Flatpak.
+  - Removed sudo/root elevation support on Linux (Flatpak handles permissions).
+  - Removed Linux privilege warning banner (no longer applicable with Flatpak).
+
 Version 3.5.0:
 Keep Games in Memory Option - New UI preference for faster tab switching:
   - Optional setting to retain search index when leaving Games tab.

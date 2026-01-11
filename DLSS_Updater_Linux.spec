@@ -21,9 +21,6 @@ a = Analysis(
         ('dlss_updater', 'dlss_updater'),
         ('release_notes.txt', '.'),
         ('dlss_updater/icons/*.png', 'icons/'),
-    
-        # Bundle the pre-downloaded Flet client (downloaded by build_appimage.sh)
-        ('flet_client/flet', 'flet_desktop/app'),
     ] + flet_datas + flet_desktop_datas,
     hiddenimports=[
         'pefile',  # Still needed for DLL version parsing

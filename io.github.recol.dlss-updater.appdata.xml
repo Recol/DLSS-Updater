@@ -64,6 +64,19 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="3.5.1" date="2026-01-10">
+      <description>
+        <p>Flatpak distribution replaces AppImage for improved Linux compatibility</p>
+        <ul>
+          <li>Flatpak package available on Flathub and GitHub Releases</li>
+          <li>Eliminates library compatibility issues across different Linux distributions</li>
+          <li>Consistent runtime environment with all dependencies included</li>
+          <li>In-app dialog guides users to grant permissions for custom game locations</li>
+          <li>AppImage distribution discontinued in favor of Flatpak</li>
+          <li>Removed sudo/root elevation support (Flatpak handles permissions)</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.4.0" date="2026-01-06">
       <description>
         <p>DLSS SR Preset Override - GPU-based preset recommendations</p>
@@ -91,11 +104,11 @@
     </release>
     <release version="3.3.0" date="2026-01-02">
       <description>
-        <p>Added Linux support with AppImage distribution</p>
+        <p>Added Linux support</p>
         <ul>
           <li>Cross-platform support for Windows and Linux</li>
           <li>Steam Proton and Wine prefix detection on Linux</li>
-          <li>AppImage packaging with bundled dependencies</li>
+          <li>Bundled dependencies for standalone distribution</li>
         </ul>
       </description>
     </release>

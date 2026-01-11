@@ -97,28 +97,61 @@ Download DLSS Updater from [Chocolatey](https://community.chocolatey.org/package
 
 ### Linux
 
-#### AppImage
+#### Flatpak (Recommended)
 
-1. Download `DLSS_Updater_Linux-X.Y.Z-x86_64.AppImage` from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page.
-2. Make executable:
-   ```sh
-   chmod +x DLSS_Updater_Linux-*.AppImage
-   ```
-3. Run:
-   ```sh
-   ./DLSS_Updater_Linux-X.Y.Z-x86_64.AppImage
-   ```
+**Prerequisites:** If you don't have Flatpak installed:
+```sh
+# Ubuntu/Debian
+sudo apt install flatpak
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
-No elevated privileges required. Steam Proton and Lutris games in your home directory work without root.
+# Fedora (pre-installed)
 
-No additional dependencies required - libmpv is bundled in the AppImage.
+# Arch
+sudo pacman -S flatpak
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+```
+
+**Install from Flathub:**
+```sh
+flatpak install flathub io.github.recol.dlss-updater
+flatpak run io.github.recol.dlss-updater
+```
+
+**Or download from GitHub Releases:**
+```sh
+# Download DLSS_Updater-X.Y.Z.flatpak from the Releases page, then:
+flatpak install --user DLSS_Updater-X.Y.Z.flatpak
+flatpak run io.github.recol.dlss-updater
+```
+
+**Uninstall:**
+```sh
+flatpak uninstall io.github.recol.dlss-updater
+```
+
+#### Custom Game Directories
+
+The Flatpak has read-only access to common game locations by default:
+- `~/` (home directory)
+- `/mnt/` (secondary drives)
+- `/media/` (mounted drives)
+- `/run/media/` (removable media)
+
+To grant access to additional directories:
+```sh
+flatpak override --user --filesystem=/path/to/games io.github.recol.dlss-updater
+```
+
+Or use [Flatseal](https://flathub.org/apps/com.github.tchx84.Flatseal) for a graphical interface to manage permissions.
 
 #### Linux Notes
 
 - **Steam Proton Games:** Auto-detects Proton prefixes at `~/.steam/steam/steamapps/compatdata/`.
 - **Wine Games:** Scans `~/.wine/` and Lutris games at `~/Games/`.
-- **System Paths:** System-installed Wine/Proton (`/usr/share/`) requires `sudo` - these paths are skipped with a warning when running normally.
+- **Custom Paths:** Use `flatpak override` or the in-app dialog to grant access to game directories outside the sandbox.
 - **Windows-Only Features:** DLSS Debug Overlay and DirectStorage updates are disabled on Linux (shown as grayed out with tooltips).
+- **Logs:** Application logs are stored at `~/.local/share/dlss-updater/dlss_updater.log`.
 
 
 ### Building from Source

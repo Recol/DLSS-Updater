@@ -11,7 +11,7 @@ def _get_log_directory() -> Path:
         Path to the log directory (created if necessary).
     """
     if sys.platform == 'linux':
-        # On Linux, use XDG-compliant location (works for AppImage and native)
+        # On Linux, use XDG-compliant location (works for Flatpak and native)
         log_dir = Path.home() / '.local' / 'share' / 'dlss-updater'
         log_dir.mkdir(parents=True, exist_ok=True)
         return log_dir

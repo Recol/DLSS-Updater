@@ -9816,3 +9816,4 @@ Games skipped:
 2026-01-04 04:55:30,497 - DEBUG - Loaded cached image for MarvelRivals
 2026-01-04 04:55:30,512 - DEBUG - Loaded cached image for Helldivers 2
 2026-01-04 04:55:30,527 - DEBUG - Loaded cached image for No Man's Sky
+2026-01-09 19:10:29,861 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)

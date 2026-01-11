@@ -1,6 +1,7 @@
 """
 Linux Path Detection Module
 Handles Steam, Proton, and Wine path detection on Linux for game DLL scanning.
+Also provides Flatpak sandbox detection for permission handling.
 """
 
 import asyncio
@@ -10,6 +11,32 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("DLSSUpdater")
+
+
+def is_flatpak() -> bool:
+    """
+    Check if the application is running inside a Flatpak sandbox.
+
+    Flatpak creates /.flatpak-info file inside the sandbox container.
+    This is the standard way to detect Flatpak runtime.
+
+    Returns:
+        True if running in Flatpak sandbox, False otherwise.
+    """
+    return os.path.exists("/.flatpak-info")
+
+
+def get_flatpak_override_command(path: str | Path) -> str:
+    """
+    Generate the flatpak override command for granting filesystem access.
+
+    Args:
+        path: The filesystem path to grant access to.
+
+    Returns:
+        The flatpak override command string that users can run.
+    """
+    return f"flatpak override --user --filesystem={path} io.github.recol.dlss-updater"
 
 # System-level path prefixes that typically require root access
 SYSTEM_PATH_PREFIXES = ('/usr/', '/opt/', '/lib/', '/var/')
@@ -389,6 +416,6 @@ async def get_all_linux_game_paths() -> dict[str, Any]:
                 f"{len(result['wine'])} Wine)")
 
     if all_skipped:
-        logger.warning(f"Skipped {len(all_skipped)} inaccessible paths (run with sudo for full access)")
+        logger.warning(f"Skipped {len(all_skipped)} inaccessible paths (use flatpak override to grant access)")
 
     return result
