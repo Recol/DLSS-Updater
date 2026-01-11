@@ -2,47 +2,76 @@ name: Discord Release Notification
 
 on:
   release:
-    types: [published, edited]
+    types: [published]
   workflow_dispatch:
 
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Get release data
+      - name: Get Latest Release (for workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        id: latest_release
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/latest" > release.json
-          else
-            cat > release.json <<'EOF'
-          ${{ toJSON(github.event.release) }}
-          EOF
-          fi
-      
-      - name: Build Discord payload
-        run: |
-          cat > filter.jq <<'EOF'
-          {
-            content: "🎉 **New Release Published!**",
-            embeds: [{
-              title: .[0].name,
-              url: .[0].html_url,
-              description: (.[0].body | if length > 4096 then .[0:4093] + "..." else . end),
-              color: 5814783,
-              fields: [{
-                name: "Version",
-                value: .[0].tag_name,
-                inline: true
-              }]
-            }]
-          }
-          EOF
-          
-          jq --slurp -f filter.jq release.json > payload.json
-      
-      - name: Send to Discord
+          RELEASE=$(curl -sS -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          echo "tag_name=$(echo "$RELEASE" | jq -r '.tag_name')" >> $GITHUB_OUTPUT
+          echo "name=$(echo "$RELEASE" | jq -r '.name')" >> $GITHUB_OUTPUT
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$RELEASE" | jq -r '.body' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "html_url=$(echo "$RELEASE" | jq -r '.html_url')" >> $GITHUB_OUTPUT
+
+      - name: Notify Discord (Release Event)
+        if: github.event_name != 'workflow_dispatch'
+        uses: SethCohen/github-releases-to-discord@v1.15.1
+        with:
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK }}
+          color: "5814783"
+          username: "DLSS Updater"
+          avatar_url: "https://avatars.githubusercontent.com/u/16929101"
+          content: "**New Release Published!**"
+          footer_title: "DLSS Updater"
+          footer_timestamp: true
+
+      - name: Notify Discord (Manual Dispatch)
+        if: github.event_name == 'workflow_dispatch'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          RELEASE_BODY: ${{ steps.latest_release.outputs.body }}
+          RELEASE_NAME: ${{ steps.latest_release.outputs.name }}
+          RELEASE_URL: ${{ steps.latest_release.outputs.html_url }}
+          RELEASE_TAG: ${{ steps.latest_release.outputs.tag_name }}
         run: |
-          curl -H "Content-Type: application/json" -d @payload.json "$DISCORD_WEBHOOK"
+          set -euo pipefail
+
+          # Safely escape all fields for JSON using jq
+          BODY=$(printf '%s' "$RELEASE_BODY" | jq -Rs '.')
+          NAME=$(printf '%s' "$RELEASE_NAME" | jq -Rs '.')
+          TAG=$(printf '%s' "$RELEASE_TAG" | jq -Rs '.')
+
+          # Build payload using jq for proper JSON construction
+          jq -n \
+            --argjson body "$BODY" \
+            --argjson name "$NAME" \
+            --arg url "$RELEASE_URL" \
+            --argjson tag "$TAG" \
+            '{
+              content: "**New Release Published!**",
+              embeds: [{
+                title: $name,
+                url: $url,
+                description: ($body | if length > 4000 then .[0:3997] + "..." else . end),
+                color: 5814783,
+                fields: [{
+                  name: "Version",
+                  value: $tag,
+                  inline: true
+                }]
+              }]
+            }' > payload.json
+
+          curl -sS --fail-with-body --max-time 30 \
+            -H "Content-Type: application/json" \
+            -d @payload.json \
+            "$DISCORD_WEBHOOK"
