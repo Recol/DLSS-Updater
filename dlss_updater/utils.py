@@ -316,6 +316,65 @@ def find_game_root(dll_path: Path, launcher: str) -> Path:
         except (ValueError, IndexError):
             pass
 
+    # For Epic Games: Always use Epic Games/<GameName>
+    if launcher == "Epic Games Launcher":
+        parts = current.parts
+        try:
+            if "Epic Games" in parts:
+                epic_idx = parts.index("Epic Games")
+                if epic_idx + 1 < len(parts):
+                    return Path(*parts[:epic_idx + 2])
+        except (ValueError, IndexError):
+            pass
+
+    # For EA: Always use EA Games/<GameName>
+    if launcher == "EA Launcher":
+        parts = current.parts
+        try:
+            if "EA Games" in parts:
+                ea_idx = parts.index("EA Games")
+                if ea_idx + 1 < len(parts):
+                    return Path(*parts[:ea_idx + 2])
+        except (ValueError, IndexError):
+            pass
+
+    # For Ubisoft: Use games/<GameName>
+    if launcher == "Ubisoft Launcher":
+        parts = current.parts
+        try:
+            if "games" in parts:
+                games_idx = parts.index("games")
+                if games_idx + 1 < len(parts):
+                    return Path(*parts[:games_idx + 2])
+        except (ValueError, IndexError):
+            pass
+
+    # For GOG: Use GOG Galaxy/Games/<GameName> or GOG Galaxy/<GameName>
+    if launcher == "GOG Launcher":
+        parts = current.parts
+        try:
+            if "GOG Galaxy" in parts:
+                gog_idx = parts.index("GOG Galaxy")
+                if "Games" in parts:
+                    games_idx = parts.index("Games")
+                    if games_idx + 1 < len(parts):
+                        return Path(*parts[:games_idx + 2])
+                elif gog_idx + 1 < len(parts):
+                    return Path(*parts[:gog_idx + 2])
+        except (ValueError, IndexError):
+            pass
+
+    # For Battle.net: Use Battle.net/<GameName>
+    if launcher == "Battle.net Launcher":
+        parts = current.parts
+        try:
+            if "Battle.net" in parts:
+                bnet_idx = parts.index("Battle.net")
+                if bnet_idx + 1 < len(parts):
+                    return Path(*parts[:bnet_idx + 2])
+        except (ValueError, IndexError):
+            pass
+
     # For other launchers: Walk up with stricter heuristics
     max_depth = 5  # Increased from 3 for better detection
     for _ in range(max_depth):

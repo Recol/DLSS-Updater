@@ -1,3 +1,17 @@
+Version 3.5.2:
+Intel XeSS Frame Generation Support - New DLLs for Intel XeFG technology:
+  - Added libxess_fg.dll (XeSS Frame Generation SDK v1.2.2.118).
+  - Added libxell.dll (Intel XeLL library v1.2.1.13).
+  - Updated libxess.dll to v2.0.2.68 (from v2.0.1.41).
+  - Updated libxess_dx11.dll to v2.0.2.68 (from v2.0.1.41).
+  - New DLLs are part of the XeSS technology family and controlled by the XeSS update toggle.
+  - Intel XeSS Frame Generation provides AI-powered frame interpolation for Arc GPUs.
+Game Detection Improvements - Fixed duplicate game entries and multi-installation support:
+  - Fixed games with DLLs in different subdirectories appearing as separate entries.
+  - Games on multiple drives now merge into a single entry with combined DLL updates.
+  - Path display shows all installation locations with tooltip for multi-install games.
+  - Improved game root detection for Epic Games, EA, Ubisoft, GOG, and Battle.net launchers.
+
 Version 3.5.1:
 Flatpak Distribution (Linux) - Replaces AppImage for improved Linux compatibility:
   - Flatpak package available on Flathub and GitHub Releases.

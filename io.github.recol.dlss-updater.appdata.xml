@@ -64,6 +64,18 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="3.5.2" date="2026-01-11">
+      <description>
+        <p>Intel XeSS Frame Generation Support</p>
+        <ul>
+          <li>Added libxess_fg.dll (XeSS Frame Generation SDK v1.2.2.118)</li>
+          <li>Added libxell.dll (Intel XeLL library v1.2.1.13)</li>
+          <li>Updated libxess.dll and libxess_dx11.dll to v2.0.2.68</li>
+          <li>Intel XeSS Frame Generation provides AI-powered frame interpolation for Arc GPUs</li>
+          <li> Fixes for multiple drives having the same game, and fixes for sub-root detection of DLL's not merging correctly </li>
+        </ul>
+      </description>
+    </release>
     <release version="3.5.1" date="2026-01-10">
       <description>
         <p>Flatpak distribution replaces AppImage for improved Linux compatibility</p>

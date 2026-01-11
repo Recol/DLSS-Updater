@@ -1039,6 +1039,34 @@ async def find_all_dlls(progress_callback=None):
 
             all_games_dict[launcher] = games_dict_original
 
+        # Phase 1b: Merge games with overlapping paths (handles custom folders)
+        # This catches cases where DLLs are in subdirectories that weren't detected by pattern matching
+        for launcher, games_dict in all_games_dict.items():
+            sorted_paths = sorted(games_dict.keys(), key=len)
+            paths_to_remove = set()
+
+            for i, path1 in enumerate(sorted_paths):
+                if path1 in paths_to_remove:
+                    continue
+                path1_lower = path1.lower()
+
+                for path2 in sorted_paths[i + 1:]:
+                    if path2 in paths_to_remove:
+                        continue
+                    path2_lower = path2.lower()
+
+                    # Check if path2 is under path1 (path1 is parent)
+                    if path2_lower.startswith(path1_lower + os.sep):
+                        games_dict[path1].extend(games_dict[path2])
+                        paths_to_remove.add(path2)
+                        logger.debug(f"Merged subdir {path2} into {path1}")
+
+            for path in paths_to_remove:
+                del games_dict[path]
+
+            if paths_to_remove:
+                logger.info(f"Merged {len(paths_to_remove)} duplicate game entries for {launcher}")
+
         # Phase 2: Prepare game records with Steam app IDs (parallel lookup)
         if progress_callback:
             await progress_callback(78, 100, "Looking up Steam app IDs...")

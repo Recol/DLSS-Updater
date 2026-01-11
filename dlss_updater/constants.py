@@ -7,6 +7,8 @@ DLL_TYPE_MAP = {
     "nvngx_dlssd.dll": "DLSS Ray Reconstruction DLL",
     "libxess.dll": "XeSS DLL",
     "libxess_dx11.dll": "XeSS DX11 DLL",
+    "libxess_fg.dll": "XeSS Frame Generation DLL",
+    "libxell.dll": "XeLL DLL",
     "sl.common.dll": "Streamline Shared Library DLL",
     "sl.dlss.dll": "Streamline DLSS Super Resolution DLL",
     "sl.dlss_g.dll": "Streamline DLSS Frame Generation DLL",
@@ -44,6 +46,8 @@ DLL_GROUPS = {
     "XeSS": [
         "libxess.dll",
         "libxess_dx11.dll",
+        "libxess_fg.dll",
+        "libxell.dll",
     ],
     "FSR": [
         "amd_fidelityfx_vk.dll",

@@ -190,6 +190,18 @@ class Game(msgspec.Struct):
     created_at: datetime = msgspec.field(default_factory=datetime.now)
 
 
+class MergedGame(msgspec.Struct):
+    """
+    Merged game model for UI display.
+
+    Represents multiple game installations merged into a single UI entry.
+    Used when the same game is installed in multiple locations (e.g., different drives).
+    """
+    primary_game: Game  # First game found (for name, steam_app_id, etc.)
+    all_game_ids: list[int]  # All game.id values that were merged
+    all_paths: list[str]  # All installation paths
+
+
 class GameDLL(msgspec.Struct):
     """
     Game DLL database model.

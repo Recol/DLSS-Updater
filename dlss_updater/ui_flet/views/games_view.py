@@ -7,7 +7,8 @@ import math
 from typing import Callable, Any
 import flet as ft
 
-from dlss_updater.database import db_manager, Game
+from dlss_updater.database import db_manager, Game, merge_games_by_name
+from dlss_updater.models import MergedGame
 from dlss_updater.ui_flet.components.game_card import GameCard
 from dlss_updater.ui_flet.components.search_bar import SearchBar
 from dlss_updater.ui_flet.theme.colors import MD3Colors
@@ -187,8 +188,8 @@ class GamesView(ft.Column):
 
             self.logger.info("Loading games from database...")
 
-            # Get games grouped by launcher
-            self.games_by_launcher = await db_manager.get_games_grouped_by_launcher()
+            # Get all games grouped by launcher (without merging duplicates)
+            self.games_by_launcher = await db_manager.get_all_games_by_launcher()
 
             if not self.games_by_launcher or sum(len(games) for games in self.games_by_launcher.values()) == 0:
                 self.logger.info("No games found in database")
@@ -252,21 +253,35 @@ class GamesView(ft.Column):
             if not games:
                 continue
 
-            # Load DLLs and backup groups in parallel for all games
-            async def load_game_data(game):
-                dlls = await db_manager.get_dlls_for_game(game.id)
-                backup_groups = await db_manager.get_backups_grouped_by_dll_type(game.id)
-                return game, dlls, backup_groups
+            # Merge games with same name into single entries
+            merged_games = merge_games_by_name(games)
 
-            tasks = [load_game_data(game) for game in games]
+            # Load DLLs and backup groups for ALL game IDs in each merged game
+            async def load_merged_game_data(merged: MergedGame):
+                all_dlls = []
+                all_backup_groups = {}
+
+                for game_id in merged.all_game_ids:
+                    dlls = await db_manager.get_dlls_for_game(game_id)
+                    all_dlls.extend(dlls)
+
+                    backup_groups = await db_manager.get_backups_grouped_by_dll_type(game_id)
+                    for dll_type, backups in backup_groups.items():
+                        if dll_type not in all_backup_groups:
+                            all_backup_groups[dll_type] = []
+                        all_backup_groups[dll_type].extend(backups)
+
+                return merged, all_dlls, all_backup_groups
+
+            tasks = [load_merged_game_data(mg) for mg in merged_games]
             results = await asyncio.gather(*tasks)
 
             # Create game cards for this launcher
             game_cards = []
-            for game, dlls, backup_groups in results:
-                # Create game card
+            for merged, dlls, backup_groups in results:
+                # Create game card with merged game data
                 card = GameCard(
-                    game=game,
+                    game=merged,  # Pass MergedGame instead of Game
                     dlls=dlls,
                     page=self.page,
                     logger=self.logger,
@@ -275,8 +290,8 @@ class GamesView(ft.Column):
                     backup_groups=backup_groups,
                 )
 
-                # Track card for single-game updates
-                self.game_cards[game.id] = card
+                # Track card for single-game updates (use primary game ID)
+                self.game_cards[merged.primary_game.id] = card
 
                 # Set initial opacity for staggered animation
                 card.opacity = 0

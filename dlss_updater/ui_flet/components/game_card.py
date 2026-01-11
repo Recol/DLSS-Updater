@@ -9,6 +9,7 @@ from typing import Callable, Any
 import flet as ft
 
 from dlss_updater.database import GameDLL
+from dlss_updater.models import Game, MergedGame
 from dlss_updater.steam_integration import fetch_steam_image
 from dlss_updater.ui_flet.theme.colors import Shadows, TechnologyColors
 from dlss_updater.ui_flet.theme.md3_system import MD3Spacing
@@ -18,9 +19,19 @@ from dlss_updater.constants import DLL_GROUPS
 class GameCard(ft.Card):
     """Individual game card with image, DLL info, and actions"""
 
-    def __init__(self, game, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None):
+    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None):
         super().__init__()
-        self.game = game
+
+        # Handle both Game and MergedGame
+        if isinstance(game, MergedGame):
+            self.merged_game = game
+            self.game = game.primary_game
+            self.all_paths = game.all_paths
+        else:
+            self.merged_game = None
+            self.game = game
+            self.all_paths = [game.path]
+
         self.dlls = dlls
         self.page = page
         self.logger = logger
@@ -199,36 +210,8 @@ class GameCard(ft.Card):
                     color="#888888",
                     no_wrap=True,
                 ),
-                # Path row with tooltip and copy button
-                ft.Row(
-                    controls=[
-                        ft.Container(
-                            content=ft.Text(
-                                self.game.path,
-                                size=10,
-                                color="#666666",
-                                no_wrap=True,
-                                italic=True,
-                                overflow=ft.TextOverflow.ELLIPSIS,
-                                max_lines=1,
-                            ),
-                            tooltip=self.game.path,
-                            expand=True,
-                            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                        ),
-                        ft.IconButton(
-                            icon=ft.Icons.CONTENT_COPY,
-                            icon_size=12,
-                            icon_color="#666666",
-                            tooltip="Copy path",
-                            on_click=self._on_copy_path_clicked,
-                            width=20,
-                            height=20,
-                        ),
-                    ],
-                    spacing=4,
-                    tight=True,
-                ),
+                # Path row with tooltip and copy button (supports multiple paths)
+                self._build_path_display(),
             ],
             spacing=4,
             tight=True,
@@ -597,7 +580,56 @@ class GameCard(ft.Card):
                         self.restore_button = new_restore_button
                         action_buttons_container.content.update()
 
+    def _build_path_display(self) -> ft.Row:
+        """Build path display row, supporting multiple paths for merged games."""
+        if len(self.all_paths) == 1:
+            # Single path - current behavior
+            path_text = self.all_paths[0]
+            path_tooltip = self.all_paths[0]
+        else:
+            # Multiple paths - show count with expandable detail
+            path_text = f"{self.all_paths[0]}  (+{len(self.all_paths) - 1} more)"
+            path_tooltip = "Installations:\n" + "\n".join(f"• {p}" for p in self.all_paths)
+
+        return ft.Row(
+            controls=[
+                ft.Container(
+                    content=ft.Text(
+                        path_text,
+                        size=10,
+                        color="#666666",
+                        no_wrap=True,
+                        italic=True,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                        max_lines=1,
+                    ),
+                    tooltip=path_tooltip,
+                    expand=True,
+                    clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                ),
+                ft.IconButton(
+                    icon=ft.Icons.CONTENT_COPY,
+                    icon_size=12,
+                    icon_color="#666666",
+                    tooltip="Copy path(s)" if len(self.all_paths) > 1 else "Copy path",
+                    on_click=self._on_copy_path_clicked,
+                    width=20,
+                    height=20,
+                ),
+            ],
+            spacing=4,
+            tight=True,
+        )
+
     async def _on_copy_path_clicked(self, e):
-        """Copy game path to clipboard with snackbar confirmation"""
-        await self.page.set_clipboard_async(self.game.path)
-        self.page.open(ft.SnackBar(content=ft.Text("Path copied to clipboard"), bgcolor="#2D6E88"))
+        """Copy game path(s) to clipboard with snackbar confirmation"""
+        # Copy all paths, one per line
+        copy_content = "\n".join(self.all_paths)
+        await self.page.set_clipboard_async(copy_content)
+
+        if len(self.all_paths) > 1:
+            message = f"{len(self.all_paths)} paths copied to clipboard"
+        else:
+            message = "Path copied to clipboard"
+
+        self.page.open(ft.SnackBar(content=ft.Text(message), bgcolor="#2D6E88"))

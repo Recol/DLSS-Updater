@@ -23,13 +23,51 @@ from dlss_updater.logger import setup_logger
 from dlss_updater.platform_utils import APP_CONFIG_DIR
 from dlss_updater.models import (
     Game, GameDLL, DLLBackup, UpdateHistory, SteamImage,
-    GameDLLBackup, GameBackupSummary, GameWithBackupCount
+    GameDLLBackup, GameBackupSummary, GameWithBackupCount, MergedGame
 )
 
 logger = setup_logger()
 
 # Thread-safety lock for singleton pattern (free-threading Python 3.14+)
 _db_manager_lock = threading.Lock()
+
+
+def merge_games_by_name(games: list[Game]) -> list[MergedGame]:
+    """Merge games with same name (case-insensitive) into MergedGame entries.
+
+    Args:
+        games: List of Game objects to merge
+
+    Returns:
+        List of MergedGame objects, each representing one or more games
+    """
+    from collections import defaultdict
+
+    # Group by lowercase name
+    name_groups: dict[str, list[Game]] = defaultdict(list)
+    for game in games:
+        name_groups[game.name.lower()].append(game)
+
+    merged = []
+    for name_lower, group in name_groups.items():
+        if len(group) == 1:
+            # Single game, wrap in MergedGame for consistency
+            game = group[0]
+            merged.append(MergedGame(
+                primary_game=game,
+                all_game_ids=[game.id],
+                all_paths=[game.path],
+            ))
+        else:
+            # Multiple games with same name - merge
+            primary = group[0]  # Use first as primary
+            merged.append(MergedGame(
+                primary_game=primary,
+                all_game_ids=[g.id for g in group],
+                all_paths=[g.path for g in group],
+            ))
+
+    return merged
 
 
 class DatabaseManager:
@@ -446,6 +484,50 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting games by launcher: {e}", exc_info=True)
             return {}
+
+    async def get_all_games_by_launcher(self) -> dict[str, list[Game]]:
+        """Get all games grouped by launcher without merging duplicates.
+
+        Unlike get_games_grouped_by_launcher(), this returns ALL game records
+        even if they have the same name. Use merge_games_by_name() in UI layer
+        to properly merge while preserving all paths.
+        """
+        return await asyncio.to_thread(self._get_all_games_by_launcher)
+
+    def _get_all_games_by_launcher(self) -> dict[str, list[Game]]:
+        """Get all games by launcher (no GROUP BY) - uses thread-local connection"""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at
+                FROM games
+                ORDER BY launcher, name
+            """)
+
+            games_by_launcher = {}
+            for row in cursor:
+                game = Game(
+                    id=row[0],
+                    name=row[1],
+                    path=row[2],
+                    launcher=row[3],
+                    steam_app_id=row[4],
+                    last_scanned=datetime.fromisoformat(row[5]),
+                    created_at=datetime.fromisoformat(row[6])
+                )
+
+                if game.launcher not in games_by_launcher:
+                    games_by_launcher[game.launcher] = []
+                games_by_launcher[game.launcher].append(game)
+
+            return games_by_launcher
+
+        except Exception as e:
+            logger.error(f"Error getting all games by launcher: {e}", exc_info=True)
+            return {}
+
 
     async def delete_all_games(self):
         """
