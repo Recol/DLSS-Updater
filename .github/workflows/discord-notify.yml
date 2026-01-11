@@ -15,7 +15,9 @@ jobs:
             curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               "https://api.github.com/repos/${{ github.repository }}/releases/latest" > release.json
           else
-            echo '${{ toJSON(github.event.release) }}' > release.json
+            cat > release.json <<'EOF'
+          ${{ toJSON(github.event.release) }}
+          EOF
           fi
       
       - name: Build Discord payload
