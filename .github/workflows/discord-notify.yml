@@ -24,7 +24,7 @@ jobs:
 
       - name: Notify Discord (Release Event)
         if: github.event_name != 'workflow_dispatch'
-        uses: SethCohen/github-releases-to-discord@v1.15.1
+        uses: SethCohen/github-releases-to-discord@v1.19.0
         with:
           webhook_url: ${{ secrets.DISCORD_WEBHOOK }}
           color: "5814783"
