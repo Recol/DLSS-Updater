@@ -27,7 +27,7 @@ dependencies = [
     "psutil>=7.2.0",
     "packaging",
     "appdirs",
-    "flet==0.28.3; platform_system == 'Windows'",  # Core framework for Windows
+    "flet==0.80.1; platform_system == 'Windows'",  # Core framework for Windows
     "flet-desktop==0.28.3; platform_system == 'Windows'",  # Desktop runtime for Windows
     "flet[all]==0.28.3; platform_system == 'Linux'",  # Full package with runtime for Linux Flatpak builds
     "msgspec>=0.20.0",
