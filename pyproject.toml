@@ -29,7 +29,8 @@ dependencies = [
     "appdirs",
     "flet==0.28.3; platform_system == 'Windows'",  # Core framework for Windows
     "flet-desktop==0.28.3; platform_system == 'Windows'",  # Desktop runtime for Windows
-    "flet[all]==0.28.3; platform_system == 'Linux'",  # Full package with runtime for Linux Flatpak builds
+    "flet==0.28.3; platform_system == 'Linux'",  # Core framework for Linux
+    "flet-desktop==0.28.3; platform_system == 'Linux'",  # Desktop runtime for Linux (no web server dependencies)
     "msgspec>=0.20.0",
     "aiohttp",
     "nvidia-ml-py>=12.560.30",  # NVIDIA GPU detection for DLSS preset recommendations

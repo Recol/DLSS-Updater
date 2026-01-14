@@ -1,4 +1,12 @@
 Version 3.5.2:
+Linux Wayland Fix - Fixed launch failures on Fedora/Nobara with Wayland (Issue #122):
+  - Fixed app crash with "address already in use" error on port 8000.
+  - Fixed GIL warning about httptools.parser.parser module.
+  - Root cause: Flet incorrectly detected Wayland sessions as headless servers.
+  - Removed unnecessary web server dependencies (flet-web, uvicorn, httptools, fastapi).
+  - Added explicit desktop mode to prevent Flet's web server fallback.
+  - Added Wayland display detection workaround for Flet's is_linux_server() bug.
+  - Reduced Linux package size by ~3MB (32 fewer dependencies).
 Intel XeSS Frame Generation Support - New DLLs for Intel XeFG technology:
   - Added libxess_fg.dll (XeSS Frame Generation SDK v1.2.2.118).
   - Added libxell.dll (Intel XeLL library v1.2.1.13).

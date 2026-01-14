@@ -227,5 +227,15 @@ if __name__ == "__main__":
     # Check prerequisites before launching UI
     check_prerequisites()
 
-    # Launch Flet app with async main
-    ft.app(target=main)
+    # Workaround for Flet bug: is_linux_server() only checks DISPLAY, not WAYLAND_DISPLAY
+    # On Wayland-only sessions (e.g., Fedora/Nobara), DISPLAY is not set, causing Flet
+    # to incorrectly detect a "headless server" and force web server mode on port 8000
+    # See: https://github.com/Recol/DLSS-Updater/issues/122
+    import os
+    if sys.platform == 'linux':
+        if os.environ.get('WAYLAND_DISPLAY') and not os.environ.get('DISPLAY'):
+            os.environ['DISPLAY'] = ':0'  # Prevent Flet's web server fallback
+
+    # Launch Flet app with async main - explicitly use desktop mode
+    # view=ft.AppView.FLET_APP prevents Flet's auto-detection from forcing web server mode
+    ft.app(target=main, view=ft.AppView.FLET_APP)
