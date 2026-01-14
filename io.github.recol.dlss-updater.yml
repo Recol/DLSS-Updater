@@ -38,6 +38,8 @@ finish-args:
   - --filesystem=xdg-config/DLSS-Updater:rw
   - --filesystem=xdg-cache/DLSS-Updater:rw
   - --filesystem=~/.local/share/dlss-updater:create
+  # Flet framework cache directory (required for Flet to initialize)
+  - --filesystem=~/.flet:create
 
   # Portal support
   - --talk-name=org.freedesktop.portal.FileChooser
