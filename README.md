@@ -130,6 +130,9 @@ flatpak run io.github.recol.dlss-updater
 flatpak uninstall io.github.recol.dlss-updater
 ```
 
+**libmpv Issue**
+If you receive an issue associated with libmpv, this is an issue with your distro not bundling the library, please see here: https://github.com/Recol/DLSS-Updater/issues/125 for guidance.
+
 #### Custom Game Directories
 
 The Flatpak has read-only access to common game locations by default:
