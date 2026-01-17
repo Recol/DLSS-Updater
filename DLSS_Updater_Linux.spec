@@ -52,6 +52,14 @@ a = Analysis(
     optimize=2,
 )
 
+# Filter out system C++ libraries that conflict with Flatpak runtime (GTK/SVG fix)
+# These libraries from the build system may have incompatible ABI versions
+# (e.g., CXXABI_1.3.15) that cause GTK pixbuf/SVG loader failures on newer distros.
+# By excluding them, the app will use the Flatpak runtime's compatible libraries.
+# See: https://github.com/Recol/DLSS-Updater/issues/127 (Nobara 43 GTK errors)
+EXCLUDED_SYSTEM_LIBS = ['libstdc++', 'libgcc_s', 'libc.so']
+a.binaries = [b for b in a.binaries if not any(x in b[0] for x in EXCLUDED_SYSTEM_LIBS)]
+
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(

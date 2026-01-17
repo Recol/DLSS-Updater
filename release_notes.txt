@@ -1,3 +1,12 @@
+Version 3.5.4:
+Linux Flatpak Fixes - Resolved multiple launch and scan issues on Linux (Issues #122, #126, #127):
+  - Fixed FileNotFoundError when ~/.flet/bin directory doesn't exist.
+  - Fixed OSError "Read-only file system" on Flatpak by ensuring Flet directories are created.
+  - Added --filesystem=~/.flet:create permission to Flatpak build script.
+  - Fixed "Scan Failed" error caused by dict being passed as path (improved type validation).
+  - Fixed GTK/SVG icon loading failures on Nobara 43 (libstdc++ CXXABI conflict).
+  - Excluded system C++ libraries from PyInstaller bundle to use Flatpak runtime libraries.
+
 Version 3.5.3:
 Linux Wayland Fix - Fixed launch failures on Fedora/Nobara with Wayland (Issue #122):
   - Fixed app crash with "address already in use" error on port 8000.

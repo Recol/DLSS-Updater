@@ -64,6 +64,19 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="3.5.4" date="2026-01-17">
+      <description>
+        <p>Linux Flatpak Fixes - Resolved multiple launch and scan issues</p>
+        <ul>
+          <li>Fixed FileNotFoundError when ~/.flet/bin directory doesn't exist (Issue #127)</li>
+          <li>Fixed OSError "Read-only file system" on Flatpak by ensuring Flet directories are created (Issue #122)</li>
+          <li>Added --filesystem=~/.flet:create permission to Flatpak build script</li>
+          <li>Fixed "Scan Failed" error caused by dict being passed as path (Issue #126)</li>
+          <li>Fixed GTK/SVG icon loading failures on Nobara 43 (libstdc++ CXXABI conflict)</li>
+          <li>Excluded system C++ libraries from PyInstaller bundle to use Flatpak runtime libraries</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.5.2" date="2026-01-11">
       <description>
         <p>Intel XeSS Frame Generation Support</p>

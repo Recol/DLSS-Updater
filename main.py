@@ -31,6 +31,30 @@ from dlss_updater.ui_flet.views.main_view import MainView
 from dlss_updater.task_registry import register_task
 
 
+def ensure_flet_directories():
+    """
+    Ensure Flet framework directories exist before initialization.
+
+    On Linux (especially Flatpak), Flet expects ~/.flet/bin to exist but may not
+    be able to create it due to sandbox restrictions. We create it proactively
+    to prevent FileNotFoundError during Flet initialization.
+
+    See: https://github.com/Recol/DLSS-Updater/issues/122
+         https://github.com/Recol/DLSS-Updater/issues/127
+    """
+    if IS_LINUX:
+        from pathlib import Path
+        flet_bin_dir = Path.home() / ".flet" / "bin"
+        try:
+            flet_bin_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            # Log but don't fail - Flet might still work
+            import logging
+            logging.getLogger("DLSSUpdater").warning(
+                f"Could not create Flet directory {flet_bin_dir}: {e}"
+            )
+
+
 async def main(page: ft.Page):
     """
     Main async entry point for the Flet application
@@ -226,6 +250,9 @@ def check_prerequisites():
 if __name__ == "__main__":
     # Check prerequisites before launching UI
     check_prerequisites()
+
+    # Ensure Flet directories exist (Linux Flatpak fix for Issues #122 & #127)
+    ensure_flet_directories()
 
     # Workaround for Flet bug: is_linux_server() only checks DISPLAY, not WAYLAND_DISPLAY
     # On Wayland-only sessions (e.g., Fedora/Nobara), DISPLAY is not set, causing Flet

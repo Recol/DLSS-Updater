@@ -1,17 +1,19 @@
+import configparser
 import os
 import sys
-import configparser
 import threading
-from pathlib import Path
 from enum import StrEnum
+from pathlib import Path
+
 import msgspec
+
 from .logger import setup_logger
 from .models import (
-    UpdatePreferencesConfig,
+    MAX_PATHS_PER_LAUNCHER,
+    DLSSPresetConfig,
     LauncherPathsConfig,
     PerformanceConfig,
-    DLSSPresetConfig,
-    MAX_PATHS_PER_LAUNCHER,
+    UpdatePreferencesConfig,
 )
 
 logger = setup_logger()
@@ -307,11 +309,13 @@ class ConfigManager(configparser.ConfigParser):
         # Try parsing as JSON array first (new format)
         if raw_value.startswith("["):
             try:
-                paths = msgspec.json.decode(raw_value.encode())
-                if isinstance(paths, list):
-                    return [p for p in paths if p]  # Filter empty strings
-            except Exception as e:
+                # Explicit type to ensure list[str] is returned (Issue #126 fix)
+                paths = msgspec.json.decode(raw_value.encode(), type=list[str])
+                return [p for p in paths if p]  # Filter empty strings
+            except msgspec.DecodeError as e:
                 self.logger.warning(f"Failed to parse JSON paths for {launcher}: {e}")
+            except Exception as e:
+                self.logger.warning(f"Unexpected error parsing paths for {launcher}: {e}")
 
         # Fallback: treat as single path (legacy format)
         return [raw_value] if raw_value else []

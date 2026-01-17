@@ -145,6 +145,7 @@ flatpak build-finish build-dir \
     --filesystem=xdg-config/DLSS-Updater:rw \
     --filesystem=xdg-cache/DLSS-Updater:rw \
     --filesystem=~/.local/share/dlss-updater:create \
+    --filesystem=~/.flet:create \
     --talk-name=org.freedesktop.portal.FileChooser \
     --command=dlss-updater
 
