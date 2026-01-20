@@ -1,3 +1,70 @@
+Version 3.5.6:
+Thread Safety & Memory Leak Fixes - Comprehensive fixes for Python 3.14 free-threaded mode:
+  Critical Fixes (P0):
+  - Fixed double-checked locking pattern in all singleton classes (DatabaseManager, ConfigManager, GameSearchService).
+    In free-threaded Python, multiple threads could pass the outer check simultaneously.
+  - Fixed thread-local database connections never being closed, causing memory leaks and file descriptor exhaustion.
+  - Fixed asyncio.create_task() being called from ThreadPoolExecutor workers (would crash or create orphan coroutines).
+  - Fixed SlidePanel overlay accumulation - panels now properly cleanup on all code paths including exceptions.
+  - Fixed missing theme deregistration in SlidePanel causing memory leaks with each panel open/close cycle.
+  - Fixed pool semaphore leak in database.py when aiosqlite.connect() raises exception.
+  - Fixed ThreadPoolExecutor shutdown race using wait=False (now uses wait=True with cancel_futures=True).
+  - Fixed fire-and-forget tasks in async_updater.py - evicted tasks now have proper exception handling.
+  - All UI fire-and-forget tasks now registered with task registry for proper shutdown tracking.
+  - Added SearchService shutdown() method and included in main_view shutdown sequence.
+  - Fixed memory-mapped file handle leak in cache_manager.py using try-finally cleanup.
+  - Fixed lock ordering deadlock risk in cache_manager.py by calling record_access() after releasing mmap_lock.
+  High Priority Fixes (P1):
+  - Fixed ConfigManager __init__ race condition by wrapping initialization in config lock.
+  - Fixed TOCTOU in database pool state by making ensure_pool() atomic.
+  - Added thread-safe lock for scanner.py global state (_dll_names_lower).
+  - Fixed exception swallowing in scanner ThreadPoolExecutor - now differentiates expected vs unexpected errors.
+  - Fixed os.scandir() resource leak by collecting subdirs first, then recursing AFTER closing scandir handle.
+  - Fixed game card dictionaries not being cleared in games_view.py on_view_hidden().
+  - Fixed cache dict modification during iteration in cache_manager.py by taking snapshot before iterating.
+  - Fixed MmapHandle reference count bug - added guard against going negative.
+  - All 11 scanner launcher tasks now registered with task registry for shutdown tracking.
+  - Fixed task registry TOCTOU race by adding periodic cleanup of done tasks.
+  - Fixed LATEST_DLL_PATHS unprotected reads - added get_dll_path() and get_all_dll_paths() thread-safe getters.
+  - Fixed ConfigParser save() not being thread-safe.
+  - Fixed LRU cache eviction bug using while loop instead of if (potentially evicting multiple entries).
+  Medium Priority Fixes (P2):
+  - Added thread-safe progress callback wrapper in scanner.py.
+  - Registered cache manager cleanup task with task registry.
+  - Added SearchBar cleanup() method for proper resource release.
+  - Removed unused _search_cache_lock in search_service.py.
+  New Utility Functions:
+  - task_registry: Added reset_shutdown_state(), get_active_task_count(), get_task_names().
+  - config: Added get_dll_path() and get_all_dll_paths() for thread-safe access.
+  - search_service: Added shutdown() method for graceful cleanup.
+
+Version 3.5.5:
+Light/Dark Theme System - Complete theme support with automatic restart on toggle:
+  - Theme toggle re-enabled in Preferences menu (previously disabled).
+  - Application restarts automatically when theme is changed for clean rendering.
+  - OS theme detection on startup via darkdetect (respects system preference).
+  - User preference persists and overrides OS detection after manual toggle.
+  - WCAG AA compliant light mode palette (4.5:1 contrast minimum).
+  - Technology badges use container style in light mode (pale bg + brand text).
+  - Tab indicators adapt with darkened colors for light backgrounds.
+  - All dialogs, panels, and cards properly themed.
+Grouped DLL Dialog - New technology-grouped DLL view for better organization:
+  - DLLs now display grouped by technology (DLSS, Streamline, XeSS, FSR, DirectStorage).
+  - Click the DLL badge on any game card to open the new grouped dialog.
+  - Each technology group shows combined status (e.g., "2 updates" or "Up to date").
+  - Collapsible expansion panels reveal individual DLLs with version details.
+  - Per-group Update and Restore buttons for batch operations.
+  - Brand-colored indicators match technology (NVIDIA green, AMD red, Intel blue).
+  - Groups auto-expand when updates are available for quick visibility.
+Bug Fixes:
+  - Fixed race condition in game card UI lock that could block concurrent image loading.
+  - Fixed memory leak in progress task tracking during bulk update operations.
+  - Progress callback tasks now use bounded deque for O(1) cleanup instead of O(n²) list filtering.
+  - Fixed tab bar container background color not matching page background in both themes.
+  - Fixed launcher cards having tinted/colored backgrounds instead of transparent in light mode.
+Dependencies:
+  - Added darkdetect>=0.8.0 for cross-platform OS theme detection.
+
 Version 3.5.4:
 Linux Flatpak Fixes - Resolved multiple launch and scan issues on Linux (Issues #122, #126, #127):
   - Fixed FileNotFoundError when ~/.flet/bin directory doesn't exist.

@@ -11,12 +11,13 @@ import flet as ft
 from dlss_updater.database import GameDLL
 from dlss_updater.models import Game, MergedGame
 from dlss_updater.steam_integration import fetch_steam_image
-from dlss_updater.ui_flet.theme.colors import Shadows, TechnologyColors
+from dlss_updater.ui_flet.theme.colors import MD3Colors, Shadows, TechnologyColors
 from dlss_updater.ui_flet.theme.md3_system import MD3Spacing
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.constants import DLL_GROUPS
 
 
-class GameCard(ft.Card):
+class GameCard(ThemeAwareMixin, ft.Card):
     """Individual game card with image, DLL info, and actions"""
 
     def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None):
@@ -54,9 +55,14 @@ class GameCard(ft.Card):
         self._ui_lock = asyncio.Lock()
         self._image_loaded = False  # Prevent duplicate image loads
 
+        # Get theme state and register
+        self._registry = get_theme_registry()
+        self._theme_priority = 25  # Cards are mid-priority
+        is_dark = self._registry.is_dark
+
         # Card styling optimized for grid layout
         self.elevation = 2
-        self.surface_tint_color = "#2D6E88"
+        self.surface_tint_color = MD3Colors.get_primary(is_dark)
         self.margin = ft.margin.all(0)  # ResponsiveRow handles spacing
         self.shadow = Shadows.LEVEL_2
         self.width = None  # Let ResponsiveRow control width
@@ -72,15 +78,23 @@ class GameCard(ft.Card):
         # Build content
         self._build_card_content()
 
+        # Register with theme system after building UI
+        self._register_theme_aware()
+
     def _create_skeleton_loader(self):
         """Create animated skeleton loader for image placeholder"""
+        is_dark = self._registry.is_dark
         return ft.Container(
             width=None,  # Full width
             height=140,  # Match image height
             gradient=ft.LinearGradient(
                 begin=ft.alignment.center_left,
                 end=ft.alignment.center_right,
-                colors=["#1E1E1E", "#2E2E2E", "#1E1E1E"],
+                colors=[
+                    MD3Colors.get_themed("skeleton_start", is_dark),
+                    MD3Colors.get_themed("skeleton_mid", is_dark),
+                    MD3Colors.get_themed("skeleton_end", is_dark),
+                ],
             ),
             border_radius=8,
             content=ft.Icon(
@@ -129,6 +143,7 @@ class GameCard(ft.Card):
         from dlss_updater.config import LATEST_DLL_VERSIONS
         from dlss_updater.updater import parse_version
 
+        is_dark = self._registry.is_dark
         dll_colors = {
             "DLSS": "#76B900", "XeSS": "#0071C5", "FSR": "#ED1C24",
             "DLSS-G": "#76B900", "DLSS-D": "#76B900",
@@ -137,7 +152,7 @@ class GameCard(ft.Card):
 
         items = []
         for dll in self.dlls:
-            color = dll_colors.get(dll.dll_type, "#888888")
+            color = dll_colors.get(dll.dll_type, MD3Colors.get_text_secondary(is_dark))
             version_text = dll.current_version[:12] if dll.current_version else "N/A"
 
             # Check for update
@@ -153,7 +168,7 @@ class GameCard(ft.Card):
             status_icon = ft.Icon(
                 ft.Icons.ARROW_UPWARD if update_available else ft.Icons.CHECK_CIRCLE,
                 size=14,
-                color="#FF9800" if update_available else "#4CAF50",
+                color=MD3Colors.get_warning(is_dark) if update_available else MD3Colors.get_success(is_dark),
             )
 
             items.append(ft.PopupMenuItem(
@@ -161,7 +176,7 @@ class GameCard(ft.Card):
                     controls=[
                         ft.Container(width=10, height=10, bgcolor=color, border_radius=5),
                         ft.Text(dll.dll_type, size=12, weight=ft.FontWeight.BOLD, width=90),
-                        ft.Text(version_text, size=11, color="#AAAAAA", width=80),
+                        ft.Text(version_text, size=11, color=MD3Colors.get_on_surface_variant(is_dark), width=80),
                         status_icon,
                     ],
                     spacing=8,
@@ -172,6 +187,8 @@ class GameCard(ft.Card):
 
     def _build_card_content(self):
         """Build card content layout"""
+        is_dark = self._registry.is_dark
+
         # Image container with skeleton loader (responsive for grid)
         self.image_widget = ft.Image(
             src="/assets/placeholder_game.png",
@@ -187,29 +204,35 @@ class GameCard(ft.Card):
             width=140,  # Constrain image width for proper layout
             height=140,  # Match image height
             border_radius=8,
-            bgcolor="#1E1E1E",
+            bgcolor=MD3Colors.get_surface(is_dark),
             alignment=ft.alignment.center,
+        )
+
+        # Game name text - store reference for theming
+        self.game_name_text = ft.Text(
+            self.game.name,
+            size=16,
+            weight=ft.FontWeight.BOLD,
+            color=MD3Colors.get_text_primary(is_dark),
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
+            no_wrap=True,  # Prevent wrapping to maintain consistent card height
+            tooltip=self.game.name,  # Show full name on hover
+        )
+
+        # Launcher text - store reference for theming
+        self.launcher_text = ft.Text(
+            self.game.launcher,
+            size=12,
+            color=MD3Colors.get_text_secondary(is_dark),
+            no_wrap=True,
         )
 
         # Game name, launcher, and path
         game_info = ft.Column(
             controls=[
-                ft.Text(
-                    self.game.name,
-                    size=16,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.WHITE,
-                    max_lines=1,
-                    overflow=ft.TextOverflow.ELLIPSIS,
-                    no_wrap=True,  # Prevent wrapping to maintain consistent card height
-                    tooltip=self.game.name,  # Show full name on hover
-                ),
-                ft.Text(
-                    self.game.launcher,
-                    size=12,
-                    color="#888888",
-                    no_wrap=True,
-                ),
+                self.game_name_text,
+                self.launcher_text,
                 # Path row with tooltip and copy button (supports multiple paths)
                 self._build_path_display(),
             ],
@@ -268,13 +291,13 @@ class GameCard(ft.Card):
 
     def _create_dll_badges(self) -> ft.Container:
         """Create condensed DLL badge that opens grouped dialog on click"""
-        from dlss_updater.ui_flet.theme.colors import MD3Colors
+        is_dark = self._registry.is_dark
 
         # Edge case: No DLLs
         if not self.dlls:
             return ft.Container(
-                content=ft.Text("0 DLLs", size=10, color="#666666"),
-                bgcolor="#3A3A3A",
+                content=ft.Text("0 DLLs", size=10, color=MD3Colors.get_themed("text_tertiary", is_dark)),
+                bgcolor=MD3Colors.get_themed("badge_default_bg", is_dark),
                 padding=ft.padding.symmetric(horizontal=8, vertical=4),
                 border_radius=8,
                 height=28,
@@ -283,7 +306,7 @@ class GameCard(ft.Card):
         dll_count = len(self.dlls)
         has_updates = self._check_for_updates()
         badge_text = f"+{dll_count} DLL" if dll_count == 1 else f"+{dll_count} DLLs"
-        badge_color = "#FF9800" if has_updates else MD3Colors.PRIMARY
+        badge_color = MD3Colors.get_warning(is_dark) if has_updates else MD3Colors.get_primary(is_dark)
 
         # Use GestureDetector to make the badge clickable and open the grouped dialog
         return ft.Container(
@@ -325,6 +348,8 @@ class GameCard(ft.Card):
 
     def _create_update_popup_menu(self) -> ft.PopupMenuButton:
         """Create popup menu button for selective DLL updates"""
+        is_dark = self._registry.is_dark
+        primary_color = MD3Colors.get_primary(is_dark)
         groups = self._get_dll_groups_for_game()
 
         # Build menu items
@@ -341,7 +366,7 @@ class GameCard(ft.Card):
             menu_items.append(ft.PopupMenuItem())  # Divider
 
             for group in groups:
-                color = TechnologyColors.get_color(group)
+                color = TechnologyColors.get_themed_color(group, is_dark)
                 # Create a colored container as leading element
                 menu_items.append(
                     ft.PopupMenuItem(
@@ -361,13 +386,18 @@ class GameCard(ft.Card):
                     )
                 )
 
-        # Use content property to show "Update ▼" text instead of just an icon
+        # Store references for theming
+        self.update_button_icon = ft.Icon(ft.Icons.UPDATE, size=18, color=primary_color)
+        self.update_button_text = ft.Text("Update", size=14, color=primary_color)
+        self.update_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=primary_color)
+
+        # Use content property to show "Update" text instead of just an icon
         return ft.PopupMenuButton(
             content=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.UPDATE, size=18, color="#2D6E88"),
-                    ft.Text("Update", size=14, color="#2D6E88"),
-                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color="#2D6E88"),
+                    self.update_button_icon,
+                    self.update_button_text,
+                    self.update_button_arrow,
                 ],
                 spacing=4,
                 tight=True,
@@ -386,14 +416,23 @@ class GameCard(ft.Card):
 
     def _create_restore_popup_menu(self) -> ft.PopupMenuButton:
         """Create popup menu button for selective DLL restore from backups"""
+        is_dark = self._registry.is_dark
+        disabled_color = MD3Colors.get_themed("text_tertiary", is_dark)
+        success_color = MD3Colors.get_success(is_dark)
+
         if not self.backup_groups:
+            # Store references for disabled state theming
+            self.restore_button_icon = ft.Icon(ft.Icons.RESTORE, size=18, color=disabled_color)
+            self.restore_button_text = ft.Text("Restore", size=14, color=disabled_color)
+            self.restore_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=disabled_color)
+
             # Return disabled button if no backups
             return ft.PopupMenuButton(
                 content=ft.Row(
                     controls=[
-                        ft.Icon(ft.Icons.RESTORE, size=18, color="#666666"),
-                        ft.Text("Restore", size=14, color="#666666"),
-                        ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color="#666666"),
+                        self.restore_button_icon,
+                        self.restore_button_text,
+                        self.restore_button_arrow,
                     ],
                     spacing=4,
                     tight=True,
@@ -418,7 +457,7 @@ class GameCard(ft.Card):
             menu_items.append(ft.PopupMenuItem())  # Divider
 
             for group in groups:
-                color = TechnologyColors.get_color(group)
+                color = TechnologyColors.get_themed_color(group, is_dark)
                 backup_count = len(self.backup_groups[group])
                 menu_items.append(
                     ft.PopupMenuItem(
@@ -433,12 +472,17 @@ class GameCard(ft.Card):
                     )
                 )
 
+        # Store references for theming
+        self.restore_button_icon = ft.Icon(ft.Icons.RESTORE, size=18, color=success_color)
+        self.restore_button_text = ft.Text("Restore", size=14, color=success_color)
+        self.restore_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=success_color)
+
         return ft.PopupMenuButton(
             content=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.RESTORE, size=18, color="#4CAF50"),
-                    ft.Text("Restore", size=14, color="#4CAF50"),
-                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color="#4CAF50"),
+                    self.restore_button_icon,
+                    self.restore_button_text,
+                    self.restore_button_arrow,
                 ],
                 spacing=4,
                 tight=True,
@@ -558,11 +602,13 @@ class GameCard(ft.Card):
 
     def _on_hover(self, e):
         """Handle hover effect with multi-layer shadow and border glow"""
+        is_dark = self._registry.is_dark
+        primary_color = MD3Colors.get_primary(is_dark)
         if e.data == "true":
             self.elevation = 8
             self.shadow = Shadows.LEVEL_3
             self.scale = 1.015
-            self.border = ft.border.all(1, ft.Colors.with_opacity(0.3, "#2D6E88"))
+            self.border = ft.border.all(1, ft.Colors.with_opacity(0.3, primary_color))
         else:
             self.elevation = 2
             self.shadow = Shadows.LEVEL_2
@@ -572,10 +618,11 @@ class GameCard(ft.Card):
 
     def set_updating(self, is_updating: bool):
         """Set updating state - shows spinner and disables button"""
+        is_dark = self._registry.is_dark
         self.is_updating = is_updating
         if self.update_button and self.update_button.content:
             row = self.update_button.content
-            color = "#888888" if is_updating else "#2D6E88"
+            color = MD3Colors.get_text_secondary(is_dark) if is_updating else MD3Colors.get_primary(is_dark)
             # Update icon and colors in the content row
             if row.controls and len(row.controls) >= 3:
                 # First control is the icon
@@ -622,6 +669,9 @@ class GameCard(ft.Card):
 
     def _build_path_display(self) -> ft.Row:
         """Build path display row, supporting multiple paths for merged games."""
+        is_dark = self._registry.is_dark
+        tertiary_color = MD3Colors.get_themed("text_tertiary", is_dark)
+
         if len(self.all_paths) == 1:
             # Single path - current behavior
             path_text = self.all_paths[0]
@@ -631,31 +681,35 @@ class GameCard(ft.Card):
             path_text = f"{self.all_paths[0]}  (+{len(self.all_paths) - 1} more)"
             path_tooltip = "Installations:\n" + "\n".join(f"• {p}" for p in self.all_paths)
 
+        # Store reference for theming
+        self.path_text = ft.Text(
+            path_text,
+            size=10,
+            color=tertiary_color,
+            no_wrap=True,
+            italic=True,
+            overflow=ft.TextOverflow.ELLIPSIS,
+            max_lines=1,
+        )
+        self.copy_path_button = ft.IconButton(
+            icon=ft.Icons.CONTENT_COPY,
+            icon_size=12,
+            icon_color=tertiary_color,
+            tooltip="Copy path(s)" if len(self.all_paths) > 1 else "Copy path",
+            on_click=self._on_copy_path_clicked,
+            width=20,
+            height=20,
+        )
+
         return ft.Row(
             controls=[
                 ft.Container(
-                    content=ft.Text(
-                        path_text,
-                        size=10,
-                        color="#666666",
-                        no_wrap=True,
-                        italic=True,
-                        overflow=ft.TextOverflow.ELLIPSIS,
-                        max_lines=1,
-                    ),
+                    content=self.path_text,
                     tooltip=path_tooltip,
                     expand=True,
                     clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
                 ),
-                ft.IconButton(
-                    icon=ft.Icons.CONTENT_COPY,
-                    icon_size=12,
-                    icon_color="#666666",
-                    tooltip="Copy path(s)" if len(self.all_paths) > 1 else "Copy path",
-                    on_click=self._on_copy_path_clicked,
-                    width=20,
-                    height=20,
-                ),
+                self.copy_path_button,
             ],
             spacing=4,
             tight=True,
@@ -663,6 +717,8 @@ class GameCard(ft.Card):
 
     async def _on_copy_path_clicked(self, e):
         """Copy game path(s) to clipboard with snackbar confirmation"""
+        is_dark = self._registry.is_dark
+
         # Copy all paths, one per line
         copy_content = "\n".join(self.all_paths)
         await self.page.set_clipboard_async(copy_content)
@@ -672,4 +728,34 @@ class GameCard(ft.Card):
         else:
             message = "Path copied to clipboard"
 
-        self.page.open(ft.SnackBar(content=ft.Text(message), bgcolor="#2D6E88"))
+        self.page.open(ft.SnackBar(
+            content=ft.Text(message),
+            bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
+        ))
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for theme-aware updates.
+
+        Returns:
+            Dict mapping property paths to (dark_value, light_value) tuples.
+        """
+        return {
+            # Card surface tint
+            "surface_tint_color": MD3Colors.get_themed_pair("primary"),
+            # Image container
+            "image_container.bgcolor": MD3Colors.get_themed_pair("surface"),
+            # Text colors
+            "game_name_text.color": MD3Colors.get_themed_pair("text_primary"),
+            "launcher_text.color": MD3Colors.get_themed_pair("text_secondary"),
+            "path_text.color": MD3Colors.get_themed_pair("text_tertiary"),
+            # Copy button
+            "copy_path_button.icon_color": MD3Colors.get_themed_pair("text_tertiary"),
+            # Update button colors
+            "update_button_icon.color": MD3Colors.get_themed_pair("primary"),
+            "update_button_text.color": MD3Colors.get_themed_pair("primary"),
+            "update_button_arrow.color": MD3Colors.get_themed_pair("primary"),
+            # Restore button colors (when enabled - success color)
+            "restore_button_icon.color": MD3Colors.get_themed_pair("success"),
+            "restore_button_text.color": MD3Colors.get_themed_pair("success"),
+            "restore_button_arrow.color": MD3Colors.get_themed_pair("success"),
+        }

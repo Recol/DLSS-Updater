@@ -11,6 +11,7 @@ from typing import Callable
 import flet as ft
 
 from ..theme.colors import MD3Colors, Animations
+from ..theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 
 @dataclass
@@ -36,7 +37,7 @@ class MenuCategory:
     items: list[MenuItem] = field(default_factory=list)
 
 
-class AppMenuSelector(ft.Container):
+class AppMenuSelector(ThemeAwareMixin, ft.Container):
     """
     Material Design 3 App Menu Selector with categorized items,
     colored icon circles, hover effects, and smooth animations.
@@ -57,8 +58,12 @@ class AppMenuSelector(ft.Container):
         self.categories = categories
         self.on_item_selected = on_item_selected
         self.is_expanded = initially_expanded
-        self._is_dark = is_dark
         self.selected_item_id: str | None = None
+
+        # Get theme registry and state
+        self._registry = get_theme_registry()
+        self._theme_priority = 25  # Cards are mid-priority
+        self._is_dark = self._registry.is_dark
 
         # Badge references for dynamic updates
         self._badge_refs: dict[str, ft.Container] = {}
@@ -66,14 +71,24 @@ class AppMenuSelector(ft.Container):
         # Item container refs for hover effects
         self._item_refs: dict[str, ft.Container] = {}
 
+        # Store references for themed elements
+        self._title_texts: list[ft.Text] = []
+        self._description_texts: list[ft.Text] = []
+        self._category_titles: list[ft.Text] = []
+        self._category_subtitles: list[ft.Text] = []
+        self._expansion_tiles: list[ft.ExpansionTile] = []
+        self._trailing_icons: list[ft.Icon] = []
+        self._muted_icon_circles: list[ft.Container] = []
+
         # Build the component
         self._build()
 
+        # Register for theme updates
+        self._register_theme_aware()
+
     def _get_is_dark(self) -> bool:
-        """Get current theme mode"""
-        if self.page and self.page.session.contains_key("is_dark_theme"):
-            return self.page.session.get("is_dark_theme")
-        return self._is_dark
+        """Get current theme mode from registry"""
+        return self._registry.is_dark
 
     def _create_icon_circle(
         self,
@@ -113,18 +128,23 @@ class AppMenuSelector(ft.Container):
         icon_size: int = 18,
     ) -> ft.Container:
         """Create a muted/disabled icon circle"""
-        return ft.Container(
+        is_dark = self._get_is_dark()
+        container = ft.Container(
             content=ft.Icon(
                 icon,
                 size=icon_size,
-                color="#888888",
+                color=MD3Colors.get_text_secondary(is_dark),
             ),
             width=size,
             height=size,
-            bgcolor="#3A3A3A",
+            bgcolor=MD3Colors.get_surface_bright(is_dark) if hasattr(MD3Colors, 'get_surface_bright') else (
+                "#3A3A3A" if is_dark else "#E0E0E0"
+            ),
             border_radius=size // 2,
             alignment=ft.alignment.center,
         )
+        self._muted_icon_circles.append(container)
+        return container
 
     def _on_item_hover(self, e, container: ft.Container, category_color: str):
         """Handle item hover state"""
@@ -200,26 +220,32 @@ class AppMenuSelector(ft.Container):
             item.title,
             size=14,
             weight=ft.FontWeight.W_500,
-            color=MD3Colors.get_on_surface(is_dark) if not item.is_disabled else "#666666",
+            color=MD3Colors.get_on_surface(is_dark) if not item.is_disabled else MD3Colors.get_themed("text_tertiary", is_dark),
         )
+        self._title_texts.append(title_text)
 
         # Description text
         description_text = ft.Text(
             item.description,
             size=12,
-            color=MD3Colors.get_on_surface_variant(is_dark) if not item.is_disabled else "#888888",
+            color=MD3Colors.get_on_surface_variant(is_dark) if not item.is_disabled else MD3Colors.get_text_secondary(is_dark),
         )
+        self._description_texts.append(description_text)
+
+        # Trailing icon
+        trailing_icon = ft.Icon(
+            ft.Icons.ARROW_FORWARD_IOS,
+            size=14,
+            color=MD3Colors.get_on_surface_variant(is_dark) if not item.is_disabled else MD3Colors.get_themed("text_disabled", is_dark),
+        )
+        self._trailing_icons.append(trailing_icon)
 
         # Trailing container (badge or arrow)
         trailing = ft.Container(
             content=ft.Stack(
                 controls=[
                     ft.Container(
-                        content=ft.Icon(
-                            ft.Icons.ARROW_FORWARD_IOS,
-                            size=14,
-                            color=MD3Colors.get_on_surface_variant(is_dark) if not item.is_disabled else "#555555",
-                        ),
+                        content=trailing_icon,
                         opacity=0.6,
                     ),
                     ft.Container(
@@ -299,6 +325,7 @@ class AppMenuSelector(ft.Container):
             weight=ft.FontWeight.W_600,
             color=MD3Colors.get_on_surface(is_dark),
         )
+        self._category_titles.append(title)
 
         # Subtitle with item count
         item_count = len(category.items)
@@ -307,8 +334,9 @@ class AppMenuSelector(ft.Container):
             size=12,
             color=MD3Colors.get_on_surface_variant(is_dark),
         )
+        self._category_subtitles.append(subtitle)
 
-        return ft.ExpansionTile(
+        expansion_tile = ft.ExpansionTile(
             leading=leading_icon,
             title=title,
             subtitle=subtitle,
@@ -325,6 +353,8 @@ class AppMenuSelector(ft.Container):
             controls_padding=ft.padding.only(left=52, right=8, bottom=8),
             shape=ft.RoundedRectangleBorder(radius=8),
         )
+        self._expansion_tiles.append(expansion_tile)
+        return expansion_tile
 
     def _build(self):
         """Build the complete AppMenuSelector component"""
@@ -355,8 +385,72 @@ class AppMenuSelector(ft.Container):
                 self._badge_refs[item_id].update()
 
     def refresh_theme(self):
-        """Refresh the component after theme change"""
-        # Rebuild the component with new theme colors
-        self._build()
+        """Refresh the component after theme change - delegates to apply_theme"""
+        is_dark = self._get_is_dark()
+        # Use run_task to call async method from sync context
         if self.page:
-            self.update()
+            self.page.run_task(self.apply_theme, is_dark, 0)
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for cascade updates"""
+        return {
+            "bgcolor": MD3Colors.get_themed_pair("surface_variant"),
+        }
+
+    async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
+        """Apply theme with optional cascade delay - extended for complex updates"""
+        import asyncio
+        if delay_ms > 0:
+            await asyncio.sleep(delay_ms / 1000)
+
+        try:
+            # Update container background
+            self.bgcolor = MD3Colors.get_surface_variant(is_dark)
+
+            # Update all title texts
+            for title in self._title_texts:
+                # Check if it's a disabled item (has muted color)
+                if title.color in ("#666666", "#888888", MD3Colors.get_themed("text_tertiary", True), MD3Colors.get_themed("text_tertiary", False)):
+                    title.color = MD3Colors.get_themed("text_tertiary", is_dark)
+                else:
+                    title.color = MD3Colors.get_on_surface(is_dark)
+
+            # Update all description texts
+            for desc in self._description_texts:
+                if desc.color in ("#888888", MD3Colors.get_text_secondary(True), MD3Colors.get_text_secondary(False)):
+                    desc.color = MD3Colors.get_text_secondary(is_dark)
+                else:
+                    desc.color = MD3Colors.get_on_surface_variant(is_dark)
+
+            # Update category titles
+            for title in self._category_titles:
+                title.color = MD3Colors.get_on_surface(is_dark)
+
+            # Update category subtitles
+            for subtitle in self._category_subtitles:
+                subtitle.color = MD3Colors.get_on_surface_variant(is_dark)
+
+            # Update trailing icons
+            for icon in self._trailing_icons:
+                if icon.color in ("#555555", MD3Colors.get_themed("text_disabled", True), MD3Colors.get_themed("text_disabled", False)):
+                    icon.color = MD3Colors.get_themed("text_disabled", is_dark)
+                else:
+                    icon.color = MD3Colors.get_on_surface_variant(is_dark)
+
+            # Update expansion tiles
+            for tile in self._expansion_tiles:
+                tile.icon_color = MD3Colors.get_on_surface(is_dark)
+                tile.collapsed_icon_color = MD3Colors.get_on_surface_variant(is_dark)
+                tile.text_color = MD3Colors.get_on_surface(is_dark)
+                tile.collapsed_text_color = MD3Colors.get_on_surface_variant(is_dark)
+
+            # Update muted icon circles
+            for container in self._muted_icon_circles:
+                container.bgcolor = "#3A3A3A" if is_dark else "#E0E0E0"
+                if container.content and hasattr(container.content, 'color'):
+                    container.content.color = MD3Colors.get_text_secondary(is_dark)
+
+            if hasattr(self, 'update'):
+                self.update()
+        except Exception:
+            pass  # Silent fail - component may have been garbage collected

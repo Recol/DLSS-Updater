@@ -3,6 +3,7 @@ DLSS Debug Overlay Dialog
 Toggle NVIDIA DLSS debug overlay.
 - Windows: via registry settings
 - Linux: via DXVK-NVAPI environment variables (copy to clipboard)
+- Theme-aware: responds to light/dark mode changes
 """
 
 import logging
@@ -10,13 +11,16 @@ import flet as ft
 
 from dlss_updater.registry_utils import get_dlss_overlay_state, set_dlss_overlay_state
 from dlss_updater.platform_utils import FEATURES, IS_LINUX, IS_WINDOWS
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from dlss_updater.ui_flet.theme.colors import MD3Colors
 
 
-class DLSSOverlayDialog:
+class DLSSOverlayDialog(ThemeAwareMixin):
     """
     Dialog for enabling/disabling the DLSS debug overlay.
     - Windows: Reads state directly from registry and applies changes immediately.
     - Linux: Shows environment variable to copy for Steam launch options.
+    - Theme-aware: responds to light/dark mode changes.
     """
 
     # Linux DXVK-NVAPI environment variable for debug overlay
@@ -25,6 +29,11 @@ class DLSSOverlayDialog:
     def __init__(self, page: ft.Page, logger: logging.Logger):
         self.page = page
         self.logger = logger
+
+        # Theme registry setup
+        self._registry = get_theme_registry()
+        self._theme_priority = 70  # Dialogs are low priority (animate last)
+
         self.overlay_switch: ft.Switch = None
         self.status_text: ft.Text = None
         self.loading_ring: ft.ProgressRing = None
@@ -33,6 +42,19 @@ class DLSSOverlayDialog:
         self.is_available = FEATURES.dlss_overlay
         # Linux-specific
         self.launch_options_field: ft.TextField = None
+
+        # Themed element references
+        self._themed_elements: dict[str, ft.Control] = {}
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for theme-aware updates."""
+        return {}  # Dialog rebuilds on show, individual elements handle themes
+
+    def _close_dialog(self, e=None):
+        """Close dialog and unregister from theme system."""
+        self._unregister_theme_aware()
+        if self.dialog:
+            self.page.close(self.dialog)
 
     async def _load_current_state(self):
         """Load current overlay state from registry"""
@@ -58,12 +80,13 @@ class DLSSOverlayDialog:
 
     def _update_status_text(self, is_enabled: bool):
         """Update the status text based on current state"""
+        is_dark = self._registry.is_dark
         if is_enabled:
             self.status_text.value = "Overlay is ENABLED - shows DLSS indicator in games"
-            self.status_text.color = "#4CAF50"  # Green
+            self.status_text.color = MD3Colors.get_success(is_dark)
         else:
             self.status_text.value = "Overlay is DISABLED"
-            self.status_text.color = ft.Colors.GREY
+            self.status_text.color = MD3Colors.get_text_secondary(is_dark)
 
     def _show_error(self, message: str):
         """Display error message in dialog"""
@@ -78,6 +101,7 @@ class DLSSOverlayDialog:
         """Handle toggle switch change - apply immediately"""
         new_state = e.control.value
         self.logger.info(f"DLSS overlay toggle changed to: {new_state}")
+        is_dark = self._registry.is_dark
 
         # Show loading state
         self.loading_ring.visible = True
@@ -101,7 +125,7 @@ class DLSSOverlayDialog:
                 content=ft.Text(
                     f"DLSS debug overlay {action_text}. Restart games to see changes."
                 ),
-                bgcolor="#4CAF50" if new_state else "#2D6E88",
+                bgcolor=MD3Colors.get_success(is_dark) if new_state else MD3Colors.get_primary(is_dark),
                 duration=3000,
             )
             self.page.overlay.append(snackbar)
@@ -116,12 +140,13 @@ class DLSSOverlayDialog:
 
     async def _show_unavailable_dialog(self):
         """Show dialog explaining feature is Windows-only"""
+        is_dark = self._registry.is_dark
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.INFO_OUTLINE, color="#2D6E88"),
-                    ft.Text("Feature Not Available"),
+                    ft.Icon(ft.Icons.INFO_OUTLINE, color=MD3Colors.get_primary(is_dark)),
+                    ft.Text("Feature Not Available", color=MD3Colors.get_text_primary(is_dark)),
                 ],
                 spacing=8,
             ),
@@ -131,19 +156,21 @@ class DLSSOverlayDialog:
                         ft.Text(
                             "DLSS Debug Overlay is only available on Windows.",
                             size=14,
+                            color=MD3Colors.get_text_primary(is_dark),
                         ),
                         ft.Container(height=8),
                         ft.Text(
                             "This feature requires direct access to the Windows "
                             "registry to enable NVIDIA's debug overlay indicator.",
                             size=12,
-                            color=ft.Colors.GREY,
+                            color=MD3Colors.get_text_secondary(is_dark),
                         ),
                     ],
                     spacing=4,
                 ),
                 width=400,
             ),
+            bgcolor=MD3Colors.get_surface(is_dark),
             actions=[
                 ft.FilledButton("OK", on_click=lambda e: self.page.close(dialog)),
             ],
@@ -152,11 +179,12 @@ class DLSSOverlayDialog:
 
     async def _on_copy_clicked(self, e):
         """Copy launch options to clipboard (Linux)"""
+        is_dark = self._registry.is_dark
         launch_opts = f"{self.LINUX_OVERLAY_ENV} %command%"
         self.page.set_clipboard(launch_opts)
         self.page.snack_bar = ft.SnackBar(
             content=ft.Text("Launch options copied to clipboard!"),
-            bgcolor="#4CAF50",
+            bgcolor=MD3Colors.get_success(is_dark),
         )
         self.page.snack_bar.open = True
         self.page.update()
@@ -164,6 +192,10 @@ class DLSSOverlayDialog:
 
     async def _show_linux_dialog(self):
         """Show Linux-specific dialog with environment variable instructions"""
+        # Register for theme updates
+        self._register_theme_aware()
+        is_dark = self._registry.is_dark
+
         launch_opts = f"{self.LINUX_OVERLAY_ENV} %command%"
 
         self.launch_options_field = ft.TextField(
@@ -173,7 +205,7 @@ class DLSSOverlayDialog:
             min_lines=1,
             max_lines=2,
             text_size=11,
-            bgcolor="#2C2C2C",
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
         )
 
         copy_button = ft.FilledButton(
@@ -191,16 +223,16 @@ class DLSSOverlayDialog:
                         "environment variables. Add the launch options below to Steam's "
                         "'Set Launch Options' for each game.",
                         size=12,
-                        color=ft.Colors.GREY,
+                        color=MD3Colors.get_text_secondary(is_dark),
                     ),
                     ft.Container(height=4),
                     ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.AMBER),
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=MD3Colors.get_warning(is_dark)),
                             ft.Text(
                                 "Works with Proton/Wine games using DXVK-NVAPI.",
                                 size=11,
-                                color=ft.Colors.AMBER,
+                                color=MD3Colors.get_warning(is_dark),
                                 italic=True,
                             ),
                         ],
@@ -209,7 +241,7 @@ class DLSSOverlayDialog:
                 ],
                 spacing=4,
             ),
-            bgcolor="#3C3C3C",
+            bgcolor=MD3Colors.get_surface_container(is_dark),
             padding=ft.padding.all(12),
             border_radius=4,
         )
@@ -218,8 +250,8 @@ class DLSSOverlayDialog:
             modal=True,
             title=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.BUG_REPORT, color="#4CAF50"),
-                    ft.Text("DLSS Debug Overlay"),
+                    ft.Icon(ft.Icons.BUG_REPORT, color=MD3Colors.get_success(is_dark)),
+                    ft.Text("DLSS Debug Overlay", color=MD3Colors.get_text_primary(is_dark)),
                 ],
                 spacing=8,
             ),
@@ -227,8 +259,8 @@ class DLSSOverlayDialog:
                 content=ft.Column(
                     controls=[
                         info_container,
-                        ft.Divider(),
-                        ft.Text("Steam Launch Options:", weight=ft.FontWeight.BOLD, size=14),
+                        ft.Divider(color=MD3Colors.get_divider(is_dark)),
+                        ft.Text("Steam Launch Options:", weight=ft.FontWeight.BOLD, size=14, color=MD3Colors.get_text_primary(is_dark)),
                         self.launch_options_field,
                         ft.Row(
                             controls=[copy_button],
@@ -240,9 +272,10 @@ class DLSSOverlayDialog:
                 ),
                 width=500,
             ),
+            bgcolor=MD3Colors.get_surface(is_dark),
             actions=[
                 ft.FilledButton(
-                    "Close", on_click=lambda e: self.page.close(self.dialog)
+                    "Close", on_click=self._close_dialog
                 ),
             ],
         )
@@ -261,10 +294,14 @@ class DLSSOverlayDialog:
             await self._show_linux_dialog()
             return
 
+        # Register for theme updates
+        self._register_theme_aware()
+        is_dark = self._registry.is_dark
+
         # Create switch
         self.overlay_switch = ft.Switch(
             value=False,
-            active_color="#4CAF50",  # Green when enabled
+            active_color=MD3Colors.get_success(is_dark),
             on_change=self._on_toggle_changed,
         )
 
@@ -272,7 +309,7 @@ class DLSSOverlayDialog:
         self.status_text = ft.Text(
             "Loading...",
             size=12,
-            color=ft.Colors.GREY,
+            color=MD3Colors.get_text_secondary(is_dark),
         )
 
         # Loading indicator
@@ -280,14 +317,14 @@ class DLSSOverlayDialog:
             width=16,
             height=16,
             stroke_width=2,
-            color="#2D6E88",
+            color=MD3Colors.get_primary(is_dark),
             visible=True,
         )
 
         # Error container
         self.error_container = ft.Container(
-            content=ft.Text("", color=ft.Colors.RED, size=12),
-            bgcolor="#4A1515",
+            content=ft.Text("", color=MD3Colors.get_error(is_dark), size=12),
+            bgcolor=MD3Colors.ERROR_CONTAINER if not is_dark else "#4A1515",
             padding=ft.padding.all(8),
             border_radius=4,
             visible=False,
@@ -295,9 +332,9 @@ class DLSSOverlayDialog:
 
         # Main toggle tile
         toggle_tile = ft.ListTile(
-            leading=ft.Icon(ft.Icons.BUG_REPORT, color="#4CAF50"),
-            title=ft.Text("DLSS Debug Overlay", weight=ft.FontWeight.BOLD),
-            subtitle=ft.Text("Shows DLSS/DLAA indicator in-game"),
+            leading=ft.Icon(ft.Icons.BUG_REPORT, color=MD3Colors.get_success(is_dark)),
+            title=ft.Text("DLSS Debug Overlay", weight=ft.FontWeight.BOLD, color=MD3Colors.get_text_primary(is_dark)),
+            subtitle=ft.Text("Shows DLSS/DLAA indicator in-game", color=MD3Colors.get_text_secondary(is_dark)),
             trailing=ft.Row(
                 controls=[self.loading_ring, self.overlay_switch],
                 spacing=8,
@@ -313,19 +350,19 @@ class DLSSOverlayDialog:
                         "When enabled, games using DLSS will display a debug indicator "
                         "showing which upscaling mode is active.",
                         size=12,
-                        color=ft.Colors.GREY,
+                        color=MD3Colors.get_text_secondary(is_dark),
                     ),
                     ft.Container(height=4),
                     ft.Text(
                         "Note: Changes require game restart to take effect.",
                         size=11,
-                        color=ft.Colors.AMBER,
+                        color=MD3Colors.get_warning(is_dark),
                         italic=True,
                     ),
                 ],
                 spacing=4,
             ),
-            bgcolor="#3C3C3C",
+            bgcolor=MD3Colors.get_surface_container(is_dark),
             padding=ft.padding.all(12),
             border_radius=4,
         )
@@ -334,8 +371,8 @@ class DLSSOverlayDialog:
             modal=True,
             title=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.SETTINGS_DISPLAY, color="#2D6E88"),
-                    ft.Text("DLSS Debug Settings"),
+                    ft.Icon(ft.Icons.SETTINGS_DISPLAY, color=MD3Colors.get_primary(is_dark)),
+                    ft.Text("DLSS Debug Settings", color=MD3Colors.get_text_primary(is_dark)),
                 ],
                 spacing=8,
             ),
@@ -343,7 +380,7 @@ class DLSSOverlayDialog:
                 content=ft.Column(
                     controls=[
                         info_text,
-                        ft.Divider(),
+                        ft.Divider(color=MD3Colors.get_divider(is_dark)),
                         toggle_tile,
                         self.status_text,
                         self.error_container,
@@ -353,9 +390,10 @@ class DLSSOverlayDialog:
                 ),
                 width=500,
             ),
+            bgcolor=MD3Colors.get_surface(is_dark),
             actions=[
                 ft.FilledButton(
-                    "Close", on_click=lambda e: self.page.close(self.dialog)
+                    "Close", on_click=self._close_dialog
                 ),
             ],
         )

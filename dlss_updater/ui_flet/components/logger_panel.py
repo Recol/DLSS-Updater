@@ -10,6 +10,7 @@ import threading
 from typing import Callable, Any
 import flet as ft
 from dlss_updater.ui_flet.theme.colors import MD3Colors, Animations, Shadows
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 
 class FletLoggerHandler(logging.Handler):
@@ -24,18 +25,10 @@ class FletLoggerHandler(logging.Handler):
         self.page = page
         self.logger_panel = logger_panel
         self.max_lines = 1000  # Limit to prevent memory issues
+        self._registry = get_theme_registry()
 
         # Store main thread ID for defensive checks
         self.main_thread_id = threading.current_thread().ident
-
-        # Color mapping for log levels (MD3 colors)
-        self.colors = {
-            "DEBUG": MD3Colors.ON_SURFACE_VARIANT,
-            "INFO": MD3Colors.INFO,
-            "WARNING": MD3Colors.WARNING,
-            "ERROR": MD3Colors.ERROR,
-            "CRITICAL": MD3Colors.ERROR,
-        }
 
         # Icon mapping for log levels
         self.icons = {
@@ -46,6 +39,18 @@ class FletLoggerHandler(logging.Handler):
             "CRITICAL": ft.Icons.DANGEROUS_ROUNDED,
         }
 
+    def _get_level_color(self, level: str) -> str:
+        """Get themed color for log level"""
+        is_dark = self._registry.is_dark
+        colors = {
+            "DEBUG": MD3Colors.get_on_surface_variant(is_dark),
+            "INFO": MD3Colors.get_info(is_dark),
+            "WARNING": MD3Colors.get_warning(is_dark),
+            "ERROR": MD3Colors.get_error(is_dark),
+            "CRITICAL": MD3Colors.get_error(is_dark),
+        }
+        return colors.get(level, MD3Colors.get_on_surface(is_dark))
+
     def emit(self, record: logging.LogRecord):
         """
         Emit a log record to the UI (thread-safe)
@@ -53,7 +58,7 @@ class FletLoggerHandler(logging.Handler):
         """
         try:
             msg = self.format(record)
-            color = self.colors.get(record.levelname, MD3Colors.ON_SURFACE)
+            color = self._get_level_color(record.levelname)
             icon = self.icons.get(record.levelname, ft.Icons.INFO_OUTLINED)
 
             # Use page.run_task() for thread-safe UI updates
@@ -121,14 +126,15 @@ class FletLoggerHandler(logging.Handler):
 
     def _on_log_hover(self, e: ft.HoverEvent, container: ft.Container):
         """Handle hover effect on log entries"""
+        is_dark = self._registry.is_dark
         if e.data == "true":
-            container.bgcolor = MD3Colors.HOVER_OVERLAY
+            container.bgcolor = MD3Colors.HOVER_OVERLAY if is_dark else "rgba(0, 0, 0, 0.04)"
         else:
             container.bgcolor = ft.Colors.TRANSPARENT
         self.page.update()
 
 
-class LoggerPanel(ft.Container):
+class LoggerPanel(ThemeAwareMixin, ft.Container):
     """
     Collapsible logger panel showing application logs with MD3 design
     Features:
@@ -139,6 +145,7 @@ class LoggerPanel(ft.Container):
     - Log count badge
     - Header hover effect
     - Auto-expand on errors
+    - Light/dark theme support
     """
 
     def __init__(self, page: ft.Page, logger: logging.Logger):
@@ -148,6 +155,11 @@ class LoggerPanel(ft.Container):
         self.logger = logger
         self.expanded = False
         self.current_filter = "ALL"
+        self._registry = get_theme_registry()
+        self._theme_priority = 40  # Utility components are mid-low priority
+
+        # Get current theme
+        is_dark = self._registry.is_dark
 
         # Log column (scrollable)
         self.log_column = ft.Column(
@@ -158,32 +170,36 @@ class LoggerPanel(ft.Container):
         )
 
         # Create log count badge
+        self.log_count_badge_text = ft.Text(
+            "0",
+            size=11,
+            color=MD3Colors.ON_PRIMARY,
+            weight=ft.FontWeight.BOLD,
+        )
         self.log_count_badge = ft.Container(
-            content=ft.Text(
-                "0",
-                size=11,
-                color=MD3Colors.ON_PRIMARY,
-                weight=ft.FontWeight.BOLD,
-            ),
-            bgcolor=MD3Colors.PRIMARY,
+            content=self.log_count_badge_text,
+            bgcolor=MD3Colors.get_primary(is_dark),
             padding=ft.padding.symmetric(horizontal=6, vertical=2),
             border_radius=10,
             visible=False,
         )
 
         # Create filter chips
-        self.filter_chips = self._create_filter_chips()
+        self.filter_chips = self._create_filter_chips(is_dark)
+
+        # Filter label
+        self.filter_label = ft.Text(
+            "Filter:",
+            size=12,
+            color=MD3Colors.get_on_surface_variant(is_dark),
+            weight=ft.FontWeight.W_500,
+        )
 
         # Filter row container
         self.filter_row = ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Text(
-                        "Filter:",
-                        size=12,
-                        color=MD3Colors.ON_SURFACE_VARIANT,
-                        weight=ft.FontWeight.W_500,
-                    ),
+                    self.filter_label,
                     *self.filter_chips,
                 ],
                 spacing=8,
@@ -205,33 +221,42 @@ class LoggerPanel(ft.Container):
             icon=ft.Icons.KEYBOARD_ARROW_DOWN_ROUNDED,
             tooltip="Expand Logs",
             on_click=self.toggle_panel,
-            icon_color=MD3Colors.PRIMARY,
+            icon_color=MD3Colors.get_primary(is_dark),
             icon_size=24,
             rotate=ft.Rotate(0, alignment=ft.alignment.center),
             animate_rotation=ft.Animation(300, ft.AnimationCurve.EASE_IN_OUT),
+        )
+
+        # Header icon
+        self.header_icon = ft.Icon(ft.Icons.TERMINAL, size=20, color=MD3Colors.get_primary(is_dark))
+
+        # Header title
+        self.header_title = ft.Text(
+            "Application Logs",
+            size=14,
+            weight=ft.FontWeight.BOLD,
+            color=MD3Colors.get_on_surface(is_dark),
+        )
+
+        # Clear button
+        self.clear_button = ft.TextButton(
+            "Clear",
+            icon=ft.Icons.CLEAR_ALL_ROUNDED,
+            on_click=self.clear_logs,
+            style=ft.ButtonStyle(
+                color=MD3Colors.get_primary(is_dark),
+            ),
         )
 
         # Header with gradient and hover effect
         self.header_container = ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.TERMINAL, size=20, color=MD3Colors.PRIMARY),
-                    ft.Text(
-                        "Application Logs",
-                        size=14,
-                        weight=ft.FontWeight.BOLD,
-                        color=MD3Colors.ON_SURFACE,
-                    ),
+                    self.header_icon,
+                    self.header_title,
                     self.log_count_badge,
                     ft.Container(expand=True),  # Spacer
-                    ft.TextButton(
-                        "Clear",
-                        icon=ft.Icons.CLEAR_ALL_ROUNDED,
-                        on_click=self.clear_logs,
-                        style=ft.ButtonStyle(
-                            color=MD3Colors.PRIMARY,
-                        ),
-                    ),
+                    self.clear_button,
                     self.toggle_button,
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -240,21 +265,21 @@ class LoggerPanel(ft.Container):
             gradient=ft.LinearGradient(
                 begin=ft.alignment.top_left,
                 end=ft.alignment.bottom_right,
-                colors=[MD3Colors.SURFACE_VARIANT, MD3Colors.SURFACE],
+                colors=[MD3Colors.get_surface_variant(is_dark), MD3Colors.get_surface(is_dark)],
             ),
             on_hover=lambda e: self._on_header_hover(e),
             animate=Animations.HOVER,
         )
 
         # Top divider with gradient
-        top_divider = ft.Container(
+        self.top_divider = ft.Container(
             height=2,
             gradient=ft.LinearGradient(
                 begin=ft.alignment.center_left,
                 end=ft.alignment.center_right,
                 colors=[
                     ft.Colors.TRANSPARENT,
-                    MD3Colors.PRIMARY,
+                    MD3Colors.get_primary(is_dark),
                     ft.Colors.TRANSPARENT,
                 ],
             ),
@@ -272,7 +297,7 @@ class LoggerPanel(ft.Container):
                 ],
                 spacing=0,
             ),
-            bgcolor=MD3Colors.SURFACE_DIM,
+            bgcolor=MD3Colors.get_themed("surface_dim", is_dark),
             padding=ft.padding.all(8),
             height=0,
             visible=False,
@@ -282,7 +307,7 @@ class LoggerPanel(ft.Container):
         # Panel content
         self.content = ft.Column(
             controls=[
-                top_divider,
+                self.top_divider,
                 self.header_container,
                 self.log_container,
             ],
@@ -290,24 +315,28 @@ class LoggerPanel(ft.Container):
         )
 
         # Container styling with MD3 shadow
-        self.bgcolor = MD3Colors.SURFACE
+        self.bgcolor = MD3Colors.get_surface(is_dark)
         self.shadow = Shadows.LEVEL_2
         self.border_radius = 0  # Bottom panel, no radius
 
-    def _create_filter_chips(self) -> list[ft.Container]:
+        # Register for theme updates
+        self._register_theme_aware()
+
+    def _create_filter_chips(self, is_dark: bool) -> list[ft.Container]:
         """Create filter chips for log levels"""
         levels = ["ALL", "DEBUG", "INFO", "WARNING", "ERROR"]
         chips = []
 
         for level in levels:
+            chip_text = ft.Text(
+                level,
+                size=11,
+                color=MD3Colors.get_on_surface(is_dark) if level == "ALL" else MD3Colors.get_on_surface_variant(is_dark),
+                weight=ft.FontWeight.BOLD if level == "ALL" else ft.FontWeight.W_500,
+            )
             chip = ft.Container(
-                content=ft.Text(
-                    level,
-                    size=11,
-                    color=MD3Colors.ON_SURFACE if level == "ALL" else MD3Colors.ON_SURFACE_VARIANT,
-                    weight=ft.FontWeight.BOLD if level == "ALL" else ft.FontWeight.W_500,
-                ),
-                bgcolor=MD3Colors.PRIMARY if level == "ALL" else MD3Colors.SURFACE_VARIANT,
+                content=chip_text,
+                bgcolor=MD3Colors.get_primary(is_dark) if level == "ALL" else MD3Colors.get_surface_variant(is_dark),
                 padding=ft.padding.symmetric(horizontal=12, vertical=6),
                 border_radius=16,
                 on_click=lambda e, lvl=level: self._apply_filter(lvl),
@@ -321,16 +350,17 @@ class LoggerPanel(ft.Container):
     def _apply_filter(self, level: str):
         """Apply log level filter"""
         self.current_filter = level
+        is_dark = self._registry.is_dark
 
         # Update chip styles
         for chip in self.filter_chips:
             if chip.data == level:
-                chip.bgcolor = MD3Colors.PRIMARY
+                chip.bgcolor = MD3Colors.get_primary(is_dark)
                 chip.content.color = MD3Colors.ON_PRIMARY
                 chip.content.weight = ft.FontWeight.BOLD
             else:
-                chip.bgcolor = MD3Colors.SURFACE_VARIANT
-                chip.content.color = MD3Colors.ON_SURFACE_VARIANT
+                chip.bgcolor = MD3Colors.get_surface_variant(is_dark)
+                chip.content.color = MD3Colors.get_on_surface_variant(is_dark)
                 chip.content.weight = ft.FontWeight.W_500
 
         # Filter log entries
@@ -400,3 +430,71 @@ class LoggerPanel(ft.Container):
         """Auto-expand panel when error occurs"""
         if not self.expanded:
             self.toggle_panel()
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for the logger panel"""
+        return {
+            # Panel background
+            "bgcolor": MD3Colors.get_themed_pair("surface"),
+            # Header gradient - handled separately in apply_theme
+            "header_title.color": MD3Colors.get_themed_pair("on_surface"),
+            "header_icon.color": MD3Colors.get_themed_pair("primary"),
+            "toggle_button.icon_color": MD3Colors.get_themed_pair("primary"),
+            # Log container background
+            "log_container.bgcolor": MD3Colors.get_themed_pair("surface_dim"),
+            # Badge
+            "log_count_badge.bgcolor": MD3Colors.get_themed_pair("primary"),
+            # Filter label
+            "filter_label.color": MD3Colors.get_themed_pair("on_surface_variant"),
+        }
+
+    async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
+        """Apply theme with cascade animation support"""
+        import asyncio
+        if delay_ms > 0:
+            await asyncio.sleep(delay_ms / 1000)
+
+        try:
+            # Apply basic properties via parent method
+            properties = self.get_themed_properties()
+            for prop_path, (dark_val, light_val) in properties.items():
+                value = dark_val if is_dark else light_val
+                self._set_nested_property(prop_path, value)
+
+            # Update header gradient (cannot use simple property mapping)
+            self.header_container.gradient = ft.LinearGradient(
+                begin=ft.alignment.top_left,
+                end=ft.alignment.bottom_right,
+                colors=[MD3Colors.get_surface_variant(is_dark), MD3Colors.get_surface(is_dark)],
+            )
+
+            # Update top divider gradient
+            self.top_divider.gradient = ft.LinearGradient(
+                begin=ft.alignment.center_left,
+                end=ft.alignment.center_right,
+                colors=[
+                    ft.Colors.TRANSPARENT,
+                    MD3Colors.get_primary(is_dark),
+                    ft.Colors.TRANSPARENT,
+                ],
+            )
+
+            # Update clear button style
+            self.clear_button.style = ft.ButtonStyle(
+                color=MD3Colors.get_primary(is_dark),
+            )
+
+            # Update filter chips
+            for chip in self.filter_chips:
+                if chip.data == self.current_filter:
+                    chip.bgcolor = MD3Colors.get_primary(is_dark)
+                    chip.content.color = MD3Colors.ON_PRIMARY
+                else:
+                    chip.bgcolor = MD3Colors.get_surface_variant(is_dark)
+                    chip.content.color = MD3Colors.get_on_surface_variant(is_dark)
+
+            if hasattr(self, 'update'):
+                self.update()
+
+        except Exception:
+            pass  # Silent fail - component may have been garbage collected

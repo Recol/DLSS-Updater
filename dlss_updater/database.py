@@ -78,11 +78,11 @@ class DatabaseManager:
     _instance = None
 
     def __new__(cls):
-        # Double-checked locking pattern for free-threading safety
-        if cls._instance is None:
-            with _db_manager_lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+        # Thread-safe singleton for free-threaded Python 3.14+
+        # Always acquire lock first - outer check is NOT safe without GIL
+        with _db_manager_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -149,16 +149,38 @@ class DatabaseManager:
         created when first needed, not at application startup. This improves
         startup performance and resource utilization.
 
-        Thread-safe for free-threaded Python 3.14: Uses asyncio.Lock for
-        synchronization during pool creation.
+        Thread-safe for free-threaded Python 3.14: Pool state check and
+        creation are both done under the same lock to prevent TOCTOU races.
         """
-        if not self._pool_active:
-            await self._create_pool()
+        # Check and create pool atomically under lock to prevent TOCTOU race
+        async with self._pool_lock:
+            if self._pool_active:
+                return
+
+            # Initialize semaphore for connection pool
+            if self._pool_semaphore is None:
+                self._pool_semaphore = asyncio.Semaphore(self._pool_size)
+
+            # Create async connection pool
+            try:
+                for _ in range(self._pool_size):
+                    conn = await aiosqlite.connect(str(self.db_path))
+                    conn.row_factory = aiosqlite.Row
+                    self._async_pool.append(conn)
+
+                self._pool_active = True
+                logger.info(f"Connection pool created ({len(self._async_pool)} connections)")
+            except Exception as e:
+                logger.error(f"Failed to create async pool: {e}")
+                raise
 
     @asynccontextmanager
     async def get_async_connection(self):
         """
         Get an async connection from the pool.
+
+        Thread-safe for free-threaded Python 3.14: Validates connections
+        before returning to pool to prevent leaking broken connections.
 
         Usage:
             async with db_manager.get_async_connection() as conn:
@@ -166,22 +188,51 @@ class DatabaseManager:
         """
         await self._pool_semaphore.acquire()
         conn = None
+        conn_valid = True
 
         try:
             async with self._pool_lock:
                 if self._async_pool:
                     conn = self._async_pool.pop()
-                else:
-                    # Pool exhausted, create new connection
+
+            # Validate pooled connection or create new one
+            if conn is not None:
+                try:
+                    # Quick validation query
+                    await conn.execute("SELECT 1")
+                except Exception:
+                    # Connection is broken, create fresh one
+                    conn_valid = False
+                    try:
+                        await conn.close()
+                    except Exception:
+                        pass
                     conn = await aiosqlite.connect(str(self.db_path))
                     conn.row_factory = aiosqlite.Row
+                    conn_valid = True
+            else:
+                # Pool exhausted, create new connection
+                conn = await aiosqlite.connect(str(self.db_path))
+                conn.row_factory = aiosqlite.Row
 
             yield conn
 
+        except Exception:
+            # Mark connection as invalid on any exception during use
+            conn_valid = False
+            raise
         finally:
             if conn is not None:
-                async with self._pool_lock:
-                    self._async_pool.append(conn)
+                if conn_valid:
+                    # Return valid connection to pool
+                    async with self._pool_lock:
+                        self._async_pool.append(conn)
+                else:
+                    # Close invalid connection instead of returning to pool
+                    try:
+                        await conn.close()
+                    except Exception:
+                        pass
             self._pool_semaphore.release()
 
     def _get_thread_connection(self) -> sqlite3.Connection:
@@ -194,16 +245,37 @@ class DatabaseManager:
             self._thread_local.connection.row_factory = sqlite3.Row
         return self._thread_local.connection
 
+    def _close_thread_connection(self):
+        """
+        Close thread-local connection if it exists.
+
+        Thread-safe: Only affects the calling thread's connection.
+        Should be called when a thread is about to exit or during cleanup.
+        """
+        if hasattr(self._thread_local, 'connection') and self._thread_local.connection:
+            try:
+                self._thread_local.connection.close()
+            except Exception as e:
+                logger.debug(f"Error closing thread-local connection: {e}")
+            finally:
+                self._thread_local.connection = None
+
     async def close(self):
         """
         Close all pooled connections and reset pool state.
 
         This method safely closes all async connections in the pool,
-        clears the pool list, and resets the pool state to inactive.
+        clears the pool list, resets the pool state to inactive, and
+        closes any thread-local connection for the calling thread.
+
         The pool can be recreated by calling ensure_pool() again.
 
-        Thread-safe for free-threaded Python 3.14: Uses asyncio.Lock.
+        Thread-safe for free-threaded Python 3.14: Uses asyncio.Lock for
+        async pool and handles thread-local connections separately.
         """
+        # Close thread-local connection first (sync, thread-specific)
+        self._close_thread_connection()
+
         async with self._pool_lock:
             if not self._pool_active and not self._async_pool:
                 logger.debug("Pool already closed or never initialized")

@@ -161,15 +161,20 @@ class ConfigManager(configparser.ConfigParser):
     _instance = None
 
     def __new__(cls, *args, **kwargs):
-        # Double-checked locking pattern for free-threading safety
-        if cls._instance is None:
-            with _config_lock:
-                if cls._instance is None:
-                    cls._instance = super(ConfigManager, cls).__new__(cls)
+        # Thread-safe singleton for free-threaded Python 3.14+
+        # Always acquire lock first - outer check is NOT safe without GIL
+        with _config_lock:
+            if cls._instance is None:
+                cls._instance = super(ConfigManager, cls).__new__(cls)
         return cls._instance
 
     def __init__(self):
-        if not hasattr(self, "initialized"):
+        # Thread-safe initialization for free-threaded Python 3.14+
+        # Lock ensures hasattr check and initialization are atomic
+        with _config_lock:
+            if hasattr(self, "initialized") and self.initialized:
+                return
+
             super().__init__()
             self.logger = setup_logger()
             self.config_path = get_config_path()
@@ -197,7 +202,7 @@ class ConfigManager(configparser.ConfigParser):
                         LauncherPathName.CUSTOM4: "",
                     }
                 )
-                self.save()
+                self._save_unlocked()
 
             # Initialize update preferences section
             if not self.has_section("UpdatePreferences"):
@@ -212,20 +217,20 @@ class ConfigManager(configparser.ConfigParser):
                         "CreateBackups": "true",  # Default to true for safety
                     }
                 )
-                self.save()
+                self._save_unlocked()
             else:
                 # Add Streamline preference if it doesn't exist (for existing configs)
                 if "UpdateStreamline" not in self["UpdatePreferences"]:
                     self["UpdatePreferences"]["UpdateStreamline"] = "false"
-                    self.save()
+                    self._save_unlocked()
                 # Add CreateBackups preference if it doesn't exist (for existing configs)
                 if "CreateBackups" not in self["UpdatePreferences"]:
                     self["UpdatePreferences"]["CreateBackups"] = "true"
-                    self.save()
+                    self._save_unlocked()
                 # Add HighPerformanceMode preference if it doesn't exist (for existing configs)
                 if "HighPerformanceMode" not in self["UpdatePreferences"]:
                     self["UpdatePreferences"]["HighPerformanceMode"] = "false"
-                    self.save()
+                    self._save_unlocked()
 
             # Initialize DiscordBanner section
             if not self.has_section("DiscordBanner"):
@@ -233,19 +238,19 @@ class ConfigManager(configparser.ConfigParser):
                 # Fresh install: show banner to new users (dismissed=false)
                 # Upgrade: don't re-show banner (dismissed=true)
                 self["DiscordBanner"]["dismissed"] = "false" if is_fresh_install else "true"
-                self.save()
+                self._save_unlocked()
 
             # Initialize ImageCache section (for migration tracking)
             if not self.has_section("ImageCache"):
                 self.add_section("ImageCache")
                 self["ImageCache"]["Version"] = "0"  # Pre-WebP thumbnails
-                self.save()
+                self._save_unlocked()
 
             # Initialize UIPreferences section with defaults if missing
             if not self.has_section("UIPreferences"):
                 self.add_section("UIPreferences")
                 self["UIPreferences"]["SmoothScrolling"] = "true"  # Enabled by default
-                self.save()
+                self._save_unlocked()
 
             # Initialize DLSSPresets section with defaults if missing
             if not self.has_section("DLSSPresets"):
@@ -258,14 +263,14 @@ class ConfigManager(configparser.ConfigParser):
                 # New feature for this user - always show dialog on first launch
                 # (regardless of whether it's a fresh install or upgrade)
                 self["DLSSPresets"]["DialogShown"] = "false"
-                self.save()
+                self._save_unlocked()
             else:
                 # Existing DLSSPresets section - add DialogShown if missing
                 # This handles future upgrades where we add DialogShown to existing section
                 if "DialogShown" not in self["DLSSPresets"]:
                     # User already configured presets before DialogShown existed - don't re-show
                     self["DLSSPresets"]["DialogShown"] = "true"
-                    self.save()
+                    self._save_unlocked()
 
             self.initialized = True
 
@@ -639,10 +644,26 @@ class ConfigManager(configparser.ConfigParser):
             self["DLSSPresets"]["DialogShown"] = str(shown).lower()
             self.save()
 
-    def save(self):
-        """Save configuration to disk"""
+    def _save_unlocked(self):
+        """
+        Save configuration to disk (internal, no lock).
+
+        Used during initialization when lock is already held.
+        External callers should use save() instead.
+        """
         with open(self.config_path, "w") as configfile:
             self.write(configfile)
+
+    def save(self):
+        """
+        Save configuration to disk (thread-safe).
+
+        Thread-safe for free-threaded Python 3.14+: Uses _config_lock
+        to prevent concurrent writes from corrupting the config file.
+        """
+        with _config_lock:
+            with open(self.config_path, "w") as configfile:
+                self.write(configfile)
 
     def get_max_worker_threads(self):
         """Get the maximum number of worker threads for parallel processing"""
@@ -704,6 +725,38 @@ def is_dll_cache_ready():
     """Check if the DLL cache has been initialized (thread-safe)"""
     with _dll_paths_lock:
         return len(LATEST_DLL_PATHS) > 0
+
+
+def get_dll_path(dll_name: str) -> str | None:
+    """
+    Get DLL path thread-safely.
+
+    Thread-safe for free-threaded Python 3.14+: Uses _dll_paths_lock
+    to prevent reading while another thread is writing.
+
+    Args:
+        dll_name: Name of the DLL (e.g., "nvngx_dlss.dll")
+
+    Returns:
+        Path to the DLL if found, None otherwise
+    """
+    with _dll_paths_lock:
+        return LATEST_DLL_PATHS.get(dll_name)
+
+
+def get_all_dll_paths() -> dict[str, str]:
+    """
+    Get all DLL paths thread-safely (returns a copy).
+
+    Thread-safe for free-threaded Python 3.14+: Returns a shallow copy
+    of the dict to prevent external code from holding references to
+    internal state that could be modified by another thread.
+
+    Returns:
+        Copy of the LATEST_DLL_PATHS dictionary
+    """
+    with _dll_paths_lock:
+        return dict(LATEST_DLL_PATHS)
 
 
 def initialize_dll_paths():

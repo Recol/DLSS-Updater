@@ -8,6 +8,7 @@ from enum import Enum
 import flet as ft
 
 from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 
 class NotificationState(Enum):
@@ -19,19 +20,25 @@ class NotificationState(Enum):
     ERROR = "error"
 
 
-class DLLCacheProgressSnackbar:
+class DLLCacheProgressSnackbar(ThemeAwareMixin):
     """
     Custom Container-based progress notification for DLL cache initialization.
     Uses visibility + opacity animation for reliable show/hide behavior.
+    Supports light/dark theme.
     """
 
     def __init__(self, page: ft.Page):
         self.page = page
         self._state = NotificationState.HIDDEN
+        self._registry = get_theme_registry()
+        self._theme_priority = 40  # Utility components are mid-low priority
         self._build_components()
+        self._register_theme_aware()
 
     def _build_components(self):
         """Build the notification UI components"""
+        is_dark = self._registry.is_dark
+
         # Spinner (ProgressRing) - shown during initialization
         self.spinner = ft.ProgressRing(
             width=20,
@@ -126,7 +133,7 @@ class DLLCacheProgressSnackbar:
         # Main notification container with animations
         self.container = ft.Container(
             content=content_row,
-            bgcolor=MD3Colors.PRIMARY,
+            bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
             padding=ft.padding.symmetric(horizontal=16, vertical=12),
             border_radius=8,
             opacity=0,  # Start hidden (transparent)
@@ -151,6 +158,7 @@ class DLLCacheProgressSnackbar:
     async def show_initializing(self):
         """Show the notification in initializing state"""
         self._state = NotificationState.INITIALIZING
+        is_dark = self._registry.is_dark
 
         # Reset to initial state
         self.spinner.visible = True
@@ -160,7 +168,7 @@ class DLLCacheProgressSnackbar:
         self.progress_bar.value = None  # Indeterminate
         self.progress_text.value = ""
         self.progress_container.visible = True
-        self.container.bgcolor = MD3Colors.PRIMARY
+        self.container.bgcolor = MD3Colors.get_themed("snackbar_bg", is_dark)
 
         # Show with fade in
         self.container.visible = True
@@ -190,6 +198,7 @@ class DLLCacheProgressSnackbar:
     async def show_complete(self, auto_dismiss_delay: float = 2.5):
         """Show completion state with green checkmark, then auto-dismiss"""
         self._state = NotificationState.COMPLETING
+        is_dark = self._registry.is_dark
 
         # Switch to success icon
         self.spinner.visible = False
@@ -201,8 +210,8 @@ class DLLCacheProgressSnackbar:
         self.progress_bar.value = 1.0
         self.progress_text.value = "100%"
 
-        # Change background to success color
-        self.container.bgcolor = MD3Colors.SUCCESS
+        # Change background to success color (themed)
+        self.container.bgcolor = MD3Colors.get_success(is_dark)
 
         self.page.update()
 
@@ -213,6 +222,7 @@ class DLLCacheProgressSnackbar:
     async def show_error(self, error_message: str = "Failed to initialise DLL cache"):
         """Show error state"""
         self._state = NotificationState.ERROR
+        is_dark = self._registry.is_dark
 
         # Switch to error icon
         self.spinner.visible = False
@@ -223,8 +233,8 @@ class DLLCacheProgressSnackbar:
         self.message_text.value = error_message
         self.progress_container.visible = False
 
-        # Change background to error color
-        self.container.bgcolor = MD3Colors.ERROR
+        # Change background to error color (themed)
+        self.container.bgcolor = MD3Colors.get_error(is_dark)
 
         self.page.update()
 
@@ -235,6 +245,7 @@ class DLLCacheProgressSnackbar:
     async def hide(self):
         """Hide the notification with fade out animation"""
         self._state = NotificationState.HIDDEN
+        is_dark = self._registry.is_dark
 
         # Fade out
         self.container.opacity = 0
@@ -247,8 +258,8 @@ class DLLCacheProgressSnackbar:
         self.container.visible = False
         self.wrapper.visible = False
 
-        # Reset styling for next use
-        self.container.bgcolor = MD3Colors.PRIMARY
+        # Reset styling for next use (themed)
+        self.container.bgcolor = MD3Colors.get_themed("snackbar_bg", is_dark)
         self.progress_container.visible = True
 
         self.page.update()
@@ -261,3 +272,33 @@ class DLLCacheProgressSnackbar:
     def is_visible(self) -> bool:
         """Check if notification is currently visible"""
         return self._state != NotificationState.HIDDEN
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for the snackbar"""
+        # The snackbar uses white text on colored backgrounds for all themes
+        # The background colors change based on state (primary, success, error)
+        # which are already themed in the state methods
+        return {
+            "container.bgcolor": MD3Colors.get_themed_pair("snackbar_bg"),
+        }
+
+    async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
+        """Apply theme with cascade animation support"""
+        if delay_ms > 0:
+            await asyncio.sleep(delay_ms / 1000)
+
+        try:
+            # Update container bgcolor based on current state
+            if self._state == NotificationState.INITIALIZING or self._state == NotificationState.UPDATING:
+                self.container.bgcolor = MD3Colors.get_themed("snackbar_bg", is_dark)
+            elif self._state == NotificationState.COMPLETING:
+                self.container.bgcolor = MD3Colors.get_success(is_dark)
+            elif self._state == NotificationState.ERROR:
+                self.container.bgcolor = MD3Colors.get_error(is_dark)
+            # HIDDEN state doesn't need update
+
+            if self.page:
+                self.page.update()
+
+        except Exception:
+            pass  # Silent fail - component may have been garbage collected

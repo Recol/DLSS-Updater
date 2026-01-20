@@ -7,6 +7,7 @@ Features:
 - Shows combined status per group (e.g., "2/3 up to date")
 - Batch update/restore per group
 - Expandable panels to view individual DLLs
+- Theme-aware: responds to light/dark mode changes
 """
 
 import logging
@@ -19,6 +20,7 @@ from dlss_updater.constants import DLL_GROUPS, DLL_TYPE_MAP
 from dlss_updater.database import GameDLL
 from dlss_updater.models import Game, MergedGame
 from dlss_updater.ui_flet.theme.colors import TechnologyColors, MD3Colors
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 
 @dataclass
@@ -34,7 +36,7 @@ class GroupStatus:
     latest_available_version: str | None = None
 
 
-class DLLGroupDialog:
+class DLLGroupDialog(ThemeAwareMixin):
     """
     Dialog showing DLLs grouped by technology with collapsible ExpansionPanels.
 
@@ -43,6 +45,7 @@ class DLLGroupDialog:
     - Combined status per group
     - Update/Restore buttons per group
     - Individual DLL details when expanded
+    - Theme-aware: responds to light/dark mode changes
     """
 
     def __init__(
@@ -57,6 +60,10 @@ class DLLGroupDialog:
     ):
         self.page = page
         self.logger = logger
+
+        # Theme registry setup
+        self._registry = get_theme_registry()
+        self._theme_priority = 70  # Dialogs are low priority (animate last)
 
         # Handle MergedGame
         if isinstance(game, MergedGame):
@@ -74,10 +81,29 @@ class DLLGroupDialog:
         # Track dialog for close handler
         self.dialog: ft.AlertDialog | None = None
 
+        # Themed element references
+        self._themed_elements: dict[str, ft.Control] = {}
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for theme-aware updates."""
+        return {}  # Dialog rebuilds on show, individual elements handle themes
+
+    def _close_dialog(self, e=None):
+        """Close dialog and unregister from theme system."""
+        self._unregister_theme_aware()
+        if self.dialog:
+            self.page.close(self.dialog)
+
     async def show(self):
         """Build and display the dialog"""
         from dlss_updater.config import LATEST_DLL_VERSIONS
         from dlss_updater.updater import parse_version
+
+        # Register for theme updates
+        self._register_theme_aware()
+
+        # Get current theme
+        is_dark = self._registry.is_dark
 
         # Group DLLs by technology
         grouped_dlls = self._group_dlls()
@@ -96,21 +122,21 @@ class DLLGroupDialog:
 
             group_dlls = grouped_dlls[group_name]
             status = self._calculate_group_status(group_name, group_dlls)
-            panel = self._build_expansion_panel(group_name, group_dlls, status)
+            panel = self._build_expansion_panel(group_name, group_dlls, status, is_dark)
             panels.append(panel)
 
         # Add "Other" group if any ungrouped DLLs
         if "Other" in grouped_dlls:
             group_dlls = grouped_dlls["Other"]
             status = self._calculate_group_status("Other", group_dlls)
-            panel = self._build_expansion_panel("Other", group_dlls, status)
+            panel = self._build_expansion_panel("Other", group_dlls, status, is_dark)
             panels.append(panel)
 
         # Create expansion panel list
         expansion_list = ft.ExpansionPanelList(
             controls=panels,
             elevation=0,
-            expand_icon_color=MD3Colors.PRIMARY,
+            expand_icon_color=MD3Colors.get_primary(is_dark),
         )
 
         # Calculate total stats for header
@@ -123,11 +149,11 @@ class DLLGroupDialog:
         # Status summary
         if total_updates > 0:
             status_text = f"{total_updates} update{'s' if total_updates != 1 else ''} available"
-            status_color = MD3Colors.WARNING
+            status_color = MD3Colors.get_warning(is_dark)
             status_icon = ft.Icons.ARROW_UPWARD
         else:
             status_text = "All DLLs up to date"
-            status_color = MD3Colors.SUCCESS
+            status_color = MD3Colors.get_success(is_dark)
             status_icon = ft.Icons.CHECK_CIRCLE
 
         # Dialog content
@@ -138,20 +164,21 @@ class DLLGroupDialog:
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.VIDEOGAME_ASSET, size=24, color=MD3Colors.PRIMARY),
+                                ft.Icon(ft.Icons.VIDEOGAME_ASSET, size=24, color=MD3Colors.get_primary(is_dark)),
                                 ft.Column(
                                     controls=[
                                         ft.Text(
                                             self.game.name,
                                             size=18,
                                             weight=ft.FontWeight.BOLD,
+                                            color=MD3Colors.get_text_primary(is_dark),
                                         ),
                                         ft.Row(
                                             controls=[
                                                 ft.Text(
                                                     f"{total_dlls} DLL{'s' if total_dlls != 1 else ''}",
                                                     size=12,
-                                                    color=ft.Colors.GREY,
+                                                    color=MD3Colors.get_text_secondary(is_dark),
                                                 ),
                                                 ft.Container(width=8),
                                                 ft.Icon(status_icon, size=14, color=status_color),
@@ -168,7 +195,7 @@ class DLLGroupDialog:
                         ),
                         padding=ft.padding.only(bottom=12),
                     ),
-                    ft.Divider(height=1),
+                    ft.Divider(height=1, color=MD3Colors.get_divider(is_dark)),
                     # Scrollable expansion panels
                     ft.Container(
                         content=ft.Column(
@@ -188,10 +215,11 @@ class DLLGroupDialog:
         # Create dialog
         self.dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("DLL Details"),
+            title=ft.Text("DLL Details", color=MD3Colors.get_text_primary(is_dark)),
             content=content,
+            bgcolor=MD3Colors.get_surface(is_dark),
             actions=[
-                ft.TextButton("Close", on_click=lambda e: self.page.close(self.dialog)),
+                ft.TextButton("Close", on_click=self._close_dialog),
             ],
         )
 
@@ -199,14 +227,15 @@ class DLLGroupDialog:
 
     def _show_empty_dialog(self):
         """Show empty state dialog when no DLLs found"""
+        is_dark = self._registry.is_dark
         self.dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("DLL Details"),
+            title=ft.Text("DLL Details", color=MD3Colors.get_text_primary(is_dark)),
             content=ft.Container(
                 content=ft.Column(
                     controls=[
-                        ft.Icon(ft.Icons.INFO_OUTLINE, size=48, color=ft.Colors.GREY),
-                        ft.Text("No DLLs found for this game", color=ft.Colors.GREY),
+                        ft.Icon(ft.Icons.INFO_OUTLINE, size=48, color=MD3Colors.get_text_secondary(is_dark)),
+                        ft.Text("No DLLs found for this game", color=MD3Colors.get_text_secondary(is_dark)),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -214,8 +243,9 @@ class DLLGroupDialog:
                 width=400,
                 height=200,
             ),
+            bgcolor=MD3Colors.get_surface(is_dark),
             actions=[
-                ft.TextButton("Close", on_click=lambda e: self.page.close(self.dialog)),
+                ft.TextButton("Close", on_click=self._close_dialog),
             ],
         )
         self.page.open(self.dialog)
@@ -305,23 +335,26 @@ class DLLGroupDialog:
         self,
         group_name: str,
         group_dlls: list[GameDLL],
-        status: GroupStatus
+        status: GroupStatus,
+        is_dark: bool = True,
     ) -> ft.ExpansionPanel:
         """Build collapsible panel for a technology group"""
         return ft.ExpansionPanel(
-            header=self._build_group_header(group_name, status),
-            content=self._build_group_content(group_name, group_dlls, status),
+            header=self._build_group_header(group_name, status, is_dark),
+            content=self._build_group_content(group_name, group_dlls, status, is_dark),
             can_tap_header=True,
             expanded=status.updates_available > 0,  # Auto-expand groups with updates
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
         )
 
     def _build_group_header(
         self,
         group_name: str,
-        status: GroupStatus
+        status: GroupStatus,
+        is_dark: bool = True,
     ) -> ft.Container:
         """Build group header with status and action buttons"""
-        tech_color = TechnologyColors.get_color(group_name)
+        tech_color = TechnologyColors.get_themed_color(group_name, is_dark)
 
         # Status badge
         if status.updates_available > 0:
@@ -332,7 +365,7 @@ class DLLGroupDialog:
                     color=ft.Colors.WHITE,
                     weight=ft.FontWeight.BOLD,
                 ),
-                bgcolor=MD3Colors.WARNING,
+                bgcolor=MD3Colors.get_warning(is_dark),
                 padding=ft.padding.symmetric(horizontal=8, vertical=4),
                 border_radius=12,
             )
@@ -340,8 +373,8 @@ class DLLGroupDialog:
             status_badge = ft.Container(
                 content=ft.Row(
                     controls=[
-                        ft.Icon(ft.Icons.CHECK_CIRCLE, size=14, color=MD3Colors.SUCCESS),
-                        ft.Text("Up to date", size=11, color=MD3Colors.SUCCESS),
+                        ft.Icon(ft.Icons.CHECK_CIRCLE, size=14, color=MD3Colors.get_success(is_dark)),
+                        ft.Text("Up to date", size=11, color=MD3Colors.get_success(is_dark)),
                     ],
                     spacing=4,
                     tight=True,
@@ -374,7 +407,7 @@ class DLLGroupDialog:
             disabled=not status.has_backups,
             style=ft.ButtonStyle(
                 bgcolor={
-                    ft.ControlState.DEFAULT: MD3Colors.SUCCESS if status.has_backups else ft.Colors.GREY_700,
+                    ft.ControlState.DEFAULT: MD3Colors.get_success(is_dark) if status.has_backups else ft.Colors.GREY_700,
                     ft.ControlState.DISABLED: ft.Colors.GREY_700,
                 },
                 color=ft.Colors.WHITE,
@@ -401,12 +434,12 @@ class DLLGroupDialog:
                                 group_name,
                                 size=16,
                                 weight=ft.FontWeight.BOLD,
-                                color=ft.Colors.WHITE,
+                                color=MD3Colors.get_text_primary(is_dark),
                             ),
                             ft.Text(
                                 f"{status.dll_count} DLL{'s' if status.dll_count != 1 else ''}",
                                 size=12,
-                                color=ft.Colors.GREY,
+                                color=MD3Colors.get_text_secondary(is_dark),
                             ),
                         ],
                         spacing=2,
@@ -429,7 +462,8 @@ class DLLGroupDialog:
         self,
         group_name: str,
         group_dlls: list[GameDLL],
-        status: GroupStatus
+        status: GroupStatus,
+        is_dark: bool = True,
     ) -> ft.Container:
         """Build group content with DLL rows"""
         from dlss_updater.config import LATEST_DLL_VERSIONS
@@ -438,7 +472,7 @@ class DLLGroupDialog:
 
         for dll in sorted(group_dlls, key=lambda d: d.dll_type):
             latest_version = LATEST_DLL_VERSIONS.get(dll.dll_filename.lower()) if dll.dll_filename else None
-            row = self._build_dll_row(dll, latest_version)
+            row = self._build_dll_row(dll, latest_version, is_dark)
             dll_rows.append(row)
 
         return ft.Container(
@@ -447,13 +481,14 @@ class DLLGroupDialog:
                 spacing=4,
             ),
             padding=ft.padding.only(left=32, right=16, top=8, bottom=16),
-            bgcolor=MD3Colors.SURFACE_DIM,
+            bgcolor=MD3Colors.get_themed("surface_dim", is_dark),
         )
 
     def _build_dll_row(
         self,
         dll: GameDLL,
-        latest_version: str | None
+        latest_version: str | None,
+        is_dark: bool = True,
     ) -> ft.Container:
         """Build a row for an individual DLL"""
         from dlss_updater.updater import parse_version
@@ -472,9 +507,9 @@ class DLLGroupDialog:
 
         # Status icon
         if update_available:
-            status_icon = ft.Icon(ft.Icons.ARROW_UPWARD, size=16, color=MD3Colors.WARNING)
+            status_icon = ft.Icon(ft.Icons.ARROW_UPWARD, size=16, color=MD3Colors.get_warning(is_dark))
         else:
-            status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE, size=16, color=MD3Colors.SUCCESS)
+            status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE, size=16, color=MD3Colors.get_success(is_dark))
 
         return ft.Container(
             content=ft.Row(
@@ -487,12 +522,12 @@ class DLLGroupDialog:
                                 dll.dll_type,
                                 size=14,
                                 weight=ft.FontWeight.BOLD,
-                                color=ft.Colors.WHITE,
+                                color=MD3Colors.get_text_primary(is_dark),
                             ),
                             ft.Text(
                                 dll.dll_filename or "Unknown",
                                 size=11,
-                                color=ft.Colors.GREY,
+                                color=MD3Colors.get_text_secondary(is_dark),
                             ),
                         ],
                         spacing=2,
@@ -504,12 +539,12 @@ class DLLGroupDialog:
                             ft.Text(
                                 f"Current: {current_ver_text}",
                                 size=12,
-                                color=ft.Colors.GREY,
+                                color=MD3Colors.get_text_secondary(is_dark),
                             ),
                             ft.Text(
                                 f"Latest: {latest_ver_text}",
                                 size=12,
-                                color=MD3Colors.WARNING if update_available else ft.Colors.GREY,
+                                color=MD3Colors.get_warning(is_dark) if update_available else MD3Colors.get_text_secondary(is_dark),
                             ),
                         ],
                         spacing=2,
@@ -521,7 +556,7 @@ class DLLGroupDialog:
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.padding.all(12),
-            bgcolor=MD3Colors.SURFACE,
+            bgcolor=MD3Colors.get_surface(is_dark),
             border_radius=8,
         )
 
@@ -529,7 +564,8 @@ class DLLGroupDialog:
         """Handle Update button click"""
         self.logger.info(f"Update clicked for group: {group_name}, game: {self.game.name}")
 
-        # Close dialog
+        # Close dialog and unregister
+        self._unregister_theme_aware()
         if self.dialog:
             self.page.close(self.dialog)
 
@@ -542,7 +578,8 @@ class DLLGroupDialog:
         """Handle Restore button click"""
         self.logger.info(f"Restore clicked for group: {group_name}, game: {self.game.name}")
 
-        # Close dialog
+        # Close dialog and unregister
+        self._unregister_theme_aware()
         if self.dialog:
             self.page.close(self.dialog)
 

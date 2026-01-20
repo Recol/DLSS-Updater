@@ -1,4 +1,5 @@
 import os
+import threading
 from pathlib import Path
 from typing import Any
 from .config import LauncherPathName, config_manager, Concurrency
@@ -10,6 +11,7 @@ from .platform_utils import IS_WINDOWS, IS_LINUX
 import asyncio
 import concurrent.futures
 from dlss_updater.logger import setup_logger
+from dlss_updater.task_registry import register_task
 import sys
 
 # Try to import scandir-rs for 6-70x faster directory scanning on Windows
@@ -67,11 +69,16 @@ def _parallel_scandir_walk(root_path: str, dll_names_lower: frozenset, max_worke
     results = []
 
     def scan_directory_recursive(directory: str) -> list[str]:
-        """Recursively scan a directory for DLLs using os.scandir()"""
+        """Recursively scan a directory for DLLs using os.scandir()
+
+        Note: Subdirectories are collected first, then the scandir handle is
+        closed BEFORE recursion to prevent resource leaks during deep traversal.
+        """
         found = []
+        subdirs = []
+
         try:
             with os.scandir(directory) as entries:
-                subdirs = []
                 for entry in entries:
                     try:
                         name_lower = entry.name.lower()
@@ -83,13 +90,13 @@ def _parallel_scandir_walk(root_path: str, dll_names_lower: frozenset, max_worke
                                 subdirs.append(entry.path)
                     except (OSError, PermissionError):
                         continue
-
-                # Recurse into subdirectories
-                for subdir in subdirs:
-                    found.extend(scan_directory_recursive(subdir))
-
         except (OSError, PermissionError):
             pass
+
+        # Recurse AFTER closing scandir handle to prevent resource leak
+        for subdir in subdirs:
+            found.extend(scan_directory_recursive(subdir))
+
         return found
 
     # Get top-level directories for parallel processing
@@ -119,13 +126,74 @@ def _parallel_scandir_walk(root_path: str, dll_names_lower: frozenset, max_worke
         for future in as_completed(futures):
             try:
                 results.extend(future.result())
-            except Exception as e:
+            except (OSError, PermissionError) as e:
+                # Expected errors during filesystem traversal - log at debug level
                 logger.debug(f"Error scanning {futures[future]}: {e}")
+            except Exception as e:
+                # Unexpected errors - log at warning level with traceback
+                logger.warning(f"Unexpected error scanning {futures[future]}: {e}", exc_info=True)
 
     return results
 
+# Thread-safe lock for scanner globals (Python 3.14 free-threading)
+_scanner_lock = threading.Lock()
+
 # Pre-computed frozen set of DLL names for O(1) lookup (populated at scan time)
+# Note: frozenset is immutable, but the variable itself can be reassigned
+# We use _scanner_lock to protect updates in free-threaded Python
 _dll_names_lower: frozenset = frozenset()
+
+# Thread-safe lock for progress callbacks (prevents race conditions in async contexts)
+_progress_lock = threading.Lock()
+
+
+def _update_dll_names_lower(dll_names: list[str]) -> frozenset:
+    """Thread-safe update of global DLL names (called once per scan).
+
+    This function ensures that the global _dll_names_lower is updated atomically
+    in a free-threaded Python environment. Since frozenset is immutable, the
+    only race condition is during reassignment.
+
+    Args:
+        dll_names: List of DLL names to convert to lowercase frozenset
+
+    Returns:
+        The new frozenset (also assigned to global)
+    """
+    global _dll_names_lower
+    new_set = frozenset(d.lower() for d in dll_names)
+    with _scanner_lock:
+        _dll_names_lower = new_set
+    return new_set
+
+
+def _get_dll_names_lower() -> frozenset:
+    """Thread-safe read of global DLL names.
+
+    Returns:
+        Current frozenset of lowercase DLL names
+    """
+    with _scanner_lock:
+        return _dll_names_lower
+
+
+async def _safe_progress_callback(progress_callback, current: int, total: int, message: str) -> None:
+    """Thread-safe progress callback wrapper.
+
+    In Python 3.14 free-threaded mode, progress callbacks may be invoked from
+    multiple async contexts concurrently. This wrapper serializes access to
+    prevent race conditions in progress reporting.
+
+    Args:
+        progress_callback: The async callback function (or None)
+        current: Current progress value
+        total: Total progress value
+        message: Progress message
+    """
+    if progress_callback:
+        with _progress_lock:
+            await progress_callback(current, total, message)
+
 
 # Directories to skip during scanning (common non-game folders)
 _SKIP_DIRECTORIES: frozenset = frozenset({
@@ -812,9 +880,8 @@ async def find_all_dlls(progress_callback=None):
     """
     logger.info("Starting find_all_dlls function")
 
-    # Report initialization
-    if progress_callback:
-        await progress_callback(0, 100, "Initializing scan...")
+    # Report initialization (using thread-safe wrapper for free-threaded Python)
+    await _safe_progress_callback(progress_callback, 0, 100, "Initializing scan...")
 
     all_dll_paths = {
         "Steam": [],
@@ -855,13 +922,11 @@ async def find_all_dlls(progress_callback=None):
     # Skip if no technologies selected
     if not dll_names:
         logger.info("No technologies selected for update, skipping scan")
-        if progress_callback:
-            await progress_callback(100, 100, "No technologies selected")
+        await _safe_progress_callback(progress_callback, 100, 100, "No technologies selected")
         return all_dll_paths
 
     # Report preparation complete
-    if progress_callback:
-        await progress_callback(5, 100, "Preparing to scan launchers...")
+    await _safe_progress_callback(progress_callback, 5, 100, "Preparing to scan launchers...")
 
     # Define async functions for each launcher
     async def scan_steam():
@@ -932,19 +997,20 @@ async def find_all_dlls(progress_callback=None):
             )
         return []
 
-    # Create tasks for all launchers
+    # Create tasks for all launchers and register them for shutdown tracking
+    # This ensures tasks are cancelled gracefully during application shutdown
     tasks = {
-        "Steam": asyncio.create_task(scan_steam()),
-        "EA Launcher": asyncio.create_task(scan_ea()),
-        "Ubisoft Launcher": asyncio.create_task(scan_ubisoft()),
-        "Epic Games Launcher": asyncio.create_task(scan_epic()),
-        "GOG Launcher": asyncio.create_task(scan_gog()),
-        "Battle.net Launcher": asyncio.create_task(scan_battlenet()),
-        "Xbox Launcher": asyncio.create_task(scan_xbox()),
-        "Custom Folder 1": asyncio.create_task(scan_custom(1)),
-        "Custom Folder 2": asyncio.create_task(scan_custom(2)),
-        "Custom Folder 3": asyncio.create_task(scan_custom(3)),
-        "Custom Folder 4": asyncio.create_task(scan_custom(4)),
+        "Steam": register_task(asyncio.create_task(scan_steam()), "scan_steam"),
+        "EA Launcher": register_task(asyncio.create_task(scan_ea()), "scan_ea"),
+        "Ubisoft Launcher": register_task(asyncio.create_task(scan_ubisoft()), "scan_ubisoft"),
+        "Epic Games Launcher": register_task(asyncio.create_task(scan_epic()), "scan_epic"),
+        "GOG Launcher": register_task(asyncio.create_task(scan_gog()), "scan_gog"),
+        "Battle.net Launcher": register_task(asyncio.create_task(scan_battlenet()), "scan_battlenet"),
+        "Xbox Launcher": register_task(asyncio.create_task(scan_xbox()), "scan_xbox"),
+        "Custom Folder 1": register_task(asyncio.create_task(scan_custom(1)), "scan_custom_1"),
+        "Custom Folder 2": register_task(asyncio.create_task(scan_custom(2)), "scan_custom_2"),
+        "Custom Folder 3": register_task(asyncio.create_task(scan_custom(3)), "scan_custom_3"),
+        "Custom Folder 4": register_task(asyncio.create_task(scan_custom(4)), "scan_custom_4"),
     }
 
     # Wait for all tasks to complete and gather results with progress reporting
@@ -960,12 +1026,12 @@ async def find_all_dlls(progress_callback=None):
             # Calculate progress (5% base + 65% for launchers = 5-70%)
             progress_pct = int(5 + (completed_count / total_launchers) * 65)
 
-            if progress_callback:
-                await progress_callback(
-                    progress_pct,
-                    100,
-                    f"Scanned {launcher_name}: {len(dlls)} DLLs found"
-                )
+            await _safe_progress_callback(
+                progress_callback,
+                progress_pct,
+                100,
+                f"Scanned {launcher_name}: {len(dlls)} DLLs found"
+            )
 
             if dlls:
                 logger.info(f"Found {len(dlls)} DLLs in {launcher_name}")
@@ -976,16 +1042,15 @@ async def find_all_dlls(progress_callback=None):
 
             # Report progress even on error
             progress_pct = int(5 + (completed_count / total_launchers) * 65)
-            if progress_callback:
-                await progress_callback(
-                    progress_pct,
-                    100,
-                    f"Error scanning {launcher_name}"
-                )
+            await _safe_progress_callback(
+                progress_callback,
+                progress_pct,
+                100,
+                f"Error scanning {launcher_name}"
+            )
 
     # Report whitelist filtering phase
-    if progress_callback:
-        await progress_callback(70, 100, "Filtering whitelisted games...")
+    await _safe_progress_callback(progress_callback, 70, 100, "Filtering whitelisted games...")
 
     # Remove duplicates
     unique_dlls = set()
@@ -1011,8 +1076,7 @@ async def find_all_dlls(progress_callback=None):
         from dlss_updater.constants import DLL_TYPE_MAP
 
         # Report database recording start
-        if progress_callback:
-            await progress_callback(75, 100, "Preparing game data...")
+        await _safe_progress_callback(progress_callback, 75, 100, "Preparing game data...")
 
         logger.info("Recording scanned games in database (batch mode)...")
 
@@ -1068,8 +1132,7 @@ async def find_all_dlls(progress_callback=None):
                 logger.info(f"Merged {len(paths_to_remove)} duplicate game entries for {launcher}")
 
         # Phase 2: Prepare game records with Steam app IDs (parallel lookup)
-        if progress_callback:
-            await progress_callback(78, 100, "Looking up Steam app IDs...")
+        await _safe_progress_callback(progress_callback, 78, 100, "Looking up Steam app IDs...")
 
         games_to_insert = []
         game_dll_mapping = {}  # Maps game path to list of DLL paths
@@ -1111,15 +1174,13 @@ async def find_all_dlls(progress_callback=None):
             game_dll_mapping[result['path']] = result.pop('dlls')
             games_to_insert.append(result)
 
-        if progress_callback:
-            await progress_callback(82, 100, f"Batch inserting {len(games_to_insert)} games...")
+        await _safe_progress_callback(progress_callback, 82, 100, f"Batch inserting {len(games_to_insert)} games...")
 
         # Phase 3: Batch upsert all games
         games_result = await db_manager.batch_upsert_games(games_to_insert)
         recorded_games = len(games_result)
 
-        if progress_callback:
-            await progress_callback(88, 100, "Extracting DLL versions...")
+        await _safe_progress_callback(progress_callback, 88, 100, "Extracting DLL versions...")
 
         # Phase 4: Prepare DLL records with version extraction (parallel)
         from .updater import get_dll_version
@@ -1170,8 +1231,7 @@ async def find_all_dlls(progress_callback=None):
             if result.get('current_version'):
                 dlls_with_versions += 1
 
-        if progress_callback:
-            await progress_callback(95, 100, f"Batch inserting {len(dlls_to_insert)} DLLs...")
+        await _safe_progress_callback(progress_callback, 95, 100, f"Batch inserting {len(dlls_to_insert)} DLLs...")
 
         # Phase 5: Batch upsert all DLLs
         recorded_dlls = await db_manager.batch_upsert_dlls(dlls_to_insert)
@@ -1183,13 +1243,11 @@ async def find_all_dlls(progress_callback=None):
             logger.warning("No DLL versions extracted! Check get_dll_version() function")
 
         # Report completion
-        if progress_callback:
-            await progress_callback(100, 100, f"Scan complete: {recorded_games} games, {recorded_dlls} DLLs")
+        await _safe_progress_callback(progress_callback, 100, 100, f"Scan complete: {recorded_games} games, {recorded_dlls} DLLs")
 
     except Exception as e:
         logger.error(f"Error recording games in database: {e}", exc_info=True)
-        if progress_callback:
-            await progress_callback(100, 100, "Scan complete (database recording failed)")
+        await _safe_progress_callback(progress_callback, 100, 100, "Scan complete (database recording failed)")
 
     # On Linux, collect any skipped paths due to permissions
     if IS_LINUX:

@@ -14,9 +14,10 @@ from dlss_updater.config import LauncherPathName, config_manager
 from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
 from dlss_updater.models import GameCardData, DLLInfo, MAX_PATHS_PER_LAUNCHER
 from dlss_updater.ui_flet.theme.colors import MD3Colors, LauncherColors
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 
-class LauncherCard(ft.ExpansionTile):
+class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
     """
     Expandable card for launcher configuration with game list using Material Design 3 ExpansionTile
     """
@@ -47,13 +48,16 @@ class LauncherCard(ft.ExpansionTile):
         self.games_count: int = 0
         self.games_data: list[dict] = []  # List of detected games
 
-        # Get theme state
-        is_dark = page.session.get("is_dark_theme") if page and page.session.contains_key("is_dark_theme") else True
+        # Get theme registry and state
+        self._registry = get_theme_registry()
+        self._theme_priority = 25  # Cards are mid-priority
+        is_dark = self._registry.is_dark
 
         # Build UI components
         self._build_components(is_dark)
 
         # Initialize ExpansionTile with Material Design 3 styling
+        # Use transparent backgrounds - cards should blend with page background
         super().__init__(
             leading=self.leading_row,
             title=self.title_text,
@@ -61,10 +65,10 @@ class LauncherCard(ft.ExpansionTile):
             trailing=self.trailing_row,
             controls=[],  # Initially empty, populated by set_games()
             initially_expanded=False,
-            bgcolor=MD3Colors.get_surface_variant(is_dark) if not is_custom else None,
+            bgcolor=ft.Colors.TRANSPARENT,
             shape=ft.RoundedRectangleBorder(radius=8),
             maintain_state=True,
-            collapsed_bgcolor=MD3Colors.get_surface_variant(is_dark) if not is_custom else None,
+            collapsed_bgcolor=ft.Colors.TRANSPARENT,
             text_color=MD3Colors.get_on_surface(is_dark),
             icon_color=MD3Colors.PRIMARY,
             collapsed_text_color=MD3Colors.get_on_surface(is_dark),
@@ -76,7 +80,10 @@ class LauncherCard(ft.ExpansionTile):
         # Apply custom styling for custom launchers
         if self.is_custom:
             # Custom cards get border
-            self.border = ft.border.all(1, MD3Colors.PRIMARY)
+            self.border = ft.border.all(1, MD3Colors.get_primary(is_dark))
+
+        # Register for theme updates
+        self._register_theme_aware()
 
     @property
     def name(self) -> str:
@@ -324,7 +331,7 @@ class LauncherCard(ft.ExpansionTile):
 
     async def _update_paths_display(self):
         """Update the paths display in subtitle area."""
-        is_dark = self.page.session.get("is_dark_theme") if self.page and self.page.session.contains_key("is_dark_theme") else True
+        is_dark = self._registry.is_dark
 
         # Create path chips
         path_chips = [self._create_path_chip(p, is_dark) for p in self.current_paths]
@@ -386,7 +393,7 @@ class LauncherCard(ft.ExpansionTile):
         self.current_paths = paths if paths else []
 
         # Get theme state
-        is_dark = self.page.session.get("is_dark_theme") if self.page and self.page.session.contains_key("is_dark_theme") else True
+        is_dark = self._registry.is_dark
 
         # Update paths display
         await self._update_paths_display()
@@ -435,7 +442,7 @@ class LauncherCard(ft.ExpansionTile):
         self.games_count = len(games_data)
 
         # Get theme state
-        is_dark = self.page.session.get("is_dark_theme") if self.page and self.page.session.contains_key("is_dark_theme") else True
+        is_dark = self._registry.is_dark
 
         # Update count text
         if self.games_count > 0:
@@ -604,3 +611,59 @@ class LauncherCard(ft.ExpansionTile):
             dense=True,
             content_padding=ft.padding.symmetric(horizontal=0, vertical=4),
         )
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for cascade updates"""
+        return {
+            "text_color": MD3Colors.get_themed_pair("on_surface"),
+            "collapsed_text_color": MD3Colors.get_themed_pair("on_surface"),
+            "path_text.color": MD3Colors.get_themed_pair("on_surface_variant"),
+            "game_count_text.color": MD3Colors.get_themed_pair("on_surface_variant"),
+        }
+
+    async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
+        """Apply theme with optional cascade delay - extended for complex updates"""
+        import asyncio
+        if delay_ms > 0:
+            await asyncio.sleep(delay_ms / 1000)
+
+        try:
+            # Update ExpansionTile colors
+            self.text_color = MD3Colors.get_on_surface(is_dark)
+            self.collapsed_text_color = MD3Colors.get_on_surface(is_dark)
+            self.icon_color = MD3Colors.get_primary(is_dark)
+            self.collapsed_icon_color = MD3Colors.get_primary(is_dark)
+
+            # Keep transparent backgrounds for all launchers
+            # Background colors should remain transparent to match page background
+            self.bgcolor = ft.Colors.TRANSPARENT
+            self.collapsed_bgcolor = ft.Colors.TRANSPARENT
+
+            # Custom launchers get themed border
+            if self.is_custom:
+                self.border = ft.border.all(1, MD3Colors.get_primary(is_dark))
+
+            # Update path text
+            if hasattr(self, 'path_text'):
+                self.path_text.color = MD3Colors.get_on_surface_variant(is_dark)
+
+            # Update game count text
+            if hasattr(self, 'game_count_text'):
+                # Keep success color if it has games, otherwise use on_surface_variant
+                if self.games_count > 0 or (self.current_paths and self.games_count == 0):
+                    pass  # Keep existing SUCCESS color
+                else:
+                    self.game_count_text.color = MD3Colors.get_on_surface_variant(is_dark)
+
+            # Update config menu icon color
+            if hasattr(self, 'config_menu'):
+                self.config_menu.icon_color = MD3Colors.get_on_surface_variant(is_dark)
+
+            # Update path chips by rebuilding paths display
+            if self.current_paths:
+                await self._update_paths_display()
+
+            if hasattr(self, 'update'):
+                self.update()
+        except Exception:
+            pass  # Silent fail - component may have been garbage collected

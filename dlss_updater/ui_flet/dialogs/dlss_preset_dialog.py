@@ -4,6 +4,7 @@ Configure DLSS SR presets with GPU-based recommendations.
 
 Windows: Applies system-wide via registry
 Linux: Generates Steam launch options for clipboard
+Theme-aware: responds to light/dark mode changes
 """
 
 import logging
@@ -20,20 +21,28 @@ from dlss_updater.dlss_preset_utils import (
     format_steam_launch_options,
 )
 from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX, FEATURES
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from dlss_updater.ui_flet.theme.colors import MD3Colors
 
 
-class DLSSPresetDialog:
+class DLSSPresetDialog(ThemeAwareMixin):
     """
     Dialog for configuring DLSS Super Resolution preset overrides.
 
     Shows GPU info, preset selection, and applies changes:
     - Windows: Registry-based system-wide override
     - Linux: Generates Steam launch options for manual copy
+    - Theme-aware: responds to light/dark mode changes
     """
 
     def __init__(self, page: ft.Page, logger: logging.Logger):
         self.page = page
         self.logger = logger
+
+        # Theme registry setup
+        self._registry = get_theme_registry()
+        self._theme_priority = 70  # Dialogs are low priority (animate last)
+
         self.dialog: ft.AlertDialog | None = None
         self.gpu_info: GPUInfo | None = None
         self.current_preset: DLSSPreset = DLSSPreset.DEFAULT
@@ -49,6 +58,19 @@ class DLSSPresetDialog:
         self.apply_button: ft.FilledButton | None = None
         self.error_container: ft.Container | None = None
         self.status_text: ft.Text | None = None
+
+        # Themed element references
+        self._themed_elements: dict[str, ft.Control] = {}
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for theme-aware updates."""
+        return {}  # Dialog rebuilds on show, individual elements handle themes
+
+    def _close_dialog(self, e=None):
+        """Close dialog and unregister from theme system."""
+        self._unregister_theme_aware()
+        if self.dialog:
+            self.page.close(self.dialog)
 
     async def _detect_gpu(self):
         """Detect NVIDIA GPU and update UI"""
@@ -80,12 +102,14 @@ class DLSSPresetDialog:
         if not self.gpu_info:
             return
 
+        is_dark = self._registry.is_dark
+
         # GPU name
         gpu_name = ft.Text(
             self.gpu_info.name,
             size=16,
             weight=ft.FontWeight.BOLD,
-            color="#4CAF50",  # Green
+            color=MD3Colors.get_success(is_dark),
         )
 
         # Architecture and VRAM
@@ -93,14 +117,14 @@ class DLSSPresetDialog:
             f"{self.gpu_info.architecture} | {self.gpu_info.vram_mb} MB VRAM | "
             f"SM {self.gpu_info.sm_version_major}.{self.gpu_info.sm_version_minor}",
             size=12,
-            color=ft.Colors.GREY,
+            color=MD3Colors.get_text_secondary(is_dark),
         )
 
         # Driver version
         driver_info = ft.Text(
             f"Driver: {self.gpu_info.driver_version}",
             size=11,
-            color=ft.Colors.GREY,
+            color=MD3Colors.get_text_secondary(is_dark),
         )
 
         # Recommended preset badge
@@ -111,7 +135,7 @@ class DLSSPresetDialog:
                 size=11,
                 color="#FFFFFF",
             ),
-            bgcolor="#2D6E88",
+            bgcolor=MD3Colors.get_primary(is_dark),
             padding=ft.padding.symmetric(horizontal=8, vertical=4),
             border_radius=4,
         )
@@ -120,7 +144,7 @@ class DLSSPresetDialog:
             controls=[
                 ft.Row(
                     controls=[
-                        ft.Icon(ft.Icons.MEMORY, color="#4CAF50", size=24),
+                        ft.Icon(ft.Icons.MEMORY, color=MD3Colors.get_success(is_dark), size=24),
                         gpu_name,
                     ],
                     spacing=8,
@@ -132,21 +156,22 @@ class DLSSPresetDialog:
             ],
             spacing=4,
         )
-        self.gpu_info_container.bgcolor = "#2C2C2C"
+        self.gpu_info_container.bgcolor = MD3Colors.get_surface_variant(is_dark)
         self.gpu_info_container.visible = True
 
     def _show_no_gpu_detected(self):
         """Show message when no NVIDIA GPU is detected"""
+        is_dark = self._registry.is_dark
         self.gpu_info_container.content = ft.Column(
             controls=[
                 ft.Row(
                     controls=[
-                        ft.Icon(ft.Icons.WARNING, color=ft.Colors.AMBER),
+                        ft.Icon(ft.Icons.WARNING, color=MD3Colors.get_warning(is_dark)),
                         ft.Text(
                             "No NVIDIA GPU Detected",
                             size=14,
                             weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.AMBER,
+                            color=MD3Colors.get_warning(is_dark),
                         ),
                     ],
                     spacing=8,
@@ -154,12 +179,12 @@ class DLSSPresetDialog:
                 ft.Text(
                     "DLSS preset override requires an NVIDIA GPU with DLSS support.",
                     size=12,
-                    color=ft.Colors.GREY,
+                    color=MD3Colors.get_text_secondary(is_dark),
                 ),
             ],
             spacing=4,
         )
-        self.gpu_info_container.bgcolor = "#3C3C3C"
+        self.gpu_info_container.bgcolor = MD3Colors.get_surface_container(is_dark)
         self.gpu_info_container.visible = True
 
         # Disable preset selection
@@ -195,16 +220,17 @@ class DLSSPresetDialog:
 
     def _update_status_text(self):
         """Update status text based on current state"""
+        is_dark = self._registry.is_dark
         if IS_WINDOWS:
             if self.current_preset == DLSSPreset.DEFAULT:
                 self.status_text.value = "No preset override active (using driver default)"
-                self.status_text.color = ft.Colors.GREY
+                self.status_text.color = MD3Colors.get_text_secondary(is_dark)
             else:
                 self.status_text.value = f"Current override: {self.current_preset.display_name}"
-                self.status_text.color = "#4CAF50"
+                self.status_text.color = MD3Colors.get_success(is_dark)
         else:
             self.status_text.value = "Copy launch options below to configure preset"
-            self.status_text.color = ft.Colors.GREY
+            self.status_text.color = MD3Colors.get_text_secondary(is_dark)
 
     def _on_preset_changed(self, e):
         """Handle preset radio button change"""
@@ -240,11 +266,12 @@ class DLSSPresetDialog:
 
     async def _on_copy_clicked(self, e):
         """Copy launch options to clipboard"""
+        is_dark = self._registry.is_dark
         if self.launch_options_field and self.launch_options_field.value:
             self.page.set_clipboard(self.launch_options_field.value)
             self.page.snack_bar = ft.SnackBar(
                 content=ft.Text("Launch options copied to clipboard!"),
-                bgcolor="#4CAF50",
+                bgcolor=MD3Colors.get_success(is_dark),
             )
             self.page.snack_bar.open = True
             self.page.update()
@@ -252,6 +279,7 @@ class DLSSPresetDialog:
 
     async def _on_apply_clicked(self, e):
         """Apply preset (Windows registry or save config)"""
+        is_dark = self._registry.is_dark
         self.apply_button.disabled = True
         self.loading_ring.visible = True
         self._hide_error()
@@ -287,7 +315,7 @@ class DLSSPresetDialog:
                         f"Preset {self.selected_preset.display_name} {action}. "
                         "Restart games to see changes."
                     ),
-                    bgcolor="#4CAF50",
+                    bgcolor=MD3Colors.get_success(is_dark),
                     duration=3000,
                 )
                 self.page.overlay.append(snackbar)
@@ -297,7 +325,8 @@ class DLSSPresetDialog:
                     f"DLSS preset {self.selected_preset.value} applied successfully"
                 )
 
-                # Close dialog on success
+                # Close dialog on success and unregister
+                self._unregister_theme_aware()
                 self.page.close(self.dialog)
                 return
             else:
@@ -350,7 +379,7 @@ class DLSSPresetDialog:
             on_change=self._on_preset_changed,
         )
 
-    def _build_linux_section(self) -> list[ft.Control]:
+    def _build_linux_section(self, is_dark: bool) -> list[ft.Control]:
         """Build Linux-specific UI elements"""
         if not IS_LINUX:
             return []
@@ -368,7 +397,7 @@ class DLSSPresetDialog:
             min_lines=2,
             max_lines=3,
             text_size=11,
-            bgcolor="#2C2C2C",
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
         )
 
         self.copy_button = ft.FilledButton(
@@ -379,12 +408,12 @@ class DLSSPresetDialog:
         )
 
         return [
-            ft.Divider(),
-            ft.Text("Linux Launch Options:", weight=ft.FontWeight.BOLD, size=14),
+            ft.Divider(color=MD3Colors.get_divider(is_dark)),
+            ft.Text("Linux Launch Options:", weight=ft.FontWeight.BOLD, size=14, color=MD3Colors.get_text_primary(is_dark)),
             ft.Text(
                 "Add these to Steam's 'Set Launch Options' or Lutris environment variables:",
                 size=11,
-                color=ft.Colors.GREY,
+                color=MD3Colors.get_text_secondary(is_dark),
             ),
             self.linux_overlay_checkbox,
             self.launch_options_field,
@@ -401,12 +430,16 @@ class DLSSPresetDialog:
             await self._show_unavailable_dialog()
             return
 
+        # Register for theme updates
+        self._register_theme_aware()
+        is_dark = self._registry.is_dark
+
         # Loading ring
         self.loading_ring = ft.ProgressRing(
             width=16,
             height=16,
             stroke_width=2,
-            color="#2D6E88",
+            color=MD3Colors.get_primary(is_dark),
             visible=True,
         )
 
@@ -415,11 +448,11 @@ class DLSSPresetDialog:
             content=ft.Row(
                 controls=[
                     self.loading_ring,
-                    ft.Text("Detecting GPU...", color=ft.Colors.GREY),
+                    ft.Text("Detecting GPU...", color=MD3Colors.get_text_secondary(is_dark)),
                 ],
                 spacing=8,
             ),
-            bgcolor="#2C2C2C",
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
             padding=ft.padding.all(12),
             border_radius=8,
         )
@@ -428,13 +461,13 @@ class DLSSPresetDialog:
         self.status_text = ft.Text(
             "Loading...",
             size=12,
-            color=ft.Colors.GREY,
+            color=MD3Colors.get_text_secondary(is_dark),
         )
 
         # Error container
         self.error_container = ft.Container(
-            content=ft.Text("", color=ft.Colors.RED, size=12),
-            bgcolor="#4A1515",
+            content=ft.Text("", color=MD3Colors.get_error(is_dark), size=12),
+            bgcolor=MD3Colors.ERROR_CONTAINER if not is_dark else "#4A1515",
             padding=ft.padding.all(8),
             border_radius=4,
             visible=False,
@@ -452,16 +485,16 @@ class DLSSPresetDialog:
                         "Preset K is recommended for RTX 20/30. For RTX 40/50, use Preset M or K. "
                         "Preset L is heavier and may reduce performance.",
                         size=12,
-                        color=ft.Colors.GREY,
+                        color=MD3Colors.get_text_secondary(is_dark),
                     ),
                     ft.Container(height=4),
                     ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=ft.Colors.AMBER),
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=MD3Colors.get_warning(is_dark)),
                             ft.Text(
                                 "Changes require game restart to take effect.",
                                 size=11,
-                                color=ft.Colors.AMBER,
+                                color=MD3Colors.get_warning(is_dark),
                                 italic=True,
                             ),
                         ],
@@ -484,7 +517,7 @@ class DLSSPresetDialog:
                 ],
                 spacing=4,
             ),
-            bgcolor="#3C3C3C",
+            bgcolor=MD3Colors.get_surface_container(is_dark),
             padding=ft.padding.all(12),
             border_radius=4,
         )
@@ -493,11 +526,11 @@ class DLSSPresetDialog:
         multi_gpu_note = ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.WARNING_AMBER, size=14, color=ft.Colors.GREY),
+                    ft.Icon(ft.Icons.WARNING_AMBER, size=14, color=MD3Colors.get_text_secondary(is_dark)),
                     ft.Text(
                         "Note: Multi-GPU configurations not supported (uses primary GPU)",
                         size=10,
-                        color=ft.Colors.GREY,
+                        color=MD3Colors.get_text_secondary(is_dark),
                         italic=True,
                     ),
                 ],
@@ -508,21 +541,21 @@ class DLSSPresetDialog:
 
         # Build content column
         content_controls = [
-            ft.Text("GPU Information", weight=ft.FontWeight.BOLD, size=14),
+            ft.Text("GPU Information", weight=ft.FontWeight.BOLD, size=14, color=MD3Colors.get_text_primary(is_dark)),
             self.gpu_info_container,
-            ft.Divider(),
-            ft.Text("Select Preset:", weight=ft.FontWeight.BOLD, size=14),
+            ft.Divider(color=MD3Colors.get_divider(is_dark)),
+            ft.Text("Select Preset:", weight=ft.FontWeight.BOLD, size=14, color=MD3Colors.get_text_primary(is_dark)),
             self.preset_radio_group,
             self.status_text,
             self.error_container,
         ]
 
         # Add Linux-specific controls
-        content_controls.extend(self._build_linux_section())
+        content_controls.extend(self._build_linux_section(is_dark))
 
         # Add info and notes
         content_controls.extend([
-            ft.Divider(),
+            ft.Divider(color=MD3Colors.get_divider(is_dark)),
             info_container,
             multi_gpu_note,
         ])
@@ -538,7 +571,7 @@ class DLSSPresetDialog:
             actions = [
                 ft.TextButton(
                     "Cancel",
-                    on_click=lambda e: self.page.close(self.dialog),
+                    on_click=self._close_dialog,
                 ),
                 self.apply_button,
             ]
@@ -547,7 +580,7 @@ class DLSSPresetDialog:
             actions = [
                 ft.FilledButton(
                     "Close",
-                    on_click=lambda e: self.page.close(self.dialog),
+                    on_click=self._close_dialog,
                 ),
             ]
 
@@ -555,8 +588,8 @@ class DLSSPresetDialog:
             modal=True,
             title=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.TUNE, color="#2D6E88"),
-                    ft.Text("DLSS SR Preset Override"),
+                    ft.Icon(ft.Icons.TUNE, color=MD3Colors.get_primary(is_dark)),
+                    ft.Text("DLSS SR Preset Override", color=MD3Colors.get_text_primary(is_dark)),
                 ],
                 spacing=8,
             ),
@@ -570,6 +603,7 @@ class DLSSPresetDialog:
                 width=520,
                 height=500,
             ),
+            bgcolor=MD3Colors.get_surface(is_dark),
             actions=actions,
         )
 
@@ -595,12 +629,13 @@ class DLSSPresetDialog:
 
     async def _show_unavailable_dialog(self):
         """Show dialog explaining feature requires NVIDIA GPU"""
+        is_dark = self._registry.is_dark
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Row(
                 controls=[
-                    ft.Icon(ft.Icons.INFO_OUTLINE, color="#2D6E88"),
-                    ft.Text("Feature Not Available"),
+                    ft.Icon(ft.Icons.INFO_OUTLINE, color=MD3Colors.get_primary(is_dark)),
+                    ft.Text("Feature Not Available", color=MD3Colors.get_text_primary(is_dark)),
                 ],
                 spacing=8,
             ),
@@ -610,6 +645,7 @@ class DLSSPresetDialog:
                         ft.Text(
                             "DLSS SR Preset Override requires an NVIDIA GPU.",
                             size=14,
+                            color=MD3Colors.get_text_primary(is_dark),
                         ),
                         ft.Container(height=8),
                         ft.Text(
@@ -617,13 +653,14 @@ class DLSSPresetDialog:
                             "Super Resolution preset for optimal image quality based "
                             "on your GPU architecture.",
                             size=12,
-                            color=ft.Colors.GREY,
+                            color=MD3Colors.get_text_secondary(is_dark),
                         ),
                     ],
                     spacing=4,
                 ),
                 width=400,
             ),
+            bgcolor=MD3Colors.get_surface(is_dark),
             actions=[
                 ft.FilledButton("OK", on_click=lambda e: self.page.close(dialog)),
             ],

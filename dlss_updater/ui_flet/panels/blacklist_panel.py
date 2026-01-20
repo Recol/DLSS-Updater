@@ -8,9 +8,11 @@ import flet as ft
 from dlss_updater.ui_flet.components.slide_panel import PanelContentBase
 from dlss_updater.config import config_manager
 from dlss_updater.whitelist import get_all_blacklisted_games
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from dlss_updater.ui_flet.theme.colors import MD3Colors
 
 
-class BlacklistPanel(PanelContentBase):
+class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
     """
     Panel for managing blacklisted games.
 
@@ -30,12 +32,24 @@ class BlacklistPanel(PanelContentBase):
             logger: Logger instance for diagnostics
         """
         super().__init__(page, logger)
+
+        # Theme support
+        self._registry = get_theme_registry()
+        self._theme_priority = 60  # Panels animate later in cascade
+
         self.blacklisted_games: list[str] = []
         self.skip_list: set[str] = set()
         self.game_switches: dict[str, ft.Switch] = {}
         self.filtered_games: list[str] = []
         self.search_field: ft.TextField | None = None
         self.games_column: ft.Column | None = None
+
+        # Store themed element references
+        self._info_box: ft.Container | None = None
+        self._info_text: ft.Text | None = None
+
+        # Register for theme updates
+        self._register_theme_aware()
 
     @property
     def title(self) -> str:
@@ -101,6 +115,8 @@ class BlacklistPanel(PanelContentBase):
         Returns:
             List of Container controls for each game
         """
+        is_dark = self._registry.is_dark
+
         if not self.filtered_games:
             # Show empty state
             if self.blacklisted_games:
@@ -116,8 +132,8 @@ class BlacklistPanel(PanelContentBase):
                 ft.Container(
                     content=ft.Column(
                         controls=[
-                            ft.Icon(icon, size=48, color=ft.Colors.GREY),
-                            ft.Text(message, color=ft.Colors.GREY),
+                            ft.Icon(icon, size=48, color=MD3Colors.get_text_secondary(is_dark)),
+                            ft.Text(message, color=MD3Colors.get_text_secondary(is_dark)),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
@@ -135,7 +151,7 @@ class BlacklistPanel(PanelContentBase):
                 self.game_switches[game] = ft.Switch(
                     value=override_enabled,
                     data=game,
-                    active_color="#2D6E88",
+                    active_color=MD3Colors.get_primary(is_dark),
                     on_change=self._on_switch_change,
                 )
             else:
@@ -151,11 +167,15 @@ class BlacklistPanel(PanelContentBase):
                         controls=[
                             ft.Column(
                                 controls=[
-                                    ft.Text(game, weight=ft.FontWeight.BOLD),
+                                    ft.Text(
+                                        game,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=MD3Colors.get_text_primary(is_dark),
+                                    ),
                                     ft.Text(
                                         "Override: Update anyway" if switch.value else "Blacklisted: Skip updates",
                                         size=12,
-                                        color=ft.Colors.GREY,
+                                        color=MD3Colors.get_text_secondary(is_dark),
                                     ),
                                 ],
                                 expand=True,
@@ -166,7 +186,7 @@ class BlacklistPanel(PanelContentBase):
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
                     padding=ft.padding.all(12),
-                    border=ft.border.all(1, "#5A5A5A"),
+                    border=ft.border.all(1, MD3Colors.get_outline(is_dark)),
                     border_radius=8,
                 )
             )
@@ -199,23 +219,26 @@ class BlacklistPanel(PanelContentBase):
         Returns:
             Column containing search field, info, and game list
         """
+        is_dark = self._registry.is_dark
+
         # Search field
         self.search_field = ft.TextField(
             hint_text="Search games...",
             prefix_icon=ft.Icons.SEARCH,
             on_change=self._on_search_change,
             border_radius=8,
-            bgcolor="#2E2E2E",
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
         )
 
         # Info box
-        info_box = ft.Container(
-            content=ft.Text(
-                "These games are blacklisted by default. Enable the toggle to override and allow updates.",
-                size=12,
-                color=ft.Colors.GREY,
-            ),
-            bgcolor="#3C3C3C",
+        self._info_text = ft.Text(
+            "These games are blacklisted by default. Enable the toggle to override and allow updates.",
+            size=12,
+            color=MD3Colors.get_text_secondary(is_dark),
+        )
+        self._info_box = ft.Container(
+            content=self._info_text,
+            bgcolor=MD3Colors.get_themed("surface_bright", is_dark),
             padding=ft.padding.all(12),
             border_radius=4,
         )
@@ -230,13 +253,34 @@ class BlacklistPanel(PanelContentBase):
         return ft.Column(
             controls=[
                 self.search_field,
-                info_box,
+                self._info_box,
                 ft.Container(height=8),
                 self.games_column,
             ],
             spacing=8,
             expand=True,
         )
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """
+        Return themed property mappings for cascade animation.
+
+        Returns:
+            Dict mapping property paths to (dark_value, light_value) tuples.
+        """
+        props = {}
+
+        # Search field
+        if self.search_field:
+            props["search_field.bgcolor"] = MD3Colors.get_themed_pair("surface_variant")
+
+        # Info box
+        if self._info_box:
+            props["_info_box.bgcolor"] = MD3Colors.get_themed_pair("surface_bright")
+        if self._info_text:
+            props["_info_text.color"] = MD3Colors.get_themed_pair("text_secondary")
+
+        return props
 
     async def on_save(self) -> bool:
         """

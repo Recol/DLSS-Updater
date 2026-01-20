@@ -55,6 +55,48 @@ def ensure_flet_directories():
             )
 
 
+def _detect_initial_theme() -> bool:
+    """
+    Detect initial theme preference before UI loads.
+
+    Priority:
+    1. User override (if explicitly set in config)
+    2. OS theme detection (via darkdetect)
+    3. Default to dark mode
+
+    Returns:
+        True if dark mode should be used, False for light mode
+    """
+    try:
+        from dlss_updater.config import config_manager
+
+        # Check for user override first
+        user_override = config_manager.get(
+            "Appearance", "user_override", fallback="false"
+        )
+        if user_override.lower() == "true":
+            theme_pref = config_manager.get("Appearance", "theme", fallback="dark")
+            return theme_pref == "dark"
+
+        # Try OS theme detection
+        try:
+            import darkdetect
+            os_theme = darkdetect.theme()  # Returns "Dark" or "Light"
+            if os_theme:
+                return os_theme.lower() == "dark"
+        except ImportError:
+            pass  # darkdetect not installed
+        except Exception:
+            pass  # Detection failed
+
+        # Fall back to saved preference or default
+        theme_pref = config_manager.get("Appearance", "theme", fallback="dark")
+        return theme_pref == "dark"
+
+    except Exception:
+        return True  # Default to dark on any error
+
+
 async def main(page: ft.Page):
     """
     Main async entry point for the Flet application
@@ -71,13 +113,16 @@ async def main(page: ft.Page):
     page.padding = 0
     page.spacing = 0
 
-    # Set theme to dark by default
-    page.theme_mode = ft.ThemeMode.DARK
-    page.bgcolor = "#2E2E2E"
+    # Detect initial theme (OS preference or user override)
+    is_dark = _detect_initial_theme()
+
+    # Set theme based on detection
+    page.theme_mode = ft.ThemeMode.DARK if is_dark else ft.ThemeMode.LIGHT
+    page.bgcolor = "#2E2E2E" if is_dark else "#FAFBFC"
 
     # Create Material 3 theme with custom colors
     page.theme = ft.Theme(
-        color_scheme_seed="#2D6E88",  # Primary teal blue
+        color_scheme_seed="#2D6E88" if is_dark else "#1A5A70",
         use_material3=True,
     )
 
@@ -90,13 +135,13 @@ async def main(page: ft.Page):
     logger = logging.getLogger("DLSSUpdater")
     logger.info("DLSS Updater (Flet) starting...")
 
-    # Create startup loading overlay
+    # Create startup loading overlay with theme-aware colors
     from dlss_updater.ui_flet.theme.colors import MD3Colors
     startup_overlay = ft.Container(
         content=ft.Column(
             controls=[
-                ft.ProgressRing(color=MD3Colors.PRIMARY, width=50, height=50),
-                ft.Text("Loading...", size=16, color=MD3Colors.get_on_surface(True)),
+                ft.ProgressRing(color=MD3Colors.get_primary(is_dark), width=50, height=50),
+                ft.Text("Loading...", size=16, color=MD3Colors.get_on_surface(is_dark)),
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -104,7 +149,7 @@ async def main(page: ft.Page):
         ),
         expand=True,
         alignment=ft.alignment.center,
-        bgcolor=MD3Colors.get_background(True),
+        bgcolor=MD3Colors.get_background(is_dark),
     )
     page.add(startup_overlay)
     page.update()

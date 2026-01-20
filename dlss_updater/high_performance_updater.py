@@ -59,6 +59,7 @@ from .updater import (
     remove_read_only,
     restore_permissions,
 )
+from .task_registry import register_task
 
 logger = setup_logger()
 
@@ -948,17 +949,38 @@ class HighPerformanceUpdateManager:
         total_steps = len(dll_tasks) * 3  # backup + update + verify
         current_step = 0
 
+        # Capture the main event loop for thread-safe callbacks
+        main_loop = asyncio.get_running_loop()
+
         # Progress helper - handles both sync and async callbacks
-        # Note: For calls from sync contexts (thread pool), we use fire-and-forget
+        # Note: For calls from sync contexts (thread pool), we use call_soon_threadsafe
         def _progress_sync(message: str):
-            """Sync progress update (for thread pool contexts)"""
+            """Thread-safe progress update (for thread pool contexts).
+
+            This function is safe to call from any thread. When the progress_callback
+            returns a coroutine, it schedules it properly on the main event loop
+            using call_soon_threadsafe to avoid race conditions.
+            """
             nonlocal current_step
             current_step += 1
             if progress_callback:
                 result = progress_callback(current_step, total_steps, message)
                 if asyncio.iscoroutine(result):
-                    # Schedule the coroutine but don't block
-                    asyncio.create_task(result)
+                    # Check if we're in the main thread with the event loop
+                    if threading.current_thread() is threading.main_thread():
+                        # We're in the main thread - safe to create task directly
+                        task = asyncio.create_task(result)
+                        register_task(task, f"progress_callback_{current_step}")
+                    else:
+                        # We're in a worker thread - use call_soon_threadsafe
+                        def _schedule_coro():
+                            task = asyncio.create_task(result)
+                            register_task(task, f"progress_callback_{current_step}")
+                        try:
+                            main_loop.call_soon_threadsafe(_schedule_coro)
+                        except RuntimeError:
+                            # Event loop is closed or shutting down - log and continue
+                            logger.debug(f"Progress callback skipped (loop closed): {message}")
 
         async def _progress(message: str):
             """Async progress update (for async contexts)"""
@@ -1133,7 +1155,13 @@ class HighPerformanceUpdateManager:
                 self._source_cache.release_all()
 
             if self._executor:
-                self._executor.shutdown(wait=False)
+                # CRITICAL: Must wait for thread pool workers to finish to prevent:
+                # 1. Data corruption from workers still writing files
+                # 2. Orphaned coroutines from call_soon_threadsafe callbacks
+                # 3. Race conditions with resource cleanup
+                # Using cancel_futures=True allows pending (not-yet-started) futures
+                # to be cancelled while waiting for running futures to complete.
+                self._executor.shutdown(wait=True, cancel_futures=True)
 
             # Update peak memory
             self._update_peak_memory()

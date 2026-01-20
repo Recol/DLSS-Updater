@@ -39,8 +39,8 @@ from dlss_updater.config import Concurrency
 
 logger = setup_logger()
 
-# Thread-safety locks for free-threaded Python 3.14
-_search_cache_lock = threading.Lock()
+# Thread-safety lock for search history (free-threaded Python 3.14)
+# Note: SearchResultCache has its own internal lock
 _history_lock = threading.Lock()
 
 
@@ -354,8 +354,8 @@ class SearchResultCache:
         key = self._make_key(query, launcher)
 
         with self._lock:
-            # Remove oldest if at capacity
-            while len(self._cache) >= self._max_size:
+            # Remove oldest only if at capacity (use if, not while)
+            if len(self._cache) >= self._max_size:
                 self._cache.popitem(last=False)
 
             self._cache[key] = SearchCacheEntry(
@@ -408,11 +408,10 @@ class GameSearchService:
     _instance_lock = threading.Lock()
 
     def __new__(cls):
-        """Singleton pattern with double-checked locking."""
-        if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+        """Singleton pattern - always acquire lock first for thread safety."""
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -756,6 +755,51 @@ class GameSearchService:
     def is_fuzzy_available(self) -> bool:
         """Check if fuzzy matching is available."""
         return self._fuzzy_enabled
+
+    # =========================================================================
+    # Shutdown
+    # =========================================================================
+
+    async def shutdown(self):
+        """
+        Clean up search service resources.
+
+        Called during application shutdown to release memory and save state.
+        """
+        logger.info("Shutting down GameSearchService...")
+
+        # Save search history to database before shutdown
+        try:
+            await self._save_history_to_db()
+        except Exception as e:
+            logger.warning(f"Failed to save search history on shutdown: {e}")
+
+        # Clear in-memory indexes
+        self._index.clear()
+        self._cache.invalidate()
+
+        with _history_lock:
+            self._history.clear()
+
+        logger.info("GameSearchService shutdown complete")
+
+    async def _save_history_to_db(self):
+        """Save in-memory history to database."""
+        with _history_lock:
+            if not self._history:
+                return
+            history_snapshot = list(self._history)
+
+        try:
+            db = await self._get_db_manager()
+            for entry in history_snapshot:
+                await db.add_search_history(
+                    entry.query,
+                    entry.launcher,
+                    entry.result_count
+                )
+        except Exception as e:
+            logger.debug(f"Failed to save search history: {e}")
 
 
 # Singleton instance

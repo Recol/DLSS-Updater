@@ -28,6 +28,7 @@ from pathlib import Path
 import aiofiles
 
 from dlss_updater.logger import setup_logger
+from dlss_updater.task_registry import register_task
 
 logger = setup_logger()
 
@@ -311,6 +312,7 @@ class UnifiedCacheManager:
 
             self._running = True
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            register_task(self._cleanup_task, "cache_cleanup_loop")
             logger.info("UnifiedCacheManager background cleanup started")
 
     async def stop(self) -> None:
@@ -448,6 +450,7 @@ class UnifiedCacheManager:
         """
         path = Path(path)
         path_str = str(path)
+        mmap_result = None
 
         async with self._mmap_lock:
             # Check if already mapped
@@ -455,56 +458,79 @@ class UnifiedCacheManager:
                 handle = self._mmaps[path_str]
                 handle.ref_count += 1
                 logger.debug(f"Reusing mmap for {path.name} (refs={handle.ref_count})")
-                return handle.mmap_obj
+                mmap_result = handle.mmap_obj
+                # Return early but record access outside lock
+                # Fall through to record_access below
 
-            # Create new mapping
-            if not path.exists():
-                raise FileNotFoundError(f"Cannot memory-map non-existent file: {path}")
+            if mmap_result is None:
+                # Create new mapping
+                if not path.exists():
+                    raise FileNotFoundError(f"Cannot memory-map non-existent file: {path}")
 
-            # Open file and create mapping in thread pool
-            def create_mmap():
-                # Open file in binary read mode
-                # On Windows, we need r+b for mmap even for read-only access
-                f = open(path, "r+b")
+                # Track handles for cleanup on failure
+                file_handle = None
+                mmap_obj = None
+
+                # Open file and create mapping in thread pool
+                def create_mmap():
+                    nonlocal file_handle, mmap_obj
+                    # Open file in binary read mode
+                    # On Windows, we need r+b for mmap even for read-only access
+                    f = open(path, "r+b")
+                    file_handle = f
+                    try:
+                        # Get file size
+                        f.seek(0, 2)
+                        size = f.tell()
+                        f.seek(0)
+
+                        if size == 0:
+                            raise ValueError(f"Cannot memory-map empty file: {path}")
+
+                        # Create mmap with read access
+                        # On Windows, ACCESS_READ requires the file handle
+                        mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+                        mmap_obj = mm
+                        return f, mm
+                    except Exception:
+                        f.close()
+                        file_handle = None
+                        raise
+
                 try:
-                    # Get file size
-                    f.seek(0, 2)
-                    size = f.tell()
-                    f.seek(0)
+                    file_handle, mmap_obj = await asyncio.to_thread(create_mmap)
 
-                    if size == 0:
-                        raise ValueError(f"Cannot memory-map empty file: {path}")
+                    handle = MmapHandle(
+                        path=path,
+                        file_handle=file_handle,
+                        mmap_obj=mmap_obj,
+                        ref_count=1,
+                        created_at=datetime.now()
+                    )
 
-                    # Create mmap with read access
-                    # On Windows, ACCESS_READ requires the file handle
-                    mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-                    return f, mm
-                except Exception:
-                    f.close()
+                    self._mmaps[path_str] = handle
+                    logger.debug(f"Created mmap for {path.name}")
+                    mmap_result = mmap_obj
+
+                except Exception as e:
+                    # Cleanup on any failure - ensure resources are released
+                    if mmap_obj is not None:
+                        try:
+                            mmap_obj.close()
+                        except Exception:
+                            pass
+                    if file_handle is not None:
+                        try:
+                            file_handle.close()
+                        except Exception:
+                            pass
+                    logger.error(f"Failed to memory-map {path}: {e}")
                     raise
 
-            try:
-                file_handle, mmap_obj = await asyncio.to_thread(create_mmap)
+        # Record access AFTER releasing mmap_lock to avoid lock ordering issues
+        await self.record_access(path, is_memory_mapped=True)
 
-                handle = MmapHandle(
-                    path=path,
-                    file_handle=file_handle,
-                    mmap_obj=mmap_obj,
-                    ref_count=1,
-                    created_at=datetime.now()
-                )
-
-                self._mmaps[path_str] = handle
-                logger.debug(f"Created mmap for {path.name}")
-
-                # Record access for LRU
-                await self.record_access(path, is_memory_mapped=True)
-
-                return mmap_obj
-
-            except Exception as e:
-                logger.error(f"Failed to memory-map {path}: {e}")
-                raise
+        return mmap_result
 
     async def release_memory_mapped(self, path: Path) -> None:
         """
@@ -519,6 +545,7 @@ class UnifiedCacheManager:
         """
         path = Path(path)
         path_str = str(path)
+        should_record_access = False
 
         async with self._mmap_lock:
             if path_str not in self._mmaps:
@@ -526,6 +553,12 @@ class UnifiedCacheManager:
                 return
 
             handle = self._mmaps[path_str]
+
+            # Guard against reference count going negative
+            if handle.ref_count <= 0:
+                logger.warning(f"Reference count already 0 for {path}, ignoring release")
+                return
+
             handle.ref_count -= 1
 
             if handle.ref_count <= 0:
@@ -534,10 +567,14 @@ class UnifiedCacheManager:
                 del self._mmaps[path_str]
                 logger.debug(f"Closed mmap for {path.name}")
 
-                # Update entry to mark as not memory-mapped
-                await self.record_access(path, is_memory_mapped=False)
+                # Mark that we need to update entry outside the lock
+                should_record_access = True
             else:
                 logger.debug(f"Released mmap ref for {path.name} (refs={handle.ref_count})")
+
+        # Update entry to mark as not memory-mapped AFTER releasing lock
+        if should_record_access:
+            await self.record_access(path, is_memory_mapped=False)
 
     async def _close_mmap(self, handle: MmapHandle) -> None:
         """
@@ -638,10 +675,13 @@ class UnifiedCacheManager:
 
             now = datetime.now()
 
+            # Take snapshot of entries to iterate safely (avoid dict modification during iteration)
+            entries_snapshot = list(entries.items())
+
             # Phase 1: Remove entries exceeding max_age_days
             if policy.max_age_days > 0:
                 max_age = timedelta(days=policy.max_age_days)
-                for path_str, entry in entries.items():
+                for path_str, entry in entries_snapshot:
                     if now - entry.last_access > max_age:
                         # Don't evict memory-mapped files
                         if not entry.is_memory_mapped:
@@ -653,7 +693,7 @@ class UnifiedCacheManager:
 
                 # Calculate current size excluding already-marked entries
                 current_size = sum(
-                    e.size_bytes for p, e in entries.items()
+                    e.size_bytes for p, e in entries_snapshot
                     if p not in to_remove
                 )
 
@@ -661,7 +701,7 @@ class UnifiedCacheManager:
                     # Sort by priority (ascending) then last_access (ascending)
                     # Lower priority and older access = evicted first
                     sorted_entries = sorted(
-                        ((p, e) for p, e in entries.items()
+                        ((p, e) for p, e in entries_snapshot
                          if p not in to_remove and not e.is_memory_mapped),
                         key=lambda x: (x[1].priority, x[1].last_access)
                     )

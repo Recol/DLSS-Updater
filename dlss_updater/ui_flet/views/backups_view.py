@@ -12,9 +12,10 @@ from dlss_updater.models import GameWithBackupCount, GameDLLBackup
 from dlss_updater.backup_manager import restore_dll_from_backup, delete_backup
 from dlss_updater.ui_flet.components.backup_card import BackupCard
 from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 
-class BackupsView(ft.Column):
+class BackupsView(ThemeAwareMixin, ft.Column):
     """Backup management view"""
 
     def __init__(self, page: ft.Page, logger):
@@ -37,8 +38,15 @@ class BackupsView(ft.Column):
         self.game_filter_dropdown: ft.Dropdown | None = None
         self.games_with_backups: list[GameWithBackupCount] = []
 
+        # Initialize theme system reference before building UI
+        self._registry = get_theme_registry()
+        self._theme_priority = 10  # Views are high priority (animate early)
+
         # Build initial UI
         self._build_ui()
+
+        # Register with theme system after UI is built
+        self._register_theme_aware()
 
     def _create_clear_all_button(self) -> ft.ElevatedButton:
         """Create and store reference to Clear All Backups button"""
@@ -60,7 +68,8 @@ class BackupsView(ft.Column):
             self.clear_all_button.disabled = not has_backups
 
     def _create_game_filter_dropdown(self) -> ft.Dropdown:
-        """Create dropdown for filtering backups by game with MD3 dark theme styling"""
+        """Create dropdown for filtering backups by game with MD3 theme styling"""
+        is_dark = self._get_is_dark()
         self.game_filter_dropdown = ft.Dropdown(
             label="Filter by Game",
             hint_text="All Games",
@@ -70,14 +79,14 @@ class BackupsView(ft.Column):
             width=250,
             dense=True,
             text_size=14,
-            bgcolor="#2E2E2E",
-            color="#E4E2E0",
-            border_color="#5A5A5A",
-            focused_border_color="#2D6E88",
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
+            color=MD3Colors.get_on_surface(is_dark),
+            border_color=MD3Colors.get_outline(is_dark),
+            focused_border_color=MD3Colors.get_primary(is_dark),
             border_radius=8,
-            label_style=ft.TextStyle(color="#C4C7CA"),
-            text_style=ft.TextStyle(color="#E4E2E0"),
-            fill_color="#2E2E2E",
+            label_style=ft.TextStyle(color=MD3Colors.get_on_surface_variant(is_dark)),
+            text_style=ft.TextStyle(color=MD3Colors.get_on_surface(is_dark)),
+            fill_color=MD3Colors.get_surface_variant(is_dark),
         )
         return self.game_filter_dropdown
 
@@ -122,19 +131,29 @@ class BackupsView(ft.Column):
 
     def _build_ui(self):
         """Build initial UI"""
-        # Get theme preference
-        is_dark = self.page.session.get("is_dark_theme") if self.page and self.page.session.contains_key("is_dark_theme") else True
+        # Get theme preference from registry
+        is_dark = self._get_is_dark()
+
+        # Store themed element references
+        self.header_title = ft.Text(
+            "DLL Backup History",
+            size=20,
+            weight=ft.FontWeight.BOLD,
+            color=MD3Colors.get_text_primary(is_dark),
+        )
+
+        self.loading_text = ft.Text(
+            "Loading backups...",
+            color=MD3Colors.get_text_primary(is_dark),
+        )
+
+        self.divider = ft.Divider(height=1, color=MD3Colors.get_outline(is_dark))
 
         # Header with game filter
         self.header = ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Text(
-                        "DLL Backup History",
-                        size=20,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.WHITE,
-                    ),
+                    self.header_title,
                     ft.Container(expand=True),  # Spacer
                     self._create_game_filter_dropdown(),
                     self._create_clear_all_button(),
@@ -183,7 +202,7 @@ class BackupsView(ft.Column):
             content=ft.Column(
                 controls=[
                     ft.ProgressRing(),
-                    ft.Text("Loading backups...", color=ft.Colors.WHITE),
+                    self.loading_text,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=12,
@@ -208,7 +227,7 @@ class BackupsView(ft.Column):
         # Assemble
         self.controls = [
             self.header,
-            ft.Divider(height=1, color="#5A5A5A"),
+            self.divider,
             ft.Stack(
                 controls=[
                     self.empty_state,
@@ -218,6 +237,28 @@ class BackupsView(ft.Column):
                 expand=True,
             ),
         ]
+
+    def _get_is_dark(self) -> bool:
+        """Get current theme mode from registry or session"""
+        if hasattr(self, '_registry') and self._registry:
+            return self._registry.is_dark
+        if self.page and self.page.session.contains_key("is_dark_theme"):
+            return self.page.session.get("is_dark_theme")
+        return True
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for theme-aware system"""
+        return {
+            "header.bgcolor": (MD3Colors.SURFACE_VARIANT, MD3Colors.SURFACE_VARIANT_LIGHT),
+            "header_title.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
+            "loading_text.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
+            "divider.color": (MD3Colors.get_outline(True), MD3Colors.get_outline(False)),
+            "game_filter_dropdown.bgcolor": (MD3Colors.SURFACE_VARIANT, MD3Colors.SURFACE_VARIANT_LIGHT),
+            "game_filter_dropdown.color": (MD3Colors.ON_SURFACE, MD3Colors.ON_SURFACE_LIGHT),
+            "game_filter_dropdown.border_color": (MD3Colors.OUTLINE, MD3Colors.OUTLINE_LIGHT),
+            "game_filter_dropdown.focused_border_color": (MD3Colors.PRIMARY, MD3Colors.PRIMARY_LIGHT),
+            "game_filter_dropdown.fill_color": (MD3Colors.SURFACE_VARIANT, MD3Colors.SURFACE_VARIANT_LIGHT),
+        }
 
     async def load_backups(self):
         """Load backups from database with optional game filter"""

@@ -7,12 +7,14 @@ import asyncio
 import flet as ft
 
 from dlss_updater.ui_flet.theme.colors import Shadows, MD3Colors
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 
-class LoadingOverlay(ft.Container):
+class LoadingOverlay(ThemeAwareMixin, ft.Container):
     """
     Full-screen loading overlay with progress indicator
     Similar to PyQt6's LoadingOverlay but using Flet components
+    Supports light/dark theme
     """
 
     def __init__(self, page: ft.Page = None):
@@ -22,16 +24,18 @@ class LoadingOverlay(ft.Container):
         self.visible = False
         self._progress_value = 0
         self.page = page
+        self._registry = get_theme_registry()
+        self._theme_priority = 40  # Utility components are mid-low priority
 
-        # Get theme preference
-        is_dark = page.session.get("is_dark_theme") if page and page.session.contains_key("is_dark_theme") else True
+        # Get theme preference from registry
+        is_dark = self._registry.is_dark
 
         # Progress ring with breathing animation
         self.progress_ring = ft.ProgressRing(
             width=60,
             height=60,
             stroke_width=4,
-            color="#2D6E88",
+            color=MD3Colors.get_primary(is_dark),
             bgcolor=MD3Colors.get_surface_variant(is_dark),
             animate_scale=ft.Animation(1500, ft.AnimationCurve.EASE_IN_OUT),
         )
@@ -40,7 +44,7 @@ class LoadingOverlay(ft.Container):
         self.status_text = ft.Text(
             "Processing...",
             size=16,
-            color=ft.Colors.WHITE,
+            color=MD3Colors.get_text_primary(is_dark),
             text_align=ft.TextAlign.CENTER,
             animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
         )
@@ -50,7 +54,7 @@ class LoadingOverlay(ft.Container):
             "0%",
             size=24,
             weight=ft.FontWeight.BOLD,
-            color=ft.Colors.WHITE,
+            color=MD3Colors.get_text_primary(is_dark),
             text_align=ft.TextAlign.CENTER,
         )
 
@@ -59,12 +63,16 @@ class LoadingOverlay(ft.Container):
             width=300,
             height=4,
             bgcolor=MD3Colors.get_surface_variant(is_dark),
-            color="#2D6E88",
+            color=MD3Colors.get_primary(is_dark),
             value=0,
         )
 
         # Content container with glassmorphism effect
-        content_container = ft.Container(
+        # In dark mode use dark bg, in light mode use light bg with subtle transparency
+        content_bg = "rgba(46, 46, 46, 0.95)" if is_dark else "rgba(255, 255, 255, 0.95)"
+        border_color = "rgba(255, 255, 255, 0.1)" if is_dark else "rgba(0, 0, 0, 0.1)"
+
+        self.content_container = ft.Container(
             content=ft.Column(
                 controls=[
                     self.progress_ring,
@@ -78,22 +86,26 @@ class LoadingOverlay(ft.Container):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
-            bgcolor="rgba(46, 46, 46, 0.95)",
+            bgcolor=content_bg,
             border_radius=16,
             padding=ft.padding.all(40),
-            border=ft.border.all(1, "rgba(255, 255, 255, 0.1)"),
+            border=ft.border.all(1, border_color),
             shadow=Shadows.LEVEL_5,
         )
 
         # Overlay styling
         self.content = ft.Container(
-            content=content_container,
+            content=self.content_container,
             alignment=ft.alignment.center,
             expand=True,
         )
-        self.bgcolor = ft.Colors.with_opacity(0.7, ft.Colors.BLACK)
+        overlay_bg = ft.Colors.with_opacity(0.7, ft.Colors.BLACK) if is_dark else ft.Colors.with_opacity(0.5, ft.Colors.BLACK)
+        self.bgcolor = overlay_bg
         self.expand = True
         self.visible = False
+
+        # Register for theme updates
+        self._register_theme_aware()
 
     def show(self, page: ft.Page, message: str = "Processing..."):
         """Show the loading overlay"""
@@ -155,3 +167,42 @@ class LoadingOverlay(ft.Container):
             self.status_text.value = message
             self.status_text.opacity = 1
             page.update()
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for loading overlay"""
+        return {
+            "progress_ring.color": MD3Colors.get_themed_pair("primary"),
+            "progress_ring.bgcolor": MD3Colors.get_themed_pair("surface_variant"),
+            "progress_bar.color": MD3Colors.get_themed_pair("primary"),
+            "progress_bar.bgcolor": MD3Colors.get_themed_pair("surface_variant"),
+            "status_text.color": MD3Colors.get_themed_pair("text_primary"),
+            "progress_text.color": MD3Colors.get_themed_pair("text_primary"),
+        }
+
+    async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
+        """Apply theme with cascade animation support"""
+        if delay_ms > 0:
+            await asyncio.sleep(delay_ms / 1000)
+
+        try:
+            # Apply basic properties via parent method
+            properties = self.get_themed_properties()
+            for prop_path, (dark_val, light_val) in properties.items():
+                value = dark_val if is_dark else light_val
+                self._set_nested_property(prop_path, value)
+
+            # Update content container glassmorphism effect
+            content_bg = "rgba(46, 46, 46, 0.95)" if is_dark else "rgba(255, 255, 255, 0.95)"
+            border_color = "rgba(255, 255, 255, 0.1)" if is_dark else "rgba(0, 0, 0, 0.1)"
+            self.content_container.bgcolor = content_bg
+            self.content_container.border = ft.border.all(1, border_color)
+
+            # Update overlay background opacity
+            overlay_bg = ft.Colors.with_opacity(0.7, ft.Colors.BLACK) if is_dark else ft.Colors.with_opacity(0.5, ft.Colors.BLACK)
+            self.bgcolor = overlay_bg
+
+            if hasattr(self, 'update'):
+                self.update()
+
+        except Exception:
+            pass  # Silent fail - component may have been garbage collected

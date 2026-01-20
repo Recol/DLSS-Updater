@@ -10,9 +10,10 @@ from typing import Optional
 
 from .panel_content_base import PanelContentBase
 from ...theme.colors import MD3Colors, Shadows, Animations
+from ...theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 
-class SlidePanel:
+class SlidePanel(ThemeAwareMixin):
     """
     Slide panel that animates from the right side of the screen.
 
@@ -29,12 +30,6 @@ class SlidePanel:
     # Animation timing (milliseconds)
     OPEN_DURATION = 300
     CLOSE_DURATION = 250
-
-    # Color constants
-    COLOR_PANEL_SURFACE = "#3A3A3A"
-    COLOR_HEADER_FOOTER = "#2E2E2E"
-    COLOR_CONTENT_BG = "#1E1E1E"
-    COLOR_SCRIM = "rgba(0, 0, 0, 0.5)"
 
     # Layout constants
     HEADER_HEIGHT = 80  # Enough for title + subtitle + padding
@@ -66,11 +61,30 @@ class SlidePanel:
         self._scrim_container: Optional[ft.Container] = None
         self._on_keyboard_handler = None
 
+        # Theme support
+        self._registry = get_theme_registry()
+        self._theme_priority = 60  # Panels animate later in cascade
+
+        # Store themed element references
+        self._header_container: Optional[ft.Container] = None
+        self._content_container: Optional[ft.Container] = None
+        self._footer_container: Optional[ft.Container] = None
+        self._title_text: Optional[ft.Text] = None
+        self._subtitle_text: Optional[ft.Text] = None
+        self._close_btn: Optional[ft.IconButton] = None
+        self._cancel_btn: Optional[ft.OutlinedButton] = None
+        self._save_btn: Optional[ft.FilledButton] = None
+
         # Build UI components
         self._build()
 
+        # Register for theme updates
+        self._register_theme_aware()
+
     def _build(self) -> None:
         """Build panel UI structure."""
+        is_dark = self._registry.is_dark
+
         # Calculate responsive panel width
         panel_width = self._calculate_panel_width()
 
@@ -94,7 +108,7 @@ class SlidePanel:
         self._panel_container = ft.Container(
             content=panel_column,
             width=panel_width,
-            bgcolor=self.COLOR_PANEL_SURFACE,
+            bgcolor=MD3Colors.get_themed("surface_bright", is_dark),
             shadow=Shadows.LEVEL_5,
             offset=ft.Offset(1, 0),  # Start off-screen (right)
             animate_offset=ft.Animation(
@@ -105,7 +119,7 @@ class SlidePanel:
         # Scrim overlay (semi-transparent background, click to dismiss)
         self._scrim_container = ft.Container(
             expand=True,
-            bgcolor=self.COLOR_SCRIM,
+            bgcolor="rgba(0, 0, 0, 0.5)",
             opacity=0,  # Start invisible
             animate_opacity=ft.Animation(
                 self.OPEN_DURATION, ft.AnimationCurve.EASE_OUT
@@ -150,54 +164,57 @@ class SlidePanel:
         Returns:
             Container with header content
         """
+        is_dark = self._registry.is_dark
+
         # Title text
-        title_text = ft.Text(
+        self._title_text = ft.Text(
             self.content.title,
             size=20,
             weight=ft.FontWeight.BOLD,
-            color=MD3Colors.ON_SURFACE,
+            color=MD3Colors.get_on_surface(is_dark),
         )
 
         # Optional subtitle
-        subtitle_control = None
+        self._subtitle_text = None
         if self.content.subtitle:
-            subtitle_control = ft.Text(
+            self._subtitle_text = ft.Text(
                 self.content.subtitle,
                 size=14,
-                color=MD3Colors.ON_SURFACE_VARIANT,
+                color=MD3Colors.get_on_surface_variant(is_dark),
             )
 
         # Title column (title + optional subtitle)
         title_column = ft.Column(
-            controls=[title_text]
-            + ([subtitle_control] if subtitle_control else []),
+            controls=[self._title_text]
+            + ([self._subtitle_text] if self._subtitle_text else []),
             spacing=4,
             expand=True,
         )
 
         # Close button
-        close_btn = ft.IconButton(
+        self._close_btn = ft.IconButton(
             icon=ft.Icons.CLOSE,
-            icon_color=MD3Colors.ON_SURFACE,
+            icon_color=MD3Colors.get_on_surface(is_dark),
             tooltip="Close (ESC)",
             on_click=self._on_close_click,
         )
 
         # Header row
         header_row = ft.Row(
-            controls=[title_column, close_btn],
+            controls=[title_column, self._close_btn],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
 
-        return ft.Container(
+        self._header_container = ft.Container(
             content=header_row,
-            bgcolor=self.COLOR_HEADER_FOOTER,
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
             padding=ft.padding.only(left=24, right=16, top=20, bottom=16),
             border=ft.border.only(
-                bottom=ft.BorderSide(1, MD3Colors.OUTLINE_VARIANT)
+                bottom=ft.BorderSide(1, MD3Colors.get_divider(is_dark))
             ),
         )
+        return self._header_container
 
     def _build_content_area(self) -> ft.Container:
         """
@@ -206,6 +223,8 @@ class SlidePanel:
         Returns:
             Container with scrollable content
         """
+        is_dark = self._registry.is_dark
+
         # Get content from implementation
         content_control = self.content.build()
 
@@ -216,12 +235,13 @@ class SlidePanel:
             expand=True,
         )
 
-        return ft.Container(
+        self._content_container = ft.Container(
             content=content_column,
-            bgcolor=self.COLOR_CONTENT_BG,
+            bgcolor=MD3Colors.get_surface(is_dark),
             padding=24,
             expand=True,
         )
+        return self._content_container
 
     def _build_footer(self) -> ft.Container:
         """
@@ -230,39 +250,81 @@ class SlidePanel:
         Returns:
             Container with footer buttons
         """
+        is_dark = self._registry.is_dark
+
         # Cancel button
-        cancel_btn = ft.OutlinedButton(
+        self._cancel_btn = ft.OutlinedButton(
             text="Cancel",
             on_click=self._on_cancel_click,
             style=ft.ButtonStyle(
-                color=MD3Colors.ON_SURFACE,
+                color=MD3Colors.get_on_surface(is_dark),
             ),
         )
 
         # Save button
-        save_btn = ft.FilledButton(
+        self._save_btn = ft.FilledButton(
             text="Save",
             on_click=self._on_save_click,
             style=ft.ButtonStyle(
-                bgcolor=MD3Colors.PRIMARY,
+                bgcolor=MD3Colors.get_primary(is_dark),
                 color=MD3Colors.ON_PRIMARY,
             ),
         )
 
         # Button row (right-aligned)
         button_row = ft.Row(
-            controls=[cancel_btn, save_btn],
+            controls=[self._cancel_btn, self._save_btn],
             alignment=ft.MainAxisAlignment.END,
             spacing=12,
         )
 
-        return ft.Container(
+        self._footer_container = ft.Container(
             content=button_row,
             height=self.FOOTER_HEIGHT,
-            bgcolor=self.COLOR_HEADER_FOOTER,
+            bgcolor=MD3Colors.get_surface_variant(is_dark),
             padding=ft.padding.only(left=24, right=24, top=16, bottom=16),
-            border=ft.border.only(top=ft.BorderSide(1, MD3Colors.OUTLINE_VARIANT)),
+            border=ft.border.only(top=ft.BorderSide(1, MD3Colors.get_divider(is_dark))),
         )
+        return self._footer_container
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """
+        Return themed property mappings for cascade animation.
+
+        Returns:
+            Dict mapping property paths to (dark_value, light_value) tuples.
+        """
+        props = {}
+
+        # Panel container surface
+        if self._panel_container:
+            props["_panel_container.bgcolor"] = MD3Colors.get_themed_pair("surface_bright")
+
+        # Header container
+        if self._header_container:
+            props["_header_container.bgcolor"] = MD3Colors.get_themed_pair("surface_variant")
+
+        # Content container
+        if self._content_container:
+            props["_content_container.bgcolor"] = MD3Colors.get_themed_pair("surface")
+
+        # Footer container
+        if self._footer_container:
+            props["_footer_container.bgcolor"] = MD3Colors.get_themed_pair("surface_variant")
+
+        # Title text
+        if self._title_text:
+            props["_title_text.color"] = MD3Colors.get_themed_pair("on_surface")
+
+        # Subtitle text
+        if self._subtitle_text:
+            props["_subtitle_text.color"] = MD3Colors.get_themed_pair("on_surface_variant")
+
+        # Close button
+        if self._close_btn:
+            props["_close_btn.icon_color"] = MD3Colors.get_themed_pair("on_surface")
+
+        return props
 
     async def show(self) -> None:
         """
@@ -275,74 +337,90 @@ class SlidePanel:
 
         self.logger.info(f"Opening slide panel: {self.content.title}")
 
-        # Add to page overlay
-        self.page.overlay.append(self._stack_overlay)
+        try:
+            # Add to page overlay
+            self.page.overlay.append(self._stack_overlay)
 
-        # Setup keyboard handler for ESC key
-        self._on_keyboard_handler = self._handle_keyboard_event
-        self.page.on_keyboard_event = self._on_keyboard_handler
+            # Setup keyboard handler for ESC key
+            self._on_keyboard_handler = self._handle_keyboard_event
+            self.page.on_keyboard_event = self._on_keyboard_handler
 
-        self.page.update()
+            self.page.update()
 
-        # Call content on_open
-        await self.content.on_open()
+            # Call content on_open
+            await self.content.on_open()
 
-        # Animate scrim opacity 0 -> 0.5 (full opacity with rgba alpha)
-        self._scrim_container.opacity = 1
-        # Animate panel offset (1,0) -> (0,0) to slide in from right
-        self._panel_container.offset = ft.Offset(0, 0)
+            # Animate scrim opacity 0 -> 0.5 (full opacity with rgba alpha)
+            self._scrim_container.opacity = 1
+            # Animate panel offset (1,0) -> (0,0) to slide in from right
+            self._panel_container.offset = ft.Offset(0, 0)
 
-        self.page.update()
+            self.page.update()
 
-        # Wait for animation to complete
-        await asyncio.sleep(self.OPEN_DURATION / 1000)
+            # Wait for animation to complete
+            await asyncio.sleep(self.OPEN_DURATION / 1000)
 
-        self._is_open = True
-        self.logger.info("Slide panel opened")
+            self._is_open = True
+            self.logger.info("Slide panel opened")
+        except Exception as e:
+            # Cleanup on failure to prevent overlay accumulation
+            if self._stack_overlay in self.page.overlay:
+                self.page.overlay.remove(self._stack_overlay)
+            if self.page.on_keyboard_event == self._on_keyboard_handler:
+                self.page.on_keyboard_event = None
+            self.logger.error(f"Failed to show slide panel: {e}")
+            raise
 
     async def hide(self) -> None:
         """
         Hide the panel with animation.
 
         Animates panel out to right and removes from overlay.
+        Uses try-finally to ensure cleanup even if animation/close fails.
         """
         if not self._is_open:
             return
 
         self.logger.info("Closing slide panel")
 
-        self._is_open = False
+        try:
+            # Update animation timing for close
+            self._scrim_container.animate_opacity = ft.Animation(
+                self.CLOSE_DURATION, ft.AnimationCurve.EASE_IN_CUBIC
+            )
+            self._panel_container.animate_offset = ft.Animation(
+                self.CLOSE_DURATION, ft.AnimationCurve.EASE_IN_CUBIC
+            )
 
-        # Update animation timing for close
-        self._scrim_container.animate_opacity = ft.Animation(
-            self.CLOSE_DURATION, ft.AnimationCurve.EASE_IN_CUBIC
-        )
-        self._panel_container.animate_offset = ft.Animation(
-            self.CLOSE_DURATION, ft.AnimationCurve.EASE_IN_CUBIC
-        )
+            # Animate out
+            self._scrim_container.opacity = 0
+            self._panel_container.offset = ft.Offset(1, 0)
 
-        # Animate out
-        self._scrim_container.opacity = 0
-        self._panel_container.offset = ft.Offset(1, 0)
+            self.page.update()
 
-        self.page.update()
+            # Wait for animation to complete
+            await asyncio.sleep(self.CLOSE_DURATION / 1000)
 
-        # Wait for animation to complete
-        await asyncio.sleep(self.CLOSE_DURATION / 1000)
+            # Call content on_close
+            await self.content.on_close()
 
-        # Call content on_close
-        await self.content.on_close()
+        finally:
+            # Always cleanup overlay and handlers even if animation/close fails
+            self._is_open = False
 
-        # Remove from overlay
-        if self._stack_overlay in self.page.overlay:
-            self.page.overlay.remove(self._stack_overlay)
+            # Remove from overlay
+            if self._stack_overlay in self.page.overlay:
+                self.page.overlay.remove(self._stack_overlay)
 
-        # Remove keyboard handler
-        if self.page.on_keyboard_event == self._on_keyboard_handler:
-            self.page.on_keyboard_event = None
+            # Remove keyboard handler
+            if self.page.on_keyboard_event == self._on_keyboard_handler:
+                self.page.on_keyboard_event = None
 
-        self.page.update()
-        self.logger.info("Slide panel closed")
+            # Unregister from theme system to allow garbage collection
+            self._unregister_theme_aware()
+
+            self.page.update()
+            self.logger.info("Slide panel closed")
 
     async def _handle_save(self) -> None:
         """Handle save button click."""

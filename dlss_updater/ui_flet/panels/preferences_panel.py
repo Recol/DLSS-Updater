@@ -7,9 +7,11 @@ import logging
 import flet as ft
 from dlss_updater.ui_flet.components.slide_panel import PanelContentBase
 from dlss_updater.config import config_manager
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from dlss_updater.ui_flet.theme.colors import MD3Colors
 
 
-class PreferencesPanel(PanelContentBase):
+class PreferencesPanel(ThemeAwareMixin, PanelContentBase):
     """
     Panel for managing update preferences.
 
@@ -30,8 +32,21 @@ class PreferencesPanel(PanelContentBase):
             logger: Logger instance for diagnostics
         """
         super().__init__(page, logger)
+
+        # Theme support
+        self._registry = get_theme_registry()
+        self._theme_priority = 60  # Panels animate later in cascade
+
+        # Store themed element references
+        self._tech_label: ft.Text | None = None
+        self._backup_label: ft.Text | None = None
+        self._divider: ft.Divider | None = None
+
         self._load_preferences()
         self._build_switches()
+
+        # Register for theme updates
+        self._register_theme_aware()
 
     @property
     def title(self) -> str:
@@ -61,10 +76,12 @@ class PreferencesPanel(PanelContentBase):
 
     def _build_switches(self):
         """Build all switch controls with ListTile layout."""
+        is_dark = self._registry.is_dark
+
         # DLSS Switch
         self.dlss_switch = ft.Switch(
             value=self.prefs["dlss"],
-            active_color="#2D6E88",
+            active_color=MD3Colors.get_primary(is_dark),
         )
         self.dlss_tile = ft.ListTile(
             title=ft.Text("DLSS", weight=ft.FontWeight.BOLD),
@@ -75,7 +92,7 @@ class PreferencesPanel(PanelContentBase):
         # Streamline Switch
         self.streamline_switch = ft.Switch(
             value=self.prefs["streamline"],
-            active_color="#2D6E88",
+            active_color=MD3Colors.get_primary(is_dark),
         )
         self.streamline_tile = ft.ListTile(
             title=ft.Text("Streamline", weight=ft.FontWeight.BOLD),
@@ -86,7 +103,7 @@ class PreferencesPanel(PanelContentBase):
         # DirectStorage Switch
         self.directstorage_switch = ft.Switch(
             value=self.prefs["directstorage"],
-            active_color="#2D6E88",
+            active_color=MD3Colors.get_primary(is_dark),
         )
         self.directstorage_tile = ft.ListTile(
             title=ft.Text("DirectStorage", weight=ft.FontWeight.BOLD),
@@ -97,7 +114,7 @@ class PreferencesPanel(PanelContentBase):
         # XeSS Switch
         self.xess_switch = ft.Switch(
             value=self.prefs["xess"],
-            active_color="#2D6E88",
+            active_color=MD3Colors.get_primary(is_dark),
         )
         self.xess_tile = ft.ListTile(
             title=ft.Text("XeSS", weight=ft.FontWeight.BOLD),
@@ -108,7 +125,7 @@ class PreferencesPanel(PanelContentBase):
         # FSR Switch
         self.fsr_switch = ft.Switch(
             value=self.prefs["fsr"],
-            active_color="#2D6E88",
+            active_color=MD3Colors.get_primary(is_dark),
         )
         self.fsr_tile = ft.ListTile(
             title=ft.Text("FSR", weight=ft.FontWeight.BOLD),
@@ -119,7 +136,7 @@ class PreferencesPanel(PanelContentBase):
         # Backup Switch
         self.backup_switch = ft.Switch(
             value=self.backup_pref,
-            active_color="#2D6E88",
+            active_color=MD3Colors.get_primary(is_dark),
         )
         self.backup_tile = ft.ListTile(
             title=ft.Text("Create backups before updating", weight=ft.FontWeight.BOLD),
@@ -133,21 +150,66 @@ class PreferencesPanel(PanelContentBase):
         Returns:
             Column containing all preference controls
         """
+        is_dark = self._registry.is_dark
+
+        self._tech_label = ft.Text(
+            "Technologies to Update:",
+            weight=ft.FontWeight.BOLD,
+            size=16,
+            color=MD3Colors.get_text_primary(is_dark),
+        )
+        self._divider = ft.Divider(height=20, color=MD3Colors.get_divider(is_dark))
+        self._backup_label = ft.Text(
+            "Backup Options:",
+            weight=ft.FontWeight.BOLD,
+            size=14,
+            color=MD3Colors.get_text_primary(is_dark),
+        )
+
         return ft.Column(
             controls=[
-                ft.Text("Technologies to Update:", weight=ft.FontWeight.BOLD, size=16),
+                self._tech_label,
                 self.dlss_tile,
                 self.streamline_tile,
                 self.directstorage_tile,
                 self.xess_tile,
                 self.fsr_tile,
-                ft.Divider(height=20),
-                ft.Text("Backup Options:", weight=ft.FontWeight.BOLD, size=14),
+                self._divider,
+                self._backup_label,
                 self.backup_tile,
             ],
             spacing=12,
             scroll=ft.ScrollMode.AUTO,
         )
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """
+        Return themed property mappings for cascade animation.
+
+        Returns:
+            Dict mapping property paths to (dark_value, light_value) tuples.
+        """
+        props = {}
+
+        # Labels
+        if self._tech_label:
+            props["_tech_label.color"] = MD3Colors.get_themed_pair("text_primary")
+        if self._backup_label:
+            props["_backup_label.color"] = MD3Colors.get_themed_pair("text_primary")
+
+        # Divider
+        if self._divider:
+            props["_divider.color"] = MD3Colors.get_themed_pair("divider")
+
+        # Switches - active color
+        props["dlss_switch.active_color"] = MD3Colors.get_themed_pair("primary")
+        props["streamline_switch.active_color"] = MD3Colors.get_themed_pair("primary")
+        props["directstorage_switch.active_color"] = MD3Colors.get_themed_pair("primary")
+        props["xess_switch.active_color"] = MD3Colors.get_themed_pair("primary")
+        props["fsr_switch.active_color"] = MD3Colors.get_themed_pair("primary")
+        props["backup_switch.active_color"] = MD3Colors.get_themed_pair("primary")
+
+        return props
 
     def validate(self) -> tuple[bool, str | None]:
         """

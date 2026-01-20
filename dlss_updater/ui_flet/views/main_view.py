@@ -277,7 +277,7 @@ class MainView(ft.Column):
             ),
             padding=ft.padding.symmetric(horizontal=20, vertical=12),
             border_radius=12,
-            bgcolor=MD3Colors.get_surface_variant(is_dark),
+            bgcolor=MD3Colors.get_surface_container(is_dark),
             border=ft.border.all(1, MD3Colors.get_outline(is_dark)),
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
             on_click=on_click,
@@ -289,7 +289,7 @@ class MainView(ft.Column):
                 button_container.bgcolor = f"{color}15"
                 button_container.border = ft.border.all(1, f"{color}30")
             else:
-                button_container.bgcolor = MD3Colors.get_surface_variant(is_dark)
+                button_container.bgcolor = MD3Colors.get_surface_container(is_dark)
                 button_container.border = ft.border.all(1, MD3Colors.get_outline(is_dark))
             if self.page:
                 button_container.update()
@@ -331,8 +331,9 @@ class MainView(ft.Column):
             on_click=self._on_update_clicked,
         )
 
-        # Create action buttons container with dark surface style
-        action_buttons = ft.Container(
+        # Create action buttons container with themed surface style
+        # Store reference for theme updates
+        self.launchers_action_buttons = ft.Container(
             content=ft.Column(
                 controls=[
                     # Last scan info
@@ -354,19 +355,27 @@ class MainView(ft.Column):
                 spacing=0,
             ),
             padding=ft.padding.all(16),
-            bgcolor=MD3Colors.get_surface_variant(is_dark),
+            bgcolor=MD3Colors.get_background(is_dark),
             border=ft.border.only(top=ft.BorderSide(1, MD3Colors.get_outline(is_dark))),
         )
 
-        # Return launchers view as a Column
-        return ft.Column(
-            controls=[
-                launcher_list,
-                action_buttons,
-            ],
+        # Create launchers content area container with themed background
+        # Store reference for theme updates
+        self.launchers_content_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    launcher_list,
+                    self.launchers_action_buttons,
+                ],
+                expand=True,
+                spacing=0,
+            ),
+            bgcolor=MD3Colors.get_background(is_dark),
             expand=True,
-            spacing=0,
         )
+
+        # Return launchers view wrapped in themed container
+        return self.launchers_content_container
 
     def _create_navigation_tabs(self) -> ft.Column:
         """Create custom colored navigation tab bar"""
@@ -389,14 +398,15 @@ class MainView(ft.Column):
             self.tab_buttons.append(btn)
             self.tab_contents.append(config["content"])
 
-        # Tab bar row
-        tab_bar = ft.Container(
+        # Tab bar row - use background color to match page
+        # Store reference for theme updates
+        self.tab_bar_container = ft.Container(
             content=ft.Row(
                 controls=self.tab_buttons,
                 alignment=ft.MainAxisAlignment.CENTER,
                 spacing=0,
             ),
-            bgcolor=MD3Colors.get_surface(is_dark),
+            bgcolor=MD3Colors.get_background(is_dark),
             padding=ft.padding.symmetric(vertical=4),
         )
 
@@ -411,7 +421,7 @@ class MainView(ft.Column):
         )
 
         return ft.Column(
-            controls=[tab_bar, self.content_area],
+            controls=[self.tab_bar_container, self.content_area],
             spacing=0,
             expand=True,
         )
@@ -580,7 +590,8 @@ class MainView(ft.Column):
         )
 
         # Return app bar with dark surface style (full width, no border)
-        return ft.Container(
+        # Store reference for theme updates
+        self.app_bar_container = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Container(
@@ -592,9 +603,10 @@ class MainView(ft.Column):
                 spacing=0,
             ),
             padding=ft.padding.symmetric(vertical=16, horizontal=0),
-            bgcolor=MD3Colors.get_surface_variant(is_dark),
+            bgcolor=MD3Colors.get_background(is_dark),
             shadow=Shadows.LEVEL_2,
         )
+        return self.app_bar_container
 
     def _toggle_app_menu(self, e):
         """Toggle menu visibility with smooth animations"""
@@ -672,14 +684,15 @@ class MainView(ft.Column):
                 )
             )
 
+        # Add theme toggle menu item (now enabled with cascade animations)
+        is_dark = self.theme_manager.is_dark
         items.append(
             MenuItem(
                 id="theme",
-                title="Theme: Dark Mode",
-                description="Disabled (light theme has issues)",
-                icon=ft.Icons.BRIGHTNESS_6,
-                is_disabled=True,
-                tooltip="Theme switching is temporarily disabled",
+                title=f"Theme: {'Dark' if is_dark else 'Light'} Mode",
+                description="Switch to light mode" if is_dark else "Switch to dark mode",
+                icon=ft.Icons.DARK_MODE if is_dark else ft.Icons.LIGHT_MODE,
+                on_click=self._toggle_theme_from_menu,
             )
         )
 
@@ -777,20 +790,92 @@ class MainView(ft.Column):
         self.logger.debug(f"Menu item selected: {item_id}")
 
     async def _toggle_theme_from_menu(self, e):
-        """Handle theme toggle from menu"""
-        self.theme_manager.toggle_theme()
+        """Handle theme toggle from menu with cascade animation"""
+        # Use async toggle for cascade animations to registered components
+        await self.theme_manager.toggle_theme_async()
 
         # Rebuild expansion menu with updated colors
         await self._rebuild_expansion_menu()
 
+        # Update tab bar colors for new theme
+        await self._update_tab_colors_for_theme()
+
+        # Update launchers view colors for new theme
+        await self._update_launchers_view_for_theme()
+
         self.logger.info(f"Theme toggled to {'Dark' if self.theme_manager.is_dark else 'Light'} Mode")
+
+    async def _update_tab_colors_for_theme(self):
+        """Update navigation tab colors after theme change"""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
+
+        is_dark = self.theme_manager.is_dark
+
+        # Update tab bar container background
+        if hasattr(self, 'tab_bar_container') and self.tab_bar_container:
+            self.tab_bar_container.bgcolor = MD3Colors.get_background(is_dark)
+
+        # Update each tab button's colors for the new theme
+        tab_configs = [
+            {"name": "Launchers", "color": TabColors.get_themed_color("Launchers", is_dark)},
+            {"name": "Games", "color": TabColors.get_themed_color("Games", is_dark)},
+            {"name": "Backups", "color": TabColors.get_themed_color("Backups", is_dark)},
+        ]
+
+        # Update active/inactive state colors
+        for idx, btn in enumerate(self.tab_buttons):
+            is_selected = idx == self.current_view_index
+            color = tab_configs[idx]["color"]
+
+            if is_selected:
+                btn.bgcolor = color
+                btn.content.controls[0].color = ft.Colors.WHITE
+                btn.content.controls[1].color = ft.Colors.WHITE
+            else:
+                btn.bgcolor = ft.Colors.TRANSPARENT
+                btn.content.controls[0].color = MD3Colors.get_on_surface_variant(is_dark)
+                btn.content.controls[1].color = MD3Colors.get_on_surface_variant(is_dark)
+
+        self.page.update()
 
     async def _rebuild_expansion_menu(self):
         """Rebuild expansion menu with updated colors after theme change"""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+
+        is_dark = self.theme_manager.is_dark
+
+        # Update app bar container background for new theme
+        if hasattr(self, 'app_bar_container') and self.app_bar_container:
+            self.app_bar_container.bgcolor = MD3Colors.get_background(is_dark)
+
         # Rebuild the AppMenuSelector with new theme colors
         self.app_menu_selector = self._create_app_menu()
         self.app_menu_container.content = self.app_menu_selector
         self.page.update()
+
+    async def _update_launchers_view_for_theme(self):
+        """Update launchers view colors after theme change"""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+
+        is_dark = self.theme_manager.is_dark
+
+        # Update launchers content container background
+        if hasattr(self, 'launchers_content_container') and self.launchers_content_container:
+            self.launchers_content_container.bgcolor = MD3Colors.get_background(is_dark)
+
+        # Update action buttons container background and border
+        if hasattr(self, 'launchers_action_buttons') and self.launchers_action_buttons:
+            self.launchers_action_buttons.bgcolor = MD3Colors.get_background(is_dark)
+            self.launchers_action_buttons.border = ft.border.only(
+                top=ft.BorderSide(1, MD3Colors.get_outline(is_dark))
+            )
+
+        # Update last scan info text color
+        if hasattr(self, 'last_scan_info_text') and self.last_scan_info_text:
+            self.last_scan_info_text.color = MD3Colors.get_on_surface_variant(is_dark)
+
+        if self.page:
+            self.page.update()
 
     def _create_discord_banner(self) -> ft.Banner:
         """Create the Discord invite banner using ft.Banner widget."""
@@ -1590,10 +1675,8 @@ class MainView(ft.Column):
             else:
                 time_str = f"{int(hours_ago / 24)} days ago"
 
-            total_games = sum(len(dlls) for dlls in self.last_scan_results.values())
-
             if hasattr(self, 'last_scan_info_text'):
-                self.last_scan_info_text.value = f"Last scan: {total_games} games found ({time_str})"
+                self.last_scan_info_text.value = f"Last scan: {time_str}"
         except Exception as e:
             self.logger.warning(f"Failed to format scan info: {e}")
             if hasattr(self, 'last_scan_info_text'):
@@ -1659,9 +1742,11 @@ class MainView(ft.Column):
 
     async def _show_snackbar(self, message: str, duration: int = 2000):
         """Show a snackbar notification"""
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+        is_dark = self.theme_manager.is_dark
         snackbar = ft.SnackBar(
             content=ft.Text(message, color=ft.Colors.WHITE),
-            bgcolor="#2D6E88",
+            bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
             duration=duration,
         )
         self.page.overlay.append(snackbar)
@@ -1693,7 +1778,15 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error cancelling background tasks: {e}")
 
-                # 2. Stop cache manager (releases memory maps, stops cleanup loop)
+                # 2. Shutdown games view (clears card references, theme registration)
+                try:
+                    if hasattr(self, 'games_view') and self.games_view:
+                        await self.games_view.on_shutdown()
+                        self.logger.info("Games view shutdown complete")
+                except Exception as e:
+                    self.logger.warning(f"Error shutting down games view: {e}")
+
+                # 3. Stop cache manager (releases memory maps, stops cleanup loop)
                 try:
                     from dlss_updater.cache_manager import cache_manager
                     await cache_manager.stop()
@@ -1701,7 +1794,15 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error stopping cache manager: {e}")
 
-                # 3. Close HTTP session
+                # 4. Shutdown search service (saves history, releases indexes)
+                try:
+                    from dlss_updater.search_service import search_service
+                    await search_service.shutdown()
+                    self.logger.info("Search service shutdown complete")
+                except Exception as e:
+                    self.logger.warning(f"Error shutting down search service: {e}")
+
+                # 5. Close HTTP session
                 try:
                     from dlss_updater.dll_repository import close_http_session
                     await close_http_session()
@@ -1709,7 +1810,7 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error closing HTTP session: {e}")
 
-                # 4. Close database connections
+                # 6. Close database connections
                 try:
                     from dlss_updater.database import db_manager
                     await db_manager.close()

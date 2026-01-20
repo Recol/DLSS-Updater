@@ -12,12 +12,14 @@ from dlss_updater.models import MergedGame
 from dlss_updater.ui_flet.components.game_card import GameCard
 from dlss_updater.ui_flet.components.search_bar import SearchBar
 from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator
 from dlss_updater.config import is_dll_cache_ready
 from dlss_updater.search_service import search_service
+from dlss_updater.task_registry import register_task
 
 
-class GamesView(ft.Column):
+class GamesView(ThemeAwareMixin, ft.Column):
     """Games library view with launcher tabs"""
 
     def __init__(self, page: ft.Page, logger):
@@ -45,8 +47,15 @@ class GamesView(ft.Column):
         self._search_generation: int = 0
         self.search_bar: SearchBar | None = None
 
+        # Initialize theme system reference before building UI
+        self._registry = get_theme_registry()
+        self._theme_priority = 10  # Views are high priority (animate early)
+
         # Build initial UI
         self._build_ui()
+
+        # Register with theme system after UI is built
+        self._register_theme_aware()
 
     def _create_delete_db_button(self) -> ft.ElevatedButton:
         """Create and store reference to Delete Database button"""
@@ -69,8 +78,8 @@ class GamesView(ft.Column):
 
     def _build_ui(self):
         """Build initial UI with empty state"""
-        # Get theme preference
-        is_dark = self.page.session.get("is_dark_theme") if self.page and self.page.session.contains_key("is_dark_theme") else True
+        # Get theme preference from registry
+        is_dark = self._get_is_dark()
 
         # Create search bar
         self.search_bar = SearchBar(
@@ -81,16 +90,26 @@ class GamesView(ft.Column):
             width=300,
         )
 
+        # Store themed element references
+        self.header_title = ft.Text(
+            "Games Library",
+            size=20,
+            weight=ft.FontWeight.BOLD,
+            color=MD3Colors.get_text_primary(is_dark),
+        )
+
+        self.loading_text = ft.Text(
+            "Loading games...",
+            color=MD3Colors.get_text_primary(is_dark),
+        )
+
+        self.divider = ft.Divider(height=1, color=MD3Colors.get_outline(is_dark))
+
         # Header
         self.header = ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Text(
-                        "Games Library",
-                        size=20,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.WHITE,
-                    ),
+                    self.header_title,
                     ft.Container(expand=True),  # Spacer
                     self.search_bar,
                     ft.Container(width=16),  # Spacing
@@ -140,7 +159,7 @@ class GamesView(ft.Column):
             content=ft.Column(
                 controls=[
                     ft.ProgressRing(),
-                    ft.Text("Loading games...", color=ft.Colors.WHITE),
+                    self.loading_text,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=12,
@@ -159,7 +178,7 @@ class GamesView(ft.Column):
         # Assemble
         self.controls = [
             self.header,
-            ft.Divider(height=1, color="#5A5A5A"),
+            self.divider,
             ft.Stack(
                 controls=[
                     self.empty_state,
@@ -169,6 +188,23 @@ class GamesView(ft.Column):
                 expand=True,
             ),
         ]
+
+    def _get_is_dark(self) -> bool:
+        """Get current theme mode from registry or session"""
+        if hasattr(self, '_registry') and self._registry:
+            return self._registry.is_dark
+        if self.page and self.page.session.contains_key("is_dark_theme"):
+            return self.page.session.get("is_dark_theme")
+        return True
+
+    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+        """Return themed property mappings for theme-aware system"""
+        return {
+            "header.bgcolor": (MD3Colors.SURFACE_VARIANT, MD3Colors.SURFACE_VARIANT_LIGHT),
+            "header_title.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
+            "loading_text.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
+            "divider.color": (MD3Colors.get_outline(True), MD3Colors.get_outline(False)),
+        }
 
     async def load_games(self):
         """Load games from database and display"""
@@ -299,11 +335,13 @@ class GamesView(ft.Column):
 
                 game_cards.append(card)
 
-                # Load image asynchronously (non-blocking)
-                asyncio.create_task(card.load_image())
+                # Load image asynchronously (non-blocking) - REGISTER THE TASK
+                task = asyncio.create_task(card.load_image())
+                register_task(task, f"load_image_{card.game.name[:20]}")
 
-            # Trigger staggered fade-in animation for game cards
-            asyncio.create_task(self._animate_cards_in(game_cards))
+            # Trigger staggered fade-in animation - REGISTER THE TASK
+            anim_task = asyncio.create_task(self._animate_cards_in(game_cards))
+            register_task(anim_task, f"animate_cards_{launcher}")
 
             # Create ResponsiveRow grid for this launcher's games (Flet 0.28.3 compatible)
             # Wrap each card with responsive column sizing
@@ -993,12 +1031,39 @@ class GamesView(ft.Column):
         self.page.open(results_dialog)
 
     async def on_view_hidden(self):
-        """Called when view is hidden - release resources if not persisting"""
+        """Called when view is hidden (tab switch) - minimal cleanup for fast switching"""
         from dlss_updater.config import config_manager
         from dlss_updater.search_service import search_service
 
+        # Only clear search index if user preference says so
+        # Game cards and containers are KEPT for fast tab switching
         if not config_manager.get_keep_games_in_memory():
             search_service.clear_index()
             self.logger.debug("Games view hidden - search index cleared")
         else:
             self.logger.debug("Games view hidden - keeping search index in memory (user preference)")
+
+    async def on_shutdown(self):
+        """Called during application shutdown - full resource cleanup"""
+        from dlss_updater.search_service import search_service
+
+        self.logger.debug("Games view shutdown - releasing all resources")
+
+        # Clear game card references to allow garbage collection
+        self.game_cards.clear()
+        self.game_card_containers.clear()
+
+        # Cancel update coordinator if exists
+        if self.update_coordinator:
+            self.update_coordinator.cancel()
+            self.update_coordinator = None
+
+        # Cleanup search bar
+        if self.search_bar:
+            await self.search_bar.cleanup()
+
+        # Clear search index
+        search_service.clear_index()
+
+        # Unregister from theme system
+        self._unregister_theme_aware()
