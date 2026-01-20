@@ -267,7 +267,7 @@ class GameCard(ft.Card):
         )
 
     def _create_dll_badges(self) -> ft.Container:
-        """Create condensed DLL badge with popout showing all DLLs"""
+        """Create condensed DLL badge that opens grouped dialog on click"""
         from dlss_updater.ui_flet.theme.colors import MD3Colors
 
         # Edge case: No DLLs
@@ -285,8 +285,9 @@ class GameCard(ft.Card):
         badge_text = f"+{dll_count} DLL" if dll_count == 1 else f"+{dll_count} DLLs"
         badge_color = "#FF9800" if has_updates else MD3Colors.PRIMARY
 
+        # Use GestureDetector to make the badge clickable and open the grouped dialog
         return ft.Container(
-            content=ft.PopupMenuButton(
+            content=ft.GestureDetector(
                 content=ft.Container(
                     content=ft.Row(
                         controls=[
@@ -304,10 +305,11 @@ class GameCard(ft.Card):
                     padding=ft.padding.symmetric(horizontal=8, vertical=4),
                     border_radius=8,
                 ),
-                items=self._build_dll_popover_items(),
-                tooltip=f"View {dll_count} DLL{'s' if dll_count != 1 else ''}",
+                on_tap=lambda e: self.page.run_task(self._show_dll_dialog),
+                mouse_cursor=ft.MouseCursor.CLICK,
             ),
             height=28,
+            tooltip=f"View {dll_count} DLL{'s' if dll_count != 1 else ''} - click for details",
         )
 
     def _get_dll_groups_for_game(self) -> list[str]:
@@ -450,6 +452,36 @@ class GameCard(ft.Card):
         if self.on_restore_callback:
             self.on_restore_callback(self.game, group)
 
+    async def _show_dll_dialog(self):
+        """Show the grouped DLL dialog with technology categories"""
+        from dlss_updater.ui_flet.dialogs.dll_group_dialog import DLLGroupDialog
+
+        # Determine which game object to pass (MergedGame or Game)
+        game_to_show = self.merged_game if self.merged_game else self.game
+
+        dialog = DLLGroupDialog(
+            page=self.page,
+            logger=self.logger,
+            game=game_to_show,
+            dlls=self.dlls,
+            backup_groups=self.backup_groups,
+            on_update=self._on_dialog_update,
+            on_restore=self._on_dialog_restore,
+        )
+        await dialog.show()
+
+    def _on_dialog_update(self, game, group: str):
+        """Handle update request from grouped DLL dialog"""
+        if self.is_updating:
+            return
+        if self.on_update_callback:
+            self.on_update_callback(game, group)
+
+    def _on_dialog_restore(self, game, group: str):
+        """Handle restore request from grouped DLL dialog"""
+        if self.on_restore_callback:
+            self.on_restore_callback(game, group)
+
     async def load_image(self):
         """Async load Steam image with fade-in animation"""
         # Prevent duplicate image loads
@@ -495,7 +527,12 @@ class GameCard(ft.Card):
             self.logger.error(f"Error loading image for {self.game.name}: {e}", exc_info=True)
 
     async def _fade_in_image(self, image_path: str):
-        """Fade in image smoothly with UI lock to prevent race conditions"""
+        """Fade in image smoothly with UI lock to prevent race conditions.
+
+        Note: Lock is released during sleep to avoid blocking other concurrent UI updates.
+        This is important for Python 3.14 free-threading compatibility.
+        """
+        # Phase 1: Set up image and prepare for fade-in (under lock)
         async with self._ui_lock:
             # Check if page is still available (may be None if view was closed)
             if not self.page:
@@ -510,8 +547,11 @@ class GameCard(ft.Card):
             self.image_container.content = self.image_widget
             self.page.update()
 
-            # Small delay then fade in
-            await asyncio.sleep(0.05)
+        # Sleep OUTSIDE the lock to allow other UI operations to proceed
+        await asyncio.sleep(0.05)
+
+        # Phase 2: Complete fade-in (reacquire lock)
+        async with self._ui_lock:
             if self.page:  # Check again after await
                 self.image_container.opacity = 1
                 self.page.update()

@@ -180,19 +180,21 @@ class AsyncUpdateCoordinator:
         try:
             # Create progress wrapper that calls our async callback
             processed_count = 0
-            # Store pending progress tasks to ensure they complete
-            _pending_progress_tasks = []
+            # Use a bounded deque for O(1) cleanup - only keep last N pending tasks
+            # This prevents memory leak with O(n²) list comprehension on every callback
+            from collections import deque
+            _pending_progress_tasks: deque[asyncio.Task] = deque(maxlen=32)
 
             def sync_progress_callback(current, total, message):
                 """Synchronous progress callback for compatibility"""
-                nonlocal processed_count, _pending_progress_tasks
+                nonlocal processed_count
                 processed_count = current
                 raw_percentage = int((current / total * 100)) if total > 0 else 0
                 percentage = max(0, min(100, raw_percentage))  # Clamp to [0, 100]
 
                 # Call async callback directly (we're in async context now)
                 if self._progress_callback:
-                    # Schedule as a task and track it for completion
+                    # Schedule as a task - deque automatically evicts old tasks (maxlen=32)
                     task = asyncio.create_task(self._progress_callback(UpdateProgress(
                         current=current,
                         total=total,
@@ -200,8 +202,6 @@ class AsyncUpdateCoordinator:
                         percentage=percentage
                     )))
                     _pending_progress_tasks.append(task)
-                    # Clean up completed tasks to avoid memory growth
-                    _pending_progress_tasks[:] = [t for t in _pending_progress_tasks if not t.done()]
 
             # Call async update_dlss_versions directly (no thread pool)
             result = await update_dlss_versions(
@@ -209,6 +209,10 @@ class AsyncUpdateCoordinator:
                 settings,
                 sync_progress_callback
             )
+
+            # Await any remaining pending progress tasks to ensure completion
+            if _pending_progress_tasks:
+                await asyncio.gather(*_pending_progress_tasks, return_exceptions=True)
 
             # Parse result (update_dlss_versions returns dict with results)
             updated_games = result.get("updated_games", [])
