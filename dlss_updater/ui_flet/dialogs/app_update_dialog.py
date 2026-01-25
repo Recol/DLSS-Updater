@@ -62,7 +62,7 @@ class AppUpdateDialog(ThemeAwareMixin):
     """
 
     def __init__(self, page: ft.Page, logger: logging.Logger):
-        self.page = page
+        self._page_ref = page
         self.logger = logger
 
         # Theme registry setup
@@ -96,8 +96,8 @@ class AppUpdateDialog(ThemeAwareMixin):
             ),
             bgcolor=MD3Colors.get_surface(is_dark),
         )
-        self.page.open(checking_dialog)
-        self.page.update()
+        self._page_ref.show_dialog(checking_dialog)
+        self._page_ref.update()
 
         try:
             # Check for updates asynchronously (non-blocking)
@@ -105,7 +105,7 @@ class AppUpdateDialog(ThemeAwareMixin):
             latest_version, is_update_available, download_url = await check_for_updates_async()
 
             # Close checking dialog
-            self.page.close(checking_dialog)
+            self._page_ref.pop_dialog()
 
             # Fallback URL if none returned
             if not download_url:
@@ -117,7 +117,7 @@ class AppUpdateDialog(ThemeAwareMixin):
                 # Update available
                 def open_download(e):
                     _open_url(download_url)
-                    self.page.close(update_dialog)
+                    self._page_ref.pop_dialog()
 
                 update_dialog = ft.AlertDialog(
                     modal=True,
@@ -159,11 +159,11 @@ class AppUpdateDialog(ThemeAwareMixin):
                     ),
                     bgcolor=MD3Colors.get_surface(is_dark),
                     actions=[
-                        ft.TextButton("Later", on_click=lambda e: self.page.close(update_dialog)),
+                        ft.TextButton("Later", on_click=lambda e: self._page_ref.pop_dialog()),
                         ft.FilledButton("Download", on_click=open_download),
                     ],
                 )
-                self.page.open(update_dialog)
+                self._page_ref.show_dialog(update_dialog)
 
             else:
                 # No update available
@@ -177,16 +177,16 @@ class AppUpdateDialog(ThemeAwareMixin):
                     ),
                     bgcolor=MD3Colors.get_surface(is_dark),
                     actions=[
-                        ft.FilledButton("OK", on_click=lambda e: self.page.close(no_update_dialog)),
+                        ft.FilledButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
                     ],
                 )
-                self.page.open(no_update_dialog)
+                self._page_ref.show_dialog(no_update_dialog)
 
         except Exception as e:
             self.logger.error(f"Update check failed: {e}", exc_info=True)
 
             # Close checking dialog
-            self.page.close(checking_dialog)
+            self._page_ref.pop_dialog()
 
             # Show error
             error_dialog = ft.AlertDialog(
@@ -199,7 +199,7 @@ class AppUpdateDialog(ThemeAwareMixin):
                 ),
                 bgcolor=MD3Colors.get_surface(is_dark),
                 actions=[
-                    ft.FilledButton("OK", on_click=lambda e: self.page.close(error_dialog)),
+                    ft.FilledButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
                 ],
             )
-            self.page.open(error_dialog)
+            self._page_ref.show_dialog(error_dialog)

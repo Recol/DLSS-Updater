@@ -17,7 +17,7 @@ class BackupCard(ThemeAwareMixin, ft.Card):
     def __init__(self, backup: DLLBackup, page: ft.Page, logger, on_restore=None, on_delete=None):
         super().__init__()
         self.backup = backup
-        self.page = page
+        self._page_ref = page
         self.logger = logger
         self.on_restore_callback = on_restore
         self.on_delete_callback = on_delete
@@ -115,7 +115,7 @@ class BackupCard(ThemeAwareMixin, ft.Card):
         # Divider
         self._divider = ft.Divider(height=1, color=MD3Colors.get_outline(is_dark))
 
-        # Card content
+        # Card content - fixed height like GameCard for consistent GridView sizing
         self.content = ft.Container(
             content=ft.Column(
                 controls=[
@@ -124,24 +124,26 @@ class BackupCard(ThemeAwareMixin, ft.Card):
                     metadata,
                     action_buttons,
                 ],
-                spacing=12,
+                spacing=6,  # Compact spacing
                 tight=True,
             ),
-            padding=16,
+            padding=10,
+            height=220,  # Same as GameCard - fits all content including buttons
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
         )
 
     def _create_metadata_row(self, label: str, value: str, is_dark: bool) -> ft.Row:
         """Create a metadata row with label and value"""
         label_text = ft.Text(
             label,
-            size=12,
+            size=11,  # Slightly smaller for compactness
             color=MD3Colors.get_text_secondary(is_dark),
-            width=120,
+            width=95,  # Reduced from 120 to fit better
             no_wrap=True,
         )
         value_text = ft.Text(
             value,
-            size=12,
+            size=11,  # Slightly smaller for compactness
             color=MD3Colors.get_text_primary(is_dark),
             expand=True,
             no_wrap=True,
@@ -163,14 +165,14 @@ class BackupCard(ThemeAwareMixin, ft.Card):
         """Create a metadata row for paths with tooltip and copy functionality"""
         self._path_label = ft.Text(
             label,
-            size=12,
+            size=11,  # Match metadata row size
             color=MD3Colors.get_text_secondary(is_dark),
-            width=120,
+            width=95,  # Match metadata row width
             no_wrap=True,
         )
         self._path_value = ft.Text(
             self._truncate_path(full_path),
-            size=12,
+            size=11,  # Match metadata row size
             color=MD3Colors.get_text_primary(is_dark),
             no_wrap=True,
         )
@@ -200,8 +202,8 @@ class BackupCard(ThemeAwareMixin, ft.Card):
     async def _on_copy_path_clicked(self, e, path: str):
         """Copy path to clipboard with snackbar confirmation"""
         is_dark = self._registry.is_dark
-        await self.page.set_clipboard_async(path)
-        self.page.open(ft.SnackBar(content=ft.Text("Path copied to clipboard"), bgcolor=MD3Colors.get_primary(is_dark)))
+        await self._page_ref.set_clipboard_async(path)
+        self._page_ref.show_dialog(ft.SnackBar(content=ft.Text("Path copied to clipboard"), bgcolor=MD3Colors.get_primary(is_dark)))
 
     def _format_date(self, dt: datetime) -> str:
         """Format datetime for display"""

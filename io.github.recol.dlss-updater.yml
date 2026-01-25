@@ -48,8 +48,8 @@ modules:
   - name: dlss-updater
     buildsystem: simple
     build-commands:
-      # Install the PyInstaller-built executable
-      - install -Dm755 dist/DLSS_Updater /app/bin/dlss_updater
+      # Install the Flet-built executable
+      - install -Dm755 dist/dlss_updater /app/bin/dlss_updater
       # Create wrapper script
       - |
         cat > /app/bin/dlss-updater << 'EOF'

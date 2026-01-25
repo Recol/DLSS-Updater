@@ -104,23 +104,33 @@ uv python pin 3.14t
 uv sync
 
 # =============================================================================
-# Step 4: Build with PyInstaller
+# Step 4: Build with Flet
 # =============================================================================
-echo -e "\n${YELLOW}[4/6] Building Linux application with PyInstaller...${NC}"
+echo -e "\n${YELLOW}[4/6] Building Linux application with Flet...${NC}"
 
 # Clean previous builds
-rm -rf build/pyinstaller dist/DLSS_Updater
+rm -rf build/linux dist/
 
-# Run PyInstaller with the Linux spec file
-uv run pyinstaller DLSS_Updater_Linux.spec --distpath dist --workpath build/pyinstaller
+# Run flet build linux
+# Note: flet build uses serious-python to embed Python with dependencies
+uv run flet build linux \
+    --project "DLSS_Updater" \
+    --product "DLSS Updater" \
+    --org "io.github.recol" \
+    --description "Update DLSS/XeSS/FSR DLLs for games" \
+    --build-version "${VERSION}"
+
+# Move build output to expected location for Flatpak
+mkdir -p dist
+cp -r build/linux/* dist/
 
 # Verify the binary was created
-if [ ! -f "dist/DLSS_Updater" ]; then
-    echo -e "${RED}Error: PyInstaller build failed - dist/DLSS_Updater not found${NC}"
+if [ ! -f "dist/dlss_updater" ]; then
+    echo -e "${RED}Error: Flet build failed - dist/dlss_updater not found${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}PyInstaller build successful${NC}"
+echo -e "${GREEN}Flet build successful${NC}"
 ls -la dist/
 
 # =============================================================================

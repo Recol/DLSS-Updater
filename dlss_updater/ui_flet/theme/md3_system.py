@@ -596,7 +596,7 @@ class MD3Shadows:
         blur_radius=2,
         offset=ft.Offset(0, 1),
         color="rgba(0, 0, 0, 0.12)",
-        blur_style=ft.ShadowBlurStyle.NORMAL,
+        blur_style=ft.BlurStyle.NORMAL,
     )
 
     # Level 2 - Standard elevation (raised cards)
@@ -605,7 +605,7 @@ class MD3Shadows:
         blur_radius=4,
         offset=ft.Offset(0, 2),
         color="rgba(0, 0, 0, 0.16)",
-        blur_style=ft.ShadowBlurStyle.NORMAL,
+        blur_style=ft.BlurStyle.NORMAL,
     )
 
     # Level 3 - Hover elevation (multi-layer with accent glow)
@@ -615,14 +615,14 @@ class MD3Shadows:
             blur_radius=8,
             offset=ft.Offset(0, 4),
             color="rgba(0, 0, 0, 0.20)",
-            blur_style=ft.ShadowBlurStyle.NORMAL,
+            blur_style=ft.BlurStyle.NORMAL,
         ),
         ft.BoxShadow(
             spread_radius=0,
             blur_radius=16,
             offset=ft.Offset(0, 2),
             color="rgba(45, 110, 136, 0.08)",  # Accent glow
-            blur_style=ft.ShadowBlurStyle.OUTER,
+            blur_style=ft.BlurStyle.OUTER,
         ),
     ]
 
@@ -633,14 +633,14 @@ class MD3Shadows:
             blur_radius=24,
             offset=ft.Offset(0, 8),
             color="rgba(0, 0, 0, 0.28)",
-            blur_style=ft.ShadowBlurStyle.NORMAL,
+            blur_style=ft.BlurStyle.NORMAL,
         ),
         ft.BoxShadow(
             spread_radius=0,
             blur_radius=12,
             offset=ft.Offset(0, 4),
             color="rgba(0, 0, 0, 0.16)",
-            blur_style=ft.ShadowBlurStyle.NORMAL,
+            blur_style=ft.BlurStyle.NORMAL,
         ),
     ]
 
@@ -651,21 +651,21 @@ class MD3Shadows:
             blur_radius=32,
             offset=ft.Offset(0, 12),
             color="rgba(0, 0, 0, 0.32)",
-            blur_style=ft.ShadowBlurStyle.NORMAL,
+            blur_style=ft.BlurStyle.NORMAL,
         ),
         ft.BoxShadow(
             spread_radius=0,
             blur_radius=16,
             offset=ft.Offset(0, 6),
             color="rgba(0, 0, 0, 0.20)",
-            blur_style=ft.ShadowBlurStyle.NORMAL,
+            blur_style=ft.BlurStyle.NORMAL,
         ),
         ft.BoxShadow(
             spread_radius=0,
             blur_radius=8,
             offset=ft.Offset(0, 3),
             color="rgba(0, 0, 0, 0.12)",
-            blur_style=ft.ShadowBlurStyle.NORMAL,
+            blur_style=ft.BlurStyle.NORMAL,
         ),
     ]
 
@@ -690,7 +690,7 @@ class MD3Shadows:
                 blur_radius=blur,
                 offset=ft.Offset(0, offset_y),
                 color=f"rgba(0, 0, 0, {opacity})",
-                blur_style=ft.ShadowBlurStyle.NORMAL,
+                blur_style=ft.BlurStyle.NORMAL,
             ))
 
         # Add brand-colored glow as last layer
@@ -703,7 +703,7 @@ class MD3Shadows:
             blur_radius=blur,
             offset=ft.Offset(0, 2),
             color=f"rgba({r}, {g}, {b}, {glow_opacity})",
-            blur_style=ft.ShadowBlurStyle.OUTER,
+            blur_style=ft.BlurStyle.OUTER,
         ))
 
         return shadows

@@ -19,7 +19,7 @@ class UpdateSummaryDialog(ThemeAwareMixin):
     """
 
     def __init__(self, page: ft.Page, logger: logging.Logger, result: UpdateResult):
-        self.page = page
+        self._page_ref = page
         self.logger = logger
         self.result = result
 
@@ -37,7 +37,7 @@ class UpdateSummaryDialog(ThemeAwareMixin):
     def _close_dialog(self, dialog, e=None):
         """Close dialog and unregister from theme system."""
         self._unregister_theme_aware()
-        self.page.close(dialog)
+        self._page_ref.pop_dialog()
 
     async def show(self):
         """Show the update summary dialog"""
@@ -45,8 +45,9 @@ class UpdateSummaryDialog(ThemeAwareMixin):
         self._register_theme_aware()
         is_dark = self._registry.is_dark
 
-        # Create tabs for different result categories
-        tabs = []
+        # Create tabs for different result categories (Flet 0.80.4 TabBar/TabBarView pattern)
+        tab_headers = []  # Tab labels/icons
+        tab_contents = []  # Tab content controls
 
         # Tab 1: Updated Games
         if self.result.updated_games:
@@ -82,13 +83,13 @@ class UpdateSummaryDialog(ThemeAwareMixin):
                 ],
                 spacing=8,
             )
-            tabs.append(
+            tab_headers.append(
                 ft.Tab(
-                    text=f"Updated ({len(self.result.updated_games)})",
+                    label=f"Updated ({len(self.result.updated_games)})",
                     icon=ft.Icons.CHECK_CIRCLE,
-                    content=ft.Container(content=updated_content, padding=16),
                 )
             )
+            tab_contents.append(ft.Container(content=updated_content, padding=16))
 
         # Tab 2: Skipped Games
         if self.result.skipped_games:
@@ -124,13 +125,13 @@ class UpdateSummaryDialog(ThemeAwareMixin):
                 ],
                 spacing=8,
             )
-            tabs.append(
+            tab_headers.append(
                 ft.Tab(
-                    text=f"Skipped ({len(self.result.skipped_games)})",
+                    label=f"Skipped ({len(self.result.skipped_games)})",
                     icon=ft.Icons.SKIP_NEXT,
-                    content=ft.Container(content=skipped_content, padding=16),
                 )
             )
+            tab_contents.append(ft.Container(content=skipped_content, padding=16))
 
         # Tab 3: Errors
         if self.result.errors:
@@ -186,32 +187,34 @@ class UpdateSummaryDialog(ThemeAwareMixin):
                 ],
                 spacing=8,
             )
-            tabs.append(
+            tab_headers.append(
                 ft.Tab(
-                    text=f"Errors ({len(self.result.errors)})",
+                    label=f"Errors ({len(self.result.errors)})",
                     icon=ft.Icons.ERROR,
-                    content=ft.Container(content=error_content, padding=16),
                 )
             )
+            tab_contents.append(ft.Container(content=error_content, padding=16))
 
         # If no results at all, show empty state
-        if not tabs:
-            tabs.append(
+        if not tab_headers:
+            tab_headers.append(
                 ft.Tab(
-                    text="Results",
+                    label="Results",
                     icon=ft.Icons.INFO,
-                    content=ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=48, color=MD3Colors.get_text_secondary(is_dark)),
-                                ft.Text("No games were processed", color=MD3Colors.get_text_secondary(is_dark)),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                            alignment=ft.MainAxisAlignment.CENTER,
-                        ),
-                        padding=ft.padding.all(32),
-                        height=300,
+                )
+            )
+            tab_contents.append(
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Icon(ft.Icons.INFO_OUTLINE, size=48, color=MD3Colors.get_text_secondary(is_dark)),
+                            ft.Text("No games were processed", color=MD3Colors.get_text_secondary(is_dark)),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.CENTER,
                     ),
+                    padding=ft.padding.all(32),
+                    height=300,
                 )
             )
 
@@ -235,9 +238,16 @@ class UpdateSummaryDialog(ThemeAwareMixin):
                         ft.Text(summary_str, size=14, color=MD3Colors.get_text_secondary(is_dark)),
                         ft.Container(height=8),
                         ft.Tabs(
-                            tabs=tabs,
+                            length=len(tab_headers),
                             selected_index=0,
                             animation_duration=200,
+                            content=ft.Column(
+                                expand=True,
+                                controls=[
+                                    ft.TabBar(tabs=tab_headers),
+                                    ft.TabBarView(expand=True, controls=tab_contents),
+                                ],
+                            ),
                         ),
                     ],
                     spacing=0,
@@ -251,4 +261,4 @@ class UpdateSummaryDialog(ThemeAwareMixin):
             ],
         )
 
-        self.page.open(dialog)
+        self._page_ref.show_dialog(dialog)

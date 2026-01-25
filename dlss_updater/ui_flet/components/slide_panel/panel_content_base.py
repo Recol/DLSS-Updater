@@ -46,7 +46,7 @@ class PanelContentBase(ABC):
             page: Flet Page instance for UI updates
             logger: Logger instance for diagnostics
         """
-        self.page = page
+        self._page_ref = page
         self.logger = logger
 
     @property
@@ -184,9 +184,9 @@ class PanelContentBase(ABC):
             content=ft.Text(message),
             bgcolor=bgcolor,
         )
-        self.page.overlay.append(snackbar)
+        self._page_ref.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page_ref.update()
 
     def _show_error_dialog(self, title: str, message: str):
         """
@@ -202,8 +202,8 @@ class PanelContentBase(ABC):
             actions=[
                 ft.FilledButton(
                     "OK",
-                    on_click=lambda e: self.page.close(error_dialog)
+                    on_click=lambda e: self._page_ref.pop_dialog()
                 ),
             ],
         )
-        self.page.open(error_dialog)
+        self._page_ref.show_dialog(error_dialog)

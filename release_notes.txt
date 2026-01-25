@@ -1,3 +1,93 @@
+Version 3.7.0:
+Flet 0.80.4 Migration - Major framework upgrade with breaking API changes:
+  Linux Build Migration:
+  - Migrated Linux build from PyInstaller to `flet build linux`.
+  - Resolves GTK/SVG errors on Nobara 43 (Issue #127) caused by PyInstaller bundling incompatible libstdc++.
+  - `flet build linux` uses Flutter's Skia engine, avoiding system library conflicts with Flatpak runtime.
+  - Removed DLSS_Updater_Linux.spec (PyInstaller spec no longer needed).
+  - Smaller, cleaner build process that leverages Flet's native Flutter bundling.
+  Framework Upgrade:
+  - Upgraded from Flet 0.28.3 to Flet 0.80.4 (major version jump).
+  - Modernized entry point from ft.app() to ft.run().
+  - Updated all alignment constants to uppercase (ft.Alignment.CENTER, etc.).
+  - Migrated dialog operations to new API (show_dialog/pop_dialog).
+  - Updated FilePicker to use async service pattern (returns path directly).
+  - Fixed ExpansionTile parameter (initially_expanded -> expanded).
+  - Fixed PopupMenuItem parameter (text -> content).
+  - Fixed Dropdown parameter (on_change -> on_select).
+  - Fixed BlurStyle API (ShadowBlurStyle -> BlurStyle).
+  API Compatibility:
+  - Updated all UI components to use _page_ref for stored page reference.
+  - In Flet 0.80.4+, controls inherit read-only 'page' property.
+  - Updated session/client_storage usage for API compatibility.
+  Performance Optimization:
+  - Fixed sequential image loading (~1.9s) now batched for concurrent loading (~350-400ms).
+  - ImageLoadCoordinator batches page.update() calls (2 calls instead of 11 per tab).
+  - 50ms debounce window collects concurrent image loads for synchronized fade-in.
+  - Upgraded skeleton loaders to ft.Shimmer for GPU-accelerated animation.
+  - Documented Flet 0.80.4 performance patterns in CLAUDE.md for future reference.
+  - Replaced "More Options" menu (585ms expand, 1183ms collapse) with 3 popup buttons (~20-30ms each).
+  - New app bar layout: Community (pink heart), Preferences (orange gear), Application (blue grid).
+  - Native Flutter PopupMenuButton provides GPU-accelerated menu rendering.
+  - Eliminated 100+ nested controls in favor of lightweight popup menus.
+  - Logger panel: Replaced height animation with visible+opacity pattern (~50-100ms faster toggle).
+  - Games tab: Skip redundant rebuilds on tab switching when games already loaded (~1.5s saved).
+  - Games tab: Respects "Keep Games in Memory" preference for instant tab switching.
+  - Games tab: Progressive loading - first 16 cards shown instantly, rest load in background.
+  - Games tab: Performance logging for data loading and card creation timings.
+  - Backups tab: Switched from ResponsiveRow to virtualized GridView (only renders visible cards).
+  - Backups tab: Progressive loading - first 12 cards shown instantly, rest load in background.
+  - Backups tab: Parallel database queries with asyncio.gather() (~50% faster data loading).
+  - Backups tab: Skip redundant rebuilds on tab switching (instant return visits).
+  - Both tabs now scale to 200+ items with instant perceived loading.
+  - Tab switching: Removed 200ms artificial delay, instant visual switch now.
+  - Tab switching: Content visibility toggles immediately, shows loading indicator.
+  - Tab switching: Data loading runs non-blocking via asyncio.create_task.
+  - Tab switching: Cleanup runs non-blocking (asyncio.create_task).
+  - Tab switching: User sees instant response, data loads transparently in background.
+  Bug Fixes:
+  - Fixed Restore button disappearing when Games tab is resized to narrow width.
+    Root cause: Fixed 180px card height with clip behavior clipped wrapped buttons.
+    Fix: Increased card height to 220px and adjusted GridView aspect ratio (1.78 -> 1.45).
+  - Fixed search index being cleared on tab switch despite "Keep Games in Memory" preference.
+    Root cause: Duplicate clear_index() call in _cleanup_games_view() ignored user preference.
+    Fix: Removed redundant clear, now respects config_manager.get_keep_games_in_memory().
+  - Fixed database connection pool closing on every tab switch to Launchers.
+    Root cause: db_manager.close() was called when navigating to Launchers tab.
+    Fix: Pool now stays open for app lifetime, only closes on shutdown (~200-500ms saved per switch).
+Dependencies:
+  - Flet 0.28.3 -> 0.80.4
+  - flet-desktop 0.28.3 -> 0.80.4
+  - flet-desktop-light 0.28.3 -> 0.80.4 (Linux)
+
+Version 3.6.1:
+GUI Unresponsiveness Fix - Critical fix for frozen/unclickable UI after launch:
+  Critical Fixes:
+  - Fixed LoadingOverlay blocking all mouse/keyboard input after hiding.
+    Root cause: The overlay set a custom `self.visible = False` attribute that
+    shadowed Flet's built-in visibility property. The Container remained rendered
+    and intercepted all input events while appearing invisible to users.
+    Fix: LoadingOverlay now dynamically adds/removes itself from page.overlay
+    in show()/hide() methods, ensuring proper event handling.
+  - Removed darkdetect dependency that caused blocking calls during startup.
+    The darkdetect.theme() call could hang for 2-10 seconds on:
+    - Linux Flatpak (D-Bus sandbox restrictions)
+    - Wayland sessions (portal access issues)
+    - Windows with certain antivirus software (registry query delays)
+    Theme is now loaded from saved user preference or defaults to dark mode.
+  - Fixed admin elevation race condition on Windows causing dual process instances.
+    ShellExecuteW is asynchronous - the original process would exit before the
+    elevated process fully started. Now uses ShellExecuteExW with proper process
+    handle waiting (2 second timeout) before exit.
+  Symptoms fixed:
+  - GUI opens but nothing is clickable or hoverable
+  - Only "Join Discord" and "Dismiss" banner visible but non-functional
+  - Can tab through items but cannot activate with space/enter
+  - Two DLSS_Updater.exe instances visible in Task Manager
+  - Processes persist after closing the window
+Dependencies:
+  - Removed darkdetect>=0.8.0 (no longer needed - caused blocking startup issues).
+
 Version 3.5.6:
 Thread Safety & Memory Leak Fixes - Comprehensive fixes for Python 3.14 free-threaded mode:
   Critical Fixes (P0):

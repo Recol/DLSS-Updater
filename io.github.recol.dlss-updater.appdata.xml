@@ -64,6 +64,28 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="3.7.0" date="2026-01-24">
+      <description>
+        <p>Flet 0.80.4 Migration - Major framework upgrade</p>
+        <ul>
+          <li>Upgraded Flet from 0.28.3 to 0.80.4 (major version jump)</li>
+          <li>Modernized entry point and API usage</li>
+          <li>Updated all UI components for new Flet patterns</li>
+          <li>Improved GIL unlock support for free-threaded Python 3.14</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.6.1" date="2026-01-23">
+      <description>
+        <p>GUI Unresponsiveness Fix - Critical fix for frozen/unclickable UI</p>
+        <ul>
+          <li>Fixed LoadingOverlay blocking all input after hiding (caused frozen UI)</li>
+          <li>Removed darkdetect dependency that caused blocking startup on Linux/Wayland</li>
+          <li>Fixed admin elevation race condition causing dual process instances on Windows</li>
+          <li>Theme now loads from saved preference or defaults to dark mode</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.6.0" date="2026-01-20">
       <description>
         <p>Bug Fixes and Improvements</p>
@@ -73,6 +95,7 @@
           <li>DLL's are now categorised under Games, for better legibility.</li>
         </ul>
       </description>
+    </release>
     <release version="3.5.4" date="2026-01-17">
       <description>
         <p>Linux Flatpak Fixes - Resolved multiple launch and scan issues</p>

@@ -80,7 +80,7 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
 
         # Rebuild the games list now that data is loaded
         self._update_games_list()
-        self.page.update()
+        self._page_ref.update()
 
     def _on_search_change(self, e):
         """
@@ -101,7 +101,7 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
             self.filtered_games = self.blacklisted_games.copy()
 
         self._update_games_list()
-        self.page.update()
+        self._page_ref.update()
 
     def _update_games_list(self):
         """Rebuild games column with filtered results."""
@@ -138,7 +138,7 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     padding=ft.padding.all(32),
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment.CENTER,
                 )
             ]
 
@@ -210,7 +210,7 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
 
         # Update the card to show the new status
         self._update_games_list()
-        self.page.update()
+        self._page_ref.update()
 
     def build(self) -> ft.Control:
         """

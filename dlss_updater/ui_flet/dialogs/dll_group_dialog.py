@@ -58,7 +58,7 @@ class DLLGroupDialog(ThemeAwareMixin):
         on_update: Callable[[Game | MergedGame, str], None],
         on_restore: Callable[[Game | MergedGame, str], None],
     ):
-        self.page = page
+        self._page_ref = page
         self.logger = logger
 
         # Theme registry setup
@@ -92,7 +92,7 @@ class DLLGroupDialog(ThemeAwareMixin):
         """Close dialog and unregister from theme system."""
         self._unregister_theme_aware()
         if self.dialog:
-            self.page.close(self.dialog)
+            self._page_ref.pop_dialog()
 
     async def show(self):
         """Build and display the dialog"""
@@ -223,7 +223,7 @@ class DLLGroupDialog(ThemeAwareMixin):
             ],
         )
 
-        self.page.open(self.dialog)
+        self._page_ref.show_dialog(self.dialog)
 
     def _show_empty_dialog(self):
         """Show empty state dialog when no DLLs found"""
@@ -248,7 +248,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                 ft.TextButton("Close", on_click=self._close_dialog),
             ],
         )
-        self.page.open(self.dialog)
+        self._page_ref.show_dialog(self.dialog)
 
     def _group_dlls(self) -> dict[str, list[GameDLL]]:
         """Group DLLs by technology using DLL_GROUPS constant"""
@@ -567,7 +567,7 @@ class DLLGroupDialog(ThemeAwareMixin):
         # Close dialog and unregister
         self._unregister_theme_aware()
         if self.dialog:
-            self.page.close(self.dialog)
+            self._page_ref.pop_dialog()
 
         # Invoke callback with merged game if available, otherwise primary game
         game_to_update = self.merged_game if self.merged_game else self.game
@@ -581,7 +581,7 @@ class DLLGroupDialog(ThemeAwareMixin):
         # Close dialog and unregister
         self._unregister_theme_aware()
         if self.dialog:
-            self.page.close(self.dialog)
+            self._page_ref.pop_dialog()
 
         # Invoke callback with merged game if available, otherwise primary game
         game_to_restore = self.merged_game if self.merged_game else self.game

@@ -4,6 +4,15 @@ Async/await-based modern Material Design interface
 """
 
 import sys
+import os
+import sysconfig
+
+# Free-threaded Python 3.14 GIL configuration
+# Note: Some C extensions (msgpack) may re-enable GIL when loaded
+_is_free_threaded = bool(sysconfig.get_config_var('Py_GIL_DISABLED'))
+if _is_free_threaded:
+    # Set environment variable for child processes and to indicate intent
+    os.environ['PYTHON_GIL'] = '0'
 
 # Install faster event loop based on platform (must be done before any asyncio usage)
 if sys.platform == 'win32':
@@ -57,12 +66,11 @@ def ensure_flet_directories():
 
 def _detect_initial_theme() -> bool:
     """
-    Detect initial theme preference before UI loads.
+    Load theme preference from config or default to dark.
 
-    Priority:
-    1. User override (if explicitly set in config)
-    2. OS theme detection (via darkdetect)
-    3. Default to dark mode
+    Note: OS theme detection (darkdetect) was removed due to blocking calls
+    that caused GUI freezes on Linux Flatpak/Wayland and Windows with AV software.
+    See: https://github.com/Recol/DLSS-Updater/issues/XXX
 
     Returns:
         True if dark mode should be used, False for light mode
@@ -70,26 +78,7 @@ def _detect_initial_theme() -> bool:
     try:
         from dlss_updater.config import config_manager
 
-        # Check for user override first
-        user_override = config_manager.get(
-            "Appearance", "user_override", fallback="false"
-        )
-        if user_override.lower() == "true":
-            theme_pref = config_manager.get("Appearance", "theme", fallback="dark")
-            return theme_pref == "dark"
-
-        # Try OS theme detection
-        try:
-            import darkdetect
-            os_theme = darkdetect.theme()  # Returns "Dark" or "Light"
-            if os_theme:
-                return os_theme.lower() == "dark"
-        except ImportError:
-            pass  # darkdetect not installed
-        except Exception:
-            pass  # Detection failed
-
-        # Fall back to saved preference or default
+        # Load saved theme preference (user override or previous selection)
         theme_pref = config_manager.get("Appearance", "theme", fallback="dark")
         return theme_pref == "dark"
 
@@ -148,7 +137,7 @@ async def main(page: ft.Page):
             spacing=20,
         ),
         expand=True,
-        alignment=ft.alignment.center,
+        alignment=ft.Alignment.CENTER,
         bgcolor=MD3Colors.get_background(is_dark),
     )
     page.add(startup_overlay)
@@ -255,6 +244,33 @@ async def main(page: ft.Page):
 
     page.on_close = on_window_close
 
+    # Debounced resize handler for high-DPI display optimization
+    # Prevents excessive layout recalculations during rapid window resizing
+    # while maintaining responsive behavior for different screen sizes
+    _resize_task: asyncio.Task | None = None
+    _resize_debounce_ms = 100  # Wait 100ms after last resize before updating
+
+    async def _debounced_resize_update():
+        """Perform actual resize update after debounce delay."""
+        await asyncio.sleep(_resize_debounce_ms / 1000)
+        # ResponsiveRow handles layout automatically, just trigger update
+        if page and hasattr(page, 'update'):
+            try:
+                page.update()
+            except Exception:
+                pass  # Page may be closing
+
+    def on_page_resized(e):
+        """Debounced resize handler - prevents excessive updates during rapid resizing."""
+        nonlocal _resize_task
+        # Cancel any pending resize update
+        if _resize_task and not _resize_task.done():
+            _resize_task.cancel()
+        # Schedule new debounced update
+        _resize_task = asyncio.create_task(_debounced_resize_update())
+
+    page.on_resized = on_page_resized
+
     logger.info("UI initialized successfully")
 
     # Now initialize DLL cache, whitelist, and Steam list in background (after UI is visible)
@@ -308,6 +324,5 @@ if __name__ == "__main__":
         if os.environ.get('WAYLAND_DISPLAY') and not os.environ.get('DISPLAY'):
             os.environ['DISPLAY'] = ':0'  # Prevent Flet's web server fallback
 
-    # Launch Flet app with async main - explicitly use desktop mode
-    # view=ft.AppView.FLET_APP prevents Flet's auto-detection from forcing web server mode
-    ft.app(target=main, view=ft.AppView.FLET_APP)
+    # Launch Flet app with async main - uses ft.run() for Flet 0.80.4+
+    ft.run(main)

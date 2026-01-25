@@ -1,10 +1,18 @@
 """
 Backups View - Browse and restore DLL backups
+
+PERFORMANCE NOTES:
+- Uses GridView with virtualization (only visible cards are rendered)
+- Progressive loading: first batch shown immediately, rest created in background
+- Data preparation runs in thread pool for parallel processing
+- Batch UI updates minimize page.update() calls
 """
 
 import asyncio
 import math
+import time
 from typing import Callable, Any
+from concurrent.futures import ThreadPoolExecutor
 import flet as ft
 
 from dlss_updater.database import db_manager, DLLBackup
@@ -13,6 +21,12 @@ from dlss_updater.backup_manager import restore_dll_from_backup, delete_backup
 from dlss_updater.ui_flet.components.backup_card import BackupCard
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from dlss_updater.task_registry import register_task
+
+# Number of cards to create in first batch (shown immediately)
+INITIAL_BATCH_SIZE = 12
+# Number of cards per background batch
+BACKGROUND_BATCH_SIZE = 20
 
 
 class BackupsView(ThemeAwareMixin, ft.Column):
@@ -20,7 +34,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
     def __init__(self, page: ft.Page, logger):
         super().__init__()
-        self.page = page
+        self._page_ref = page
         self.logger = logger
         self.expand = True
         self.spacing = 0
@@ -37,6 +51,9 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         self.selected_game_id: int | None = None
         self.game_filter_dropdown: ft.Dropdown | None = None
         self.games_with_backups: list[GameWithBackupCount] = []
+
+        # PERFORMANCE: Track if backups are already loaded to prevent redundant rebuilds
+        self._backups_loaded = False
 
         # Initialize theme system reference before building UI
         self._registry = get_theme_registry()
@@ -75,7 +92,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             hint_text="All Games",
             options=[ft.dropdown.Option(key="all", text="All Games")],
             value="all",
-            on_change=self._on_game_filter_changed,
+            on_select=self._on_game_filter_changed,
             width=250,
             dense=True,
             text_size=14,
@@ -97,7 +114,8 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             self.selected_game_id = None
         else:
             self.selected_game_id = int(value)
-        await self.load_backups()
+        # Filter change requires reload
+        await self.load_backups(force=True)
 
     def _update_game_filter_options(self):
         """Update game filter dropdown with available games"""
@@ -193,7 +211,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=12,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             expand=True,
         )
 
@@ -207,19 +225,26 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=12,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             expand=True,
             visible=False,
         )
 
-        # Backups grid (ResponsiveRow with 2 columns max for wider backup cards)
-        self.backups_grid_container = ft.Container(
-            content=ft.Column(
-                controls=[],  # Will contain ResponsiveRow
-                scroll=ft.ScrollMode.AUTO,
-                expand=True,
-            ),
+        # Backups grid - VIRTUALIZED GridView for performance
+        # Only visible cards are rendered (typically 4-8 at once)
+        # max_extent=400 gives 2-3 columns on typical screens
+        # BackupCard has fixed height=220px (same as GameCard), aspect_ratio = 400/220 ≈ 1.82
+        self.backups_grid = ft.GridView(
+            controls=[],
+            max_extent=400,  # Responsive columns based on 400px max width
+            child_aspect_ratio=1.82,  # Matches BackupCard fixed height (400/220)
             padding=16,
+            spacing=12,
+            run_spacing=12,
+            expand=True,
+        )
+        self.backups_grid_container = ft.Container(
+            content=self.backups_grid,
             expand=True,
             visible=False,
         )
@@ -242,8 +267,8 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         """Get current theme mode from registry or session"""
         if hasattr(self, '_registry') and self._registry:
             return self._registry.is_dark
-        if self.page and self.page.session.contains_key("is_dark_theme"):
-            return self.page.session.get("is_dark_theme")
+        if self._page_ref and self._page_ref.session.contains_key("is_dark_theme"):
+            return self._page_ref.session.get("is_dark_theme")
         return True
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
@@ -260,107 +285,192 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             "game_filter_dropdown.fill_color": (MD3Colors.SURFACE_VARIANT, MD3Colors.SURFACE_VARIANT_LIGHT),
         }
 
-    async def load_backups(self):
-        """Load backups from database with optional game filter"""
+    async def load_backups(self, force: bool = False):
+        """Load backups from database with optional game filter.
+
+        PERFORMANCE: Skips full reload if backups are already loaded (tab switching).
+        Use force=True to trigger a full refresh (explicit refresh button).
+
+        Args:
+            force: If True, forces a full reload even if backups are already loaded.
+        """
         if self.is_loading:
+            return
+
+        # PERFORMANCE: Skip full reload if already loaded (fast tab switching)
+        if self._backups_loaded and not force:
+            self.logger.debug("Backups already loaded - skipping redundant reload")
+            # Just ensure the view is visible
+            if self.backups:
+                self.backups_grid_container.visible = True
+                self.empty_state.visible = False
+            else:
+                self.empty_state.visible = True
+                self.backups_grid_container.visible = False
+            self.loading_indicator.visible = False
+            if self._page_ref:
+                self._page_ref.update()
             return
 
         self.is_loading = True
         self.loading_indicator.visible = True
         self.empty_state.visible = False
         self.backups_grid_container.visible = False
-        if self.page:
-            self.page.update()
+        # Clear existing cards for fresh reload
+        self.backups_grid.controls.clear()
+        if self._page_ref:
+            self._page_ref.update()
 
         try:
+            start_total = time.perf_counter()
+
             # Ensure database pool is ready
             await db_manager.ensure_pool()
 
             self.logger.info("Loading backups from database...")
 
-            # Get games with backups for filter dropdown
-            self.games_with_backups = await db_manager.get_games_with_backups()
+            # PERFORMANCE: Run both database queries in parallel
+            start_db = time.perf_counter()
+            games_task = asyncio.create_task(db_manager.get_games_with_backups())
+            backups_task = asyncio.create_task(db_manager.get_all_backups_filtered(self.selected_game_id))
+            self.games_with_backups, self.backups = await asyncio.gather(games_task, backups_task)
             self._update_game_filter_options()
-
-            # Get backups with optional game filter
-            self.backups = await db_manager.get_all_backups_filtered(self.selected_game_id)
+            db_ms = (time.perf_counter() - start_db) * 1000
+            self.logger.debug(f"[PERF] Database queries (parallel): {db_ms:.1f}ms")
 
             if not self.backups:
                 self.logger.info("No backups found")
                 self.empty_state.visible = True
                 self.loading_indicator.visible = False
                 self._update_clear_button_state(False)
-                if self.page:
-                    self.page.update()
+                self._backups_loaded = True
+                if self._page_ref:
+                    self._page_ref.update()
                 return
 
-            # Build backup cards with ResponsiveRow grid (2 columns max)
-            # Backups are wider cards, so xs=12 (1 col), sm=12 (1 col), md=6 (2 col), lg=6 (2 col)
-            responsive_cards = []
-            for backup in self.backups:
-                # Convert GameDLLBackup to DLLBackup for BackupCard compatibility
-                dll_backup = DLLBackup(
-                    id=backup.id,
-                    game_dll_id=backup.game_dll_id,
-                    game_name=backup.game_name,
-                    dll_filename=backup.dll_filename,
-                    backup_path=backup.backup_path,
-                    backup_size=backup.backup_size,
-                    original_version=backup.original_version,
-                    backup_created_at=backup.backup_created_at,
-                    is_active=backup.is_active,
-                )
+            # PERFORMANCE: Progressive loading with virtualized GridView
+            # 1. Convert data to DLLBackup objects (can be parallelized)
+            # 2. Create first batch of cards immediately (visible cards)
+            # 3. Show UI immediately
+            # 4. Create remaining cards in background batches
 
+            start_cards = time.perf_counter()
+
+            # Step 1: Convert all backup data (lightweight, mostly data copying)
+            dll_backups = [
+                DLLBackup(
+                    id=b.id,
+                    game_dll_id=b.game_dll_id,
+                    game_name=b.game_name,
+                    dll_filename=b.dll_filename,
+                    backup_path=b.backup_path,
+                    backup_size=b.backup_size,
+                    original_version=b.original_version,
+                    backup_created_at=b.backup_created_at,
+                    is_active=b.is_active,
+                )
+                for b in self.backups
+            ]
+
+            # Step 2: Create first batch immediately (these are visible)
+            first_batch = dll_backups[:INITIAL_BATCH_SIZE]
+            cards = []
+            for backup in first_batch:
                 card = BackupCard(
-                    backup=dll_backup,
-                    page=self.page,
+                    backup=backup,
+                    page=self._page_ref,
                     logger=self.logger,
                     on_restore=self._on_restore_backup,
                     on_delete=self._on_delete_backup,
                 )
-                # Wrap in responsive column
-                responsive_card = ft.Column(
-                    controls=[card],
-                    col={"xs": 12, "sm": 12, "md": 6, "lg": 6},
-                    tight=True,
-                )
-                responsive_cards.append(responsive_card)
+                cards.append(card)
 
-            # Create ResponsiveRow and update container
-            backup_grid = ft.ResponsiveRow(
-                controls=responsive_cards,
-                spacing=12,
-                run_spacing=12,
-            )
+            first_batch_ms = (time.perf_counter() - start_cards) * 1000
+            self.logger.debug(f"[PERF] First batch ({len(first_batch)} cards): {first_batch_ms:.1f}ms")
 
-            # Update the grid container's content
-            self.backups_grid_container.content.controls = [backup_grid]
+            # Step 3: Show UI immediately with first batch
+            self.backups_grid.controls = cards
             self.backups_grid_container.visible = True
             self.empty_state.visible = False
             self.loading_indicator.visible = False
             self._update_clear_button_state(True)
+            self._backups_loaded = True
 
-            self.logger.info(f"Loaded {len(self.backups)} backups")
+            if self._page_ref:
+                self._page_ref.update()
+
+            # Step 4: Create remaining cards in background batches (non-blocking)
+            remaining = dll_backups[INITIAL_BATCH_SIZE:]
+            if remaining:
+                task = asyncio.create_task(self._load_remaining_cards(remaining))
+                register_task(task, "load_remaining_backup_cards")
+
+            total_ms = (time.perf_counter() - start_total) * 1000
+            self.logger.info(f"Loaded {len(first_batch)} backups instantly, {len(remaining)} loading in background ({total_ms:.1f}ms)")
 
         except Exception as e:
             self.logger.error(f"Error loading backups: {e}", exc_info=True)
             self.empty_state.visible = True
             self.loading_indicator.visible = False
             self._update_clear_button_state(False)
+            self._backups_loaded = False  # Allow retry on next tab switch
 
         finally:
             self.is_loading = False
-            if self.page:
-                self.page.update()
+            if self._page_ref:
+                self._page_ref.update()
+
+    async def _load_remaining_cards(self, remaining_backups: list[DLLBackup]):
+        """Load remaining backup cards in background batches.
+
+        PERFORMANCE: Creates cards in batches with yields to keep UI responsive.
+        Each batch adds cards to the virtualized GridView which only renders
+        visible items, so adding 100+ cards has minimal performance impact.
+        """
+        try:
+            total_remaining = len(remaining_backups)
+            loaded = 0
+
+            for i in range(0, total_remaining, BACKGROUND_BATCH_SIZE):
+                batch = remaining_backups[i:i + BACKGROUND_BATCH_SIZE]
+
+                # Create cards for this batch
+                new_cards = []
+                for backup in batch:
+                    card = BackupCard(
+                        backup=backup,
+                        page=self._page_ref,
+                        logger=self.logger,
+                        on_restore=self._on_restore_backup,
+                        on_delete=self._on_delete_backup,
+                    )
+                    new_cards.append(card)
+
+                # Add to grid (virtualized - only visible cards render)
+                self.backups_grid.controls.extend(new_cards)
+                loaded += len(new_cards)
+
+                # Single update per batch
+                if self._page_ref:
+                    self._page_ref.update()
+
+                # Yield to event loop to keep UI responsive
+                await asyncio.sleep(0.01)
+
+            self.logger.debug(f"[PERF] Background loaded {loaded} additional backup cards")
+
+        except Exception as e:
+            self.logger.error(f"Error loading remaining backup cards: {e}", exc_info=True)
 
     async def _on_refresh_clicked(self, e):
         """Handle refresh button click with rotation animation"""
         # Rotate refresh button
         if self.refresh_button_ref.current:
             self.refresh_button_ref.current.rotate += math.pi * 2  # 360 degrees
-            self.page.update()
+            self._page_ref.update()
 
-        await self.load_backups()
+        # Force=True to bypass the "already loaded" optimization
+        await self.load_backups(force=True)
 
     async def _on_clear_all_clicked(self, e):
         """Handle clear all backups button click"""
@@ -373,9 +483,9 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             )
             # Add actions after dialog variable exists
             info_dialog.actions = [
-                ft.TextButton("OK", on_click=lambda e: self.page.close(info_dialog)),
+                ft.TextButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
             ]
-            self.page.open(info_dialog)
+            self._page_ref.show_dialog(info_dialog)
             return
 
         # Show confirmation dialog - create without actions first
@@ -407,7 +517,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         confirm_dialog.actions = [
             ft.TextButton(
                 "Cancel",
-                on_click=lambda e: self.page.close(confirm_dialog),
+                on_click=lambda e: self._page_ref.pop_dialog(),
             ),
             ft.ElevatedButton(
                 "Clear All",
@@ -419,7 +529,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             ),
         ]
 
-        self.page.open(confirm_dialog)
+        self._page_ref.show_dialog(confirm_dialog)
 
     def _create_clear_all_handler(self, dialog: ft.AlertDialog):
         """Create async clear all handler"""
@@ -429,7 +539,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
     async def _perform_clear_all(self, dialog: ft.AlertDialog):
         """Perform the clear all operation"""
-        self.page.close(dialog)
+        self._page_ref.pop_dialog()
 
         # Show progress indicator
         progress_dialog = ft.AlertDialog(
@@ -443,15 +553,15 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
-        self.page.open(progress_dialog)
-        self.page.update()
+        self._page_ref.show_dialog(progress_dialog)
+        self._page_ref.update()
 
         try:
             # Delete all backups from database
             deleted_count = await db_manager.delete_all_backups()
 
             # Close progress dialog
-            self.page.close(progress_dialog)
+            self._page_ref.pop_dialog()
 
             # Show success dialog
             success_dialog = ft.AlertDialog(
@@ -460,11 +570,11 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 actions=[
                     ft.TextButton(
                         "OK",
-                        on_click=lambda e: self.page.close(success_dialog),
+                        on_click=lambda e: self._page_ref.pop_dialog(),
                     ),
                 ],
             )
-            self.page.open(success_dialog)
+            self._page_ref.show_dialog(success_dialog)
 
             # Reload backups list
             await self.load_backups()
@@ -473,7 +583,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             self.logger.error(f"Error clearing all backups: {ex}", exc_info=True)
 
             # Close progress dialog
-            self.page.close(progress_dialog)
+            self._page_ref.pop_dialog()
 
             # Show error dialog
             error_dialog = ft.AlertDialog(
@@ -482,11 +592,11 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 actions=[
                     ft.TextButton(
                         "OK",
-                        on_click=lambda e: self.page.close(error_dialog),
+                        on_click=lambda e: self._page_ref.pop_dialog(),
                     ),
                 ],
             )
-            self.page.open(error_dialog)
+            self._page_ref.show_dialog(error_dialog)
 
     def _on_restore_backup(self, backup: DLLBackup):
         """Handle restore backup button click"""
@@ -520,7 +630,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         dialog.actions = [
             ft.TextButton(
                 "Cancel",
-                on_click=lambda e: self.page.close(dialog),
+                on_click=lambda e: self._page_ref.pop_dialog(),
             ),
             ft.ElevatedButton(
                 "Restore",
@@ -532,7 +642,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             ),
         ]
 
-        self.page.open(dialog)
+        self._page_ref.show_dialog(dialog)
 
     def _create_restore_handler(self, backup: DLLBackup, dialog: ft.AlertDialog):
         """Create async restore handler for specific backup"""
@@ -542,7 +652,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
     async def _perform_restore(self, backup: DLLBackup, dialog: ft.AlertDialog):
         """Perform the restore operation"""
-        self.page.close(dialog)
+        self._page_ref.pop_dialog()
 
         # Show progress indicator
         progress_dialog = ft.AlertDialog(
@@ -557,14 +667,14 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 tight=True,
             ),
         )
-        self.page.open(progress_dialog)
+        self._page_ref.show_dialog(progress_dialog)
 
         try:
             # Perform restore
             success, message = await restore_dll_from_backup(backup.id)
 
             # Close progress dialog
-            self.page.close(progress_dialog)
+            self._page_ref.pop_dialog()
 
             # Show result
             result_dialog = ft.AlertDialog(
@@ -573,11 +683,11 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 actions=[
                     ft.TextButton(
                         "OK",
-                        on_click=lambda e: self.page.close(result_dialog),
+                        on_click=lambda e: self._page_ref.pop_dialog(),
                     ),
                 ],
             )
-            self.page.open(result_dialog)
+            self._page_ref.show_dialog(result_dialog)
 
             # Refresh backups list if successful
             if success:
@@ -585,7 +695,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
         except Exception as e:
             self.logger.error(f"Error restoring backup: {e}", exc_info=True)
-            self.page.close(progress_dialog)
+            self._page_ref.pop_dialog()
 
             error_dialog = ft.AlertDialog(
                 title=ft.Text("Error"),
@@ -593,11 +703,11 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 actions=[
                     ft.TextButton(
                         "OK",
-                        on_click=lambda e: self.page.close(error_dialog),
+                        on_click=lambda e: self._page_ref.pop_dialog(),
                     ),
                 ],
             )
-            self.page.open(error_dialog)
+            self._page_ref.show_dialog(error_dialog)
 
     def _on_delete_backup(self, backup: DLLBackup):
         """Handle delete backup button click"""
@@ -625,7 +735,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         dialog.actions = [
             ft.TextButton(
                 "Cancel",
-                on_click=lambda e: self.page.close(dialog),
+                on_click=lambda e: self._page_ref.pop_dialog(),
             ),
             ft.ElevatedButton(
                 "Delete",
@@ -637,7 +747,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             ),
         ]
 
-        self.page.open(dialog)
+        self._page_ref.show_dialog(dialog)
 
     def _create_delete_handler(self, backup: DLLBackup, dialog: ft.AlertDialog):
         """Create async delete handler for specific backup"""
@@ -647,7 +757,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
     async def _perform_delete(self, backup: DLLBackup, dialog: ft.AlertDialog):
         """Perform the delete operation"""
-        self.page.close(dialog)
+        self._page_ref.pop_dialog()
 
         try:
             # Perform delete
@@ -660,11 +770,11 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 actions=[
                     ft.TextButton(
                         "OK",
-                        on_click=lambda e: self.page.close(result_dialog),
+                        on_click=lambda e: self._page_ref.pop_dialog(),
                     ),
                 ],
             )
-            self.page.open(result_dialog)
+            self._page_ref.show_dialog(result_dialog)
 
             # Refresh backups list if successful
             if success:
@@ -679,8 +789,8 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 actions=[
                     ft.TextButton(
                         "OK",
-                        on_click=lambda e: self.page.close(error_dialog),
+                        on_click=lambda e: self._page_ref.pop_dialog(),
                     ),
                 ],
             )
-            self.page.open(error_dialog)
+            self._page_ref.show_dialog(error_dialog)

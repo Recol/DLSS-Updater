@@ -84,7 +84,9 @@ from dlss_updater.linux_paths import is_flatpak, get_flatpak_override_command
 from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
 from dlss_updater.ui_flet.components.dll_cache_snackbar import DLLCacheProgressSnackbar
-from dlss_updater.ui_flet.components.app_menu_selector import AppMenuSelector, MenuCategory, MenuItem
+from dlss_updater.ui_flet.components.app_bar_menus import (
+    CommunityMenu, PreferencesMenu, ApplicationMenu, create_app_bar_menus
+)
 from dlss_updater.version import __version__
 from dlss_updater.utils import find_game_root
 
@@ -96,13 +98,15 @@ class MainView(ft.Column):
 
     def __init__(self, page: ft.Page, logger: logging.Logger):
         super().__init__()
-        self.page = page
+        # Note: In Flet 0.80.4+, self._page_ref is a read-only property set when added to page
+        # Store reference as _page_ref for use during initialization
+        self._page_ref = page
         self.logger = logger
         self.expand = True
         self.spacing = 0
 
-        # File picker for launcher paths
-        self.file_picker = ft.FilePicker(on_result=self._on_folder_selected)
+        # File picker for launcher paths (Flet 0.80.4+ async API)
+        self.file_picker = ft.FilePicker()
         self.current_launcher_selecting: LauncherPathName | None = None
         self.is_adding_subfolder: bool = False  # Track if adding subfolder vs setting primary path
 
@@ -125,9 +129,10 @@ class MainView(ft.Column):
         # DLL cache progress snackbar
         self.dll_cache_snackbar: DLLCacheProgressSnackbar | None = None
 
-        # Menu state
-        self.menu_expanded = False
-        self.app_menu_selector = None  # Will be created in _create_app_bar
+        # Popup menu components (created in _create_app_bar)
+        self.community_menu: CommunityMenu | None = None
+        self.preferences_menu: PreferencesMenu | None = None
+        self.application_menu: ApplicationMenu | None = None
 
         # Discord banner
         self.discord_banner: ft.Banner | None = None
@@ -174,13 +179,12 @@ class MainView(ft.Column):
         if await migrate_image_cache_if_needed():
             self.logger.info("Image cache migrated to WebP thumbnail format")
 
-        # Add file picker to page overlay
-        self.page.overlay.append(self.file_picker)
-        self.page.overlay.append(self.loading_overlay)
+        # Note: In Flet 0.80.4+, FilePicker uses async methods - no overlay needed
+        # Note: loading_overlay is added/removed dynamically in show()/hide()
 
         # Create DLL cache progress notification and add wrapper to overlay
-        self.dll_cache_snackbar = DLLCacheProgressSnackbar(self.page)
-        self.page.overlay.append(self.dll_cache_snackbar.get_wrapper())
+        self.dll_cache_snackbar = DLLCacheProgressSnackbar(self._page_ref)
+        self._page_ref.overlay.append(self.dll_cache_snackbar.get_wrapper())
 
         # Load cached scan results if available
         await self._load_scan_cache()
@@ -191,7 +195,7 @@ class MainView(ft.Column):
         # Show Discord invite banner if not dismissed
         if not config_manager.get_discord_banner_dismissed():
             self.discord_banner = self._create_discord_banner()
-            self.page.open(self.discord_banner)
+            self._page_ref.show_dialog(self.discord_banner)
             self.logger.info("Discord invite banner displayed")
 
         self.logger.info("Main view initialized")
@@ -205,14 +209,14 @@ class MainView(ft.Column):
         self.launchers_view = await self._create_launchers_view()
 
         # Create other views
-        self.games_view = GamesView(self.page, self.logger)
-        self.backups_view = BackupsView(self.page, self.logger)
+        self.games_view = GamesView(self._page_ref, self.logger)
+        self.backups_view = BackupsView(self._page_ref, self.logger)
 
         # Create custom navigation tabs
         self.navigation_bar = self._create_navigation_tabs()
 
         # Create logger panel
-        self.logger_panel = LoggerPanel(self.page, self.logger)
+        self.logger_panel = LoggerPanel(self._page_ref, self.logger)
 
         # Assemble main layout: AppBar + Content + Logger
         self.controls = [
@@ -220,8 +224,8 @@ class MainView(ft.Column):
             ft.Container(
                 height=1,
                 gradient=ft.LinearGradient(
-                    begin=ft.alignment.center_left,
-                    end=ft.alignment.center_right,
+                    begin=ft.Alignment.CENTER_LEFT,
+                    end=ft.Alignment.CENTER_RIGHT,
                     colors=["transparent", "#5A5A5A", "transparent"],
                 ),
             ),
@@ -251,7 +255,7 @@ class MainView(ft.Column):
             height=40,
             bgcolor=color,
             border_radius=20,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=4,
@@ -291,7 +295,7 @@ class MainView(ft.Column):
             else:
                 button_container.bgcolor = MD3Colors.get_surface_container(is_dark)
                 button_container.border = ft.border.all(1, MD3Colors.get_outline(is_dark))
-            if self.page:
+            if self._page_ref:
                 button_container.update()
 
         button_container.on_hover = on_hover
@@ -339,7 +343,7 @@ class MainView(ft.Column):
                     # Last scan info
                     ft.Container(
                         content=self.last_scan_info_text,
-                        alignment=ft.alignment.center,
+                        alignment=ft.Alignment.CENTER,
                         padding=ft.padding.only(bottom=12),
                     ),
                     # Buttons row
@@ -381,7 +385,7 @@ class MainView(ft.Column):
         """Create custom colored navigation tab bar"""
         from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
 
-        is_dark = self.page.theme_mode == ft.ThemeMode.DARK
+        is_dark = self._page_ref.theme_mode == ft.ThemeMode.DARK
 
         tab_configs = [
             {"name": "Launchers", "icon": ft.Icons.FOLDER_SPECIAL, "color": TabColors.LAUNCHERS, "content": self.launchers_view},
@@ -410,13 +414,21 @@ class MainView(ft.Column):
             padding=ft.padding.symmetric(vertical=4),
         )
 
-        # Content area with AnimatedSwitcher for transitions
-        self.content_area = ft.AnimatedSwitcher(
-            content=self.tab_contents[self.current_view_index],
-            transition=ft.AnimatedSwitcherTransition.FADE,
-            duration=350,
-            switch_in_curve=ft.AnimationCurve.EASE_OUT,
-            switch_out_curve=ft.AnimationCurve.EASE_IN,
+        # PERFORMANCE: Use Stack with opacity for fast tab switching
+        # AnimatedSwitcher creates two copies during transition, doubling tree size
+        # Stack with visibility keeps all views but only one visible at a time
+        # This is faster for tab switching with large views like GamesView
+        self.content_area = ft.Stack(
+            controls=[
+                ft.Container(
+                    content=view,
+                    visible=(i == self.current_view_index),
+                    expand=True,
+                    animate_opacity=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+                    opacity=1.0 if i == self.current_view_index else 0.0,
+                )
+                for i, view in enumerate(self.tab_contents)
+            ],
             expand=True,
         )
 
@@ -430,7 +442,7 @@ class MainView(ft.Column):
         """Create individual tab button with color theming"""
         from dlss_updater.ui_flet.theme.colors import MD3Colors
 
-        is_dark = self.page.theme_mode == ft.ThemeMode.DARK
+        is_dark = self._page_ref.theme_mode == ft.ThemeMode.DARK
         color = config["color"]
 
         # Use white text on colored background for better contrast
@@ -473,7 +485,7 @@ class MainView(ft.Column):
             bgcolor=bg_color,
             border_radius=ft.border_radius.only(top_left=8, top_right=8),
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
-            on_click=lambda e, idx=index: self.page.run_task(self._on_tab_clicked, idx),
+            on_click=lambda e, idx=index: self._page_ref.run_task(self._on_tab_clicked, idx),
             on_hover=lambda e, idx=index, c=color: self._on_tab_hover(e, idx, c),
             expand=True,
         )
@@ -510,7 +522,7 @@ class MainView(ft.Column):
             height=size,
             bgcolor=color,
             border_radius=size // 2,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             on_click=on_click,
             tooltip=tooltip,
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
@@ -524,28 +536,41 @@ class MainView(ft.Column):
         )
 
     async def _create_app_bar(self) -> ft.Container:
-        """Create the application bar with title and action buttons"""
+        """Create the application bar with title and 3 popup menu buttons"""
         from dlss_updater.ui_flet.theme.colors import MD3Colors
 
         is_dark = self.theme_manager.is_dark
 
-        # Create Support Development button with colored circle
-        support_btn = self._create_header_icon_button(
-            icon=ft.Icons.FAVORITE,
-            color="#E91E63",  # Pink
-            tooltip="Support Development - Buy me a coffee",
-            on_click=lambda _: open_url("https://buymeacoffee.com/decouk"),
+        # Create callbacks dict for menu items
+        menu_callbacks = {
+            # Community menu callbacks
+            "support": lambda _: open_url("https://buymeacoffee.com/decouk"),
+            "bug_report": lambda _: open_url("https://github.com/Recol/DLSS-Updater/issues"),
+            "twitter": lambda _: open_url("https://x.com/iDeco_UK"),
+            "discord": lambda _: open_url("https://discord.com/users/162568099839606784"),
+            "discord_invite": self._on_show_discord_invite_clicked,
+            "release_notes": self._on_release_notes_clicked,
+            # Preferences menu callbacks
+            "update_prefs": self._on_settings_clicked,
+            "ui_prefs": self._on_ui_preferences_clicked,
+            "blacklist": self._on_blacklist_clicked,
+            "dlss_overlay": self._on_dlss_overlay_clicked,
+            "dlss_preset": self._on_dlss_preset_clicked,
+            "theme": self._toggle_theme_from_menu,
+            # Application menu callbacks
+            "check_updates": self._on_check_updates_clicked,
+        }
+
+        # Create the 3 popup menus using the factory function
+        self.community_menu, self.preferences_menu, self.application_menu = create_app_bar_menus(
+            page=self._page_ref,
+            is_dark=is_dark,
+            callbacks=menu_callbacks,
+            features_dlss_overlay=FEATURES.dlss_overlay,
+            features_nvidia_gpu=FEATURES.nvidia_gpu_detected,
         )
 
-        # Create More menu button with colored circle
-        self.more_menu_btn = self._create_header_icon_button(
-            icon=ft.Icons.MORE_VERT,
-            color=MD3Colors.PRIMARY,  # Teal
-            tooltip="More Options",
-            on_click=self._toggle_app_menu,
-        )
-
-        # Compact top bar
+        # Compact top bar with 3 popup menu buttons on the right
         top_bar = ft.Row(
             controls=[
                 ft.Column(
@@ -567,40 +592,20 @@ class MainView(ft.Column):
                     spacing=2,
                     expand=True,
                 ),
-                # Right side buttons: Support, More menu
-                support_btn,
-                self.more_menu_btn,
+                # Right side buttons: Community (Heart), Preferences (Gear), Application (Grid)
+                self.community_menu.button,
+                self.preferences_menu.button,
+                self.application_menu.button,
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-        )
-
-        # Create the new AppMenuSelector component
-        self.app_menu_selector = self._create_app_menu()
-
-        # Create expandable menu container with slide animation
-        self.app_menu_container = ft.Container(
-            content=self.app_menu_selector,
-            height=0,
-            opacity=0,
-            offset=ft.Offset(0, -0.1),  # Start slightly above
-            animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT_CUBIC),
-            animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
-            animate_offset=ft.Animation(300, ft.AnimationCurve.EASE_OUT_CUBIC),
-            clip_behavior=ft.ClipBehavior.HARD_EDGE,
         )
 
         # Return app bar with dark surface style (full width, no border)
         # Store reference for theme updates
         self.app_bar_container = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Container(
-                        content=top_bar,
-                        padding=ft.padding.symmetric(horizontal=16),
-                    ),
-                    self.app_menu_container,
-                ],
-                spacing=0,
+            content=ft.Container(
+                content=top_bar,
+                padding=ft.padding.symmetric(horizontal=16),
             ),
             padding=ft.padding.symmetric(vertical=16, horizontal=0),
             bgcolor=MD3Colors.get_background(is_dark),
@@ -608,194 +613,13 @@ class MainView(ft.Column):
         )
         return self.app_bar_container
 
-    def _toggle_app_menu(self, e):
-        """Toggle menu visibility with smooth animations"""
-        import math
-        self.menu_expanded = not self.menu_expanded
-
-        if self.menu_expanded:
-            self.app_menu_container.height = None
-            self.app_menu_container.opacity = 1
-            self.app_menu_container.offset = ft.Offset(0, 0)  # Slide to position
-            # Rotate button 180° and change icon
-            self.more_menu_btn.rotate = ft.Rotate(angle=math.pi)
-            self.more_menu_btn.content.name = ft.Icons.EXPAND_LESS
-        else:
-            self.app_menu_container.height = 0
-            self.app_menu_container.opacity = 0
-            self.app_menu_container.offset = ft.Offset(0, -0.1)  # Slide up
-            # Reset rotation and change icon back
-            self.more_menu_btn.rotate = ft.Rotate(angle=0)
-            self.more_menu_btn.content.name = ft.Icons.MORE_VERT
-
-        self.page.update()
-        self.logger.info(f"Menu {'expanded' if self.menu_expanded else 'collapsed'}")
-
-    def _create_preferences_category(self) -> MenuCategory:
-        """
-        Create the Preferences menu category with conditional items.
-
-        DLSS preset item is only included when NVIDIA GPU is detected,
-        as per user requirement to completely hide it for non-NVIDIA users.
-        """
-        items = [
-            MenuItem(
-                id="update_prefs",
-                title="Update Preferences",
-                description="Configure update settings",
-                icon=ft.Icons.SETTINGS,
-                on_click=self._on_settings_clicked,
-            ),
-            MenuItem(
-                id="ui_prefs",
-                title="UI Preferences",
-                description="Interface and performance",
-                icon=ft.Icons.DISPLAY_SETTINGS,
-                on_click=self._on_ui_preferences_clicked,
-            ),
-            MenuItem(
-                id="blacklist",
-                title="Manage Blacklist",
-                description="Exclude specific games",
-                icon=ft.Icons.BLOCK,
-                on_click=self._on_blacklist_clicked,
-            ),
-            MenuItem(
-                id="dlss_overlay",
-                title="DLSS Debug Overlay",
-                description="Toggle in-game DLSS indicator" if FEATURES.dlss_overlay
-                            else "Requires NVIDIA GPU",
-                icon=ft.Icons.BUG_REPORT,
-                on_click=self._on_dlss_overlay_clicked,
-                is_disabled=not FEATURES.dlss_overlay,
-                tooltip="Requires NVIDIA GPU" if not FEATURES.dlss_overlay else None,
-            ),
-        ]
-
-        # Only add DLSS preset item when NVIDIA GPU is detected
-        if FEATURES.nvidia_gpu_detected:
-            items.append(
-                MenuItem(
-                    id="dlss_preset",
-                    title="DLSS SR Preset Override",
-                    description="Configure Super Resolution presets",
-                    icon=ft.Icons.TUNE,
-                    on_click=self._on_dlss_preset_clicked,
-                )
-            )
-
-        # Add theme toggle menu item (now enabled with cascade animations)
-        is_dark = self.theme_manager.is_dark
-        items.append(
-            MenuItem(
-                id="theme",
-                title=f"Theme: {'Dark' if is_dark else 'Light'} Mode",
-                description="Switch to light mode" if is_dark else "Switch to dark mode",
-                icon=ft.Icons.DARK_MODE if is_dark else ft.Icons.LIGHT_MODE,
-                on_click=self._toggle_theme_from_menu,
-            )
-        )
-
-        return MenuCategory(
-            id="preferences",
-            title="Preferences",
-            icon=ft.Icons.TUNE,
-            color="#FF9800",  # Orange
-            items=items,
-        )
-
-    def _create_app_menu(self) -> AppMenuSelector:
-        """Create the AppMenuSelector with all categories"""
-        categories = [
-            MenuCategory(
-                id="community",
-                title="Community & Support",
-                icon=ft.Icons.FAVORITE,
-                color="#E91E63",  # Pink
-                items=[
-                    MenuItem(
-                        id="support",
-                        title="Support Development",
-                        description="Buy me a coffee",
-                        icon=ft.Icons.COFFEE,
-                        on_click=lambda _: open_url("https://buymeacoffee.com/decouk"),
-                        tooltip="Support the developer",
-                    ),
-                    MenuItem(
-                        id="bug_report",
-                        title="Report Bug",
-                        description="Submit an issue on GitHub",
-                        icon=ft.Icons.BUG_REPORT,
-                        on_click=lambda _: open_url("https://github.com/Recol/DLSS-Updater/issues"),
-                    ),
-                    MenuItem(
-                        id="twitter",
-                        title="Twitter",
-                        description="Follow on Twitter",
-                        icon=ft.Icons.TAG,
-                        on_click=lambda _: open_url("https://x.com/iDeco_UK"),
-                    ),
-                    MenuItem(
-                        id="discord",
-                        title="Discord",
-                        description="Message on Discord",
-                        icon=ft.Icons.CHAT,
-                        on_click=lambda _: open_url("https://discord.com/users/162568099839606784"),
-                    ),
-                    MenuItem(
-                        id="discord_invite",
-                        title="Show Discord Invite",
-                        description="Re-display the Discord community banner",
-                        icon=ft.Icons.CAMPAIGN,
-                        on_click=self._on_show_discord_invite_clicked,
-                    ),
-                    MenuItem(
-                        id="release_notes",
-                        title="Release Notes",
-                        description="View changelog",
-                        icon=ft.Icons.ARTICLE,
-                        on_click=self._on_release_notes_clicked,
-                    ),
-                ],
-            ),
-            self._create_preferences_category(),
-            MenuCategory(
-                id="application",
-                title="Application",
-                icon=ft.Icons.APPS,
-                color="#2196F3",  # Blue
-                items=[
-                    MenuItem(
-                        id="check_updates",
-                        title="Check for Updates",
-                        description="Check for app updates",
-                        icon=ft.Icons.SYSTEM_UPDATE,
-                        on_click=self._on_check_updates_clicked,
-                        show_badge=False,
-                    ),
-                ],
-            ),
-        ]
-
-        return AppMenuSelector(
-            page=self.page,
-            categories=categories,
-            on_item_selected=self._on_menu_item_selected,
-            initially_expanded=False,
-            is_dark=self.theme_manager.is_dark,
-        )
-
-    def _on_menu_item_selected(self, item_id: str):
-        """Handle menu item selection callback"""
-        self.logger.debug(f"Menu item selected: {item_id}")
-
     async def _toggle_theme_from_menu(self, e):
         """Handle theme toggle from menu with cascade animation"""
         # Use async toggle for cascade animations to registered components
         await self.theme_manager.toggle_theme_async()
 
-        # Rebuild expansion menu with updated colors
-        await self._rebuild_expansion_menu()
+        # Rebuild popup menus with updated colors
+        await self._rebuild_popup_menus()
 
         # Update tab bar colors for new theme
         await self._update_tab_colors_for_theme()
@@ -836,10 +660,10 @@ class MainView(ft.Column):
                 btn.content.controls[0].color = MD3Colors.get_on_surface_variant(is_dark)
                 btn.content.controls[1].color = MD3Colors.get_on_surface_variant(is_dark)
 
-        self.page.update()
+        self._page_ref.update()
 
-    async def _rebuild_expansion_menu(self):
-        """Rebuild expansion menu with updated colors after theme change"""
+    async def _rebuild_popup_menus(self):
+        """Rebuild popup menus with updated colors after theme change"""
         from dlss_updater.ui_flet.theme.colors import MD3Colors
 
         is_dark = self.theme_manager.is_dark
@@ -848,10 +672,24 @@ class MainView(ft.Column):
         if hasattr(self, 'app_bar_container') and self.app_bar_container:
             self.app_bar_container.bgcolor = MD3Colors.get_background(is_dark)
 
-        # Rebuild the AppMenuSelector with new theme colors
-        self.app_menu_selector = self._create_app_menu()
-        self.app_menu_container.content = self.app_menu_selector
-        self.page.update()
+        # Rebuild all popup menus with new theme colors
+        if self.community_menu:
+            self.community_menu.rebuild(is_dark)
+        if self.preferences_menu:
+            self.preferences_menu.rebuild(is_dark)
+        if self.application_menu:
+            self.application_menu.rebuild(is_dark)
+
+        # Update the buttons in the app bar
+        if hasattr(self, 'app_bar_container') and self.app_bar_container:
+            top_bar = self.app_bar_container.content.content  # Container -> Row
+            if hasattr(top_bar, 'controls') and len(top_bar.controls) >= 4:
+                # Update button references (controls: title_col, community, prefs, app)
+                top_bar.controls[1] = self.community_menu.button
+                top_bar.controls[2] = self.preferences_menu.button
+                top_bar.controls[3] = self.application_menu.button
+
+        self._page_ref.update()
 
     async def _update_launchers_view_for_theme(self):
         """Update launchers view colors after theme change"""
@@ -874,8 +712,8 @@ class MainView(ft.Column):
         if hasattr(self, 'last_scan_info_text') and self.last_scan_info_text:
             self.last_scan_info_text.color = MD3Colors.get_on_surface_variant(is_dark)
 
-        if self.page:
-            self.page.update()
+        if self._page_ref:
+            self._page_ref.update()
 
     def _create_discord_banner(self) -> ft.Banner:
         """Create the Discord invite banner using ft.Banner widget."""
@@ -919,22 +757,20 @@ class MainView(ft.Column):
         """Dismiss banner and persist preference"""
         config_manager.set_discord_banner_dismissed(True)
         if self.discord_banner:
-            self.page.close(self.discord_banner)
+            self._page_ref.pop_dialog()
             self.discord_banner = None
 
     async def show_discord_banner(self):
         """Show Discord invite banner (for re-showing from menu)"""
         if not self.discord_banner:
             self.discord_banner = self._create_discord_banner()
-        self.page.open(self.discord_banner)
+        self._page_ref.show_dialog(self.discord_banner)
         self.logger.info("Discord banner shown")
 
     async def _on_show_discord_invite_clicked(self, e):
         """Handle Show Discord Invite menu click"""
         config_manager.set_discord_banner_dismissed(False)
         await self.show_discord_banner()
-        if self.menu_expanded:
-            self._toggle_app_menu(None)
 
     async def _create_launcher_list(self) -> ft.Container:
         """Create the scrollable list of launcher cards"""
@@ -950,7 +786,7 @@ class MainView(ft.Column):
                 is_custom=is_custom,
                 on_reset=self._create_reset_handler(config["enum"]),
                 on_add_subfolder=self._create_add_subfolder_handler(config["enum"]),
-                page=self.page,
+                page=self._page_ref,
                 logger=self.logger,
             )
 
@@ -998,8 +834,12 @@ class MainView(ft.Column):
                 # may not work properly with WSLg or some desktop environments
                 await self._show_path_input_dialog(launcher)
             else:
-                # On Windows, use the native file picker
-                self.file_picker.get_directory_path(dialog_title="Add Sub-Folder")
+                # On Windows, use the native file picker (Flet 0.80.4+ async API)
+                path = await self.file_picker.get_directory_path(dialog_title="Add Sub-Folder")
+                if path:
+                    await self._handle_folder_selected(path, launcher, is_adding=True)
+                self.current_launcher_selecting = None
+                self.is_adding_subfolder = False
         return handler
 
     async def _show_path_input_dialog(self, launcher: LauncherPathName):
@@ -1019,7 +859,7 @@ class MainView(ft.Column):
             if path:
                 # Validate the path exists
                 if Path(path).is_dir():
-                    self.page.close(dialog)
+                    self._page_ref.pop_dialog()
                     # Add the path to the launcher
                     added = config_manager.add_launcher_path(launcher, path)
                     if added:
@@ -1032,10 +872,10 @@ class MainView(ft.Column):
                         await self._show_snackbar("Path already exists or limit reached")
                 else:
                     path_input.error_text = "Directory does not exist"
-                    self.page.update()
+                    self._page_ref.update()
             else:
                 path_input.error_text = "Please enter a path"
-                self.page.update()
+                self._page_ref.update()
 
         dialog = ft.AlertDialog(
             modal=True,
@@ -1060,52 +900,92 @@ class MainView(ft.Column):
                 width=400,
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda e: self.page.close(dialog)),
+                ft.TextButton("Cancel", on_click=lambda e: self._page_ref.pop_dialog()),
                 ft.FilledButton("Add", on_click=on_submit),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
-        self.page.open(dialog)
+        self._page_ref.show_dialog(dialog)
 
     async def _on_tab_clicked(self, index: int):
-        """Handle tab click - switch to selected tab"""
+        """Handle tab click - switch to selected tab.
+
+        PERFORMANCE: Optimized for instant tab switching:
+        1. Switch visuals + content visibility immediately (no delay)
+        2. Data loading happens in background (non-blocking for cached views)
+        3. Single batched page.update() call
+        """
         if index == self.current_view_index:
             return
 
         previous_index = self.current_view_index
         self.current_view_index = index
 
-        # Update tab button visuals first
+        # PERFORMANCE: Update everything in one batch - no artificial delays
+        # 1. Update tab button visuals
         self._update_tab_visuals(previous_index, index)
-        self.page.update()
 
-        # Small delay to let tab visuals update before content switch
-        await asyncio.sleep(0.05)
+        # 2. Switch content visibility immediately (Stack-based toggle)
+        for i, container in enumerate(self.content_area.controls):
+            if i == previous_index:
+                container.opacity = 0.0
+                container.visible = False
+            elif i == index:
+                container.visible = True
+                container.opacity = 1.0
 
-        # Resource cleanup (existing logic)
+        # 3. Single batched update - user sees tab switch instantly
+        self._page_ref.update()
+
+        # 4. Resource cleanup in background (non-blocking)
         if previous_index == 1 and index != 1:
-            await self._cleanup_games_view()
-        if index == 0 and previous_index != 0:
-            from dlss_updater.database import db_manager
-            await db_manager.close()
+            # Don't await - let it run in background
+            asyncio.create_task(self._cleanup_games_view())
 
-        # Load data for destination view
+        # 5. Load data - NON-BLOCKING for instant tab switching
+        # Show loading indicator BEFORE starting background task so user sees feedback
+        needs_loading_update = False
         if index == 1:
-            await self.games_view.load_games()
+            if not self.games_view._games_loaded:
+                self.games_view.loading_indicator.visible = True
+                self.games_view.empty_state.visible = False
+                self.games_view.tabs_container.visible = False
+                needs_loading_update = True
+            asyncio.create_task(self._load_games_background())
         elif index == 2:
-            await self.backups_view.load_backups()
+            if not self.backups_view._backups_loaded:
+                self.backups_view.loading_indicator.visible = True
+                self.backups_view.empty_state.visible = False
+                self.backups_view.backups_grid_container.visible = False
+                needs_loading_update = True
+            asyncio.create_task(self._load_backups_background())
 
-        # Switch content with animation
-        self.content_area.content = self.tab_contents[index]
+        # Update UI to show loading indicator if needed
+        if needs_loading_update:
+            self._page_ref.update()
+
         self.last_view_index = index
-        self.page.update()
+
+    async def _load_games_background(self):
+        """Load games in background - non-blocking for tab switch."""
+        try:
+            await self.games_view.load_games()
+        except Exception as e:
+            self.logger.error(f"Background games load error: {e}")
+
+    async def _load_backups_background(self):
+        """Load backups in background - non-blocking for tab switch."""
+        try:
+            await self.backups_view.load_backups()
+        except Exception as e:
+            self.logger.error(f"Background backups load error: {e}")
 
     def _update_tab_visuals(self, old_index: int, new_index: int):
         """Update tab button colors on selection change"""
         from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
 
-        is_dark = self.page.theme_mode == ft.ThemeMode.DARK
+        is_dark = self._page_ref.theme_mode == ft.ThemeMode.DARK
         tab_colors = [TabColors.LAUNCHERS, TabColors.GAMES, TabColors.BACKUPS]
 
         # Deactivate old tab
@@ -1125,60 +1005,50 @@ class MainView(ft.Column):
         new_btn.content.controls[0].content.controls[1].weight = ft.FontWeight.W_600
         new_btn.content.controls[1].bgcolor = new_color
 
-    async def _on_folder_selected(self, e: ft.FilePickerResultEvent):
-        """Handle folder selection from file picker (multi-path support)"""
-        if e.path and self.current_launcher_selecting:
-            path = e.path
-            launcher = self.current_launcher_selecting
-            is_adding = getattr(self, 'is_adding_subfolder', False)
+    async def _handle_folder_selected(self, path: str, launcher: LauncherPathName, is_adding: bool = False):
+        """Handle folder selection result (Flet 0.80.4+ direct call pattern)"""
+        self.logger.info(f"{'Adding' if is_adding else 'Setting'} path for {launcher.name}: {path}")
 
-            self.logger.info(f"{'Adding' if is_adding else 'Setting'} path for {launcher.name}: {path}")
+        # Check if running in Flatpak and path is inaccessible
+        if IS_LINUX and is_flatpak() and not os.access(path, os.R_OK):
+            await self._show_flatpak_permission_dialog(path)
+            return
 
-            # Check if running in Flatpak and path is inaccessible
-            if IS_LINUX and is_flatpak() and not os.access(path, os.R_OK):
-                await self._show_flatpak_permission_dialog(path)
-                self.current_launcher_selecting = None
-                self.is_adding_subfolder = False
-                return
+        card = self.launcher_cards.get(launcher)
 
-            card = self.launcher_cards.get(launcher)
-
-            if is_adding:
-                # Add as sub-folder (append to existing paths)
-                added = config_manager.add_launcher_path(launcher, path)
-                if added:
-                    # Get updated paths and refresh card
-                    all_paths = config_manager.get_launcher_paths(launcher)
-                    if card:
-                        await card.set_paths(all_paths)
-                    await self._show_snackbar(f"Sub-folder added to {card.name}")
-                else:
-                    # Path already exists or limit reached
-                    from dlss_updater.models import MAX_PATHS_PER_LAUNCHER
-                    current_count = len(config_manager.get_launcher_paths(launcher))
-                    if current_count >= MAX_PATHS_PER_LAUNCHER:
-                        await self._show_snackbar(f"Maximum {MAX_PATHS_PER_LAUNCHER} paths reached for {card.name}")
-                    else:
-                        await self._show_snackbar(f"Path already exists for {card.name}")
-            else:
-                # Browse: set as primary path (keeps other paths if any)
-                current_paths = config_manager.get_launcher_paths(launcher)
-                if current_paths:
-                    # Replace first path, keep others
-                    current_paths[0] = path
-                    config_manager.set_launcher_paths(launcher, current_paths)
-                else:
-                    # No existing paths, add this one
-                    config_manager.add_launcher_path(launcher, path)
-
+        if is_adding:
+            # Add as sub-folder (append to existing paths)
+            added = config_manager.add_launcher_path(launcher, path)
+            if added:
                 # Get updated paths and refresh card
                 all_paths = config_manager.get_launcher_paths(launcher)
                 if card:
                     await card.set_paths(all_paths)
-                await self._show_snackbar(f"Path updated for {card.name}")
+                await self._show_snackbar(f"Sub-folder added to {card.name}")
+            else:
+                # Path already exists or limit reached
+                from dlss_updater.models import MAX_PATHS_PER_LAUNCHER
+                current_count = len(config_manager.get_launcher_paths(launcher))
+                if current_count >= MAX_PATHS_PER_LAUNCHER:
+                    await self._show_snackbar(f"Maximum {MAX_PATHS_PER_LAUNCHER} paths reached for {card.name}")
+                else:
+                    await self._show_snackbar(f"Path already exists for {card.name}")
+        else:
+            # Browse: set as primary path (keeps other paths if any)
+            current_paths = config_manager.get_launcher_paths(launcher)
+            if current_paths:
+                # Replace first path, keep others
+                current_paths[0] = path
+                config_manager.set_launcher_paths(launcher, current_paths)
+            else:
+                # No existing paths, add this one
+                config_manager.add_launcher_path(launcher, path)
 
-            self.current_launcher_selecting = None
-            self.is_adding_subfolder = False
+            # Get updated paths and refresh card
+            all_paths = config_manager.get_launcher_paths(launcher)
+            if card:
+                await card.set_paths(all_paths)
+            await self._show_snackbar(f"Path updated for {card.name}")
 
     def _create_reset_handler(self, launcher: LauncherPathName):
         """Create reset click handler for specific launcher"""
@@ -1193,7 +1063,7 @@ class MainView(ft.Column):
 
         # Show confirmation dialog
         async def confirm_reset(e):
-            self.page.close(dialog)
+            self._page_ref.pop_dialog()
             # Clear all paths for this launcher
             config_manager.set_launcher_paths(launcher, [])
 
@@ -1212,12 +1082,12 @@ class MainView(ft.Column):
             title=ft.Text("Reset Paths?"),
             content=ft.Text(content_text),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda e: self.page.close(dialog)),
+                ft.TextButton("Cancel", on_click=lambda e: self._page_ref.pop_dialog()),
                 ft.FilledButton("Reset", on_click=confirm_reset),
             ],
         )
 
-        self.page.open(dialog)
+        self._page_ref.show_dialog(dialog)
 
     async def _show_flatpak_permission_dialog(self, path: str):
         """
@@ -1244,7 +1114,7 @@ class MainView(ft.Column):
 
         async def copy_command(e):
             """Copy the override command to clipboard"""
-            await self.page.set_clipboard_async(override_cmd)
+            await self._page_ref.set_clipboard_async(override_cmd)
             await self._show_snackbar("Command copied to clipboard")
 
         dialog = ft.AlertDialog(
@@ -1268,11 +1138,11 @@ class MainView(ft.Column):
             ], tight=True, spacing=4),
             actions=[
                 ft.TextButton("Copy Command", on_click=copy_command),
-                ft.FilledButton("OK", on_click=lambda e: self.page.close(dialog)),
+                ft.FilledButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
             ],
         )
 
-        self.page.open(dialog)
+        self._page_ref.show_dialog(dialog)
 
     def _toggle_theme(self, e):
         """Handle theme toggle button click"""
@@ -1280,7 +1150,7 @@ class MainView(ft.Column):
         # Update button icon and tooltip
         e.control.icon = self.theme_manager.get_icon()
         e.control.tooltip = self.theme_manager.get_tooltip()
-        self.page.update()
+        self._page_ref.update()
 
     def show_update_badge(self, show: bool = True):
         """
@@ -1289,38 +1159,38 @@ class MainView(ft.Column):
         Args:
             show: True to display red badge indicator, False to hide it
         """
-        # Use AppMenuSelector API for menu badge
-        if hasattr(self, 'app_menu_selector'):
-            self.app_menu_selector.set_badge_visible("check_updates", show)
-        if self.page:
-            self.page.update()
+        # Use ApplicationMenu API for menu badge
+        if self.application_menu:
+            self.application_menu.set_badge_visible("check_updates", show)
+        if self._page_ref:
+            self._page_ref.update()
             self.logger.info(f"Update badge {'shown' if show else 'hidden'}")
 
     async def _on_release_notes_clicked(self, e):
         """Handle release notes button click"""
-        panel_manager = PanelManager.get_instance(self.page, self.logger)
-        panel = ReleaseNotesPanel(self.page, self.logger)
+        panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
+        panel = ReleaseNotesPanel(self._page_ref, self.logger)
         await panel_manager.show_content(panel)
 
     async def _on_check_updates_clicked(self, e):
         """Handle check for updates button click"""
-        dialog = AppUpdateDialog(self.page, self.logger)
+        dialog = AppUpdateDialog(self._page_ref, self.logger)
         await dialog.check_and_show()
 
     async def _on_blacklist_clicked(self, e):
         """Handle blacklist button click"""
-        panel_manager = PanelManager.get_instance(self.page, self.logger)
-        panel = BlacklistPanel(self.page, self.logger)
+        panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
+        panel = BlacklistPanel(self._page_ref, self.logger)
         await panel_manager.show_content(panel)
 
     async def _on_dlss_overlay_clicked(self, e):
         """Handle DLSS overlay settings button click"""
-        dialog = DLSSOverlayDialog(self.page, self.logger)
+        dialog = DLSSOverlayDialog(self._page_ref, self.logger)
         await dialog.show()
 
     async def _on_dlss_preset_clicked(self, e):
         """Handle DLSS preset settings button click"""
-        dialog = DLSSPresetDialog(self.page, self.logger)
+        dialog = DLSSPresetDialog(self._page_ref, self.logger)
         await dialog.show()
 
     async def on_dll_cache_complete(self):
@@ -1343,19 +1213,19 @@ class MainView(ft.Column):
         config_manager.set_dlss_preset_dialog_shown(True)
 
         self.logger.info("Showing DLSS preset dialog for first-time NVIDIA GPU user")
-        dialog = DLSSPresetDialog(self.page, self.logger)
+        dialog = DLSSPresetDialog(self._page_ref, self.logger)
         await dialog.show()
 
     async def _on_settings_clicked(self, e):
         """Handle settings button click"""
-        panel_manager = PanelManager.get_instance(self.page, self.logger)
-        panel = PreferencesPanel(self.page, self.logger)
+        panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
+        panel = PreferencesPanel(self._page_ref, self.logger)
         await panel_manager.show_content(panel)
 
     async def _on_ui_preferences_clicked(self, e):
         """Handle UI preferences button click"""
-        panel_manager = PanelManager.get_instance(self.page, self.logger)
-        panel = UIPreferencesPanel(self.page, self.logger)
+        panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
+        panel = UIPreferencesPanel(self._page_ref, self.logger)
         await panel_manager.show_content(panel)
 
     async def _on_scan_clicked(self, e):
@@ -1369,13 +1239,13 @@ class MainView(ft.Column):
 
         try:
             # Show loading overlay
-            self.loading_overlay.show(self.page, "Scanning for games...")
+            self.loading_overlay.show(self._page_ref, "Scanning for games...")
 
             # Progress callback
             async def on_progress(progress: UpdateProgress):
                 await self.loading_overlay.set_progress_async(
                     progress.percentage,
-                    self.page,
+                    self._page_ref,
                     progress.message
                 )
 
@@ -1388,10 +1258,10 @@ class MainView(ft.Column):
 
             # Update the scan info display
             self._update_scan_info_text()
-            self.page.update()
+            self._page_ref.update()
 
             # Hide loading overlay
-            self.loading_overlay.hide(self.page)
+            self.loading_overlay.hide(self._page_ref)
 
             # Parse DLL dict and update launcher cards
             await self._populate_launcher_cards(dll_dict)
@@ -1410,7 +1280,7 @@ class MainView(ft.Column):
 
         except Exception as ex:
             self.logger.error(f"Scan failed: {ex}", exc_info=True)
-            self.loading_overlay.hide(self.page)
+            self.loading_overlay.hide(self._page_ref)
 
             # Auto-expand logger on error
             if self.logger_panel:
@@ -1424,11 +1294,11 @@ class MainView(ft.Column):
                 actions=[
                     ft.FilledButton(
                         "OK",
-                        on_click=lambda e: self.page.close(error_dialog)
+                        on_click=lambda e: self._page_ref.pop_dialog()
                     ),
                 ],
             )
-            self.page.open(error_dialog)
+            self._page_ref.show_dialog(error_dialog)
 
     async def _populate_launcher_cards(self, dll_dict: dict):
         """
@@ -1572,11 +1442,11 @@ class MainView(ft.Column):
                 actions=[
                     ft.FilledButton(
                         "OK",
-                        on_click=lambda e: self.page.close(error_dialog)
+                        on_click=lambda e: self._page_ref.pop_dialog()
                     ),
                 ],
             )
-            self.page.open(error_dialog)
+            self._page_ref.show_dialog(error_dialog)
             return
 
         # Check if scan has been run
@@ -1589,11 +1459,11 @@ class MainView(ft.Column):
                 actions=[
                     ft.FilledButton(
                         "OK",
-                        on_click=lambda e: self.page.close(error_dialog)
+                        on_click=lambda e: self._page_ref.pop_dialog()
                     ),
                 ],
             )
-            self.page.open(error_dialog)
+            self._page_ref.show_dialog(error_dialog)
             return
 
         # Calculate scan age for logging
@@ -1611,13 +1481,13 @@ class MainView(ft.Column):
 
         try:
             # Show loading overlay
-            self.loading_overlay.show(self.page, "Updating games...")
+            self.loading_overlay.show(self._page_ref, "Updating games...")
 
             # Progress callback
             async def on_progress(progress: UpdateProgress):
                 await self.loading_overlay.set_progress_async(
                     progress.percentage,
-                    self.page,
+                    self._page_ref,
                     progress.message
                 )
 
@@ -1628,15 +1498,15 @@ class MainView(ft.Column):
             )
 
             # Hide loading overlay
-            self.loading_overlay.hide(self.page)
+            self.loading_overlay.hide(self._page_ref)
 
             # Show results dialog
-            summary_dialog = UpdateSummaryDialog(self.page, self.logger, result)
+            summary_dialog = UpdateSummaryDialog(self._page_ref, self.logger, result)
             await summary_dialog.show()
 
         except Exception as ex:
             self.logger.error(f"Update failed: {ex}", exc_info=True)
-            self.loading_overlay.hide(self.page)
+            self.loading_overlay.hide(self._page_ref)
 
             # Auto-expand logger on error
             if self.logger_panel:
@@ -1650,11 +1520,11 @@ class MainView(ft.Column):
                 actions=[
                     ft.FilledButton(
                         "OK",
-                        on_click=lambda e: self.page.close(error_dialog)
+                        on_click=lambda e: self._page_ref.pop_dialog()
                     ),
                 ],
             )
-            self.page.open(error_dialog)
+            self._page_ref.show_dialog(error_dialog)
 
     def _update_scan_info_text(self):
         """Update the last scan info text displayed in UI"""
@@ -1749,17 +1619,19 @@ class MainView(ft.Column):
             bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
             duration=duration,
         )
-        self.page.overlay.append(snackbar)
+        self._page_ref.overlay.append(snackbar)
         snackbar.open = True
-        self.page.update()
+        self._page_ref.update()
 
     async def _cleanup_games_view(self):
-        """Release Games view resources"""
+        """Release Games view resources based on user preference.
+
+        Note: on_view_hidden() handles conditional cleanup based on
+        config_manager.get_keep_games_in_memory() - do NOT call clear_index()
+        here as that would override the user's preference.
+        """
         if hasattr(self, 'games_view') and self.games_view:
             await self.games_view.on_view_hidden()
-            from dlss_updater.search_service import search_service
-            search_service.clear_index()
-            self.logger.debug("Games view resources cleaned up")
 
     async def shutdown(self):
         """Graceful shutdown with timeout and comprehensive cleanup."""

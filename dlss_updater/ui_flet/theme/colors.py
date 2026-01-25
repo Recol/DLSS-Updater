@@ -135,10 +135,12 @@ class MD3Colors:
         "card_surface": ("#1E1E1E", "#FFFFFF"),
         "card_hover": ("#2E2E2E", "#F5F5F5"),
 
-        # Skeleton loader gradient
-        "skeleton_start": ("#1E1E1E", "#F5F5F5"),
-        "skeleton_mid": ("#2E2E2E", "#E8E8E8"),
-        "skeleton_end": ("#1E1E1E", "#F5F5F5"),
+        # Skeleton loader - ft.Shimmer control colors (GPU-accelerated)
+        "skeleton_base": ("#1E1E1E", "#F0F0F0"),      # Base container background
+        "skeleton_start": ("#2A2A2A", "#E8E8E8"),     # Shimmer base_color (darker)
+        "skeleton_mid": ("#3A3A3A", "#DADADA"),       # Legacy gradient mid
+        "skeleton_end": ("#2A2A2A", "#E8E8E8"),       # Legacy gradient end
+        "skeleton_highlight": ("#4A4A4A", "#FFFFFF"), # Shimmer highlight_color (lighter)
 
         # Specific UI elements
         "snackbar_bg": ("#2D6E88", "#1A5A70"),

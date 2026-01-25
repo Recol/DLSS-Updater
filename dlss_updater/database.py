@@ -440,8 +440,12 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_games_steam_app_id ON games(steam_app_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_game_dlls_game_id ON game_dlls(game_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_game_dlls_dll_type ON game_dlls(dll_type)")
+            # Composite index for queries filtering by game_id AND dll_type
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_game_dlls_game_type ON game_dlls(game_id, dll_type)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_dll_backups_game_dll_id ON dll_backups(game_dll_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_dll_backups_active ON dll_backups(is_active)")
+            # Composite index for backup queries that filter by game_dll_id AND is_active
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dll_backups_game_dll_active ON dll_backups(game_dll_id, is_active)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_update_history_game_dll_id ON update_history(game_dll_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_steam_name ON steam_app_list(name COLLATE NOCASE)")
 
@@ -838,41 +842,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting DLLs for game: {e}", exc_info=True)
             return []
-        finally:
-            conn.close()
-
-    async def get_game_dll_by_path(self, dll_path: str) -> GameDLL | None:
-        """Get DLL record by file path"""
-        return await asyncio.to_thread(self._get_game_dll_by_path, dll_path)
-
-    def _get_game_dll_by_path(self, dll_path: str) -> GameDLL | None:
-        """Get DLL by path (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
-
-        try:
-            cursor.execute("""
-                SELECT id, game_id, dll_type, dll_filename, dll_path, current_version, detected_at
-                FROM game_dlls
-                WHERE dll_path = ?
-            """, (dll_path,))
-
-            row = cursor.fetchone()
-            if row:
-                return GameDLL(
-                    id=row[0],
-                    game_id=row[1],
-                    dll_type=row[2],
-                    dll_filename=row[3],
-                    dll_path=row[4],
-                    current_version=row[5],
-                    detected_at=datetime.fromisoformat(row[6])
-                )
-            return None
-
-        except Exception as e:
-            logger.error(f"Error getting DLL by path: {e}", exc_info=True)
-            return None
         finally:
             conn.close()
 
@@ -1438,8 +1407,8 @@ class DatabaseManager:
         return await asyncio.to_thread(self._get_cached_image_path, app_id)
 
     def _get_cached_image_path(self, app_id: int) -> str | None:
-        """Get cached image path (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Get cached image path (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -1454,16 +1423,52 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting cached image path: {e}", exc_info=True)
             return None
-        finally:
-            conn.close()
+
+    async def batch_get_cached_image_paths(self, app_ids: list[int]) -> dict[int, str]:
+        """
+        Batch get cached image paths for multiple Steam apps.
+
+        Performance: Single query instead of N queries for N games.
+        Reduces database roundtrips from N to 1.
+
+        Args:
+            app_ids: List of Steam app IDs
+
+        Returns:
+            Dict mapping app_id to local_path (only for cached images)
+        """
+        if not app_ids:
+            return {}
+        return await asyncio.to_thread(self._batch_get_cached_image_paths, app_ids)
+
+    def _batch_get_cached_image_paths(self, app_ids: list[int]) -> dict[int, str]:
+        """Batch get cached image paths (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            placeholders = ','.join('?' * len(app_ids))
+            cursor.execute(f"""
+                SELECT steam_app_id, local_path FROM steam_images
+                WHERE steam_app_id IN ({placeholders}) AND fetch_failed = 0
+            """, app_ids)
+
+            result = {}
+            for row in cursor:
+                result[row[0]] = row[1]
+            return result
+
+        except Exception as e:
+            logger.error(f"Error batch getting cached image paths: {e}", exc_info=True)
+            return {}
 
     async def mark_image_fetch_failed(self, app_id: int):
         """Mark image fetch as failed"""
         return await asyncio.to_thread(self._mark_image_fetch_failed, app_id)
 
     def _mark_image_fetch_failed(self, app_id: int):
-        """Mark image fetch failed (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Mark image fetch failed (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -1482,16 +1487,14 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error marking image fetch failed: {e}", exc_info=True)
             conn.rollback()
-        finally:
-            conn.close()
 
     async def is_image_fetch_failed(self, app_id: int) -> bool:
         """Check if image fetch has already failed for this app"""
         return await asyncio.to_thread(self._is_image_fetch_failed, app_id)
 
     def _is_image_fetch_failed(self, app_id: int) -> bool:
-        """Check if image fetch failed (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Check if image fetch failed (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -1506,8 +1509,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error checking image fetch status: {e}", exc_info=True)
             return False
-        finally:
-            conn.close()
 
     async def clear_steam_images_cache(self):
         """
@@ -1518,8 +1519,8 @@ class DatabaseManager:
         return await asyncio.to_thread(self._clear_steam_images_cache)
 
     def _clear_steam_images_cache(self):
-        """Clear all steam image cache entries (runs in thread)."""
-        conn = sqlite3.connect(str(self.db_path))
+        """Clear all steam image cache entries (runs in thread) - uses thread-local connection."""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -1529,8 +1530,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error clearing steam images cache: {e}", exc_info=True)
             conn.rollback()
-        finally:
-            conn.close()
 
     # ===== Steam Apps FTS5 Operations (Phase 3) =====
 

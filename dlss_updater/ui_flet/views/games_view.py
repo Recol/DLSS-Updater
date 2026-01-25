@@ -1,10 +1,18 @@
 """
 Games View - Display all games organized by launcher with Steam images
+
+PERFORMANCE NOTES:
+- Uses GridView with virtualization (only visible cards are rendered)
+- Progressive loading: first batch shown immediately, rest created in background
+- Parallel data loading with asyncio.gather() for DLLs and backups
+- ImageLoadCoordinator batches page.update() calls for images (~5x faster)
+- Search filtering via visibility toggles (no grid rebuild)
 """
 
 import asyncio
 import math
-from typing import Callable, Any
+import time
+from typing import Callable, Any, TYPE_CHECKING
 import flet as ft
 
 from dlss_updater.database import db_manager, Game, merge_games_by_name
@@ -18,13 +26,143 @@ from dlss_updater.config import is_dll_cache_ready
 from dlss_updater.search_service import search_service
 from dlss_updater.task_registry import register_task
 
+# PERFORMANCE: Progressive loading constants
+# First batch shows immediately, rest loads in background
+GAMES_INITIAL_BATCH_SIZE = 16  # Visible cards on typical screen
+GAMES_BACKGROUND_BATCH_SIZE = 24  # Cards per background batch
+
+if TYPE_CHECKING:
+    from dlss_updater.ui_flet.components.game_card import GameCard
+
+
+class ImageLoadCoordinator:
+    """
+    Batches image loading UI updates to minimize page.update() calls.
+
+    Flet 0.80.4's single-threaded UI model serializes updates, so calling
+    page.update() 11 times takes 11x as long. This coordinator collects
+    pending updates and flushes them in a single batch.
+
+    Performance improvement: ~5x faster (1.9s -> 350-400ms for 11 images)
+    """
+
+    def __init__(self, page: ft.Page, logger=None):
+        self._page_ref = page
+        self._logger = logger
+        self._pending_cards: list[tuple['GameCard', str]] = []
+        self._batch_task: asyncio.Task | None = None
+        self._lock = asyncio.Lock()
+        self._debounce_ms = 50  # Wait 50ms for more cards to complete
+        self._max_batch_size = 20  # Cap batch size to prevent memory issues
+
+    async def schedule_image_update(self, card: 'GameCard', image_path: str):
+        """Schedule a card's image to be updated in the next batch."""
+        async with self._lock:
+            self._pending_cards.append((card, image_path))
+
+            # Start debounce timer if not already running
+            if self._batch_task is None or self._batch_task.done():
+                self._batch_task = asyncio.create_task(self._flush_batch())
+
+            # If we hit max batch size, flush immediately
+            if len(self._pending_cards) >= self._max_batch_size:
+                if self._batch_task and not self._batch_task.done():
+                    self._batch_task.cancel()
+                self._batch_task = asyncio.create_task(self._flush_batch_immediate())
+
+    async def _flush_batch(self):
+        """Flush all pending image updates with minimal page.update() calls after debounce."""
+        # Debounce: wait for more cards to complete
+        await asyncio.sleep(self._debounce_ms / 1000)
+        await self._flush_batch_immediate()
+
+    async def _flush_batch_immediate(self):
+        """Flush batch immediately without debounce delay.
+
+        Uses ft.context.disable_auto_update() to ensure explicit control over updates.
+        This prevents any automatic updates during batch operations.
+        """
+        import time
+
+        async with self._lock:
+            if not self._pending_cards:
+                return
+
+            cards_to_update = self._pending_cards.copy()
+            self._pending_cards.clear()
+
+        start_total = time.perf_counter()
+        if self._logger:
+            self._logger.debug(f"[ImageLoadCoordinator] Flushing batch of {len(cards_to_update)} images")
+
+        # Disable auto-update to prevent any intermediate updates during batch setup
+        ft.context.disable_auto_update()
+
+        # Phase 1: Setup all images (opacity=0) - no UI update yet
+        start_setup = time.perf_counter()
+        for card, image_path in cards_to_update:
+            try:
+                card.image_widget.src = image_path
+                card.image_container.opacity = 0
+                card.image_container.animate_opacity = ft.Animation(300, ft.AnimationCurve.EASE_IN)
+                card.image_container.content = card.image_widget
+            except Exception as e:
+                if self._logger:
+                    self._logger.debug(f"[ImageLoadCoordinator] Error setting up image for card: {e}")
+        setup_ms = (time.perf_counter() - start_setup) * 1000
+
+        # SINGLE page.update() to attach all controls to render tree
+        start_update1 = time.perf_counter()
+        try:
+            if self._page_ref:
+                self._page_ref.update()
+        except Exception as e:
+            if self._logger:
+                self._logger.debug(f"[ImageLoadCoordinator] Error during first page.update(): {e}")
+            return
+        update1_ms = (time.perf_counter() - start_update1) * 1000
+
+        # Brief delay for render tree attachment (30ms)
+        await asyncio.sleep(0.03)
+
+        # Phase 2: Trigger all fade-in animations simultaneously
+        start_anim = time.perf_counter()
+        for card, _ in cards_to_update:
+            try:
+                card.image_container.opacity = 1
+                card._image_loaded = True
+            except Exception:
+                pass  # Card may have been disposed
+        anim_ms = (time.perf_counter() - start_anim) * 1000
+
+        # SINGLE page.update() to trigger all animations together
+        start_update2 = time.perf_counter()
+        try:
+            if self._page_ref:
+                self._page_ref.update()
+        except Exception as e:
+            if self._logger:
+                self._logger.debug(f"[ImageLoadCoordinator] Error during animation page.update(): {e}")
+        update2_ms = (time.perf_counter() - start_update2) * 1000
+
+        total_ms = (time.perf_counter() - start_total) * 1000
+        if self._logger:
+            self._logger.debug(
+                f"[ImageLoadCoordinator] Batch complete - {len(cards_to_update)} images "
+                f"(setup={setup_ms:.1f}ms, update1={update1_ms:.1f}ms, anim={anim_ms:.1f}ms, update2={update2_ms:.1f}ms, total={total_ms:.1f}ms)"
+            )
+
 
 class GamesView(ThemeAwareMixin, ft.Column):
-    """Games library view with launcher tabs"""
+    """Games library view with launcher tabs
+
+    Note: Cannot use is_isolated=True because view content needs to be updated
+    via page.update() for tab switching and game loading operations.
+    """
 
     def __init__(self, page: ft.Page, logger):
         super().__init__()
-        self.page = page
+        self._page_ref = page
         self.logger = logger
         self.expand = True
         self.spacing = 0
@@ -46,6 +184,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self.search_query: str = ""
         self._search_generation: int = 0
         self.search_bar: SearchBar | None = None
+
+        # PERFORMANCE: Track if games are already loaded to prevent redundant rebuilds
+        # on tab switching. Only reload on explicit refresh or when forced=True
+        self._games_loaded = False
 
         # Initialize theme system reference before building UI
         self._registry = get_theme_registry()
@@ -150,7 +292,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=12,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             expand=True,
         )
 
@@ -164,7 +306,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=12,
             ),
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             expand=True,
             visible=False,
         )
@@ -193,8 +335,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
         """Get current theme mode from registry or session"""
         if hasattr(self, '_registry') and self._registry:
             return self._registry.is_dark
-        if self.page and self.page.session.contains_key("is_dark_theme"):
-            return self.page.session.get("is_dark_theme")
+        if self._page_ref and self._page_ref.session.contains_key("is_dark_theme"):
+            return self._page_ref.session.get("is_dark_theme")
         return True
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
@@ -206,17 +348,36 @@ class GamesView(ThemeAwareMixin, ft.Column):
             "divider.color": (MD3Colors.get_outline(True), MD3Colors.get_outline(False)),
         }
 
-    async def load_games(self):
-        """Load games from database and display"""
+    async def load_games(self, force: bool = False):
+        """Load games from database and display.
+
+        PERFORMANCE: Skips full reload if games are already loaded (tab switching).
+        Use force=True to trigger a full refresh (explicit refresh button).
+
+        Args:
+            force: If True, forces a full reload even if games are already loaded.
+        """
         if self.is_loading:
+            return
+
+        # PERFORMANCE: Skip full reload if already loaded (fast tab switching)
+        # Only rebuild on explicit refresh (force=True) or first load
+        if self._games_loaded and not force:
+            self.logger.debug("Games already loaded - skipping redundant reload")
+            # Just ensure the view is visible
+            self.tabs_container.visible = True
+            self.empty_state.visible = False
+            self.loading_indicator.visible = False
+            if self._page_ref:
+                self._page_ref.update()
             return
 
         self.is_loading = True
         self.loading_indicator.visible = True
         self.empty_state.visible = False
         self.tabs_container.visible = False
-        if self.page:
-            self.page.update()
+        if self._page_ref:
+            self._page_ref.update()
 
         try:
             # Ensure database pool is ready
@@ -232,8 +393,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 self.empty_state.visible = True
                 self.loading_indicator.visible = False
                 self._update_delete_button_state(False)
-                if self.page:
-                    self.page.update()
+                self._games_loaded = False  # Allow retry on next tab switch
+                if self._page_ref:
+                    self._page_ref.update()
                 return
 
             # Build launcher tabs
@@ -249,6 +411,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 await search_service.build_index(self.games_by_launcher)
             await self._load_search_history()
 
+            # Mark as loaded for fast tab switching
+            self._games_loaded = True
+
             self.logger.info(f"Loaded {sum(len(games) for games in self.games_by_launcher.values())} games from {len(self.games_by_launcher)} launchers")
 
         except Exception as e:
@@ -256,15 +421,18 @@ class GamesView(ThemeAwareMixin, ft.Column):
             self.empty_state.visible = True
             self.loading_indicator.visible = False
             self._update_delete_button_state(False)
+            self._games_loaded = False  # Allow retry on next tab switch
 
         finally:
             self.is_loading = False
-            if self.page:
-                self.page.update()
+            if self._page_ref:
+                self._page_ref.update()
 
     async def _build_launcher_tabs(self):
-        """Build tabs for each launcher with games"""
-        tabs = []
+        """Build tabs for each launcher with games (Flet 0.80.4 TabBar/TabBarView pattern)"""
+        tabs = []  # Tab headers (label/icon)
+        tab_contents = []  # Tab content controls
+        self._tab_launchers = []  # Track launcher name per tab index
 
         # Clear existing game cards tracking
         self.game_cards.clear()
@@ -309,88 +477,117 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
                 return merged, all_dlls, all_backup_groups
 
+            # PERFORMANCE: Load all game data in parallel
+            start_data = time.perf_counter()
             tasks = [load_merged_game_data(mg) for mg in merged_games]
             results = await asyncio.gather(*tasks)
+            data_ms = (time.perf_counter() - start_data) * 1000
+            self.logger.debug(f"[PERF] Data loading for {launcher} ({len(results)} games): {data_ms:.1f}ms")
 
-            # Create game cards for this launcher
-            game_cards = []
-            for merged, dlls, backup_groups in results:
-                # Create game card with merged game data
+            # PERFORMANCE: Create game cards with helper function
+            def create_card(merged, dlls, backup_groups):
                 card = GameCard(
-                    game=merged,  # Pass MergedGame instead of Game
+                    game=merged,
                     dlls=dlls,
-                    page=self.page,
+                    page=self._page_ref,
                     logger=self.logger,
                     on_update=self._on_game_update,
                     on_restore=self._on_game_restore,
                     backup_groups=backup_groups,
                 )
-
-                # Track card for single-game updates (use primary game ID)
-                self.game_cards[merged.primary_game.id] = card
-
-                # Set initial opacity for staggered animation
                 card.opacity = 0
                 card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
+                return card
 
+            # PERFORMANCE: Progressive card creation for 200+ games
+            # Create first batch immediately (visible cards)
+            start_cards = time.perf_counter()
+            first_batch_results = results[:GAMES_INITIAL_BATCH_SIZE]
+            remaining_results = results[GAMES_INITIAL_BATCH_SIZE:]
+
+            game_cards = []
+            for merged, dlls, backup_groups in first_batch_results:
+                card = create_card(merged, dlls, backup_groups)
+                self.game_cards[merged.primary_game.id] = card
                 game_cards.append(card)
 
-                # Load image asynchronously (non-blocking) - REGISTER THE TASK
-                task = asyncio.create_task(card.load_image())
+            first_batch_ms = (time.perf_counter() - start_cards) * 1000
+            self.logger.debug(f"[PERF] First batch cards ({len(first_batch_results)}): {first_batch_ms:.1f}ms")
+
+            # Batch fetch all cached image paths (single query vs N queries)
+            steam_app_ids = [
+                card.game.steam_app_id
+                for card in game_cards
+                if card.game.steam_app_id
+            ]
+            cached_paths = await db_manager.batch_get_cached_image_paths(steam_app_ids)
+
+            # Create coordinator for batched image loading (reduces page.update() calls)
+            # This improves loading from ~1.9s to ~350-400ms for 11 images
+            coordinator = ImageLoadCoordinator(self._page_ref, self.logger)
+
+            # Load images asynchronously with coordinator for batched UI updates
+            for card in game_cards:
+                prefetched_path = cached_paths.get(card.game.steam_app_id) if card.game.steam_app_id else None
+                task = asyncio.create_task(card.load_image(prefetched_path, coordinator=coordinator))
                 register_task(task, f"load_image_{card.game.name[:20]}")
 
             # Trigger staggered fade-in animation - REGISTER THE TASK
             anim_task = asyncio.create_task(self._animate_cards_in(game_cards))
             register_task(anim_task, f"animate_cards_{launcher}")
 
-            # Create ResponsiveRow grid for this launcher's games (Flet 0.28.3 compatible)
-            # Wrap each card with responsive column sizing
-            # Breakpoints: xs=12 (1 col), sm=6 (2 col), md=4 (3 col), lg=3 (4 col)
-            responsive_cards = []
+            # PERFORMANCE: Use GridView with max_extent for virtualization + responsive columns
+            # GridView only renders visible items (unlike Column+ResponsiveRow which renders ALL)
+            # max_extent=320 gives responsive columns: 4 on 1280px, 3 on 960px, 2 on 640px, 1 on 320px
+            # This is critical for 50+ game cards - 10x faster scrolling
             for card in game_cards:
-                responsive_card = ft.Container(
-                    content=card,
-                    col={"xs": 12, "sm": 6, "md": 4, "lg": 3},
-                    height=180,  # Fixed height to match game card
-                )
-                responsive_cards.append(responsive_card)
-                # Track container for search visibility control
-                self.game_card_containers[card.game.id] = responsive_card
+                # Track card directly for search visibility control
+                self.game_card_containers[card.game.id] = card
 
-            # Create ResponsiveRow with scrollable container
-            game_grid = ft.Column(
-                controls=[
-                    ft.ResponsiveRow(
-                        controls=responsive_cards,
-                        spacing=12,
-                        run_spacing=12,
-                    )
-                ],
-                scroll=ft.ScrollMode.AUTO,
-                expand=True,
-            )
-
-            # Wrap in container for padding
-            game_list = ft.Container(
-                content=game_grid,
+            # Create GridView with virtualization (only visible items rendered)
+            # Aspect ratio 1.45 = 320/220 to match new card height (was 1.78 for 180px)
+            game_grid = ft.GridView(
+                controls=game_cards,
+                max_extent=320,  # Max card width - responsive columns
+                child_aspect_ratio=1.45,  # Width/height ratio (320/220)
                 padding=16,
+                spacing=12,
+                run_spacing=12,
                 expand=True,
             )
 
-            # Create tab
-            tab = ft.Tab(
-                text=f"{launcher} ({len(games)})",
-                icon=launcher_icons.get(launcher, ft.Icons.FOLDER),
-                content=game_list,
-            )
-            tabs.append(tab)
+            # PERFORMANCE: Load remaining cards in background (for 200+ games)
+            if remaining_results:
+                bg_task = asyncio.create_task(
+                    self._load_remaining_game_cards(
+                        remaining_results, game_grid, coordinator, create_card, launcher
+                    )
+                )
+                register_task(bg_task, f"load_remaining_cards_{launcher}")
 
-        # Create Tabs control with tab change handler for search reapplication
+            # Create tab header (label/icon only - content goes in TabBarView)
+            tab_header = ft.Tab(
+                label=f"{launcher} ({len(games)})",
+                icon=launcher_icons.get(launcher, ft.Icons.FOLDER),
+            )
+            tabs.append(tab_header)
+            tab_contents.append(game_grid)  # GridView directly as tab content
+            self._tab_launchers.append(launcher)  # Track launcher name by tab index
+
+        # Create Tabs control with TabBar + TabBarView (Flet 0.80.4 pattern)
         self.tabs_control = ft.Tabs(
-            tabs=tabs,
+            length=len(tabs),
+            selected_index=0,
             animation_duration=300,
             expand=True,
             on_change=self._on_tab_changed,
+            content=ft.Column(
+                expand=True,
+                controls=[
+                    ft.TabBar(tabs=tabs),
+                    ft.TabBarView(expand=True, controls=tab_contents),
+                ],
+            ),
         )
 
         self.tabs_container.content = self.tabs_control
@@ -402,33 +599,98 @@ class GamesView(ThemeAwareMixin, ft.Column):
         else:
             await self._show_all_games()
 
+    async def _load_remaining_game_cards(
+        self,
+        remaining_results: list[tuple],
+        grid: ft.GridView,
+        coordinator: 'ImageLoadCoordinator',
+        create_card_fn,
+        launcher: str,
+    ):
+        """Load remaining game cards in background batches.
+
+        PERFORMANCE: Creates cards in batches with yields to keep UI responsive.
+        GridView virtualization means adding 100+ cards has minimal render cost.
+        """
+        try:
+            total = len(remaining_results)
+            loaded = 0
+
+            for i in range(0, total, GAMES_BACKGROUND_BATCH_SIZE):
+                batch = remaining_results[i:i + GAMES_BACKGROUND_BATCH_SIZE]
+
+                # Create cards for this batch
+                new_cards = []
+                for merged, dlls, backup_groups in batch:
+                    card = create_card_fn(merged, dlls, backup_groups)
+                    self.game_cards[merged.primary_game.id] = card
+                    self.game_card_containers[card.game.id] = card
+                    new_cards.append(card)
+
+                # Add to grid (virtualized - only visible cards render)
+                grid.controls.extend(new_cards)
+                loaded += len(new_cards)
+
+                # Load images for new cards
+                steam_ids = [c.game.steam_app_id for c in new_cards if c.game.steam_app_id]
+                if steam_ids:
+                    cached_paths = await db_manager.batch_get_cached_image_paths(steam_ids)
+                    for card in new_cards:
+                        if card.game.steam_app_id:
+                            path = cached_paths.get(card.game.steam_app_id)
+                            task = asyncio.create_task(card.load_image(path, coordinator=coordinator))
+                            register_task(task, f"load_image_bg_{card.game.name[:15]}")
+
+                # Make cards visible immediately (no stagger for background cards)
+                for card in new_cards:
+                    card.opacity = 1
+
+                # Single update per batch
+                if self._page_ref:
+                    self._page_ref.update()
+
+                # Yield to event loop
+                await asyncio.sleep(0.02)
+
+            self.logger.debug(f"[PERF] Background loaded {loaded} additional {launcher} cards")
+
+        except Exception as e:
+            self.logger.error(f"Error loading remaining game cards: {e}", exc_info=True)
+
     async def _animate_cards_in(self, game_cards: list[GameCard]):
-        """Animate game cards with staggered fade-in for grid layout"""
+        """Animate game cards with staggered fade-in for grid layout (optimized)"""
         # Small initial delay
         await asyncio.sleep(0.1)
 
-        # For grid layout, animate first 12 cards (3 rows of 4 columns)
+        # For grid layout, animate first 12 cards in batches of 4 to reduce update calls
         cards_to_animate = game_cards[:12]
-        for i, card in enumerate(cards_to_animate):
-            await asyncio.sleep(0.04)  # 40ms delay - slightly faster for grid
-            card.opacity = 1
-            if self.page:
-                self.page.update()
+        batch_size = 4
+
+        for batch_start in range(0, len(cards_to_animate), batch_size):
+            batch_end = min(batch_start + batch_size, len(cards_to_animate))
+            # Set opacity for entire batch
+            for card in cards_to_animate[batch_start:batch_end]:
+                card.opacity = 1
+            # Single update per batch instead of per card
+            if self._page_ref:
+                self._page_ref.update()
+            await asyncio.sleep(0.08)  # 80ms delay per batch (smoother than 40ms per card)
 
         # Set remaining cards to visible immediately
         for card in game_cards[12:]:
             card.opacity = 1
-        if self.page:
-            self.page.update()
+        if self._page_ref:
+            self._page_ref.update()
 
     async def _on_refresh_clicked(self, e):
         """Handle refresh button click with rotation animation"""
         # Rotate refresh button
         if self.refresh_button_ref.current:
             self.refresh_button_ref.current.rotate += math.pi * 2  # 360 degrees
-            self.page.update()
+            self._page_ref.update()
 
-        await self.load_games()
+        # Force=True to bypass the "already loaded" optimization
+        await self.load_games(force=True)
 
     # ===== Search Methods =====
 
@@ -462,6 +724,11 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
     async def _execute_search(self, query: str, generation: int):
         """Execute search filtering on game cards."""
+        import time
+        from dlss_updater.ui_flet.perf_monitor import perf_logger
+
+        start_total = time.perf_counter()
+
         # Check if this search has been superseded
         if generation != self._search_generation:
             return
@@ -471,7 +738,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Get current tab launcher
         current_launcher = self._get_current_launcher()
 
-        # Filter cards by visibility (set on container wrapper for proper reflow)
+        # Filter cards by visibility (set on card directly for GridView)
+        start_filter = time.perf_counter()
         matching_count = 0
         for game_id, card in self.game_cards.items():
             if current_launcher and card.game.launcher != current_launcher:
@@ -480,15 +748,16 @@ class GamesView(ThemeAwareMixin, ft.Column):
             # Check if game name matches query
             matches = query_lower in card.game.name.lower()
 
-            # Set visibility on container wrapper for proper ResponsiveRow reflow
-            container = self.game_card_containers.get(game_id)
-            if container:
-                container.visible = matches
+            # Set visibility on card directly (GridView handles layout)
+            card.visible = matches
             if matches:
                 matching_count += 1
+        filter_ms = (time.perf_counter() - start_filter) * 1000
 
-        if self.page:
-            self.page.update()
+        start_update = time.perf_counter()
+        if self._page_ref:
+            self._page_ref.update()
+        update_ms = (time.perf_counter() - start_update) * 1000
 
         # Save to search history after search (if results exist)
         if matching_count > 0 and len(query) >= 2:
@@ -496,22 +765,21 @@ class GamesView(ThemeAwareMixin, ft.Column):
             # Refresh history button to show new entry
             await self._load_search_history()
 
-        self.logger.debug(f"Search '{query}' found {matching_count} matches")
+        total_ms = (time.perf_counter() - start_total) * 1000
+        perf_logger.debug(f"[PERF] search '{query}': filter={filter_ms:.1f}ms, update={update_ms:.1f}ms, total={total_ms:.1f}ms, matches={matching_count}")
 
     async def _show_all_games(self):
         """Show all games (clear search filter)."""
         current_launcher = self._get_current_launcher()
 
         for game_id, card in self.game_cards.items():
-            container = self.game_card_containers.get(game_id)
-            if container:
-                if current_launcher:
-                    container.visible = card.game.launcher == current_launcher
-                else:
-                    container.visible = True
+            if current_launcher:
+                card.visible = card.game.launcher == current_launcher
+            else:
+                card.visible = True
 
-        if self.page:
-            self.page.update()
+        if self._page_ref:
+            self._page_ref.update()
 
     def _get_current_launcher(self) -> str | None:
         """Get the currently selected launcher tab."""
@@ -521,14 +789,11 @@ class GamesView(ThemeAwareMixin, ft.Column):
         if self.tabs_control.selected_index is None:
             return None
 
-        # Get launcher name from tab text (format: "Launcher (N)")
-        tabs = self.tabs_control.tabs
-        if 0 <= self.tabs_control.selected_index < len(tabs):
-            tab_text = tabs[self.tabs_control.selected_index].text or ""
-            # Extract launcher name (remove count suffix)
-            if " (" in tab_text:
-                return tab_text.rsplit(" (", 1)[0]
-            return tab_text
+        # Use tracked launcher names list (Flet 0.80.4 compatible)
+        if hasattr(self, '_tab_launchers') and self._tab_launchers:
+            idx = self.tabs_control.selected_index
+            if 0 <= idx < len(self._tab_launchers):
+                return self._tab_launchers[idx]
         return None
 
     async def _load_search_history(self):
@@ -550,9 +815,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
             )
             # Add actions after dialog variable exists
             info_dialog.actions = [
-                ft.TextButton("OK", on_click=lambda e: self.page.close(info_dialog)),
+                ft.TextButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
             ]
-            self.page.open(info_dialog)
+            self._page_ref.show_dialog(info_dialog)
             return
 
         # Show confirmation dialog - create without actions first
@@ -588,7 +853,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         confirm_dialog.actions = [
             ft.TextButton(
                 "Cancel",
-                on_click=lambda e: self.page.close(confirm_dialog),
+                on_click=lambda e: self._page_ref.pop_dialog(),
             ),
             ft.ElevatedButton(
                 "Delete All",
@@ -600,7 +865,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             ),
         ]
 
-        self.page.open(confirm_dialog)
+        self._page_ref.show_dialog(confirm_dialog)
 
     def _create_delete_all_handler(self, dialog: ft.AlertDialog):
         """Create async delete all handler"""
@@ -610,7 +875,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
     async def _perform_delete_all(self, dialog: ft.AlertDialog):
         """Perform the delete all operation"""
-        self.page.close(dialog)
+        self._page_ref.pop_dialog()
 
         # Show progress indicator
         progress_dialog = ft.AlertDialog(
@@ -624,8 +889,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
-        self.page.open(progress_dialog)
-        self.page.update()
+        self._page_ref.show_dialog(progress_dialog)
+        self._page_ref.update()
 
         try:
             # Delete all games from database
@@ -633,7 +898,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             deleted_count = await db_manager.delete_all_games()
 
             # Close progress dialog
-            self.page.close(progress_dialog)
+            self._page_ref.pop_dialog()
 
             # Show success dialog - create without actions first
             success_dialog = ft.AlertDialog(
@@ -644,19 +909,20 @@ class GamesView(ThemeAwareMixin, ft.Column):
             success_dialog.actions = [
                 ft.TextButton(
                     "OK",
-                    on_click=lambda e: self.page.close(success_dialog),
+                    on_click=lambda e: self._page_ref.pop_dialog(),
                 ),
             ]
-            self.page.open(success_dialog)
+            self._page_ref.show_dialog(success_dialog)
 
-            # Reload games list
+            # Force reload games list (database was cleared)
+            self._games_loaded = False
             await self.load_games()
 
         except Exception as ex:
             self.logger.error(f"Error deleting all games: {ex}", exc_info=True)
 
             # Close progress dialog
-            self.page.close(progress_dialog)
+            self._page_ref.pop_dialog()
 
             # Show error dialog - create without actions first
             error_dialog = ft.AlertDialog(
@@ -667,17 +933,17 @@ class GamesView(ThemeAwareMixin, ft.Column):
             error_dialog.actions = [
                 ft.TextButton(
                     "OK",
-                    on_click=lambda e: self.page.close(error_dialog),
+                    on_click=lambda e: self._page_ref.pop_dialog(),
                 ),
             ]
-            self.page.open(error_dialog)
+            self._page_ref.show_dialog(error_dialog)
 
     def _on_game_update(self, game, dll_group: str = "all"):
         """Handle game update button click - launches async update"""
         self.logger.info(f"Update requested for game: {game.name}, group: {dll_group}")
         # Launch the async update using Flet's page.run_task for proper event loop handling
-        if self.page:
-            self.page.run_task(self._perform_game_update, game, dll_group)
+        if self._page_ref:
+            self._page_ref.run_task(self._perform_game_update, game, dll_group)
 
     async def _perform_game_update(self, game, dll_group: str = "all"):
         """Perform the single-game DLL update"""
@@ -698,7 +964,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         # Create and show progress dialog
         progress_dialog = self._create_update_progress_dialog(game.name, dll_group)
-        self.page.open(progress_dialog)
+        self._page_ref.show_dialog(progress_dialog)
 
         # Set card to updating state
         if game_card:
@@ -722,7 +988,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             )
 
             # Close progress dialog
-            self.page.close(progress_dialog)
+            self._page_ref.pop_dialog()
 
             # Show results
             await self._show_update_results_dialog(game.name, result)
@@ -734,7 +1000,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         except Exception as ex:
             self.logger.error(f"Update failed for {game.name}: {ex}", exc_info=True)
-            self.page.close(progress_dialog)
+            self._page_ref.pop_dialog()
             await self._show_error_dialog(
                 "Update Failed",
                 f"Failed to update {game.name}: {str(ex)}",
@@ -785,8 +1051,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
             self._progress_text.value = progress.message
         if hasattr(self, '_progress_detail') and self._progress_detail:
             self._progress_detail.value = f"{progress.current}/{progress.total} DLLs processed"
-        if self.page:
-            self.page.update()
+        if self._page_ref:
+            self._page_ref.update()
 
     async def _show_update_results_dialog(self, game_name: str, result: dict[str, Any]):
         """Show results dialog after single-game update"""
@@ -841,9 +1107,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
         )
         # Add actions after dialog exists
         results_dialog.actions = [
-            ft.TextButton("OK", on_click=lambda e: self.page.close(results_dialog)),
+            ft.TextButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
         ]
-        self.page.open(results_dialog)
+        self._page_ref.show_dialog(results_dialog)
 
     async def _show_error_dialog(self, title: str, message: str, color=ft.Colors.RED):
         """Show error dialog"""
@@ -852,15 +1118,15 @@ class GamesView(ThemeAwareMixin, ft.Column):
             content=ft.Text(message),
         )
         error_dialog.actions = [
-            ft.TextButton("OK", on_click=lambda e: self.page.close(error_dialog)),
+            ft.TextButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
         ]
-        self.page.open(error_dialog)
+        self._page_ref.show_dialog(error_dialog)
 
     def _on_game_restore(self, game, dll_group: str = "all"):
         """Handle game restore button click - launches async restore"""
         self.logger.info(f"Restore requested for game: {game.name}, group: {dll_group}")
-        if self.page:
-            self.page.run_task(self._perform_game_restore, game, dll_group)
+        if self._page_ref:
+            self._page_ref.run_task(self._perform_game_restore, game, dll_group)
 
     async def _perform_game_restore(self, game, dll_group: str = "all"):
         """Perform the per-game DLL restore operation"""
@@ -875,14 +1141,14 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         # Create and show progress dialog
         progress_dialog = self._create_restore_progress_dialog(game.name, dll_group)
-        self.page.open(progress_dialog)
+        self._page_ref.show_dialog(progress_dialog)
 
         try:
             # Perform restore
             success, summary, results = await restore_group_for_game(game.id, dll_group)
 
             # Close progress dialog
-            self.page.close(progress_dialog)
+            self._page_ref.pop_dialog()
 
             # Show results
             await self._show_restore_results_dialog(game.name, success, summary, results)
@@ -896,7 +1162,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         except Exception as ex:
             self.logger.error(f"Restore failed for {game.name}: {ex}", exc_info=True)
-            self.page.close(progress_dialog)
+            self._page_ref.pop_dialog()
             await self._show_error_dialog(
                 "Restore Failed",
                 f"Failed to restore {game.name}: {str(ex)}",
@@ -936,12 +1202,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         def on_cancel(e):
             result[0] = False
-            self.page.close(dialog)
+            self._page_ref.pop_dialog()
             confirmed.set()
 
         def on_confirm(e):
             result[0] = True
-            self.page.close(dialog)
+            self._page_ref.pop_dialog()
             confirmed.set()
 
         dialog.actions = [
@@ -953,7 +1219,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             ),
         ]
 
-        self.page.open(dialog)
+        self._page_ref.show_dialog(dialog)
         await confirmed.wait()
         return result[0]
 
@@ -1026,28 +1292,37 @@ class GamesView(ThemeAwareMixin, ft.Column):
             ),
         )
         results_dialog.actions = [
-            ft.TextButton("OK", on_click=lambda e: self.page.close(results_dialog)),
+            ft.TextButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
         ]
-        self.page.open(results_dialog)
+        self._page_ref.show_dialog(results_dialog)
 
     async def on_view_hidden(self):
-        """Called when view is hidden (tab switch) - minimal cleanup for fast switching"""
+        """Called when view is hidden (tab switch) - minimal cleanup for fast switching.
+
+        PERFORMANCE: When keep_games_in_memory is True (default), game cards and
+        search index are preserved for instant tab switching. This avoids the
+        ~1.5s rebuild cost on every tab switch.
+        """
         from dlss_updater.config import config_manager
         from dlss_updater.search_service import search_service
 
-        # Only clear search index if user preference says so
-        # Game cards and containers are KEPT for fast tab switching
+        # Only clear resources if user preference says so
         if not config_manager.get_keep_games_in_memory():
             search_service.clear_index()
-            self.logger.debug("Games view hidden - search index cleared")
+            self._games_loaded = False  # Force reload on next tab switch
+            self.logger.debug("Games view hidden - search index cleared, will reload on next visit")
         else:
-            self.logger.debug("Games view hidden - keeping search index in memory (user preference)")
+            # Keep _games_loaded = True for fast tab switching
+            self.logger.debug("Games view hidden - keeping in memory for fast switching")
 
     async def on_shutdown(self):
         """Called during application shutdown - full resource cleanup"""
         from dlss_updater.search_service import search_service
 
         self.logger.debug("Games view shutdown - releasing all resources")
+
+        # Reset loaded flag
+        self._games_loaded = False
 
         # Clear game card references to allow garbage collection
         self.game_cards.clear()

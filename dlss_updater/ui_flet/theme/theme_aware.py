@@ -218,17 +218,17 @@ class ThemeRegistry:
         page: "ft.Page | None" = None,
     ) -> None:
         """
-        Apply theme to all registered components with progressive page updates.
+        Apply theme to all registered components.
 
-        Uses cascade animation when enabled, with components ordered by priority.
-        Components with lower priority numbers animate first. When a page is provided,
-        calls page.update() after each batch to create visible progressive updates.
+        Note: Cascade animation is DISABLED because theme toggle restarts the app
+        via os.execv(), so users never see the cascade effect. All components are
+        updated in a single pass with one page.update() for maximum efficiency.
 
         Args:
             is_dark: Whether to apply dark mode
-            cascade: Enable cascade animation (staggered updates)
-            base_delay_ms: Base delay between cascade groups
-            page: Optional Flet page for progressive updates between batches
+            cascade: (Deprecated) Ignored - always applies instantly
+            base_delay_ms: (Deprecated) Ignored - no delays used
+            page: Optional Flet page for final update
         """
         async with self._cascade_lock:
             self._is_dark = is_dark
@@ -239,75 +239,22 @@ class ThemeRegistry:
             if not components:
                 return
 
-            if not cascade:
-                # Apply all at once (no delays)
-                for comp in components:
-                    try:
-                        properties = comp.get_themed_properties()
-                        for prop_path, (dark_val, light_val) in properties.items():
-                            value = dark_val if is_dark else light_val
-                            comp._set_nested_property(prop_path, value)
-                    except Exception:
-                        pass  # Component may have been garbage collected
-
-                # Single page update at the end
-                if page is not None:
-                    try:
-                        page.update()
-                    except Exception:
-                        pass
-                return
-
-            # Group components by priority for cascade effect
-            # Batches: 0-9, 10-19, 20-39, 40-59, 60-79, 80+
-            priority_batches: dict[int, list[ThemeAwareMixin]] = {}
+            # Apply all components in single pass (no cascade - app restarts on theme change)
             for comp in components:
-                priority = getattr(comp, '_theme_priority', 50)
-                # Determine batch key based on priority ranges
-                if priority < 10:
-                    batch_key = 0
-                elif priority < 20:
-                    batch_key = 10
-                elif priority < 40:
-                    batch_key = 20
-                elif priority < 60:
-                    batch_key = 40
-                elif priority < 80:
-                    batch_key = 60
-                else:
-                    batch_key = 80
+                try:
+                    properties = comp.get_themed_properties()
+                    for prop_path, (dark_val, light_val) in properties.items():
+                        value = dark_val if is_dark else light_val
+                        comp._set_nested_property(prop_path, value)
+                except Exception:
+                    pass  # Component may have been garbage collected
 
-                if batch_key not in priority_batches:
-                    priority_batches[batch_key] = []
-                priority_batches[batch_key].append(comp)
-
-            # Apply in priority order with page.update() after each batch
-            sorted_batches = sorted(priority_batches.keys())
-
-            for batch_idx, batch_key in enumerate(sorted_batches):
-                batch_components = priority_batches[batch_key]
-
-                # Update all components in this batch (no delays within batch)
-                for comp in batch_components:
-                    try:
-                        properties = comp.get_themed_properties()
-                        for prop_path, (dark_val, light_val) in properties.items():
-                            value = dark_val if is_dark else light_val
-                            comp._set_nested_property(prop_path, value)
-                    except Exception:
-                        pass  # Component may have been garbage collected
-
-                # Call page.update() after each batch for progressive visual update
-                if page is not None:
-                    try:
-                        page.update()
-                    except Exception:
-                        pass
-
-                # Add delay between batches for visual cascade effect
-                # Skip delay after the last batch
-                if batch_idx < len(sorted_batches) - 1:
-                    await asyncio.sleep(base_delay_ms / 1000)
+            # Single page update at the end
+            if page is not None:
+                try:
+                    page.update()
+                except Exception:
+                    pass
 
 
 # Global registry instance
