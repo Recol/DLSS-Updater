@@ -48,18 +48,23 @@ modules:
   - name: dlss-updater
     buildsystem: simple
     build-commands:
-      # Install the Flet-built executable
-      - install -Dm755 dist/dlss_updater /app/bin/dlss_updater
-      # Create wrapper script
+      # Install the entire Flet bundle (executable + Flutter libs + Python runtime + site-packages)
+      # Flet build creates: dlss_updater, lib/, data/, python3.12/, site-packages/
+      - mkdir -p /app/lib/dlss-updater
+      - cp -r dist/* /app/lib/dlss-updater/
+      - chmod +x /app/lib/dlss-updater/dlss_updater
+      # Create wrapper script that runs from the bundle directory
       - |
         cat > /app/bin/dlss-updater << 'EOF'
         #!/bin/bash
-        exec /app/bin/dlss_updater "$@"
+        cd /app/lib/dlss-updater
+        exec ./dlss_updater "$@"
         EOF
       - chmod +x /app/bin/dlss-updater
       # Install desktop integration files
       - install -Dm644 io.github.recol.dlss-updater.appdata.xml /app/share/metainfo/io.github.recol.dlss-updater.metainfo.xml
-      - install -Dm644 flatpak/io.github.recol.dlss-updater.desktop /app/share/applications/io.github.recol.dlss-updater.desktop
+      # Convert CRLF to LF (Windows -> Unix line endings) and install desktop file
+      - sed 's/\r$//' flatpak/io.github.recol.dlss-updater.desktop > /tmp/desktop.tmp && install -Dm644 /tmp/desktop.tmp /app/share/applications/io.github.recol.dlss-updater.desktop
       - install -Dm644 appimagex_png.png /app/share/icons/hicolor/256x256/apps/io.github.recol.dlss-updater.png
     sources:
       - type: dir

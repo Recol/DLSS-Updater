@@ -109,13 +109,13 @@ echo -e "${GREEN}Python 3.12 available for flet build${NC}"
 # =============================================================================
 echo -e "\n${YELLOW}[4/6] Building Linux application with Flet...${NC}"
 
-# Clean previous builds
-rm -rf build/linux build/flutter dist/
+# Clean previous builds completely (flet will recreate flutter shell)
+rm -rf build/ dist/
 
 # Run flet build linux with Python 3.12
 # Note: flet build uses serious-python which only supports Python 3.12.6
 # We use uvx to run flet-cli in an isolated Python 3.12 environment
-uvx --python 3.12 --from flet-cli flet build linux \
+uvx --python 3.12 --from flet flet build linux \
     --project "DLSS_Updater" \
     --product "DLSS Updater" \
     --org "io.github.recol" \
