@@ -84,9 +84,9 @@ else
 fi
 
 # =============================================================================
-# Step 3: Check for uv and install Python
+# Step 3: Check for uv and install Python dependencies
 # =============================================================================
-echo -e "\n${YELLOW}[3/6] Setting up Python environment...${NC}"
+echo -e "\n${YELLOW}[3/6] Installing Python dependencies with uv...${NC}"
 
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
@@ -94,43 +94,29 @@ if ! command -v uv &> /dev/null; then
     export PATH="$HOME/.cargo/bin:$PATH"
 fi
 
-# Install Python 3.12 for flet build (serious-python only supports 3.12.6)
-# See: https://github.com/flet-dev/serious-python/issues/173
-# Note: Project requires Python >=3.14 but flet build needs 3.12 internally
-if ! uv python list | grep -q "cpython-3.12"; then
-    echo "Installing Python 3.12 for flet build..."
-    uv python install 3.12
+# Use Python 3.14 free-threaded for Linux builds (matches Windows)
+if ! uv python list | grep -q "3.14"; then
+    echo "Installing Python 3.14 (free-threaded)..."
+    uv python install 3.14t
 fi
 
-echo -e "${GREEN}Python 3.12 available for flet build${NC}"
+uv python pin 3.14t
+uv sync --extra build
 
 # =============================================================================
-# Step 4: Build with Flet
+# Step 4: Build with PyInstaller
 # =============================================================================
-echo -e "\n${YELLOW}[4/6] Building Linux application with Flet...${NC}"
+echo -e "\n${YELLOW}[4/6] Building Linux application with PyInstaller...${NC}"
 
-# Clean previous builds and flatpak artifacts
-# .flatpak-builder/ and build-dir/ contain permission-locked files that
-# serious_python cannot copy, causing "Permission denied" errors
-rm -rf build/ dist/ .flatpak-builder/ build-dir/ repo/
+# Clean previous builds
+rm -rf build/pyinstaller dist/DLSS_Updater .flatpak-builder/ build-dir/ repo/
 
-# Run flet build linux with Python 3.12
-# Note: flet build uses serious-python which only supports Python 3.12.6
-# We use uvx to run flet-cli in an isolated Python 3.12 environment
-uvx --python 3.12 --from flet flet build linux \
-    --project "DLSS_Updater" \
-    --product "DLSS Updater" \
-    --org "io.github.recol" \
-    --description "Update DLSS/XeSS/FSR DLLs for games" \
-    --build-version "${VERSION}"
-
-# Move build output to expected location for Flatpak
-mkdir -p dist
-cp -r build/linux/* dist/
+# Run PyInstaller with the Linux spec file
+uv run pyinstaller DLSS_Updater_Linux.spec --distpath dist --workpath build/pyinstaller
 
 # Verify the binary was created
-if [ ! -f "dist/dlss_updater" ]; then
-    echo -e "${RED}Error: Flet build failed - dist/dlss_updater not found${NC}"
+if [ ! -f "dist/DLSS_Updater" ]; then
+    echo -e "${RED}Error: PyInstaller build failed - dist/DLSS_Updater not found${NC}"
     exit 1
 fi
 

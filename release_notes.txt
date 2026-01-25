@@ -5,12 +5,10 @@ Flet 0.80.4 Migration - Major framework upgrade with breaking API changes:
     This feature allowed configuring DLSS Super Resolution presets (K/L/M) via Windows registry
     or Linux environment variables. The feature has been deprecated as NVIDIA's driver now
     handles preset selection automatically based on GPU architecture.
-  Linux Build Migration:
-  - Migrated Linux build from PyInstaller to `flet build linux`.
-  - Resolves GTK/SVG errors on Nobara 43 (Issue #127) caused by PyInstaller bundling incompatible libstdc++.
-  - `flet build linux` uses Flutter's Skia engine, avoiding system library conflicts with Flatpak runtime.
-  - Removed DLSS_Updater_Linux.spec (PyInstaller spec no longer needed).
-  - Smaller, cleaner build process that leverages Flet's native Flutter bundling.
+  Linux Build Fix:
+  - Fixed GTK/SVG errors on Nobara 43 (Issue #127) caused by bundled system libraries.
+  - PyInstaller now excludes libstdc++, libgcc_s, libc.so to use Flatpak runtime libraries.
+  - This prevents CXXABI version conflicts with the Flatpak Freedesktop runtime.
   Framework Upgrade:
   - Upgraded from Flet 0.28.3 to Flet 0.80.4 (major version jump).
   - Modernized entry point from ft.app() to ft.run().
