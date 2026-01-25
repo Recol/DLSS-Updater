@@ -51,15 +51,11 @@ modules:
       # Install the entire Flet bundle (executable + Flutter libs + Python runtime + site-packages)
       # Flet build creates: dlss_updater, lib/, data/, python3.12/, site-packages/
       - mkdir -p /app/lib/dlss-updater
+      - mkdir -p /app/bin
       - cp -r dist/* /app/lib/dlss-updater/
       - chmod +x /app/lib/dlss-updater/dlss_updater
       # Create wrapper script that runs from the bundle directory
-      - |
-        cat > /app/bin/dlss-updater << 'EOF'
-        #!/bin/bash
-        cd /app/lib/dlss-updater
-        exec ./dlss_updater "$@"
-        EOF
+      - printf '#!/bin/bash\ncd /app/lib/dlss-updater\nexec ./dlss_updater "$@"\n' > /app/bin/dlss-updater
       - chmod +x /app/bin/dlss-updater
       # Install desktop integration files
       - install -Dm644 io.github.recol.dlss-updater.appdata.xml /app/share/metainfo/io.github.recol.dlss-updater.metainfo.xml

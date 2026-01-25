@@ -109,8 +109,10 @@ echo -e "${GREEN}Python 3.12 available for flet build${NC}"
 # =============================================================================
 echo -e "\n${YELLOW}[4/6] Building Linux application with Flet...${NC}"
 
-# Clean previous builds completely (flet will recreate flutter shell)
-rm -rf build/ dist/
+# Clean previous builds and flatpak artifacts
+# .flatpak-builder/ and build-dir/ contain permission-locked files that
+# serious_python cannot copy, causing "Permission denied" errors
+rm -rf build/ dist/ .flatpak-builder/ build-dir/ repo/
 
 # Run flet build linux with Python 3.12
 # Note: flet build uses serious-python which only supports Python 3.12.6
