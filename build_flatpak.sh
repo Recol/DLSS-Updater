@@ -84,9 +84,9 @@ else
 fi
 
 # =============================================================================
-# Step 3: Check for uv and install Python dependencies
+# Step 3: Check for uv and install Python
 # =============================================================================
-echo -e "\n${YELLOW}[3/6] Installing Python dependencies with uv...${NC}"
+echo -e "\n${YELLOW}[3/6] Setting up Python environment...${NC}"
 
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
@@ -94,14 +94,15 @@ if ! command -v uv &> /dev/null; then
     export PATH="$HOME/.cargo/bin:$PATH"
 fi
 
-# Install Python 3.14 free-threaded if not available
-if ! uv python list | grep -q "3.14"; then
-    echo "Installing Python 3.14 (free-threaded)..."
-    uv python install 3.14t
+# Install Python 3.12 for flet build (serious-python only supports 3.12.6)
+# See: https://github.com/flet-dev/serious-python/issues/173
+# Note: Project requires Python >=3.14 but flet build needs 3.12 internally
+if ! uv python list | grep -q "cpython-3.12"; then
+    echo "Installing Python 3.12 for flet build..."
+    uv python install 3.12
 fi
 
-uv python pin 3.14t
-uv sync
+echo -e "${GREEN}Python 3.12 available for flet build${NC}"
 
 # =============================================================================
 # Step 4: Build with Flet
@@ -109,11 +110,12 @@ uv sync
 echo -e "\n${YELLOW}[4/6] Building Linux application with Flet...${NC}"
 
 # Clean previous builds
-rm -rf build/linux dist/
+rm -rf build/linux build/flutter dist/
 
-# Run flet build linux
-# Note: flet build uses serious-python to embed Python with dependencies
-uv run flet build linux \
+# Run flet build linux with Python 3.12
+# Note: flet build uses serious-python which only supports Python 3.12.6
+# We use uvx to run flet-cli in an isolated Python 3.12 environment
+uvx --python 3.12 --from flet-cli flet build linux \
     --project "DLSS_Updater" \
     --product "DLSS Updater" \
     --org "io.github.recol" \

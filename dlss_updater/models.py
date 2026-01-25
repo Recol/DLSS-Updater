@@ -462,14 +462,14 @@ class BatchUpdateResult(msgspec.Struct):
 
 
 # =============================================================================
-# GPU Detection & DLSS Preset Structures
+# GPU Detection Structures
 # =============================================================================
 
 class GPUArchitecture(StrEnum):
     """
     NVIDIA GPU architecture generations based on SM (Streaming Multiprocessor) version.
 
-    Used to determine which DLSS preset is optimal for the user's GPU.
+    Used for feature detection (e.g., DLSS overlay availability).
     """
     UNKNOWN = "Unknown"
     TURING = "Turing"           # SM 7.5 - RTX 20xx series
@@ -478,61 +478,11 @@ class GPUArchitecture(StrEnum):
     BLACKWELL = "Blackwell"     # SM 10.0+ - RTX 50xx series
 
 
-class DLSSPreset(StrEnum):
-    """
-    DLSS Super Resolution render presets.
-
-    These presets control the internal DLSS algorithm behavior:
-    - DEFAULT: Let the driver choose the optimal preset automatically
-    - PRESET_K: Lighter preset for RTX 20/30 - ID 11
-    - PRESET_L: Balanced preset for RTX 40/50 - ID 12
-    - PRESET_M: Heavier preset (more aggressive processing) - ID 13
-    """
-    DEFAULT = "default"
-    PRESET_K = "preset_k"
-    PRESET_L = "preset_l"
-    PRESET_M = "preset_m"
-
-    @property
-    def registry_value(self) -> int | None:
-        """Get the Windows registry DWORD value for this preset."""
-        mapping = {
-            DLSSPreset.DEFAULT: None,  # Delete key to use default
-            DLSSPreset.PRESET_K: 11,
-            DLSSPreset.PRESET_L: 12,
-            DLSSPreset.PRESET_M: 13,
-        }
-        return mapping.get(self)
-
-    @property
-    def dxvk_env_value(self) -> str | None:
-        """Get the DXVK-NVAPI environment variable value for Linux/Proton."""
-        mapping = {
-            DLSSPreset.DEFAULT: None,
-            DLSSPreset.PRESET_K: "render_preset_k",
-            DLSSPreset.PRESET_L: "render_preset_l",
-            DLSSPreset.PRESET_M: "render_preset_m",
-        }
-        return mapping.get(self)
-
-    @property
-    def display_name(self) -> str:
-        """Human-readable name for UI display."""
-        names = {
-            DLSSPreset.DEFAULT: "Default (Auto)",
-            DLSSPreset.PRESET_K: "Preset K (RTX 20/30)",
-            DLSSPreset.PRESET_L: "Preset L (Heavier - may reduce performance)",
-            DLSSPreset.PRESET_M: "Preset M (RTX 40/50)",
-        }
-        return names.get(self, str(self))
-
-
 class GPUInfo(msgspec.Struct):
     """
     Detected NVIDIA GPU information.
 
-    Contains architecture details needed for DLSS preset recommendations.
-    Used by the GPU detection module to pass GPU info to the UI.
+    Contains architecture details used for feature detection.
     """
     name: str
     architecture: str  # GPUArchitecture value
@@ -540,19 +490,4 @@ class GPUInfo(msgspec.Struct):
     sm_version_minor: int
     vram_mb: int
     driver_version: str
-    recommended_preset: str  # DLSSPreset value
     detection_method: str  # "nvml" | "fallback" | "manual"
-
-
-class DLSSPresetConfig(msgspec.Struct):
-    """
-    DLSS preset configuration for persistence.
-
-    Stores user preset preferences and GPU detection results.
-    Persisted via ConfigManager in the [DLSSPresets] INI section.
-    """
-    selected_preset: str = "default"  # DLSSPreset value
-    auto_detect_enabled: bool = True
-    detected_architecture: str | None = None  # GPUArchitecture value
-    last_detection_time: str | None = None  # ISO format datetime
-    linux_overlay_enabled: bool = False

@@ -10,7 +10,6 @@ import msgspec
 from .logger import setup_logger
 from .models import (
     MAX_PATHS_PER_LAUNCHER,
-    DLSSPresetConfig,
     LauncherPathsConfig,
     PerformanceConfig,
     UpdatePreferencesConfig,
@@ -251,26 +250,6 @@ class ConfigManager(configparser.ConfigParser):
                 self.add_section("UIPreferences")
                 self["UIPreferences"]["SmoothScrolling"] = "true"  # Enabled by default
                 self._save_unlocked()
-
-            # Initialize DLSSPresets section with defaults if missing
-            if not self.has_section("DLSSPresets"):
-                self.add_section("DLSSPresets")
-                self["DLSSPresets"]["SelectedPreset"] = "default"
-                self["DLSSPresets"]["AutoDetectEnabled"] = "true"
-                self["DLSSPresets"]["DetectedArchitecture"] = ""
-                self["DLSSPresets"]["LastDetectionTime"] = ""
-                self["DLSSPresets"]["LinuxOverlayEnabled"] = "false"
-                # New feature for this user - always show dialog on first launch
-                # (regardless of whether it's a fresh install or upgrade)
-                self["DLSSPresets"]["DialogShown"] = "false"
-                self._save_unlocked()
-            else:
-                # Existing DLSSPresets section - add DialogShown if missing
-                # This handles future upgrades where we add DialogShown to existing section
-                if "DialogShown" not in self["DLSSPresets"]:
-                    # User already configured presets before DialogShown existed - don't re-show
-                    self["DLSSPresets"]["DialogShown"] = "true"
-                    self._save_unlocked()
 
             self.initialized = True
 
@@ -581,68 +560,6 @@ class ConfigManager(configparser.ConfigParser):
     def save_performance_config_struct(self, perf: PerformanceConfig):
         """Save performance config from msgspec struct to INI"""
         self.set_max_worker_threads(perf.max_worker_threads)
-
-    def get_dlss_preset_config(self) -> DLSSPresetConfig:
-        """
-        Get DLSS preset configuration as validated msgspec struct.
-
-        Returns:
-            DLSSPresetConfig with current settings
-        """
-        with _config_lock:
-            if not self.has_section("DLSSPresets"):
-                return DLSSPresetConfig()
-
-            return DLSSPresetConfig(
-                selected_preset=self["DLSSPresets"].get("SelectedPreset", "default"),
-                auto_detect_enabled=self["DLSSPresets"].getboolean("AutoDetectEnabled", True),
-                detected_architecture=self["DLSSPresets"].get("DetectedArchitecture") or None,
-                last_detection_time=self["DLSSPresets"].get("LastDetectionTime") or None,
-                linux_overlay_enabled=self["DLSSPresets"].getboolean("LinuxOverlayEnabled", False),
-            )
-
-    def save_dlss_preset_config(self, config: DLSSPresetConfig):
-        """
-        Save DLSS preset configuration from msgspec struct to INI.
-
-        Args:
-            config: DLSSPresetConfig to save
-        """
-        with _config_lock:
-            if not self.has_section("DLSSPresets"):
-                self.add_section("DLSSPresets")
-
-            self["DLSSPresets"]["SelectedPreset"] = config.selected_preset
-            self["DLSSPresets"]["AutoDetectEnabled"] = str(config.auto_detect_enabled).lower()
-            self["DLSSPresets"]["DetectedArchitecture"] = config.detected_architecture or ""
-            self["DLSSPresets"]["LastDetectionTime"] = config.last_detection_time or ""
-            self["DLSSPresets"]["LinuxOverlayEnabled"] = str(config.linux_overlay_enabled).lower()
-            self.save()
-
-    def get_dlss_preset_dialog_shown(self) -> bool:
-        """
-        Get whether the DLSS preset dialog has been shown to the user.
-
-        Returns:
-            True if dialog has been shown, False otherwise
-        """
-        with _config_lock:
-            if not self.has_section("DLSSPresets"):
-                return False
-            return self["DLSSPresets"].getboolean("DialogShown", False)
-
-    def set_dlss_preset_dialog_shown(self, shown: bool):
-        """
-        Set whether the DLSS preset dialog has been shown to the user.
-
-        Args:
-            shown: True to mark as shown, False to re-enable showing
-        """
-        with _config_lock:
-            if not self.has_section("DLSSPresets"):
-                self.add_section("DLSSPresets")
-            self["DLSSPresets"]["DialogShown"] = str(shown).lower()
-            self.save()
 
     def _save_unlocked(self):
         """

@@ -77,7 +77,6 @@ from dlss_updater.ui_flet.components.slide_panel import PanelManager
 from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
-from dlss_updater.ui_flet.dialogs.dlss_preset_dialog import DLSSPresetDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
 from dlss_updater.platform_utils import FEATURES, IS_LINUX, IS_WINDOWS
 from dlss_updater.linux_paths import is_flatpak, get_flatpak_override_command
@@ -555,7 +554,6 @@ class MainView(ft.Column):
             "ui_prefs": self._on_ui_preferences_clicked,
             "blacklist": self._on_blacklist_clicked,
             "dlss_overlay": self._on_dlss_overlay_clicked,
-            "dlss_preset": self._on_dlss_preset_clicked,
             "theme": self._toggle_theme_from_menu,
             # Application menu callbacks
             "check_updates": self._on_check_updates_clicked,
@@ -567,7 +565,6 @@ class MainView(ft.Column):
             is_dark=is_dark,
             callbacks=menu_callbacks,
             features_dlss_overlay=FEATURES.dlss_overlay,
-            features_nvidia_gpu=FEATURES.nvidia_gpu_detected,
         )
 
         # Compact top bar with 3 popup menu buttons on the right
@@ -1186,34 +1183,6 @@ class MainView(ft.Column):
     async def _on_dlss_overlay_clicked(self, e):
         """Handle DLSS overlay settings button click"""
         dialog = DLSSOverlayDialog(self._page_ref, self.logger)
-        await dialog.show()
-
-    async def _on_dlss_preset_clicked(self, e):
-        """Handle DLSS preset settings button click"""
-        dialog = DLSSPresetDialog(self._page_ref, self.logger)
-        await dialog.show()
-
-    async def on_dll_cache_complete(self):
-        """
-        Called after DLL cache initialization completes.
-
-        Shows the DLSS preset dialog for first-time NVIDIA GPU users.
-        This allows them to configure optimal presets before updating games.
-        """
-        # Only show for NVIDIA GPU users who haven't seen the dialog
-        if not FEATURES.nvidia_gpu_detected:
-            self.logger.debug("DLSS preset dialog skipped - no NVIDIA GPU detected")
-            return
-
-        if config_manager.get_dlss_preset_dialog_shown():
-            self.logger.debug("DLSS preset dialog skipped - already shown")
-            return
-
-        # Mark as shown before opening (prevents multiple shows on errors)
-        config_manager.set_dlss_preset_dialog_shown(True)
-
-        self.logger.info("Showing DLSS preset dialog for first-time NVIDIA GPU user")
-        dialog = DLSSPresetDialog(self._page_ref, self.logger)
         await dialog.show()
 
     async def _on_settings_clicked(self, e):

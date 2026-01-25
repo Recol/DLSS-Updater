@@ -324,7 +324,6 @@ class PreferencesMenu(BasePopupMenu):
     - UI Preferences
     - Manage Blacklist
     - DLSS Debug Overlay
-    - DLSS SR Preset Override (only if NVIDIA GPU detected)
     - Theme Toggle
     """
 
@@ -334,7 +333,6 @@ class PreferencesMenu(BasePopupMenu):
         is_dark: bool,
         callbacks: dict[str, Callable],
         features_dlss_overlay: bool = True,
-        features_nvidia_gpu: bool = True,
     ):
         items = [
             MenuItem(
@@ -369,18 +367,6 @@ class PreferencesMenu(BasePopupMenu):
             ),
         ]
 
-        # Only add DLSS preset item when NVIDIA GPU is detected
-        if features_nvidia_gpu:
-            items.append(
-                MenuItem(
-                    id="dlss_preset",
-                    title="DLSS SR Preset Override",
-                    description="Configure Super Resolution presets",
-                    icon=ft.Icons.TUNE,
-                    on_click=callbacks.get("dlss_preset"),
-                )
-            )
-
         # Theme toggle
         items.append(
             MenuItem(
@@ -395,7 +381,6 @@ class PreferencesMenu(BasePopupMenu):
         # Store for rebuild
         self._callbacks = callbacks
         self._features_dlss_overlay = features_dlss_overlay
-        self._features_nvidia_gpu = features_nvidia_gpu
 
         super().__init__(
             page=page,
@@ -446,17 +431,6 @@ class PreferencesMenu(BasePopupMenu):
                 tooltip="Requires NVIDIA GPU" if not self._features_dlss_overlay else None,
             ),
         ]
-
-        if self._features_nvidia_gpu:
-            items.append(
-                MenuItem(
-                    id="dlss_preset",
-                    title="DLSS SR Preset Override",
-                    description="Configure Super Resolution presets",
-                    icon=ft.Icons.TUNE,
-                    on_click=self._callbacks.get("dlss_preset"),
-                )
-            )
 
         items.append(
             MenuItem(
@@ -511,7 +485,6 @@ def create_app_bar_menus(
     is_dark: bool,
     callbacks: dict[str, Callable],
     features_dlss_overlay: bool = True,
-    features_nvidia_gpu: bool = True,
 ) -> tuple[CommunityMenu, PreferencesMenu, ApplicationMenu]:
     """
     Factory function to create all 3 app bar menu components.
@@ -521,7 +494,6 @@ def create_app_bar_menus(
         is_dark: Whether dark mode is active
         callbacks: Dict of callback functions for menu items
         features_dlss_overlay: Whether DLSS overlay is available
-        features_nvidia_gpu: Whether NVIDIA GPU is detected
 
     Returns:
         Tuple of (CommunityMenu, PreferencesMenu, ApplicationMenu)
@@ -530,7 +502,6 @@ def create_app_bar_menus(
     preferences = PreferencesMenu(
         page, is_dark, callbacks,
         features_dlss_overlay=features_dlss_overlay,
-        features_nvidia_gpu=features_nvidia_gpu,
     )
     application = ApplicationMenu(page, is_dark, callbacks)
 

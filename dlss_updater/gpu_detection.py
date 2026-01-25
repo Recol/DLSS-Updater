@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
 
 if TYPE_CHECKING:
-    from dlss_updater.models import GPUInfo, GPUArchitecture, DLSSPreset
+    from dlss_updater.models import GPUInfo, GPUArchitecture
 
 logger = logging.getLogger("DLSSUpdater")
 
@@ -33,15 +33,6 @@ COMPUTE_CAP_TO_ARCH: dict[tuple[int, int], str] = {
     (8, 7): "Ampere",       # RTX 30xx Mobile
     (8, 9): "Ada",          # RTX 40xx (e.g., RTX 4090)
     (10, 0): "Blackwell",   # RTX 50xx (estimated)
-}
-
-# Architecture to recommended preset mapping
-ARCH_TO_PRESET: dict[str, str] = {
-    "Turing": "preset_k",       # RTX 20 series -> Preset K
-    "Ampere": "preset_k",       # RTX 30 series -> Preset K
-    "Ada": "preset_m",          # RTX 40 series -> Preset M
-    "Blackwell": "preset_m",    # RTX 50 series -> Preset M
-    "Unknown": "default",       # Unknown -> let driver decide
 }
 
 
@@ -73,19 +64,6 @@ def _get_architecture_from_sm(major: int, minor: int) -> str:
         return "Turing"
 
     return "Unknown"
-
-
-def _get_recommended_preset(architecture: str) -> str:
-    """
-    Get recommended DLSS preset for GPU architecture.
-
-    Args:
-        architecture: GPU architecture name
-
-    Returns:
-        DLSSPreset value string
-    """
-    return ARCH_TO_PRESET.get(architecture, "default")
 
 
 async def detect_nvidia_gpu() -> "GPUInfo | None":
@@ -156,9 +134,6 @@ def _detect_nvidia_gpu_sync() -> "GPUInfo | None":
             # Determine architecture
             architecture = _get_architecture_from_sm(major, minor)
 
-            # Get recommended preset
-            recommended = _get_recommended_preset(architecture)
-
             logger.info(
                 f"Detected GPU: {name} ({architecture}, SM {major}.{minor}), "
                 f"VRAM: {vram_mb}MB, Driver: {driver_version}"
@@ -171,7 +146,6 @@ def _detect_nvidia_gpu_sync() -> "GPUInfo | None":
                 sm_version_minor=minor,
                 vram_mb=vram_mb,
                 driver_version=driver_version,
-                recommended_preset=recommended,
                 detection_method="nvml",
             )
 

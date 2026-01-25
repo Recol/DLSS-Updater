@@ -1,5 +1,10 @@
 Version 3.7.0:
 Flet 0.80.4 Migration - Major framework upgrade with breaking API changes:
+  Removed Features:
+  - Removed DLSS SR Preset Override feature entirely.
+    This feature allowed configuring DLSS Super Resolution presets (K/L/M) via Windows registry
+    or Linux environment variables. The feature has been deprecated as NVIDIA's driver now
+    handles preset selection automatically based on GPU architecture.
   Linux Build Migration:
   - Migrated Linux build from PyInstaller to `flet build linux`.
   - Resolves GTK/SVG errors on Nobara 43 (Issue #127) caused by PyInstaller bundling incompatible libstdc++.

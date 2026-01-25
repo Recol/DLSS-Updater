@@ -201,9 +201,6 @@ async def main(page: ft.Page):
             logger.info("DLL cache initialized successfully")
             await snackbar.show_complete()
 
-            # Show DLSS preset dialog for first-time NVIDIA GPU users
-            await main_view.on_dll_cache_complete()
-
         except asyncio.CancelledError:
             logger.info("DLL cache initialization cancelled")
             raise
