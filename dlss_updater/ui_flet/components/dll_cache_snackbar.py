@@ -28,7 +28,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
     """
 
     def __init__(self, page: ft.Page):
-        self.page = page
+        self._page_ref = page
         self._state = NotificationState.HIDDEN
         self._registry = get_theme_registry()
         self._theme_priority = 40  # Utility components are mid-low priority
@@ -150,7 +150,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         # Wrapper to position at bottom center of screen
         self.wrapper = ft.Container(
             content=self.container,
-            alignment=ft.alignment.bottom_center,
+            alignment=ft.Alignment.BOTTOM_CENTER,
             padding=ft.padding.only(bottom=20),
             expand=True,
         )
@@ -173,27 +173,47 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         # Show with fade in
         self.container.visible = True
         self.wrapper.visible = True
-        self.page.update()
+        self._page_ref.update()
 
         # Small delay then fade in
         await asyncio.sleep(0.05)
         self.container.opacity = 1
-        self.page.update()
+        self._page_ref.update()
 
     async def update_progress(self, current: int, total: int, message: str):
-        """Update progress display"""
+        """Update progress display with throttling to reduce UI updates.
+
+        Only updates UI when:
+        - Progress changes by 5% or more
+        - Message changes
+        - First or last update
+        """
         if self._state == NotificationState.HIDDEN:
             return
 
         self._state = NotificationState.UPDATING
         percentage = int((current / total * 100)) if total > 0 else 0
 
+        # Throttle: only update on 5% intervals, first/last, or message change
+        last_pct = int(self.progress_bar.value * 100) if self.progress_bar.value else 0
+        message_changed = message and message != self.message_text.value
+        is_significant = (
+            percentage == 0 or
+            percentage == 100 or
+            percentage - last_pct >= 5 or
+            message_changed
+        )
+
+        if not is_significant:
+            return
+
         # Update UI
         self.progress_bar.value = percentage / 100
         self.progress_text.value = f"{percentage}%"
-        self.message_text.value = message if message else "Updating DLL cache..."
+        if message:
+            self.message_text.value = message
 
-        self.page.update()
+        self._page_ref.update()
 
     async def show_complete(self, auto_dismiss_delay: float = 2.5):
         """Show completion state with green checkmark, then auto-dismiss"""
@@ -213,7 +233,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         # Change background to success color (themed)
         self.container.bgcolor = MD3Colors.get_success(is_dark)
 
-        self.page.update()
+        self._page_ref.update()
 
         # Auto-dismiss after delay
         await asyncio.sleep(auto_dismiss_delay)
@@ -236,7 +256,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         # Change background to error color (themed)
         self.container.bgcolor = MD3Colors.get_error(is_dark)
 
-        self.page.update()
+        self._page_ref.update()
 
         # Auto-dismiss after longer delay for errors
         await asyncio.sleep(5)
@@ -249,7 +269,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
 
         # Fade out
         self.container.opacity = 0
-        self.page.update()
+        self._page_ref.update()
 
         # Wait for animation to complete
         await asyncio.sleep(0.35)
@@ -262,7 +282,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         self.container.bgcolor = MD3Colors.get_themed("snackbar_bg", is_dark)
         self.progress_container.visible = True
 
-        self.page.update()
+        self._page_ref.update()
 
     def get_wrapper(self) -> ft.Container:
         """Get the wrapper container to add to page overlay"""
@@ -297,8 +317,8 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
                 self.container.bgcolor = MD3Colors.get_error(is_dark)
             # HIDDEN state doesn't need update
 
-            if self.page:
-                self.page.update()
+            if self._page_ref:
+                self._page_ref.update()
 
         except Exception:
             pass  # Silent fail - component may have been garbage collected

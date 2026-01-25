@@ -256,15 +256,58 @@ def check_dependencies():
 
 def run_as_admin():
     """
-    Request elevated privileges (Windows only).
-    Uses ShellExecuteW with 'runas' verb on Windows.
+    Request elevated privileges with proper process management (Windows only).
+    Uses ShellExecuteExW to get a process handle and wait for the elevated
+    process to start before the original process exits.
     Linux does not support elevation - Flatpak sandboxing handles permissions.
     """
     if IS_WINDOWS:
+        from ctypes import wintypes
+
+        # SHELLEXECUTEINFO structure for ShellExecuteExW
+        class SHELLEXECUTEINFO(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.DWORD),
+                ("fMask", wintypes.ULONG),
+                ("hwnd", wintypes.HWND),
+                ("lpVerb", wintypes.LPCWSTR),
+                ("lpFile", wintypes.LPCWSTR),
+                ("lpParameters", wintypes.LPCWSTR),
+                ("lpDirectory", wintypes.LPCWSTR),
+                ("nShow", ctypes.c_int),
+                ("hInstApp", wintypes.HINSTANCE),
+                ("lpIDList", ctypes.c_void_p),
+                ("lpClass", wintypes.LPCWSTR),
+                ("hkeyClass", wintypes.HKEY),
+                ("dwHotKey", wintypes.DWORD),
+                ("hIconOrMonitor", wintypes.HANDLE),
+                ("hProcess", wintypes.HANDLE),
+            ]
+
+        SEE_MASK_NOCLOSEPROCESS = 0x00000040
+        SW_SHOWNORMAL = 1
+
         script = Path(sys.argv[0]).resolve()
         params = " ".join([str(script)] + sys.argv[1:])
         logger.info("Re-running script with admin privileges...")
-        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, None, 1)
+
+        sei = SHELLEXECUTEINFO()
+        sei.cbSize = ctypes.sizeof(sei)
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS
+        sei.lpVerb = "runas"
+        sei.lpFile = sys.executable
+        sei.lpParameters = params
+        sei.nShow = SW_SHOWNORMAL
+
+        if ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(sei)):
+            # Wait briefly for elevated process to start (2 seconds max)
+            if sei.hProcess:
+                ctypes.windll.kernel32.WaitForSingleObject(sei.hProcess, 2000)
+                ctypes.windll.kernel32.CloseHandle(sei.hProcess)
+            logger.info("Elevated process started successfully")
+        else:
+            logger.error("Failed to start elevated process")
+
     elif IS_LINUX:
         # Linux: No elevation support - Flatpak handles filesystem permissions
         logger.warning("Admin elevation not supported on Linux Flatpak")

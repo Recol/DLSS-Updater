@@ -21,23 +21,23 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         super().__init__()
 
         # State
-        self.visible = False
+        self._is_showing = False  # Track visibility state (don't shadow ft.Container.visible)
         self._progress_value = 0
-        self.page = page
+        self._page_ref = page
         self._registry = get_theme_registry()
         self._theme_priority = 40  # Utility components are mid-low priority
 
         # Get theme preference from registry
         is_dark = self._registry.is_dark
 
-        # Progress ring with breathing animation
+        # Progress ring with breathing animation (500ms for responsiveness per MD3 guidelines)
         self.progress_ring = ft.ProgressRing(
             width=60,
             height=60,
             stroke_width=4,
             color=MD3Colors.get_primary(is_dark),
             bgcolor=MD3Colors.get_surface_variant(is_dark),
-            animate_scale=ft.Animation(1500, ft.AnimationCurve.EASE_IN_OUT),
+            animate_scale=ft.Animation(500, ft.AnimationCurve.EASE_IN_OUT),
         )
 
         # Status text
@@ -96,29 +96,35 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         # Overlay styling
         self.content = ft.Container(
             content=self.content_container,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             expand=True,
         )
         overlay_bg = ft.Colors.with_opacity(0.7, ft.Colors.BLACK) if is_dark else ft.Colors.with_opacity(0.5, ft.Colors.BLACK)
         self.bgcolor = overlay_bg
         self.expand = True
-        self.visible = False
+        # Note: Don't add to page.overlay here - add dynamically in show()
 
         # Register for theme updates
         self._register_theme_aware()
 
     def show(self, page: ft.Page, message: str = "Processing..."):
-        """Show the loading overlay"""
+        """Show the loading overlay by adding to page.overlay"""
         self.status_text.value = message
         self._progress_value = 0
         self.progress_bar.value = 0
         self.progress_text.value = "0%"
-        self.visible = True
+        # Add to overlay if not already present (ensures it intercepts input)
+        if self not in page.overlay:
+            page.overlay.append(self)
+        self._is_showing = True
         page.update()
 
     def hide(self, page: ft.Page):
-        """Hide the loading overlay"""
-        self.visible = False
+        """Hide the loading overlay by removing from page.overlay"""
+        # Remove from overlay to stop intercepting input events
+        if self in page.overlay:
+            page.overlay.remove(self)
+        self._is_showing = False
         page.update()
 
     def set_progress(self, percentage: int, page: ft.Page, message: str = None):
@@ -140,33 +146,26 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         page.update()
 
     async def set_progress_async(self, percentage: int, page: ft.Page, message: str = None):
-        """Async version with smooth count-up animation"""
-        # Animate percentage change
-        start = self.progress_bar.value * 100 if self.progress_bar.value else 0
+        """Async version with direct update (no animation loop).
+
+        Optimized for performance:
+        - Single page.update() call
+        - No count-up animation (reduces 4 updates to 1)
+        - Progress bar has CSS animation for smooth visual feedback
+        """
         end = max(0, min(100, percentage))
 
-        # Count-up animation (10 steps)
-        steps = 10
-        for i in range(steps + 1):
-            current = start + (end - start) * (i / steps)
-            self.progress_text.value = f"{int(current)}%"
-            self.progress_bar.value = current / 100
-            page.update()
-            await asyncio.sleep(0.03)  # 30ms per step = 300ms total
-
+        # Direct update - progress bar's built-in animation handles visual smoothing
+        self.progress_text.value = f"{end}%"
+        self.progress_bar.value = end / 100
         self._progress_value = end
 
-        # Fade message if changed
+        # Update message if changed
         if message and message != self.status_text.value:
-            # Fade out
-            self.status_text.opacity = 0
-            page.update()
-            await asyncio.sleep(0.2)
-
-            # Change and fade in
             self.status_text.value = message
-            self.status_text.opacity = 1
-            page.update()
+
+        # Single page update for all changes
+        page.update()
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """Return themed property mappings for loading overlay"""

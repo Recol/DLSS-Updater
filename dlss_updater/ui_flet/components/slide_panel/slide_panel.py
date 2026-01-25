@@ -52,7 +52,7 @@ class SlidePanel(ThemeAwareMixin):
             logger: Logger for panel operations
             content: Panel content implementation
         """
-        self.page = page
+        self._page_ref = page
         self.logger = logger
         self.content = content
         self._is_open = False
@@ -149,7 +149,7 @@ class SlidePanel(ThemeAwareMixin):
             but not exceeding MAX_WIDTH_PERCENT of viewport
         """
         content_width = self.content.width
-        max_viewport_width = int(self.page.width * self.MAX_WIDTH_PERCENT)
+        max_viewport_width = int(self._page_ref.width * self.MAX_WIDTH_PERCENT)
 
         # Clamp between min/max, and respect viewport constraint
         width = max(self.MIN_WIDTH, min(content_width, self.MAX_WIDTH))
@@ -254,7 +254,7 @@ class SlidePanel(ThemeAwareMixin):
 
         # Cancel button
         self._cancel_btn = ft.OutlinedButton(
-            text="Cancel",
+            content="Cancel",
             on_click=self._on_cancel_click,
             style=ft.ButtonStyle(
                 color=MD3Colors.get_on_surface(is_dark),
@@ -263,7 +263,7 @@ class SlidePanel(ThemeAwareMixin):
 
         # Save button
         self._save_btn = ft.FilledButton(
-            text="Save",
+            content="Save",
             on_click=self._on_save_click,
             style=ft.ButtonStyle(
                 bgcolor=MD3Colors.get_primary(is_dark),
@@ -331,6 +331,10 @@ class SlidePanel(ThemeAwareMixin):
         Show the panel with animation.
 
         Adds panel to page overlay and animates in from right.
+
+        Optimized for Flet 0.80.4 performance:
+        - Single page.update() to add overlay AND start animation
+        - content.on_open() runs concurrently with animation (non-blocking)
         """
         if self._is_open:
             return
@@ -339,23 +343,31 @@ class SlidePanel(ThemeAwareMixin):
 
         try:
             # Add to page overlay
-            self.page.overlay.append(self._stack_overlay)
+            self._page_ref.overlay.append(self._stack_overlay)
 
             # Setup keyboard handler for ESC key
             self._on_keyboard_handler = self._handle_keyboard_event
-            self.page.on_keyboard_event = self._on_keyboard_handler
+            self._page_ref.on_keyboard_event = self._on_keyboard_handler
 
-            self.page.update()
-
-            # Call content on_open
-            await self.content.on_open()
-
-            # Animate scrim opacity 0 -> 0.5 (full opacity with rgba alpha)
+            # Set animation targets BEFORE the update
+            # Animate scrim opacity 0 -> 1 (full opacity with rgba alpha)
             self._scrim_container.opacity = 1
             # Animate panel offset (1,0) -> (0,0) to slide in from right
             self._panel_container.offset = ft.Offset(0, 0)
 
-            self.page.update()
+            # Single update: adds overlay + triggers animations
+            self._page_ref.update()
+
+            # Run content.on_open() concurrently with animation (non-blocking)
+            # This allows the panel to start animating while content initializes
+            async def initialize_content():
+                try:
+                    await self.content.on_open()
+                except Exception as e:
+                    self.logger.warning(f"Content on_open error: {e}")
+
+            # Start content initialization without waiting
+            asyncio.create_task(initialize_content())
 
             # Wait for animation to complete
             await asyncio.sleep(self.OPEN_DURATION / 1000)
@@ -364,10 +376,10 @@ class SlidePanel(ThemeAwareMixin):
             self.logger.info("Slide panel opened")
         except Exception as e:
             # Cleanup on failure to prevent overlay accumulation
-            if self._stack_overlay in self.page.overlay:
-                self.page.overlay.remove(self._stack_overlay)
-            if self.page.on_keyboard_event == self._on_keyboard_handler:
-                self.page.on_keyboard_event = None
+            if self._stack_overlay in self._page_ref.overlay:
+                self._page_ref.overlay.remove(self._stack_overlay)
+            if self._page_ref.on_keyboard_event == self._on_keyboard_handler:
+                self._page_ref.on_keyboard_event = None
             self.logger.error(f"Failed to show slide panel: {e}")
             raise
 
@@ -396,7 +408,7 @@ class SlidePanel(ThemeAwareMixin):
             self._scrim_container.opacity = 0
             self._panel_container.offset = ft.Offset(1, 0)
 
-            self.page.update()
+            self._page_ref.update()
 
             # Wait for animation to complete
             await asyncio.sleep(self.CLOSE_DURATION / 1000)
@@ -409,17 +421,17 @@ class SlidePanel(ThemeAwareMixin):
             self._is_open = False
 
             # Remove from overlay
-            if self._stack_overlay in self.page.overlay:
-                self.page.overlay.remove(self._stack_overlay)
+            if self._stack_overlay in self._page_ref.overlay:
+                self._page_ref.overlay.remove(self._stack_overlay)
 
             # Remove keyboard handler
-            if self.page.on_keyboard_event == self._on_keyboard_handler:
-                self.page.on_keyboard_event = None
+            if self._page_ref.on_keyboard_event == self._on_keyboard_handler:
+                self._page_ref.on_keyboard_event = None
 
             # Unregister from theme system to allow garbage collection
             self._unregister_theme_aware()
 
-            self.page.update()
+            self._page_ref.update()
             self.logger.info("Slide panel closed")
 
     async def _handle_save(self) -> None:
@@ -431,7 +443,7 @@ class SlidePanel(ThemeAwareMixin):
         if not is_valid:
             self.logger.warning(f"Validation failed: {error_message}")
             # Show error snackbar
-            self.page.show_snack_bar(
+            self._page_ref.show_snack_bar(
                 ft.SnackBar(
                     content=ft.Text(error_message or "Validation failed"),
                     bgcolor=MD3Colors.ERROR,
@@ -457,19 +469,19 @@ class SlidePanel(ThemeAwareMixin):
 
     def _on_scrim_click(self, e) -> None:
         """Handle scrim click - close panel."""
-        self.page.run_task(self._handle_cancel)
+        self._page_ref.run_task(self._handle_cancel)
 
     def _on_close_click(self, e) -> None:
         """Handle close button click."""
-        self.page.run_task(self._handle_cancel)
+        self._page_ref.run_task(self._handle_cancel)
 
     def _on_cancel_click(self, e) -> None:
         """Handle cancel button click."""
-        self.page.run_task(self._handle_cancel)
+        self._page_ref.run_task(self._handle_cancel)
 
     def _on_save_click(self, e) -> None:
         """Handle save button click."""
-        self.page.run_task(self._handle_save)
+        self._page_ref.run_task(self._handle_save)
 
     def _handle_keyboard_event(self, e: ft.KeyboardEvent) -> None:
         """
@@ -480,4 +492,4 @@ class SlidePanel(ThemeAwareMixin):
         """
         if e.key == "Escape" and self._is_open:
             self.logger.info("ESC key pressed, closing panel")
-            self.page.run_task(self.hide)
+            self._page_ref.run_task(self.hide)

@@ -27,7 +27,7 @@ class HighPerfWarningDialog:
     SUCCESS_GREEN = "#4CAF50"
 
     def __init__(self, page: ft.Page, logger: logging.Logger):
-        self.page = page
+        self._page_ref = page
         self.logger = logger
         self._confirmed = False
         self._dialog: ft.AlertDialog | None = None
@@ -199,14 +199,14 @@ class HighPerfWarningDialog:
         async def on_cancel(e):
             """Handle cancel button click."""
             self._confirmed = False
-            self.page.close(self._dialog)
+            self._page_ref.pop_dialog()
             self._close_event.set()
 
         async def on_enable(e):
             """Handle enable button click."""
             self._confirmed = True
             self.logger.info("User enabled High Performance Mode")
-            self.page.close(self._dialog)
+            self._page_ref.pop_dialog()
             self._close_event.set()
 
         # Build dialog content
@@ -254,7 +254,7 @@ class HighPerfWarningDialog:
         )
 
         # Show dialog
-        self.page.open(self._dialog)
+        self._page_ref.show_dialog(self._dialog)
 
         # Wait for user response
         await self._close_event.wait()

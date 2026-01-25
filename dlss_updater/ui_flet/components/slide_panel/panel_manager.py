@@ -88,7 +88,7 @@ class PanelManager:
                 "PanelManager is a singleton. Use get_instance() instead."
             )
 
-        self.page = page
+        self._page_ref = page
         self.logger = logger
         self._current_panel: Optional[SlidePanel] = None
         self._lock = asyncio.Lock()
@@ -124,7 +124,7 @@ class PanelManager:
             # Create and show new panel
             self.logger.info(f"Showing panel: {content.title}")
             self._current_panel = SlidePanel(
-                self.page,
+                self._page_ref,
                 panel_logger,
                 content,
             )

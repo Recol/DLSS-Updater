@@ -3,6 +3,7 @@ Launcher Card Component
 Expandable card showing launcher configuration and detected games using Material Design 3 ExpansionTile
 """
 
+import asyncio
 import logging
 import subprocess
 from pathlib import Path
@@ -20,7 +21,14 @@ from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_re
 class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
     """
     Expandable card for launcher configuration with game list using Material Design 3 ExpansionTile
+
+    Performance: Uses is_isolated=True to prevent parent update() from including
+    this control's changes. Must call self.update() manually for changes.
     """
+
+    def is_isolated(self):
+        """Isolated controls are excluded from parent's update digest."""
+        return True
 
     def __init__(
         self,
@@ -40,7 +48,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         self.is_custom = is_custom
         self.on_reset_callback = on_reset
         self.on_add_subfolder_callback = on_add_subfolder
-        self.page = page
+        self._page_ref = page
         self.logger = logger
 
         # State - multi-path support
@@ -64,7 +72,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             subtitle=self.subtitle_column,
             trailing=self.trailing_row,
             controls=[],  # Initially empty, populated by set_games()
-            initially_expanded=False,
+            expanded=False,
             bgcolor=ft.Colors.TRANSPARENT,
             shape=ft.RoundedRectangleBorder(radius=8),
             maintain_state=True,
@@ -111,7 +119,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             height=size,
             bgcolor=color,
             border_radius=size // 2,  # Perfect circle
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=4,
@@ -215,11 +223,11 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             icon_color=MD3Colors.get_on_surface_variant(is_dark),
             tooltip="More options",
             items=[
-                ft.PopupMenuItem(text="Copy Path(s)", icon=ft.Icons.CONTENT_COPY, on_click=self._on_copy_paths),
-                ft.PopupMenuItem(text=open_folder_text, icon=ft.Icons.FOLDER_OPEN, on_click=self._on_open_explorer),
-                ft.PopupMenuItem(text="Auto-Detect", icon=ft.Icons.AUTO_FIX_HIGH, on_click=self._on_auto_detect),
+                ft.PopupMenuItem(content="Copy Path(s)", icon=ft.Icons.CONTENT_COPY, on_click=self._on_copy_paths),
+                ft.PopupMenuItem(content=open_folder_text, icon=ft.Icons.FOLDER_OPEN, on_click=self._on_open_explorer),
+                ft.PopupMenuItem(content="Auto-Detect", icon=ft.Icons.AUTO_FIX_HIGH, on_click=self._on_auto_detect),
                 ft.PopupMenuItem(),  # Divider
-                ft.PopupMenuItem(text="Clear All", icon=ft.Icons.DELETE_OUTLINE, on_click=self.on_reset_callback),
+                ft.PopupMenuItem(content="Clear All", icon=ft.Icons.DELETE_OUTLINE, on_click=self.on_reset_callback),
             ],
         )
 
@@ -274,7 +282,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
 
         # Create handler that properly schedules the async coroutine
         def on_remove_click(e, p=path):
-            self.page.run_task(self._on_remove_path, p)
+            self._page_ref.run_task(self._on_remove_path, p)
 
         return ft.Container(
             content=ft.Row(
@@ -365,8 +373,8 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             self.status_icon.name = ft.Icons.CHECK_CIRCLE
             self.status_icon.color = MD3Colors.SUCCESS
 
-        # Update path health indicator
-        all_valid = self._validate_paths_sync()
+        # Update path health indicator (async to avoid blocking on filesystem I/O)
+        all_valid = await self._validate_paths_async()
         if self.current_paths:
             self.path_health_icon.visible = True
             if all_valid:
@@ -380,8 +388,8 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         else:
             self.path_health_icon.visible = False
 
-        if self.page:
-            self.page.update()
+        if self._page_ref:
+            self._page_ref.update()
 
     async def set_paths(self, paths: list[str]):
         """
@@ -409,8 +417,8 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                 self.game_count_text.value = "Paths configured"
                 self.game_count_text.color = MD3Colors.SUCCESS
 
-        if self.page:
-            self.page.update()
+        if self._page_ref:
+            self._page_ref.update()
 
     # Keep set_path for backward compatibility
     async def set_path(self, path: str):
@@ -465,57 +473,69 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             # Clear controls when no games
             self.controls = []
 
-        if self.page:
-            self.page.update()
+        if self._page_ref:
+            self._page_ref.update()
 
     def _validate_paths_sync(self) -> bool:
-        """Check if all paths exist (sync version for use in UI updates)"""
+        """Check if all paths exist (sync version for filesystem I/O)"""
         if not self.current_paths:
             return True
         return all(Path(p).exists() for p in self.current_paths)
+
+    async def _validate_paths_async(self) -> bool:
+        """Check if all paths exist (async version - offloads blocking I/O to thread pool)"""
+        if not self.current_paths:
+            return True
+        return await asyncio.to_thread(self._validate_paths_sync)
 
     async def _on_copy_paths(self, e):
         """Copy all configured paths to clipboard"""
         if self.current_paths:
             paths_text = "\n".join(self.current_paths)
-            self.page.set_clipboard(paths_text)
-            self.page.snack_bar = ft.SnackBar(ft.Text("Paths copied to clipboard"))
-            self.page.snack_bar.open = True
-            self.page.update()
+            self._page_ref.set_clipboard(paths_text)
+            self._page_ref.snack_bar = ft.SnackBar(ft.Text("Paths copied to clipboard"))
+            self._page_ref.snack_bar.open = True
+            self._page_ref.update()
 
     async def _on_open_explorer(self, e):
-        """Open first path in file manager (cross-platform)"""
+        """Open first path in file manager (cross-platform, non-blocking)"""
         if self.current_paths:
             path = self.current_paths[0]
             try:
                 if IS_WINDOWS:
                     import os
-                    os.startfile(path)
+                    # Wrap blocking os.startfile in thread pool
+                    await asyncio.to_thread(os.startfile, path)
                 elif IS_LINUX:
-                    # Use xdg-open on Linux to open default file manager
-                    subprocess.Popen(['xdg-open', path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    # Use async subprocess for non-blocking execution
+                    await asyncio.create_subprocess_exec(
+                        'xdg-open', path,
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL
+                    )
             except Exception as ex:
                 self.logger.error(f"Failed to open path in file manager: {ex}")
-                self.page.snack_bar = ft.SnackBar(ft.Text(f"Could not open: {path}"))
-                self.page.snack_bar.open = True
-                self.page.update()
+                self._page_ref.snack_bar = ft.SnackBar(ft.Text(f"Could not open: {path}"))
+                self._page_ref.snack_bar.open = True
+                self._page_ref.update()
 
     async def _on_auto_detect(self, e):
-        """Attempt to auto-detect launcher path"""
+        """Attempt to auto-detect launcher path (offloads blocking scan to thread pool)"""
         from dlss_updater.scanner import auto_detect_launcher_path
-        detected = auto_detect_launcher_path(self.launcher_enum)
+        # Wrap blocking filesystem scan in thread pool to avoid freezing UI
+        detected = await asyncio.to_thread(auto_detect_launcher_path, self.launcher_enum)
         if detected:
             added = config_manager.add_launcher_path(self.launcher_enum, detected)
             if added:
                 self.current_paths.append(detected)
                 await self._update_paths_display()
-                self.page.snack_bar = ft.SnackBar(ft.Text(f"Detected: {detected}"))
+                self._page_ref.snack_bar = ft.SnackBar(ft.Text(f"Detected: {detected}"))
             else:
-                self.page.snack_bar = ft.SnackBar(ft.Text("Path already configured or at limit"))
+                self._page_ref.snack_bar = ft.SnackBar(ft.Text("Path already configured or at limit"))
         else:
-            self.page.snack_bar = ft.SnackBar(ft.Text("Could not auto-detect path"))
-        self.page.snack_bar.open = True
-        self.page.update()
+            self._page_ref.snack_bar = ft.SnackBar(ft.Text("Could not auto-detect path"))
+        self._page_ref.snack_bar.open = True
+        self._page_ref.update()
 
     def _create_game_tile(self, game: GameCardData) -> ft.ListTile:
         """

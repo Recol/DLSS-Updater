@@ -26,13 +26,15 @@ class ThemeManager:
 
     Features:
     - Progressive theme updates with cascade animation (~250ms total)
-    - OS theme detection on startup (via darkdetect)
     - User preference persistence
     - Thread-safe for Python 3.14 free-threaded compatibility
+
+    Note: OS theme detection (darkdetect) was removed due to blocking calls
+    that caused GUI freezes on Linux Flatpak/Wayland and Windows with AV software.
     """
 
     def __init__(self, page: ft.Page):
-        self.page = page
+        self._page_ref = page
         self.is_dark = True  # Default to dark
         self._toggle_lock = asyncio.Lock()
         self._registry = get_theme_registry()
@@ -45,57 +47,19 @@ class ThemeManager:
 
     def _load_initial_theme(self) -> None:
         """
-        Load initial theme from:
-        1. User preference (if explicitly set)
-        2. OS theme detection (if available)
-        3. Default to dark
+        Load initial theme from user preference or default to dark.
+
+        Note: OS theme detection (darkdetect) was removed due to blocking calls
+        that caused GUI freezes on Linux Flatpak/Wayland and Windows with AV software.
         """
         try:
-            # Check for user override
-            user_override = config_manager.get(
-                "Appearance", "user_override", fallback="false"
-            )
-
-            if user_override.lower() == "true":
-                # User has explicitly set a preference, use it
-                theme_pref = config_manager.get("Appearance", "theme", fallback="dark")
-                self.is_dark = theme_pref == "dark"
-                return
-
-            # No user override - try OS theme detection
-            os_theme = self._detect_os_theme()
-            if os_theme is not None:
-                self.is_dark = os_theme == "dark"
-                return
-
-            # Fall back to saved preference or default
+            # Load saved theme preference
             theme_pref = config_manager.get("Appearance", "theme", fallback="dark")
             self.is_dark = theme_pref == "dark"
 
         except Exception as e:
             print(f"Failed to load theme preference: {e}")
             self.is_dark = True
-
-    @staticmethod
-    def _detect_os_theme() -> str | None:
-        """
-        Detect OS theme using darkdetect library.
-
-        Returns:
-            "dark" or "light" if detection succeeds, None otherwise
-        """
-        try:
-            import darkdetect
-            os_theme = darkdetect.theme()  # Returns "Dark" or "Light"
-            if os_theme:
-                return os_theme.lower()
-        except ImportError:
-            # darkdetect not installed
-            pass
-        except Exception:
-            # Detection failed
-            pass
-        return None
 
     def toggle_theme(self) -> None:
         """
@@ -128,23 +92,34 @@ class ThemeManager:
         self._registry.is_dark = self.is_dark
 
         # Store theme state for component access
+        # Note: In Flet 0.80.4+, session/client_storage APIs may differ
         try:
-            self.page.client_storage.set("is_dark_theme", self.is_dark)
+            # Try shared_preferences (new API) or client_storage (old API)
+            if hasattr(self._page_ref, 'shared_preferences'):
+                # Flet 0.80.4+ uses shared_preferences (async, but we're in sync context)
+                pass  # Skip for sync method - will be set in async version
+            elif hasattr(self._page_ref, 'client_storage'):
+                self._page_ref.client_storage.set("is_dark_theme", self.is_dark)
         except Exception:
             pass
 
-        self.page.session.set("is_dark_theme", self.is_dark)
+        # Session storage - wrap in try/except for API compatibility
+        try:
+            if hasattr(self._page_ref.session, 'set'):
+                self._page_ref.session.set("is_dark_theme", self.is_dark)
+        except Exception:
+            pass
 
         # Apply page-level theme
-        self.page.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
-        self.page.bgcolor = MD3Colors.get_background(self.is_dark)
+        self._page_ref.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
+        self._page_ref.bgcolor = MD3Colors.get_background(self.is_dark)
 
-        self.page.theme = ft.Theme(
+        self._page_ref.theme = ft.Theme(
             color_scheme_seed="#2D6E88" if self.is_dark else "#1A5A70",
             use_material3=True,
         )
 
-        self.page.update()
+        self._page_ref.update()
 
         if save:
             self._save_preference()
@@ -159,31 +134,38 @@ class ThemeManager:
         # Update registry state first
         self._registry.is_dark = self.is_dark
 
-        # Store theme state
+        # Store theme state for component access
         try:
-            self.page.client_storage.set("is_dark_theme", self.is_dark)
+            if hasattr(self._page_ref, 'shared_preferences'):
+                await self._page_ref.shared_preferences.set("is_dark_theme", self.is_dark)
+            elif hasattr(self._page_ref, 'client_storage'):
+                self._page_ref.client_storage.set("is_dark_theme", self.is_dark)
         except Exception:
             pass
 
-        self.page.session.set("is_dark_theme", self.is_dark)
+        try:
+            if hasattr(self._page_ref.session, 'set'):
+                self._page_ref.session.set("is_dark_theme", self.is_dark)
+        except Exception:
+            pass
 
         # Apply page-level theme immediately
-        self.page.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
-        self.page.bgcolor = MD3Colors.get_background(self.is_dark)
+        self._page_ref.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
+        self._page_ref.bgcolor = MD3Colors.get_background(self.is_dark)
 
-        self.page.theme = ft.Theme(
+        self._page_ref.theme = ft.Theme(
             color_scheme_seed="#2D6E88" if self.is_dark else "#1A5A70",
             use_material3=True,
         )
 
-        self.page.update()
+        self._page_ref.update()
 
         # Cascade to registered components with progressive page updates
         await self._registry.apply_theme_to_all(
             self.is_dark,
             cascade=True,
             base_delay_ms=30,  # ~250ms total cascade duration
-            page=self.page,  # Enable progressive updates between batches
+            page=self._page_ref,  # Enable progressive updates between batches
         )
 
         if save:

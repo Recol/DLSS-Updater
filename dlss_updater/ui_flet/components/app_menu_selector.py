@@ -54,7 +54,7 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
         is_dark: bool = True,
     ):
         super().__init__()
-        self.page = page
+        self._page_ref = page
         self.categories = categories
         self.on_item_selected = on_item_selected
         self.is_expanded = initially_expanded
@@ -111,7 +111,7 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
             height=size,
             bgcolor=color,
             border_radius=size // 2,  # Perfect circle
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=4,
@@ -141,7 +141,7 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
                 "#3A3A3A" if is_dark else "#E0E0E0"
             ),
             border_radius=size // 2,
-            alignment=ft.alignment.center,
+            alignment=ft.Alignment.CENTER,
         )
         self._muted_icon_circles.append(container)
         return container
@@ -158,7 +158,7 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
             container.bgcolor = "transparent"
             container.border = None
 
-        if self.page:
+        if self._page_ref:
             container.update()
 
     def _on_item_click(self, item: MenuItem):
@@ -176,10 +176,10 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
         if item.on_click:
             result = item.on_click(None)
             # If callback is async (returns coroutine), use Flet's run_task
-            if inspect.iscoroutine(result) and self.page:
+            if inspect.iscoroutine(result) and self._page_ref:
                 async def run_async(coro):
                     await coro
-                self.page.run_task(run_async, result)
+                self._page_ref.run_task(run_async, result)
 
         # Notify parent
         if self.on_item_selected:
@@ -341,7 +341,7 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
             title=title,
             subtitle=subtitle,
             controls=item_controls,
-            initially_expanded=False,
+            expanded=False,
             maintain_state=True,
             bgcolor="transparent",
             collapsed_bgcolor="transparent",
@@ -381,15 +381,15 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
         """Set badge visibility for a specific menu item"""
         if item_id in self._badge_refs:
             self._badge_refs[item_id].visible = visible
-            if self.page:
+            if self._page_ref:
                 self._badge_refs[item_id].update()
 
     def refresh_theme(self):
         """Refresh the component after theme change - delegates to apply_theme"""
         is_dark = self._get_is_dark()
         # Use run_task to call async method from sync context
-        if self.page:
-            self.page.run_task(self.apply_theme, is_dark, 0)
+        if self._page_ref:
+            self._page_ref.run_task(self.apply_theme, is_dark, 0)
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """Return themed property mappings for cascade updates"""

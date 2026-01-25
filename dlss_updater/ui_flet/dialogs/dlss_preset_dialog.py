@@ -36,7 +36,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
     """
 
     def __init__(self, page: ft.Page, logger: logging.Logger):
-        self.page = page
+        self._page_ref = page
         self.logger = logger
 
         # Theme registry setup
@@ -70,12 +70,12 @@ class DLSSPresetDialog(ThemeAwareMixin):
         """Close dialog and unregister from theme system."""
         self._unregister_theme_aware()
         if self.dialog:
-            self.page.close(self.dialog)
+            self._page_ref.pop_dialog()
 
     async def _detect_gpu(self):
         """Detect NVIDIA GPU and update UI"""
         self.loading_ring.visible = True
-        self.page.update()
+        self._page_ref.update()
 
         try:
             self.gpu_info = await detect_nvidia_gpu()
@@ -95,7 +95,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
 
         finally:
             self.loading_ring.visible = False
-            self.page.update()
+            self._page_ref.update()
 
     def _update_gpu_info_display(self):
         """Update GPU info container with detected GPU"""
@@ -216,7 +216,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
         if IS_LINUX:
             self._update_launch_options()
 
-        self.page.update()
+        self._page_ref.update()
 
     def _update_status_text(self):
         """Update status text based on current state"""
@@ -240,7 +240,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
         # Update Linux launch options if applicable
         if IS_LINUX:
             self._update_launch_options()
-            self.page.update()
+            self._page_ref.update()
 
     def _update_launch_options(self):
         """Update launch options text field (Linux only)"""
@@ -262,19 +262,19 @@ class DLSSPresetDialog(ThemeAwareMixin):
     def _on_linux_overlay_changed(self, e):
         """Handle Linux overlay checkbox change"""
         self._update_launch_options()
-        self.page.update()
+        self._page_ref.update()
 
     async def _on_copy_clicked(self, e):
         """Copy launch options to clipboard"""
         is_dark = self._registry.is_dark
         if self.launch_options_field and self.launch_options_field.value:
-            self.page.set_clipboard(self.launch_options_field.value)
-            self.page.snack_bar = ft.SnackBar(
+            self._page_ref.set_clipboard(self.launch_options_field.value)
+            self._page_ref.snack_bar = ft.SnackBar(
                 content=ft.Text("Launch options copied to clipboard!"),
                 bgcolor=MD3Colors.get_success(is_dark),
             )
-            self.page.snack_bar.open = True
-            self.page.update()
+            self._page_ref.snack_bar.open = True
+            self._page_ref.update()
             self.logger.info("Linux launch options copied to clipboard")
 
     async def _on_apply_clicked(self, e):
@@ -283,7 +283,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
         self.apply_button.disabled = True
         self.loading_ring.visible = True
         self._hide_error()
-        self.page.update()
+        self._page_ref.update()
 
         try:
             success, error, extra_data = await apply_preset(self.selected_preset)
@@ -318,7 +318,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
                     bgcolor=MD3Colors.get_success(is_dark),
                     duration=3000,
                 )
-                self.page.overlay.append(snackbar)
+                self._page_ref.overlay.append(snackbar)
                 snackbar.open = True
 
                 self.logger.info(
@@ -327,7 +327,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
 
                 # Close dialog on success and unregister
                 self._unregister_theme_aware()
-                self.page.close(self.dialog)
+                self._page_ref.pop_dialog()
                 return
             else:
                 self._show_error(error or "Failed to apply preset")
@@ -340,7 +340,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
         finally:
             self.apply_button.disabled = False
             self.loading_ring.visible = False
-            self.page.update()
+            self._page_ref.update()
 
     def _show_error(self, message: str):
         """Display error message"""
@@ -607,7 +607,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
             actions=actions,
         )
 
-        self.page.open(self.dialog)
+        self._page_ref.show_dialog(self.dialog)
 
         # Detect GPU and load current preset
         await self._detect_gpu()
@@ -623,7 +623,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
                     break
             # Update dialog content
             self.dialog.content.content.controls = content_controls
-            self.page.update()
+            self._page_ref.update()
 
         await self._load_current_preset()
 
@@ -662,7 +662,7 @@ class DLSSPresetDialog(ThemeAwareMixin):
             ),
             bgcolor=MD3Colors.get_surface(is_dark),
             actions=[
-                ft.FilledButton("OK", on_click=lambda e: self.page.close(dialog)),
+                ft.FilledButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
             ],
         )
-        self.page.open(dialog)
+        self._page_ref.show_dialog(dialog)

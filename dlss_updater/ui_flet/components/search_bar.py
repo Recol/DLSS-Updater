@@ -67,6 +67,14 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         # Register for theme updates
         self._register_theme_aware()
 
+    def _safe_update(self):
+        """Safely update page - handles Flet 0.80.4 RuntimeError when control not yet added."""
+        try:
+            if self.page:
+                self.page.update()
+        except RuntimeError:
+            pass  # Control not yet added to page
+
     def _build_ui(self):
         """Build the search bar UI with PopupMenuButton for history."""
         is_dark = self._registry.is_dark
@@ -232,8 +240,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         self.clear_button.visible = False
         self.search_icon.color = MD3Colors.get_themed("icon_default", is_dark)
 
-        if self.page:
-            self.page.update()
+        self._safe_update()
 
         if self.on_clear_callback:
             result = self.on_clear_callback()
@@ -252,8 +259,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
 
         if not self._history_items:
             self.history_button.visible = False
-            if self.page:
-                self.page.update()
+            self._safe_update()
             return
 
         menu_items = []
@@ -318,8 +324,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         self.history_button.items = menu_items
         self.history_button.visible = True
 
-        if self.page:
-            self.page.update()
+        self._safe_update()
 
     def _on_history_item_clicked(self, query: str):
         """Handle history item selection."""
@@ -328,8 +333,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         self.clear_button.visible = True
         self.search_icon.color = MD3Colors.get_primary(is_dark)
 
-        if self.page:
-            self.page.update()
+        self._safe_update()
 
         if self.on_history_selected_callback:
             result = self.on_history_selected_callback(query)
@@ -345,8 +349,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         self._history_items = []
         self.history_button.visible = False
 
-        if self.page:
-            self.page.update()
+        self._safe_update()
 
     def set_value(self, value: str):
         """Set the search field value programmatically."""
@@ -357,8 +360,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             MD3Colors.get_primary(is_dark) if value else MD3Colors.get_themed("icon_default", is_dark)
         )
 
-        if self.page:
-            self.page.update()
+        self._safe_update()
 
     def get_value(self) -> str:
         """Get the current search field value."""

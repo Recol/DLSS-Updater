@@ -27,7 +27,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
     LINUX_OVERLAY_ENV = "DXVK_NVAPI_SET_NGX_DEBUG_OPTIONS=DLSSIndicator=1024"
 
     def __init__(self, page: ft.Page, logger: logging.Logger):
-        self.page = page
+        self._page_ref = page
         self.logger = logger
 
         # Theme registry setup
@@ -54,13 +54,13 @@ class DLSSOverlayDialog(ThemeAwareMixin):
         """Close dialog and unregister from theme system."""
         self._unregister_theme_aware()
         if self.dialog:
-            self.page.close(self.dialog)
+            self._page_ref.pop_dialog()
 
     async def _load_current_state(self):
         """Load current overlay state from registry"""
         self.loading_ring.visible = True
         self.overlay_switch.disabled = True
-        self.page.update()
+        self._page_ref.update()
 
         is_enabled, error = await get_dlss_overlay_state()
 
@@ -76,7 +76,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
             self._update_status_text(is_enabled)
             self._hide_error()
 
-        self.page.update()
+        self._page_ref.update()
 
     def _update_status_text(self, is_enabled: bool):
         """Update the status text based on current state"""
@@ -107,7 +107,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
         self.loading_ring.visible = True
         self.overlay_switch.disabled = True
         self._hide_error()
-        self.page.update()
+        self._page_ref.update()
 
         # Apply change
         success, error = await set_dlss_overlay_state(new_state)
@@ -128,7 +128,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
                 bgcolor=MD3Colors.get_success(is_dark) if new_state else MD3Colors.get_primary(is_dark),
                 duration=3000,
             )
-            self.page.overlay.append(snackbar)
+            self._page_ref.overlay.append(snackbar)
             snackbar.open = True
         else:
             # Revert switch state on failure
@@ -136,7 +136,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
             self._show_error(error)
             self.logger.error(f"Failed to set DLSS overlay state: {error}")
 
-        self.page.update()
+        self._page_ref.update()
 
     async def _show_unavailable_dialog(self):
         """Show dialog explaining feature is Windows-only"""
@@ -172,22 +172,22 @@ class DLSSOverlayDialog(ThemeAwareMixin):
             ),
             bgcolor=MD3Colors.get_surface(is_dark),
             actions=[
-                ft.FilledButton("OK", on_click=lambda e: self.page.close(dialog)),
+                ft.FilledButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
             ],
         )
-        self.page.open(dialog)
+        self._page_ref.show_dialog(dialog)
 
     async def _on_copy_clicked(self, e):
         """Copy launch options to clipboard (Linux)"""
         is_dark = self._registry.is_dark
         launch_opts = f"{self.LINUX_OVERLAY_ENV} %command%"
-        self.page.set_clipboard(launch_opts)
-        self.page.snack_bar = ft.SnackBar(
+        self._page_ref.set_clipboard(launch_opts)
+        self._page_ref.snack_bar = ft.SnackBar(
             content=ft.Text("Launch options copied to clipboard!"),
             bgcolor=MD3Colors.get_success(is_dark),
         )
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page_ref.snack_bar.open = True
+        self._page_ref.update()
         self.logger.info("Linux DLSS overlay launch options copied to clipboard")
 
     async def _show_linux_dialog(self):
@@ -280,7 +280,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
             ],
         )
 
-        self.page.open(self.dialog)
+        self._page_ref.show_dialog(self.dialog)
 
     async def show(self):
         """Show the DLSS overlay settings dialog"""
@@ -398,7 +398,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
             ],
         )
 
-        self.page.open(self.dialog)
+        self._page_ref.show_dialog(self.dialog)
 
         # Load current state after dialog is visible
         await self._load_current_state()
