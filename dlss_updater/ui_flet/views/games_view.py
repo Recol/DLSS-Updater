@@ -16,12 +16,13 @@ from typing import Callable, Any, TYPE_CHECKING
 import flet as ft
 
 from dlss_updater.database import db_manager, Game, merge_games_by_name
-from dlss_updater.models import MergedGame
+from dlss_updater.models import MergedGame, GameDLL, DLLBackup
 from dlss_updater.ui_flet.components.game_card import GameCard
 from dlss_updater.ui_flet.components.search_bar import SearchBar
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator
+from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask, BatchedImageLoader
 from dlss_updater.config import is_dll_cache_ready
 from dlss_updater.search_service import search_service
 from dlss_updater.task_registry import register_task
@@ -429,7 +430,15 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 self._page_ref.update()
 
     async def _build_launcher_tabs(self):
-        """Build tabs for each launcher with games (Flet 0.80.4 TabBar/TabBarView pattern)"""
+        """Build tabs for each launcher with games (Flet 0.80.4 TabBar/TabBarView pattern)
+
+        PERFORMANCE OPTIMIZATION (Flet 0.80.4):
+        - Uses HyperParallelLoader with ThreadPoolExecutor for true parallel I/O
+        - Batch queries reduce N+1 problem from 200+ queries to 2-3 queries
+        - Single page.update() call after all cards created
+        - Staggered animation runs after initial render
+        """
+        start_total = time.perf_counter()
         tabs = []  # Tab headers (label/icon)
         tab_contents = []  # Tab content controls
         self._tab_launchers = []  # Track launcher name per tab index
@@ -453,128 +462,136 @@ class GamesView(ThemeAwareMixin, ft.Column):
             "Custom Folder 4": ft.Icons.FOLDER_SPECIAL,
         }
 
+        # ========== PHASE 1: Collect all game IDs across all launchers ==========
+        # This enables batch database queries (O(1) vs O(n))
+        start_collect = time.perf_counter()
+        all_merged_games: list[tuple[str, MergedGame]] = []  # (launcher, merged_game)
+        all_game_ids: list[int] = []
+        all_steam_app_ids: list[int] = []
+
         for launcher, games in self.games_by_launcher.items():
             if not games:
                 continue
 
-            # Merge games with same name into single entries
             merged_games = merge_games_by_name(games)
+            for mg in merged_games:
+                all_merged_games.append((launcher, mg))
+                all_game_ids.extend(mg.all_game_ids)
+                if mg.primary_game.steam_app_id:
+                    all_steam_app_ids.append(mg.primary_game.steam_app_id)
 
-            # Load DLLs and backup groups for ALL game IDs in each merged game
-            async def load_merged_game_data(merged: MergedGame):
-                all_dlls = []
-                all_backup_groups = {}
+        collect_ms = (time.perf_counter() - start_collect) * 1000
+        self.logger.debug(f"[PERF] Collected {len(all_merged_games)} merged games, {len(all_game_ids)} game_ids: {collect_ms:.1f}ms")
 
-                for game_id in merged.all_game_ids:
-                    dlls = await db_manager.get_dlls_for_game(game_id)
-                    all_dlls.extend(dlls)
+        # ========== PHASE 2: Hyper-parallel batch database queries ==========
+        # Uses ThreadPoolExecutor for true parallelism (not asyncio.to_thread serialization)
+        start_data = time.perf_counter()
+        loader = HyperParallelLoader()
 
-                    backup_groups = await db_manager.get_backups_grouped_by_dll_type(game_id)
-                    for dll_type, backups in backup_groups.items():
-                        if dll_type not in all_backup_groups:
-                            all_backup_groups[dll_type] = []
-                        all_backup_groups[dll_type].extend(backups)
+        # Run all database queries in parallel using ThreadPoolExecutor
+        results = loader.load_all([
+            LoadTask("dlls", lambda: db_manager.batch_get_dlls_for_games_sync(all_game_ids)),
+            LoadTask("backups", lambda: db_manager.batch_get_backups_grouped_sync(all_game_ids)),
+            LoadTask("images", lambda: db_manager._batch_get_cached_image_paths(all_steam_app_ids)),
+        ])
 
-                return merged, all_dlls, all_backup_groups
+        dlls_by_game: dict[int, list[GameDLL]] = results.get("dlls", {})
+        backups_by_game: dict[int, dict[str, list[DLLBackup]]] = results.get("backups", {})
+        cached_image_paths: dict[int, str] = results.get("images", {})
 
-            # PERFORMANCE: Load all game data in parallel
-            start_data = time.perf_counter()
-            tasks = [load_merged_game_data(mg) for mg in merged_games]
-            results = await asyncio.gather(*tasks)
-            data_ms = (time.perf_counter() - start_data) * 1000
-            self.logger.debug(f"[PERF] Data loading for {launcher} ({len(results)} games): {data_ms:.1f}ms")
+        data_ms = (time.perf_counter() - start_data) * 1000
+        self.logger.debug(f"[PERF] Batch data loading ({len(all_game_ids)} games): {data_ms:.1f}ms")
 
-            # PERFORMANCE: Create game cards with helper function
-            def create_card(merged, dlls, backup_groups):
-                card = GameCard(
-                    game=merged,
-                    dlls=dlls,
-                    page=self._page_ref,
-                    logger=self.logger,
-                    on_update=self._on_game_update,
-                    on_restore=self._on_game_restore,
-                    backup_groups=backup_groups,
-                )
-                card.opacity = 0
-                card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
-                return card
+        # ========== PHASE 3: Create cards by launcher (main thread) ==========
+        # Flet controls MUST be created on main thread
+        start_cards = time.perf_counter()
 
-            # PERFORMANCE: Progressive card creation for 200+ games
-            # Create first batch immediately (visible cards)
-            start_cards = time.perf_counter()
-            first_batch_results = results[:GAMES_INITIAL_BATCH_SIZE]
-            remaining_results = results[GAMES_INITIAL_BATCH_SIZE:]
+        # Group merged games by launcher for tab creation
+        games_by_launcher_merged: dict[str, list[tuple[MergedGame, list[GameDLL], dict[str, list[DLLBackup]]]]] = {}
 
-            game_cards = []
-            for merged, dlls, backup_groups in first_batch_results:
-                card = create_card(merged, dlls, backup_groups)
-                self.game_cards[merged.primary_game.id] = card
+        for launcher, mg in all_merged_games:
+            # Aggregate DLLs and backups for all game_ids in this merged game
+            all_dlls: list[GameDLL] = []
+            all_backup_groups: dict[str, list[DLLBackup]] = {}
+
+            for game_id in mg.all_game_ids:
+                all_dlls.extend(dlls_by_game.get(game_id, []))
+
+                game_backups = backups_by_game.get(game_id, {})
+                for dll_type, backups in game_backups.items():
+                    if dll_type not in all_backup_groups:
+                        all_backup_groups[dll_type] = []
+                    all_backup_groups[dll_type].extend(backups)
+
+            if launcher not in games_by_launcher_merged:
+                games_by_launcher_merged[launcher] = []
+            games_by_launcher_merged[launcher].append((mg, all_dlls, all_backup_groups))
+
+        # Card creation helper
+        def create_card(merged: MergedGame, dlls: list[GameDLL], backup_groups: dict[str, list[DLLBackup]]) -> GameCard:
+            card = GameCard(
+                game=merged,
+                dlls=dlls,
+                page=self._page_ref,
+                logger=self.logger,
+                on_update=self._on_game_update,
+                on_restore=self._on_game_restore,
+                backup_groups=backup_groups,
+            )
+            card.opacity = 0
+            card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
+            return card
+
+        # Create tabs for each launcher
+        all_cards_for_animation: list[GameCard] = []
+
+        for launcher in self.games_by_launcher.keys():
+            if launcher not in games_by_launcher_merged:
+                continue
+
+            merged_data = games_by_launcher_merged[launcher]
+            game_count = len(self.games_by_launcher[launcher])
+
+            # Create cards for this launcher
+            game_cards: list[GameCard] = []
+            for mg, dlls, backup_groups in merged_data:
+                card = create_card(mg, dlls, backup_groups)
+                self.game_cards[mg.primary_game.id] = card
+                self.game_card_containers[mg.primary_game.id] = card
                 game_cards.append(card)
 
-            first_batch_ms = (time.perf_counter() - start_cards) * 1000
-            self.logger.debug(f"[PERF] First batch cards ({len(first_batch_results)}): {first_batch_ms:.1f}ms")
+                # Pre-set cached image if available (no async needed)
+                if mg.primary_game.steam_app_id and mg.primary_game.steam_app_id in cached_image_paths:
+                    card.image_widget.src = cached_image_paths[mg.primary_game.steam_app_id]
+                    card.image_container.content = card.image_widget  # Replace skeleton with image
+                    card._image_loaded = True
 
-            # Batch fetch all cached image paths (single query vs N queries)
-            steam_app_ids = [
-                card.game.steam_app_id
-                for card in game_cards
-                if card.game.steam_app_id
-            ]
-            cached_paths = await db_manager.batch_get_cached_image_paths(steam_app_ids)
+            all_cards_for_animation.extend(game_cards)
 
-            # Create coordinator for batched image loading (reduces page.update() calls)
-            # This improves loading from ~1.9s to ~350-400ms for 11 images
-            coordinator = ImageLoadCoordinator(self._page_ref, self.logger)
-
-            # Load images asynchronously with coordinator for batched UI updates
-            for card in game_cards:
-                prefetched_path = cached_paths.get(card.game.steam_app_id) if card.game.steam_app_id else None
-                task = asyncio.create_task(card.load_image(prefetched_path, coordinator=coordinator))
-                register_task(task, f"load_image_{card.game.name[:20]}")
-
-            # Trigger staggered fade-in animation - REGISTER THE TASK
-            anim_task = asyncio.create_task(self._animate_cards_in(game_cards))
-            register_task(anim_task, f"animate_cards_{launcher}")
-
-            # PERFORMANCE: Use GridView with max_extent for virtualization + responsive columns
-            # GridView only renders visible items (unlike Column+ResponsiveRow which renders ALL)
-            # max_extent=320 gives responsive columns: 4 on 1280px, 3 on 960px, 2 on 640px, 1 on 320px
-            # This is critical for 50+ game cards - 10x faster scrolling
-            for card in game_cards:
-                # Track card directly for search visibility control
-                self.game_card_containers[card.game.id] = card
-
-            # Create GridView with virtualization (only visible items rendered)
-            # Aspect ratio 1.45 = 320/220 to match new card height (was 1.78 for 180px)
+            # Create GridView with virtualization
             game_grid = ft.GridView(
                 controls=game_cards,
-                max_extent=320,  # Max card width - responsive columns
-                child_aspect_ratio=1.45,  # Width/height ratio (320/220)
+                max_extent=320,
+                child_aspect_ratio=1.45,
                 padding=16,
                 spacing=12,
                 run_spacing=12,
                 expand=True,
             )
 
-            # PERFORMANCE: Load remaining cards in background (for 200+ games)
-            if remaining_results:
-                bg_task = asyncio.create_task(
-                    self._load_remaining_game_cards(
-                        remaining_results, game_grid, coordinator, create_card, launcher
-                    )
-                )
-                register_task(bg_task, f"load_remaining_cards_{launcher}")
-
-            # Create tab header (label/icon only - content goes in TabBarView)
+            # Create tab header
             tab_header = ft.Tab(
-                label=f"{launcher} ({len(games)})",
+                label=f"{launcher} ({game_count})",
                 icon=launcher_icons.get(launcher, ft.Icons.FOLDER),
             )
             tabs.append(tab_header)
-            tab_contents.append(game_grid)  # GridView directly as tab content
-            self._tab_launchers.append(launcher)  # Track launcher name by tab index
+            tab_contents.append(game_grid)
+            self._tab_launchers.append(launcher)
 
-        # Create Tabs control with TabBar + TabBarView (Flet 0.80.4 pattern)
+        cards_ms = (time.perf_counter() - start_cards) * 1000
+        self.logger.debug(f"[PERF] Card creation ({len(all_cards_for_animation)} cards): {cards_ms:.1f}ms")
+
+        # ========== PHASE 4: Create tabs control ==========
         self.tabs_control = ft.Tabs(
             length=len(tabs),
             selected_index=0,
@@ -589,8 +606,82 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 ],
             ),
         )
-
         self.tabs_container.content = self.tabs_control
+
+        # ========== PHASE 5: Post-render tasks ==========
+        # Trigger staggered fade-in animation
+        anim_task = asyncio.create_task(self._animate_cards_in(all_cards_for_animation))
+        register_task(anim_task, "animate_all_cards")
+
+        # Load uncached images in background
+        uncached_cards = [c for c in all_cards_for_animation if not c._image_loaded and c.game.steam_app_id]
+        if uncached_cards:
+            img_task = asyncio.create_task(self._load_uncached_images(uncached_cards))
+            register_task(img_task, "load_uncached_images")
+
+        total_ms = (time.perf_counter() - start_total) * 1000
+        self.logger.info(f"[PERF] _build_launcher_tabs total: {total_ms:.1f}ms ({len(all_cards_for_animation)} cards)")
+
+    async def _load_uncached_images(self, cards: list['GameCard']):
+        """Load images for cards without cached paths using concurrent async I/O.
+
+        Uses asyncio.gather() for parallel HTTP requests (I/O-bound).
+        Single page.update() after all images are fetched and applied.
+        """
+        from dlss_updater.steam_integration import fetch_and_cache_steam_image
+
+        start_time = time.perf_counter()
+
+        try:
+            # Collect unique app_ids to fetch (avoid duplicate requests)
+            app_id_to_cards: dict[int, list[GameCard]] = {}
+            for card in cards:
+                app_id = card.game.steam_app_id
+                if app_id:
+                    if app_id not in app_id_to_cards:
+                        app_id_to_cards[app_id] = []
+                    app_id_to_cards[app_id].append(card)
+
+            if not app_id_to_cards:
+                return
+
+            # Create fetch tasks for each unique app_id
+            async def fetch_with_id(app_id: int) -> tuple[int, str | None]:
+                """Fetch image and return (app_id, path) tuple."""
+                try:
+                    path = await fetch_and_cache_steam_image(app_id)
+                    return (app_id, path)
+                except Exception as e:
+                    self.logger.debug(f"Failed to fetch image for app {app_id}: {e}")
+                    return (app_id, None)
+
+            # Run all fetches concurrently (asyncio handles I/O parallelism well)
+            app_ids = list(app_id_to_cards.keys())
+            fetch_tasks = [fetch_with_id(app_id) for app_id in app_ids]
+            results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+
+            # Apply fetched images to cards
+            cards_updated = 0
+            for result in results:
+                if isinstance(result, Exception):
+                    continue
+                app_id, path = result
+                if path:
+                    for card in app_id_to_cards.get(app_id, []):
+                        card.image_widget.src = path
+                        card.image_container.content = card.image_widget  # Replace skeleton
+                        card._image_loaded = True
+                        cards_updated += 1
+
+            # Single page.update() for all image updates
+            if cards_updated > 0 and self._page_ref:
+                self._page_ref.update()
+
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            self.logger.debug(f"[PERF] Loaded {cards_updated} uncached images in {elapsed_ms:.1f}ms")
+
+        except Exception as e:
+            self.logger.warning(f"Error loading uncached images: {e}")
 
     async def _on_tab_changed(self, e):
         """Handle tab change - reapply search filter to new tab."""
@@ -739,34 +830,53 @@ class GamesView(ThemeAwareMixin, ft.Column):
         current_launcher = self._get_current_launcher()
 
         # Filter cards by visibility (set on card directly for GridView)
+        # PERF: Track changed cards to minimize update scope
         start_filter = time.perf_counter()
         matching_count = 0
+        changed_cards: list[GameCard] = []
+
         for game_id, card in self.game_cards.items():
             if current_launcher and card.game.launcher != current_launcher:
                 continue
 
             # Check if game name matches query
             matches = query_lower in card.game.name.lower()
+            old_visible = card.visible
 
             # Set visibility on card directly (GridView handles layout)
             card.visible = matches
             if matches:
                 matching_count += 1
+
+            # Track if visibility changed
+            if old_visible != matches:
+                changed_cards.append(card)
+
         filter_ms = (time.perf_counter() - start_filter) * 1000
 
+        # PERF: Only update if something changed
         start_update = time.perf_counter()
-        if self._page_ref:
+        if changed_cards and self._page_ref:
+            # GridView requires full page update for visibility changes
+            # Individual card.update() doesn't work well with virtualization
             self._page_ref.update()
         update_ms = (time.perf_counter() - start_update) * 1000
 
-        # Save to search history after search (if results exist)
-        if matching_count > 0 and len(query) >= 2:
-            await db_manager.add_search_history(query, current_launcher, matching_count)
-            # Refresh history button to show new entry
-            await self._load_search_history()
-
         total_ms = (time.perf_counter() - start_total) * 1000
         perf_logger.debug(f"[PERF] search '{query}': filter={filter_ms:.1f}ms, update={update_ms:.1f}ms, total={total_ms:.1f}ms, matches={matching_count}")
+
+        # Save to search history AFTER logging (non-blocking, fire-and-forget)
+        # This avoids blocking the search response with database I/O
+        if matching_count > 0 and len(query) >= 2:
+            asyncio.create_task(self._save_search_history_background(query, current_launcher, matching_count))
+
+    async def _save_search_history_background(self, query: str, launcher: str | None, count: int):
+        """Save search history in background without blocking UI."""
+        try:
+            await db_manager.add_search_history(query, launcher, count)
+            await self._load_search_history()
+        except Exception as e:
+            self.logger.debug(f"Error saving search history: {e}")
 
     async def _show_all_games(self):
         """Show all games (clear search filter)."""

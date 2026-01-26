@@ -18478,3 +18478,155 @@ RuntimeError: Container(1076) Control must be added to the page first
 2026-01-25 08:14:21,290 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
 2026-01-25 08:14:21,306 - INFO - Fuzzy matching enabled (rapidfuzz 3.12.0+)
 2026-01-25 08:14:21,306 - INFO - GameSearchService initialized (fuzzy=True)
+2026-01-26 00:29:10,037 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 00:29:12,024 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 00:40:47,290 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 00:40:47,615 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 01:07:52,428 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 01:07:53,141 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 01:08:12,153 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 01:08:12,426 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 01:10:09,849 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 01:10:10,132 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 01:10:25,673 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 01:10:25,956 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 01:23:21,457 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 01:23:21,780 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 01:23:39,531 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 01:23:39,853 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 01:27:49,057 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 01:27:49,350 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 01:28:05,897 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 01:28:06,174 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 01:28:35,439 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 01:28:35,720 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 01:28:50,932 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 01:28:51,209 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 05:34:37,053 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 05:34:37,421 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 05:34:53,131 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 05:34:53,401 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 05:43:40,125 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 05:43:40,403 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 05:43:55,529 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 05:43:55,795 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 05:46:09,210 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 05:46:09,488 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 05:46:24,377 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 05:46:24,645 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:16:25,428 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:16:25,445 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:16:25,731 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2026-01-26 06:16:25,744 - INFO - Fuzzy matching enabled (rapidfuzz 3.12.0+)
+2026-01-26 06:16:25,744 - INFO - GameSearchService initialized (fuzzy=True)
+2026-01-26 06:16:32,245 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:16:32,534 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:16:32,543 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2026-01-26 06:16:32,555 - INFO - Fuzzy matching enabled (rapidfuzz 3.12.0+)
+2026-01-26 06:16:32,555 - INFO - GameSearchService initialized (fuzzy=True)
+2026-01-26 06:17:15,202 - INFO - Scanner: Using parallel os.scandir() with GIL enabled (I/O parallelism)
+2026-01-26 06:17:15,214 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:17:15,221 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2026-01-26 06:17:15,235 - INFO - Fuzzy matching enabled (rapidfuzz 3.12.0+)
+2026-01-26 06:17:15,235 - INFO - GameSearchService initialized (fuzzy=True)
+2026-01-26 06:17:15,237 - INFO - Checking dependencies...
+2026-01-26 06:17:15,484 - WARNING - Application requires administrator privileges
+2026-01-26 06:17:15,485 - INFO - Attempting to restart with admin rights...
+2026-01-26 06:17:15,486 - INFO - Re-running script with admin privileges...
+2026-01-26 06:17:16,970 - INFO - Scanner: Using parallel os.scandir() with GIL enabled (I/O parallelism)
+2026-01-26 06:17:16,989 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:17:16,994 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2026-01-26 06:17:17,006 - INFO - Fuzzy matching enabled (rapidfuzz 3.12.0+)
+2026-01-26 06:17:17,006 - INFO - GameSearchService initialized (fuzzy=True)
+2026-01-26 06:17:17,007 - INFO - Checking dependencies...
+2026-01-26 06:17:17,024 - INFO - Admin privileges confirmed
+2026-01-26 06:17:17,024 - INFO - DLL cache will be initialized after UI loads...
+2026-01-26 06:17:17,437 - INFO - DLSS Updater (Flet) starting...
+2026-01-26 06:17:17,438 - INFO - Initializing database...
+2026-01-26 06:17:17,440 - INFO - Database schema created successfully
+2026-01-26 06:17:17,441 - INFO - Database schema initialized successfully
+2026-01-26 06:17:17,441 - INFO - Database initialized successfully
+2026-01-26 06:17:17,443 - INFO - No duplicate games found
+2026-01-26 06:17:17,448 - INFO - No duplicate backups found
+2026-01-26 06:17:17,457 - INFO - Initializing main view...
+2026-01-26 06:17:17,458 - INFO - Loaded cached scan results: 50 games (scanned 22 hours ago)
+2026-01-26 06:17:17,475 - INFO - Main view initialized
+2026-01-26 06:17:17,586 - INFO - UI initialized successfully
+2026-01-26 06:17:17,586 - DEBUG - Registered background task: init_whitelist
+2026-01-26 06:17:17,587 - DEBUG - Registered background task: init_dll_cache
+2026-01-26 06:17:17,587 - DEBUG - Registered background task: update_steam_list
+2026-01-26 06:17:17,662 - INFO - Initializing whitelist...
+2026-01-26 06:17:17,746 - INFO - Steam apps database has 211484 entries (cache age: 6 days)
+2026-01-26 06:17:17,879 - INFO - Initializing DLL cache (async)...
+2026-01-26 06:17:17,879 - INFO - Initializing DLL cache (async)
+2026-01-26 06:17:18,111 - INFO - Whitelist initialized with 34 games
+2026-01-26 06:17:18,434 - INFO - Elevated process started successfully
+2026-01-26 06:17:18,464 - INFO - Comparing versions for sl.dlss_d.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2026-01-26 06:17:18,465 - INFO - sl.dlss_d.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2026-01-26 06:17:18,468 - INFO - Comparing versions for nvngx_dlssg.dll: local=310,5,0,0 (310.5.0) remote=310.5.0.0 (310.5.0)
+2026-01-26 06:17:18,469 - INFO - nvngx_dlssg.dll is up to date (local: 310,5,0,0, remote: 310.5.0.0)
+2026-01-26 06:17:18,470 - INFO - Comparing versions for dstoragecore.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2026-01-26 06:17:18,470 - INFO - dstoragecore.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2026-01-26 06:17:18,470 - INFO - Comparing versions for dstorage.dll: local=1.3.2506.2501 (1.3.2506) remote=1.3.2506.2501 (1.3.2506)
+2026-01-26 06:17:18,470 - INFO - dstorage.dll is up to date (local: 1.3.2506.2501, remote: 1.3.2506.2501)
+2026-01-26 06:17:18,470 - INFO - Comparing versions for sl.directsr.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2026-01-26 06:17:18,470 - INFO - sl.directsr.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2026-01-26 06:17:18,470 - INFO - Comparing versions for nvngx_dlssd.dll: local=310,5,0,0 (310.5.0) remote=310.5.0.0 (310.5.0)
+2026-01-26 06:17:18,471 - INFO - nvngx_dlssd.dll is up to date (local: 310,5,0,0, remote: 310.5.0.0)
+2026-01-26 06:17:18,471 - INFO - Comparing versions for amd_fidelityfx_vk.dll: local=1.0.1.41314 (1.0.1) remote=1.0.1.4314 (1.0.1)
+2026-01-26 06:17:18,471 - INFO - amd_fidelityfx_vk.dll is up to date (local: 1.0.1.41314, remote: 1.0.1.4314)
+2026-01-26 06:17:18,471 - INFO - Comparing versions for nvngx_dlss.dll: local=310,5,0,0 (310.5.0) remote=310.5.0.0 (310.5.0)
+2026-01-26 06:17:18,471 - INFO - nvngx_dlss.dll is up to date (local: 310,5,0,0, remote: 310.5.0.0)
+2026-01-26 06:17:18,471 - INFO - Comparing versions for libxell.dll: local=1.2.1.13 (1.2.1) remote=1.2.1.13 (1.2.1)
+2026-01-26 06:17:18,471 - INFO - libxell.dll is up to date (local: 1.2.1.13, remote: 1.2.1.13)
+2026-01-26 06:17:18,472 - INFO - Comparing versions for amd_fidelityfx_dx12.dll: local=1.0.1.41314 (1.0.1) remote=1.0.2.44888 (1.0.2)
+2026-01-26 06:17:18,472 - INFO - Update available for amd_fidelityfx_dx12.dll: 1.0.1.41314 -> 1.0.2.44888
+2026-01-26 06:17:18,472 - INFO - Comparing versions for sl.dlss.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2026-01-26 06:17:18,472 - INFO - sl.dlss.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2026-01-26 06:17:18,472 - INFO - Comparing versions for libxess_fg.dll: local=1.2.2.118 (1.2.2) remote=1.2.2.118 (1.2.2)
+2026-01-26 06:17:18,472 - INFO - libxess_fg.dll is up to date (local: 1.2.2.118, remote: 1.2.2.118)
+2026-01-26 06:17:18,472 - INFO - Comparing versions for libxess_dx11.dll: local=2.0.2.68 (2.0.2) remote=2.0.2.68 (2.0.2)
+2026-01-26 06:17:18,472 - INFO - libxess_dx11.dll is up to date (local: 2.0.2.68, remote: 2.0.2.68)
+2026-01-26 06:17:18,472 - INFO - Comparing versions for sl.common.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2026-01-26 06:17:18,472 - INFO - sl.common.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2026-01-26 06:17:18,472 - INFO - Comparing versions for sl.dlss_g.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2026-01-26 06:17:18,472 - INFO - sl.dlss_g.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2026-01-26 06:17:18,472 - INFO - Comparing versions for amd_fidelityfx_upscaler_dx12.dll: local=4.0.2.44888 (4.0.2) remote=4.0.2.44888 (4.0.2)
+2026-01-26 06:17:18,473 - INFO - amd_fidelityfx_upscaler_dx12.dll is up to date (local: 4.0.2.44888, remote: 4.0.2.44888)
+2026-01-26 06:17:18,473 - INFO - Comparing versions for libxess.dll: local=2.0.2.68 (2.0.2) remote=2.0.2.68 (2.0.2)
+2026-01-26 06:17:18,473 - INFO - libxess.dll is up to date (local: 2.0.2.68, remote: 2.0.2.68)
+2026-01-26 06:17:18,473 - INFO - Comparing versions for sl.pcl.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2026-01-26 06:17:18,473 - INFO - sl.pcl.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2026-01-26 06:17:18,473 - INFO - Comparing versions for sl.interposer.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2026-01-26 06:17:18,473 - INFO - sl.interposer.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2026-01-26 06:17:18,473 - INFO - Comparing versions for amd_fidelityfx_loader_dx12.dll: local=1.0.2.44888 (1.0.2) remote=1.0.2.44888 (1.0.2)
+2026-01-26 06:17:18,473 - INFO - amd_fidelityfx_loader_dx12.dll is up to date (local: 1.0.2.44888, remote: 1.0.2.44888)
+2026-01-26 06:17:18,474 - INFO - Comparing versions for amd_fidelityfx_framegeneration_dx12.dll: local=3.1.5.44888 (3.1.5) remote=3.1.5.44888 (3.1.5)
+2026-01-26 06:17:18,474 - INFO - amd_fidelityfx_framegeneration_dx12.dll is up to date (local: 3.1.5.44888, remote: 3.1.5.44888)
+2026-01-26 06:17:18,474 - INFO - Comparing versions for sl.reflex.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2026-01-26 06:17:18,474 - INFO - sl.reflex.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2026-01-26 06:17:18,474 - INFO - Comparing versions for sl.nis.dll: local=2,8,0,0 (2.8.0) remote=2.8.0.0 (2.8.0)
+2026-01-26 06:17:18,474 - INFO - sl.nis.dll is up to date (local: 2,8,0,0, remote: 2.8.0.0)
+2026-01-26 06:17:20,877 - INFO - Successfully downloaded amd_fidelityfx_dx12.dll v1.0.2.44888
+2026-01-26 06:17:21,094 - INFO - DLL cache initialized successfully
+2026-01-26 06:17:33,978 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:17:34,255 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:17:49,295 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:17:49,562 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:19:12,675 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:19:12,965 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:19:12,969 - INFO - Steam image cache directory: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\steam_images
+2026-01-26 06:19:12,983 - INFO - Fuzzy matching enabled (rapidfuzz 3.12.0+)
+2026-01-26 06:19:12,983 - INFO - GameSearchService initialized (fuzzy=True)
+2026-01-26 06:20:06,807 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:20:07,082 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:20:23,064 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:20:23,327 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:22:40,414 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:22:40,687 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:22:55,719 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:22:55,984 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:28:47,515 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:28:47,788 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db
+2026-01-26 06:29:02,720 - INFO - Scanner: Using parallel os.scandir() with GIL disabled (true parallelism)
+2026-01-26 06:29:02,986 - INFO - Database path: C:\Users\deckl\AppData\Local\Recol\DLSS-Updater\games.db

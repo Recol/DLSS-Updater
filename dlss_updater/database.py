@@ -992,6 +992,225 @@ class DatabaseManager:
             conn.rollback()
             return 0
 
+    # ===== High-Performance Batch Operations for UI Loading =====
+    # These sync methods are designed for use with ThreadPoolExecutor
+    # to achieve true parallelism (not just asyncio.to_thread serialization)
+
+    def batch_get_dlls_for_games_sync(self, game_ids: list[int]) -> dict[int, list[GameDLL]]:
+        """
+        Get DLLs for multiple games in a single query - O(1) vs O(n).
+
+        SYNC method designed for ThreadPoolExecutor parallelism.
+        Uses thread-local connection for connection reuse.
+
+        Args:
+            game_ids: List of game IDs to fetch DLLs for
+
+        Returns:
+            Dict mapping game_id to list of GameDLL objects
+        """
+        if not game_ids:
+            return {}
+
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            placeholders = ','.join('?' * len(game_ids))
+            cursor.execute(f"""
+                SELECT id, game_id, dll_type, dll_filename, dll_path, current_version, detected_at
+                FROM game_dlls
+                WHERE game_id IN ({placeholders})
+                ORDER BY game_id, dll_type
+            """, game_ids)
+
+            # Group results by game_id
+            result: dict[int, list[GameDLL]] = {gid: [] for gid in game_ids}
+            for row in cursor:
+                dll = GameDLL(
+                    id=row[0],
+                    game_id=row[1],
+                    dll_type=row[2],
+                    dll_filename=row[3],
+                    dll_path=row[4],
+                    current_version=row[5],
+                    detected_at=datetime.fromisoformat(row[6])
+                )
+                result[dll.game_id].append(dll)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error batch getting DLLs for games: {e}", exc_info=True)
+            return {gid: [] for gid in game_ids}
+
+    def batch_get_backups_grouped_sync(self, game_ids: list[int]) -> dict[int, dict[str, list[DLLBackup]]]:
+        """
+        Get backups grouped by DLL type for multiple games in a single query.
+
+        SYNC method designed for ThreadPoolExecutor parallelism.
+        Uses thread-local connection for connection reuse.
+
+        Args:
+            game_ids: List of game IDs to fetch backups for
+
+        Returns:
+            Dict mapping game_id to dict of dll_type -> list of DLLBackup
+        """
+        if not game_ids:
+            return {}
+
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            placeholders = ','.join('?' * len(game_ids))
+            cursor.execute(f"""
+                SELECT
+                    gd.game_id,
+                    b.id, b.game_dll_id, g.name, gd.dll_filename,
+                    b.backup_path, b.original_version, b.backup_created_at,
+                    b.backup_size, b.is_active, gd.dll_type
+                FROM dll_backups b
+                INNER JOIN game_dlls gd ON b.game_dll_id = gd.id
+                INNER JOIN games g ON gd.game_id = g.id
+                WHERE gd.game_id IN ({placeholders}) AND b.is_active = 1
+                ORDER BY gd.game_id, gd.dll_type, b.backup_created_at DESC
+            """, game_ids)
+
+            # Group results by game_id -> dll_type
+            result: dict[int, dict[str, list[DLLBackup]]] = {gid: {} for gid in game_ids}
+            for row in cursor:
+                game_id = row[0]
+                dll_type = row[10]
+                backup = DLLBackup(
+                    id=row[1],
+                    game_dll_id=row[2],
+                    game_name=row[3],
+                    dll_filename=row[4],
+                    backup_path=row[5],
+                    original_version=row[6],
+                    backup_created_at=datetime.fromisoformat(row[7]),
+                    backup_size=row[8],
+                    is_active=bool(row[9])
+                )
+
+                if dll_type not in result[game_id]:
+                    result[game_id][dll_type] = []
+                result[game_id][dll_type].append(backup)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error batch getting backups for games: {e}", exc_info=True)
+            return {gid: {} for gid in game_ids}
+
+    def get_games_with_backups_sync(self) -> list[GameWithBackupCount]:
+        """
+        Get all games that have active backups with their backup counts.
+
+        SYNC method designed for ThreadPoolExecutor parallelism.
+
+        Returns:
+            List of GameWithBackupCount objects, ordered by game name
+        """
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT
+                    g.id,
+                    g.name,
+                    g.launcher,
+                    COUNT(b.id) as backup_count
+                FROM games g
+                INNER JOIN game_dlls gd ON g.id = gd.game_id
+                INNER JOIN dll_backups b ON gd.id = b.game_dll_id
+                WHERE b.is_active = 1
+                GROUP BY g.id, g.name, g.launcher
+                HAVING backup_count > 0
+                ORDER BY g.name
+            """)
+
+            games = []
+            for row in cursor:
+                games.append(GameWithBackupCount(
+                    game_id=row[0],
+                    game_name=row[1],
+                    launcher=row[2],
+                    backup_count=row[3]
+                ))
+
+            return games
+
+        except Exception as e:
+            logger.error(f"Error getting games with backups (sync): {e}", exc_info=True)
+            return []
+
+    def get_all_backups_filtered_sync(self, game_id: int | None = None) -> list[GameDLLBackup]:
+        """
+        Get all active backups, optionally filtered by game.
+
+        SYNC method designed for ThreadPoolExecutor parallelism.
+
+        Args:
+            game_id: Optional game ID to filter by. If None, returns all backups.
+
+        Returns:
+            List of GameDLLBackup objects, ordered by creation date (newest first)
+        """
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            if game_id is not None:
+                cursor.execute("""
+                    SELECT b.id, b.game_dll_id, gd.game_id, g.name,
+                           gd.dll_type, gd.dll_filename, b.backup_path,
+                           b.original_version, b.backup_created_at,
+                           b.backup_size, b.is_active
+                    FROM dll_backups b
+                    INNER JOIN game_dlls gd ON b.game_dll_id = gd.id
+                    INNER JOIN games g ON gd.game_id = g.id
+                    WHERE b.is_active = 1 AND gd.game_id = ?
+                    ORDER BY b.backup_created_at DESC
+                """, (game_id,))
+            else:
+                cursor.execute("""
+                    SELECT b.id, b.game_dll_id, gd.game_id, g.name,
+                           gd.dll_type, gd.dll_filename, b.backup_path,
+                           b.original_version, b.backup_created_at,
+                           b.backup_size, b.is_active
+                    FROM dll_backups b
+                    INNER JOIN game_dlls gd ON b.game_dll_id = gd.id
+                    INNER JOIN games g ON gd.game_id = g.id
+                    WHERE b.is_active = 1
+                    ORDER BY b.backup_created_at DESC
+                """)
+
+            backups = []
+            for row in cursor:
+                backups.append(GameDLLBackup(
+                    id=row[0],
+                    game_dll_id=row[1],
+                    game_id=row[2],
+                    game_name=row[3],
+                    dll_type=row[4],
+                    dll_filename=row[5],
+                    backup_path=row[6],
+                    original_version=row[7],
+                    backup_created_at=datetime.fromisoformat(row[8]),
+                    backup_size=row[9],
+                    is_active=bool(row[10])
+                ))
+
+            return backups
+
+        except Exception as e:
+            logger.error(f"Error getting filtered backups (sync): {e}", exc_info=True)
+            return []
+
     # ===== Backup Operations =====
 
     async def insert_backup(self, backup_data: dict[str, Any]) -> int | None:

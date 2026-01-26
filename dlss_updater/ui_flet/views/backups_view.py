@@ -21,6 +21,7 @@ from dlss_updater.backup_manager import restore_dll_from_backup, delete_backup
 from dlss_updater.ui_flet.components.backup_card import BackupCard
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask
 from dlss_updater.task_registry import register_task
 
 # Number of cards to create in first batch (shown immediately)
@@ -329,14 +330,22 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
             self.logger.info("Loading backups from database...")
 
-            # PERFORMANCE: Run both database queries in parallel
+            # PERFORMANCE: Run both database queries in parallel using ThreadPoolExecutor
+            # HyperParallelLoader uses true parallelism (not asyncio.to_thread serialization)
             start_db = time.perf_counter()
-            games_task = asyncio.create_task(db_manager.get_games_with_backups())
-            backups_task = asyncio.create_task(db_manager.get_all_backups_filtered(self.selected_game_id))
-            self.games_with_backups, self.backups = await asyncio.gather(games_task, backups_task)
+            loader = HyperParallelLoader()
+            game_id = self.selected_game_id  # Capture for lambda
+
+            results = loader.load_all([
+                LoadTask("games", lambda: db_manager.get_games_with_backups_sync()),
+                LoadTask("backups", lambda gid=game_id: db_manager.get_all_backups_filtered_sync(gid)),
+            ])
+
+            self.games_with_backups = results.get("games", [])
+            self.backups = results.get("backups", [])
             self._update_game_filter_options()
             db_ms = (time.perf_counter() - start_db) * 1000
-            self.logger.debug(f"[PERF] Database queries (parallel): {db_ms:.1f}ms")
+            self.logger.debug(f"[PERF] Database queries (hyper-parallel): {db_ms:.1f}ms")
 
             if not self.backups:
                 self.logger.info("No backups found")

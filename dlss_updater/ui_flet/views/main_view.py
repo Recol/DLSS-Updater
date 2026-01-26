@@ -611,18 +611,26 @@ class MainView(ft.Column):
         return self.app_bar_container
 
     async def _toggle_theme_from_menu(self, e):
-        """Handle theme toggle from menu with cascade animation"""
+        """Handle theme toggle from menu with cascade animation
+
+        PERFORMANCE: Batches all theme-related UI updates into a single page.update() call.
+        Individual update methods no longer call page.update() to avoid 3x serialization.
+        """
         # Use async toggle for cascade animations to registered components
         await self.theme_manager.toggle_theme_async()
 
-        # Rebuild popup menus with updated colors
+        # Rebuild popup menus with updated colors (no page.update inside)
         await self._rebuild_popup_menus()
 
-        # Update tab bar colors for new theme
+        # Update tab bar colors for new theme (no page.update inside)
         await self._update_tab_colors_for_theme()
 
-        # Update launchers view colors for new theme
+        # Update launchers view colors for new theme (no page.update inside)
         await self._update_launchers_view_for_theme()
+
+        # SINGLE batched page.update() for all theme changes
+        if self._page_ref:
+            self._page_ref.update()
 
         self.logger.info(f"Theme toggled to {'Dark' if self.theme_manager.is_dark else 'Light'} Mode")
 
@@ -657,7 +665,7 @@ class MainView(ft.Column):
                 btn.content.controls[0].color = MD3Colors.get_on_surface_variant(is_dark)
                 btn.content.controls[1].color = MD3Colors.get_on_surface_variant(is_dark)
 
-        self._page_ref.update()
+        # NOTE: No page.update() here - batched in _toggle_theme_from_menu()
 
     async def _rebuild_popup_menus(self):
         """Rebuild popup menus with updated colors after theme change"""
@@ -686,7 +694,7 @@ class MainView(ft.Column):
                 top_bar.controls[2] = self.preferences_menu.button
                 top_bar.controls[3] = self.application_menu.button
 
-        self._page_ref.update()
+        # NOTE: No page.update() here - batched in _toggle_theme_from_menu()
 
     async def _update_launchers_view_for_theme(self):
         """Update launchers view colors after theme change"""
@@ -709,8 +717,7 @@ class MainView(ft.Column):
         if hasattr(self, 'last_scan_info_text') and self.last_scan_info_text:
             self.last_scan_info_text.color = MD3Colors.get_on_surface_variant(is_dark)
 
-        if self._page_ref:
-            self._page_ref.update()
+        # NOTE: No page.update() here - batched in _toggle_theme_from_menu()
 
     def _create_discord_banner(self) -> ft.Banner:
         """Create the Discord invite banner using ft.Banner widget."""
@@ -943,24 +950,30 @@ class MainView(ft.Column):
             register_task(asyncio.create_task(self._cleanup_games_view()), "cleanup_games_view")
 
         # 5. Load data - NON-BLOCKING for instant tab switching
-        # Show loading indicator BEFORE starting background task so user sees feedback
-        # All tasks registered for proper shutdown handling
+        # PERFORMANCE: Only register background tasks when views aren't loaded
+        # Already-loaded views don't need background tasks (fast tab switching)
         from dlss_updater.task_registry import register_task
         needs_loading_update = False
+
         if index == 1:
             if not self.games_view._games_loaded:
+                # Not loaded yet - show loading indicator and start background load
                 self.games_view.loading_indicator.visible = True
                 self.games_view.empty_state.visible = False
                 self.games_view.tabs_container.visible = False
                 needs_loading_update = True
-            register_task(asyncio.create_task(self._load_games_background()), "load_games_background")
+                register_task(asyncio.create_task(self._load_games_background()), "load_games_background")
+            # If already loaded, no task needed (view is cached)
+
         elif index == 2:
             if not self.backups_view._backups_loaded:
+                # Not loaded yet - show loading indicator and start background load
                 self.backups_view.loading_indicator.visible = True
                 self.backups_view.empty_state.visible = False
                 self.backups_view.backups_grid_container.visible = False
                 needs_loading_update = True
-            register_task(asyncio.create_task(self._load_backups_background()), "load_backups_background")
+                register_task(asyncio.create_task(self._load_backups_background()), "load_backups_background")
+            # If already loaded, no task needed (view is cached)
 
         # Update UI to show loading indicator if needed
         if needs_loading_update:
