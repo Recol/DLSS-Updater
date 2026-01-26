@@ -223,7 +223,7 @@ If you prefer to build the application yourself, follow these steps:
     ```
 
 ## Easy Anti Cheat
-- The tool will not globally block games as some games do allow for this, with that being said i will whitelist games as they appear if they do not function for this.
+- The tool will not globally block games as some games do allow for this, with that being said i will blacklist games as they appear if they do not function for this.
 
 ## Future Features
 
