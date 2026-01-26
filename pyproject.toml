@@ -27,7 +27,6 @@ dependencies = [
     "psutil>=7.2.0",
     "packaging",
     "appdirs",
-    # Note: darkdetect removed - blocking calls caused GUI freezes on Linux/Wayland
     "rapidfuzz>=3.14.3",  # Fast fuzzy string matching for game search
     "flet==0.80.4; platform_system == 'Windows'",  # Core framework for Windows
     "flet-desktop==0.80.4; platform_system == 'Windows'",  # Desktop runtime for Windows
@@ -35,7 +34,6 @@ dependencies = [
     "flet-desktop-light==0.80.4; platform_system == 'Linux'",  # Lightweight desktop runtime (no libmpv/media dependencies)
     "msgspec>=0.20.0",
     "aiohttp",
-    "nvidia-ml-py>=12.560.30",  # NVIDIA GPU detection for DLSS preset recommendations
     "requests",  # Fallback for DLL downloads when aiohttp fails
     "pyinstaller",
     "aiosqlite>=0.22.0",

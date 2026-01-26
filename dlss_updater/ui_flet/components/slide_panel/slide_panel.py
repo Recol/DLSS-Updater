@@ -367,7 +367,9 @@ class SlidePanel(ThemeAwareMixin):
                     self.logger.warning(f"Content on_open error: {e}")
 
             # Start content initialization without waiting
-            asyncio.create_task(initialize_content())
+            # Register for proper shutdown cancellation
+            from dlss_updater.task_registry import register_task
+            register_task(asyncio.create_task(initialize_content()), "panel_content_init")
 
             # Wait for animation to complete
             await asyncio.sleep(self.OPEN_DURATION / 1000)

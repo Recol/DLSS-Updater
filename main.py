@@ -236,10 +236,35 @@ async def main(page: ft.Page):
     page.update()
 
     # Register shutdown handler for graceful cleanup
-    async def on_window_close(e):
-        await main_view.shutdown()
+    # IMPORTANT: Use prevent_close + on_event + destroy pattern for proper process termination
+    # page.on_close alone does NOT terminate the Flet/Flutter subprocess, leaving the app running
+    # See: https://flet.dev/docs/controls/page/#app-exit-confirmation
+    _shutdown_in_progress = False
 
-    page.on_close = on_window_close
+    async def handle_window_event(e: ft.WindowEvent):
+        """Handle window events, particularly close requests."""
+        nonlocal _shutdown_in_progress
+        if e.type == ft.WindowEventType.CLOSE:
+            if _shutdown_in_progress:
+                return  # Already shutting down, avoid double-shutdown
+            _shutdown_in_progress = True
+
+            try:
+                # Run cleanup first
+                await main_view.shutdown()
+            except Exception as ex:
+                logger.error(f"Shutdown error: {ex}")
+            finally:
+                # CRITICAL: Destroy window to terminate the Flet/Flutter process
+                try:
+                    await page.window.destroy()
+                except Exception:
+                    # Force exit if destroy fails
+                    import os
+                    os._exit(0)
+
+    page.window.prevent_close = True
+    page.window.on_event = handle_window_event
 
     # Debounced resize handler for high-DPI display optimization
     # Prevents excessive layout recalculations during rapid window resizing
@@ -263,8 +288,11 @@ async def main(page: ft.Page):
         # Cancel any pending resize update
         if _resize_task and not _resize_task.done():
             _resize_task.cancel()
-        # Schedule new debounced update
-        _resize_task = asyncio.create_task(_debounced_resize_update())
+        # Schedule new debounced update - register for proper shutdown
+        _resize_task = register_task(
+            asyncio.create_task(_debounced_resize_update()),
+            "resize_debounce"
+        )
 
     page.on_resized = on_page_resized
 

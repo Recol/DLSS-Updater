@@ -56,6 +56,34 @@ def setup_logger(log_file_name="dlss_updater.log"):
     return logger
 
 
+def shutdown_logging():
+    """
+    Properly shutdown the logging system to release file handles.
+
+    Must be called during application shutdown to ensure:
+    - All log messages are flushed
+    - File handles are closed
+    - Clean process termination
+
+    Should be called LAST in the shutdown sequence (after all other cleanup
+    that might log messages).
+    """
+    logger = logging.getLogger("DLSSUpdater")
+
+    # Remove and close all handlers
+    handlers = logger.handlers[:]
+    for handler in handlers:
+        try:
+            handler.flush()
+            handler.close()
+            logger.removeHandler(handler)
+        except Exception:
+            pass  # Best effort cleanup
+
+    # Final logging shutdown (flushes all handlers across all loggers)
+    logging.shutdown()
+
+
 # Usage example
 if __name__ == "__main__":
     logger = setup_logger()

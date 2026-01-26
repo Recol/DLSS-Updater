@@ -45,6 +45,27 @@ def _get_version_executor():
     return _version_executor
 
 
+def shutdown_version_executor():
+    """
+    Shutdown the shared version extraction thread pool executor.
+
+    Must be called during application shutdown to ensure clean process exit.
+    Without this, the ThreadPoolExecutor threads keep the process alive.
+    """
+    global _version_executor
+    with _version_executor_lock:
+        if _version_executor is not None:
+            try:
+                # wait=True ensures pending tasks complete
+                # cancel_futures=True cancels pending tasks (Python 3.9+)
+                _version_executor.shutdown(wait=True, cancel_futures=True)
+                logger.debug("Version executor shutdown complete")
+            except Exception as e:
+                logger.warning(f"Error shutting down version executor: {e}")
+            finally:
+                _version_executor = None
+
+
 def get_dll_versions_parallel(dll_path1, dll_path2):
     """
     Extract versions from two DLLs in parallel.

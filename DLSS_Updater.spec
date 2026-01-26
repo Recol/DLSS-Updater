@@ -1,25 +1,55 @@
 # -*- mode: python ; coding: utf-8 -*-
+# PyInstaller spec file for Windows builds
 
+import os
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+
+block_cipher = None
+
+# Collect all dlss_updater submodules and data
+dlss_updater_imports = collect_submodules('dlss_updater')
+dlss_updater_datas = collect_data_files('dlss_updater')
+
+# Collect Flet framework data files (includes flet.exe runtime)
+flet_datas = collect_data_files('flet')
+flet_desktop_datas = collect_data_files('flet_desktop')
 
 a = Analysis(
     ['main.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=[],
-    datas=[('dlss_updater', 'dlss_updater'), ('release_notes.txt', '.'), ('dlss_updater/icons', 'icons')],
-    hiddenimports=['pefile', 'psutil', 'aiohttp', 'aiosqlite', 'aiofiles', 'uvloop', 'msgspec', 'pynvml'],
+    datas=[
+        ('dlss_updater', 'dlss_updater'),
+        ('release_notes.txt', '.'),
+        ('dlss_updater/icons', 'icons'),
+    ] + flet_datas + flet_desktop_datas + dlss_updater_datas,
+    hiddenimports=[
+        # Only truly dynamic imports that PyInstaller can't detect:
+        'winloop',           # Conditionally imported in main.py with try/except
+        'importlib.metadata',  # Imported inside function in utils.py
+        'flet_desktop',      # Internal runtime used by flet (never directly imported)
+    ] + dlss_updater_imports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        # Linux-only modules to exclude on Windows
+        'uvloop',
+    ],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
     noarchive=False,
     optimize=2,
 )
-pyz = PYZ(a.pure)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
+    a.zipfiles,
     a.datas,
     [],
     name='DLSS_Updater',

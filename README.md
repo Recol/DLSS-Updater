@@ -185,8 +185,7 @@ If you prefer to build the application yourself, follow these steps:
 3. **Build the Executable:**
 
     ```sh
-    uv run pyinstaller DLSS_Updater.spec, or use the flatpak build file:
-    ./build_flatpak.sh
+    uv run pyinstaller DLSS_Updater.spec
     ```
 
 4. **Run the Built Executable:**
@@ -213,7 +212,8 @@ If you prefer to build the application yourself, follow these steps:
 3. **Build the Executable:**
 
     ```sh
-    uv run pyinstaller DLSS_Updater_Linux.spec
+    uv run pyinstaller DLSS_Updater_Linux.spec, or use the flatpak build file:
+    ./build_flatpak.sh
     ```
 
 4. **Run the Built Executable:**

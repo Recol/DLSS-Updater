@@ -532,6 +532,40 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
         if not self.expanded:
             self.toggle_panel()
 
+    def cleanup(self):
+        """
+        Cleanup logger panel resources during shutdown.
+
+        Removes the Flet handler from the logger to:
+        - Prevent dangling references to destroyed page/session
+        - Allow proper garbage collection
+        - Ensure clean process termination
+
+        Must be called during application shutdown.
+        """
+        try:
+            if hasattr(self, 'flet_handler') and self.flet_handler:
+                # Flush any pending log entries
+                with self.flet_handler._batch_lock:
+                    self.flet_handler._pending_entries.clear()
+
+                # Remove handler from logger
+                self.logger.removeHandler(self.flet_handler)
+
+                # Close the handler
+                self.flet_handler.close()
+
+                # Clear references
+                self.flet_handler = None
+        except Exception:
+            pass  # Best effort cleanup
+
+        # Unregister from theme system
+        try:
+            self._unregister_theme_aware()
+        except Exception:
+            pass
+
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """Return themed property mappings for the logger panel"""
         return {

@@ -23,18 +23,10 @@ a = Analysis(
         ('dlss_updater/icons/*.png', 'icons/'),
     ] + flet_datas + flet_desktop_datas,
     hiddenimports=[
-        'pefile',  # Still needed for DLL version parsing
-        'psutil',
-        'importlib.metadata',
-        'packaging',
-        'concurrent.futures',
-        'flet',
-        'flet_desktop',
-        'msgspec',
-        'aiohttp',
-        'aiosqlite',
-        'aiofiles',
-        'uvloop',  # Linux event loop (optional but included)
+        # Only truly dynamic imports that PyInstaller can't detect:
+        'uvloop',            # Conditionally imported in main.py with try/except
+        'importlib.metadata',  # Imported inside function in utils.py
+        'flet_desktop',      # Internal runtime used by flet (never directly imported)
     ] + dlss_updater_imports,
     hookspath=[],
     hooksconfig={},

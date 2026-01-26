@@ -938,10 +938,14 @@ class MainView(ft.Column):
         # 4. Resource cleanup in background (non-blocking)
         if previous_index == 1 and index != 1:
             # Don't await - let it run in background
-            asyncio.create_task(self._cleanup_games_view())
+            # Register with task registry for proper shutdown cancellation
+            from dlss_updater.task_registry import register_task
+            register_task(asyncio.create_task(self._cleanup_games_view()), "cleanup_games_view")
 
         # 5. Load data - NON-BLOCKING for instant tab switching
         # Show loading indicator BEFORE starting background task so user sees feedback
+        # All tasks registered for proper shutdown handling
+        from dlss_updater.task_registry import register_task
         needs_loading_update = False
         if index == 1:
             if not self.games_view._games_loaded:
@@ -949,14 +953,14 @@ class MainView(ft.Column):
                 self.games_view.empty_state.visible = False
                 self.games_view.tabs_container.visible = False
                 needs_loading_update = True
-            asyncio.create_task(self._load_games_background())
+            register_task(asyncio.create_task(self._load_games_background()), "load_games_background")
         elif index == 2:
             if not self.backups_view._backups_loaded:
                 self.backups_view.loading_indicator.visible = True
                 self.backups_view.empty_state.visible = False
                 self.backups_view.backups_grid_container.visible = False
                 needs_loading_update = True
-            asyncio.create_task(self._load_backups_background())
+            register_task(asyncio.create_task(self._load_backups_background()), "load_backups_background")
 
         # Update UI to show loading indicator if needed
         if needs_loading_update:
@@ -1659,14 +1663,38 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error closing database: {e}")
 
+                # 7. Shutdown thread pool executors (prevents orphaned threads)
+                try:
+                    from dlss_updater.updater import shutdown_version_executor
+                    import asyncio
+                    await asyncio.to_thread(shutdown_version_executor)
+                    self.logger.info("Thread pool executors shutdown")
+                except Exception as e:
+                    self.logger.warning(f"Error shutting down executors: {e}")
+
+                # 8. Cleanup logger panel handler (remove Flet handler reference)
+                try:
+                    if hasattr(self, 'logger_panel') and self.logger_panel:
+                        self.logger_panel.cleanup()
+                        self.logger.info("Logger panel handler cleaned up")
+                except Exception as e:
+                    self.logger.warning(f"Error cleaning up logger panel: {e}")
+
             self.logger.info("Application shutdown complete")
 
+            # 9. Shutdown logging LAST (after all logging is done)
+            try:
+                from dlss_updater.logger import shutdown_logging
+                shutdown_logging()
+            except Exception:
+                pass  # Can't log errors after logging shutdown
+
         except asyncio.TimeoutError:
-            self.logger.error(f"Shutdown timed out after {SHUTDOWN_TIMEOUT}s - forcing exit")
-            sys.exit(0)
+            self.logger.error(f"Shutdown timed out after {SHUTDOWN_TIMEOUT}s")
+            # Don't call sys.exit - let main.py's window.destroy() handle termination
         except Exception as e:
-            self.logger.error(f"Shutdown error: {e} - forcing exit")
-            sys.exit(0)
+            self.logger.error(f"Shutdown error: {e}")
+            # Don't call sys.exit - let main.py's window.destroy() handle termination
 
     def get_dll_cache_snackbar(self) -> DLLCacheProgressSnackbar:
         """Get the DLL cache progress snackbar for external use"""
