@@ -80,8 +80,9 @@ class Concurrency:
 
     # ThreadPoolExecutor limits (OS has limits on actual threads)
     # These are for actual OS threads, not async tasks
-    THREADPOOL_CPU: int = max(8, int(CPU_THREADS * 0.9))
-    THREADPOOL_IO: int = min(256, CPU_THREADS * 8)  # Cap at 256 real threads
+    # Keep modest to limit memory usage (~1MB stack per thread on Windows)
+    THREADPOOL_CPU: int = max(8, min(32, int(CPU_THREADS * 0.9)))  # Cap at 32 for CPU work
+    THREADPOOL_IO: int = min(32, CPU_THREADS * 2)  # Cap at 32 for I/O (was 128, too much memory)
 
     @classmethod
     def log_config(cls):

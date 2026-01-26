@@ -170,11 +170,14 @@ class BackupCard(ThemeAwareMixin, ft.Card):
             width=95,  # Match metadata row width
             no_wrap=True,
         )
+        # PERF: tooltip on Text directly instead of Container wrapper (-1 control)
         self._path_value = ft.Text(
             self._truncate_path(full_path),
             size=11,  # Match metadata row size
             color=MD3Colors.get_text_primary(is_dark),
             no_wrap=True,
+            tooltip=full_path,
+            expand=True,
         )
         self._copy_btn = ft.IconButton(
             icon=ft.Icons.CONTENT_COPY,
@@ -188,11 +191,7 @@ class BackupCard(ThemeAwareMixin, ft.Card):
         return ft.Row(
             controls=[
                 self._path_label,
-                ft.Container(
-                    content=self._path_value,
-                    tooltip=full_path,
-                    expand=True,
-                ),
+                self._path_value,
                 self._copy_btn,
             ],
             spacing=8,

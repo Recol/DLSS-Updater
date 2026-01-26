@@ -336,26 +336,21 @@ class MainView(ft.Column):
 
         # Create action buttons container with themed surface style
         # Store reference for theme updates
+        # PERF: Removed wrapper Container + spacer Container (-2 controls)
         self.launchers_action_buttons = ft.Container(
             content=ft.Column(
                 controls=[
-                    # Last scan info
-                    ft.Container(
-                        content=self.last_scan_info_text,
-                        alignment=ft.Alignment.CENTER,
-                        padding=ft.padding.only(bottom=12),
-                    ),
-                    # Buttons row
+                    # Last scan info - centered via Column alignment
+                    self.last_scan_info_text,
+                    # Buttons row - spacing via Row property
                     ft.Row(
-                        controls=[
-                            scan_button,
-                            ft.Container(width=16),  # Spacer
-                            update_button,
-                        ],
+                        controls=[scan_button, update_button],
                         alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=16,
                     ),
                 ],
-                spacing=0,
+                spacing=12,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.padding.all(16),
             bgcolor=MD3Colors.get_background(is_dark),
@@ -599,12 +594,10 @@ class MainView(ft.Column):
 
         # Return app bar with dark surface style (full width, no border)
         # Store reference for theme updates
+        # PERF: Merged double Container into single (-1 control)
         self.app_bar_container = ft.Container(
-            content=ft.Container(
-                content=top_bar,
-                padding=ft.padding.symmetric(horizontal=16),
-            ),
-            padding=ft.padding.symmetric(vertical=16, horizontal=0),
+            content=top_bar,
+            padding=ft.padding.symmetric(vertical=16, horizontal=16),
             bgcolor=MD3Colors.get_background(is_dark),
             shadow=Shadows.LEVEL_2,
         )
@@ -919,6 +912,7 @@ class MainView(ft.Column):
         1. Switch visuals + content visibility immediately (no delay)
         2. Data loading happens in background (non-blocking for cached views)
         3. Single batched page.update() call
+        4. Progressive animation on tab switch for visual feedback
         """
         if index == self.current_view_index:
             return
@@ -955,7 +949,21 @@ class MainView(ft.Column):
         from dlss_updater.task_registry import register_task
         needs_loading_update = False
 
-        if index == 1:
+        if index == 0:
+            # Launchers tab - animate cards on switch
+            launcher_cards = list(self.launcher_cards.values())
+            if launcher_cards:
+                # Reset opacity to 0 for animation
+                for card in launcher_cards:
+                    card.opacity = 0
+                self._page_ref.update()
+                # Trigger staggered fade-in animation
+                register_task(
+                    asyncio.create_task(self._animate_launcher_cards_in(launcher_cards)),
+                    "animate_launchers_tab_switch"
+                )
+
+        elif index == 1:
             if not self.games_view._games_loaded:
                 # Not loaded yet - show loading indicator and start background load
                 self.games_view.loading_indicator.visible = True
@@ -980,6 +988,22 @@ class MainView(ft.Column):
             self._page_ref.update()
 
         self.last_view_index = index
+
+    async def _animate_launcher_cards_in(self, cards: list):
+        """Animate launcher cards fade-in with staggered effect.
+
+        Args:
+            cards: List of LauncherCard instances to animate
+        """
+        await asyncio.sleep(0.02)  # Minimal initial delay
+        batch_size = 4  # Animate 4 cards at a time for snappy feel
+        for batch_start in range(0, len(cards), batch_size):
+            batch_end = min(batch_start + batch_size, len(cards))
+            for card in cards[batch_start:batch_end]:
+                card.opacity = 1
+            if self._page_ref:
+                self._page_ref.update()
+            await asyncio.sleep(0.025)  # 25ms between batches
 
     async def _load_games_background(self):
         """Load games in background - non-blocking for tab switch."""

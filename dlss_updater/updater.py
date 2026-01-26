@@ -165,9 +165,13 @@ def get_dll_version(dll_path):
                 return _dll_version_cache[cache_key]
 
         # Not in cache, parse the DLL (outside lock to avoid blocking)
-        with open(dll_path, "rb") as file:
-            # Use fast_load to skip unnecessary PE parsing
-            pe = pefile.PE(data=file.read(), fast_load=True)
+        # CRITICAL: Use file path instead of data= to avoid loading entire DLL into memory
+        # pefile uses memory mapping when given a path, which is much more efficient
+        pe = None
+        try:
+            # Pass file path directly - pefile will use mmap internally
+            # This avoids loading 20-50MB per DLL into Python's heap
+            pe = pefile.PE(dll_path, fast_load=True)
 
             # Only parse the resource directory (where version info lives)
             pe.parse_data_directories(
@@ -197,6 +201,11 @@ def get_dll_version(dll_path):
                         del _dll_version_cache[key]
 
             return version_str
+
+        finally:
+            # CRITICAL: Close PE object to release mmap and file handle
+            if pe is not None:
+                pe.close()
 
     except Exception as e:
         logger.error(f"Error reading version from {dll_path}: {e}")

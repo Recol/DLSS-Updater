@@ -83,6 +83,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             collapsed_icon_color=MD3Colors.PRIMARY,
             tile_padding=ft.padding.symmetric(horizontal=16, vertical=8),
             controls_padding=ft.padding.only(left=56, right=16, bottom=12, top=4),
+            animate_opacity=ft.Animation(80, ft.AnimationCurve.EASE_OUT),
         )
 
         # Apply custom styling for custom launchers

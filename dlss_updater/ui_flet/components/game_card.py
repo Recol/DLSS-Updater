@@ -731,6 +731,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             path_tooltip = "Installations:\n" + "\n".join(f"• {p}" for p in self.all_paths)
 
         # Store reference for theming
+        # PERF: tooltip on Text directly instead of Container wrapper (-1 control)
         self.path_text = ft.Text(
             path_text,
             size=10,
@@ -739,6 +740,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
             italic=True,
             overflow=ft.TextOverflow.ELLIPSIS,
             max_lines=1,
+            tooltip=path_tooltip,
+            expand=True,
         )
         self.copy_path_button = ft.IconButton(
             icon=ft.Icons.CONTENT_COPY,
@@ -752,12 +755,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
         return ft.Row(
             controls=[
-                ft.Container(
-                    content=self.path_text,
-                    tooltip=path_tooltip,
-                    expand=True,
-                    clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                ),
+                self.path_text,
                 self.copy_path_button,
             ],
             spacing=4,

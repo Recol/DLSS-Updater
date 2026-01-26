@@ -364,13 +364,26 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # PERFORMANCE: Skip full reload if already loaded (fast tab switching)
         # Only rebuild on explicit refresh (force=True) or first load
         if self._games_loaded and not force:
-            self.logger.debug("Games already loaded - skipping redundant reload")
-            # Just ensure the view is visible
+            self.logger.debug("Games already loaded - animating cards on tab switch")
+            # Ensure the view is visible
             self.tabs_container.visible = True
             self.empty_state.visible = False
             self.loading_indicator.visible = False
-            if self._page_ref:
-                self._page_ref.update()
+
+            # Animate cards progressively on tab switch for better UX
+            visible_cards = list(self.game_cards.values())[:GAMES_INITIAL_BATCH_SIZE]
+            if visible_cards:
+                # Reset opacity for animation
+                for card in visible_cards:
+                    card.opacity = 0
+                if self._page_ref:
+                    self._page_ref.update()
+                # Trigger staggered fade-in
+                anim_task = asyncio.create_task(self._animate_cards_in(visible_cards))
+                register_task(anim_task, "animate_cards_tab_switch")
+            else:
+                if self._page_ref:
+                    self._page_ref.update()
             return
 
         self.is_loading = True
@@ -502,8 +515,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         data_ms = (time.perf_counter() - start_data) * 1000
         self.logger.debug(f"[PERF] Batch data loading ({len(all_game_ids)} games): {data_ms:.1f}ms")
 
-        # ========== PHASE 3: Create cards by launcher (main thread) ==========
-        # Flet controls MUST be created on main thread
+        # ========== PHASE 3: Group games by launcher ==========
         start_cards = time.perf_counter()
 
         # Group merged games by launcher for tab creation
@@ -542,8 +554,13 @@ class GamesView(ThemeAwareMixin, ft.Column):
             card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
             return card
 
-        # Create tabs for each launcher
+        # ========== PHASE 4: Progressive card creation ==========
+        # Create first batch immediately for instant UI feedback
+        # Remaining cards load in background without blocking
         all_cards_for_animation: list[GameCard] = []
+        remaining_to_create: list[tuple[str, MergedGame, list[GameDLL], dict[str, list[DLLBackup]]]] = []
+        grids_by_launcher: dict[str, ft.GridView] = {}
+        initial_card_count = 0
 
         for launcher in self.games_by_launcher.keys():
             if launcher not in games_by_launcher_merged:
@@ -552,25 +569,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
             merged_data = games_by_launcher_merged[launcher]
             game_count = len(self.games_by_launcher[launcher])
 
-            # Create cards for this launcher
-            game_cards: list[GameCard] = []
-            for mg, dlls, backup_groups in merged_data:
-                card = create_card(mg, dlls, backup_groups)
-                self.game_cards[mg.primary_game.id] = card
-                self.game_card_containers[mg.primary_game.id] = card
-                game_cards.append(card)
-
-                # Pre-set cached image if available (no async needed)
-                if mg.primary_game.steam_app_id and mg.primary_game.steam_app_id in cached_image_paths:
-                    card.image_widget.src = cached_image_paths[mg.primary_game.steam_app_id]
-                    card.image_container.content = card.image_widget  # Replace skeleton with image
-                    card._image_loaded = True
-
-            all_cards_for_animation.extend(game_cards)
-
-            # Create GridView with virtualization
+            # Create GridView first (will be populated progressively)
             game_grid = ft.GridView(
-                controls=game_cards,
+                controls=[],
                 max_extent=320,
                 child_aspect_ratio=1.45,
                 padding=16,
@@ -578,6 +579,29 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 run_spacing=12,
                 expand=True,
             )
+            grids_by_launcher[launcher] = game_grid
+
+            # Create first batch of cards for this launcher
+            first_batch = merged_data[:GAMES_INITIAL_BATCH_SIZE]
+            remaining = merged_data[GAMES_INITIAL_BATCH_SIZE:]
+
+            for mg, dlls, backup_groups in first_batch:
+                card = create_card(mg, dlls, backup_groups)
+                self.game_cards[mg.primary_game.id] = card
+                self.game_card_containers[mg.primary_game.id] = card
+                game_grid.controls.append(card)
+                all_cards_for_animation.append(card)
+                initial_card_count += 1
+
+                # Pre-set cached image if available
+                if mg.primary_game.steam_app_id and mg.primary_game.steam_app_id in cached_image_paths:
+                    card.image_widget.src = cached_image_paths[mg.primary_game.steam_app_id]
+                    card.image_container.content = card.image_widget
+                    card._image_loaded = True
+
+            # Queue remaining cards for background loading
+            for mg, dlls, backup_groups in remaining:
+                remaining_to_create.append((launcher, mg, dlls, backup_groups))
 
             # Create tab header
             tab_header = ft.Tab(
@@ -589,9 +613,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
             self._tab_launchers.append(launcher)
 
         cards_ms = (time.perf_counter() - start_cards) * 1000
-        self.logger.debug(f"[PERF] Card creation ({len(all_cards_for_animation)} cards): {cards_ms:.1f}ms")
+        self.logger.debug(f"[PERF] Initial card creation ({initial_card_count} cards): {cards_ms:.1f}ms")
 
-        # ========== PHASE 4: Create tabs control ==========
+        # ========== PHASE 5: Create tabs control and show UI ==========
         self.tabs_control = ft.Tabs(
             length=len(tabs),
             selected_index=0,
@@ -608,8 +632,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
         )
         self.tabs_container.content = self.tabs_control
 
-        # ========== PHASE 5: Post-render tasks ==========
-        # Trigger staggered fade-in animation
+        # ========== PHASE 6: Background tasks ==========
+        # Trigger staggered fade-in animation for initial cards
         anim_task = asyncio.create_task(self._animate_cards_in(all_cards_for_animation))
         register_task(anim_task, "animate_all_cards")
 
@@ -619,8 +643,18 @@ class GamesView(ThemeAwareMixin, ft.Column):
             img_task = asyncio.create_task(self._load_uncached_images(uncached_cards))
             register_task(img_task, "load_uncached_images")
 
+        # Load remaining cards progressively in background
+        if remaining_to_create:
+            bg_task = asyncio.create_task(
+                self._load_remaining_cards_progressive(
+                    remaining_to_create, grids_by_launcher, cached_image_paths, create_card
+                )
+            )
+            register_task(bg_task, "load_remaining_game_cards")
+            self.logger.debug(f"[PERF] Queued {len(remaining_to_create)} cards for background loading")
+
         total_ms = (time.perf_counter() - start_total) * 1000
-        self.logger.info(f"[PERF] _build_launcher_tabs total: {total_ms:.1f}ms ({len(all_cards_for_animation)} cards)")
+        self.logger.info(f"[PERF] _build_launcher_tabs total: {total_ms:.1f}ms ({initial_card_count} initial, {len(remaining_to_create)} queued)")
 
     async def _load_uncached_images(self, cards: list['GameCard']):
         """Load images for cards without cached paths using concurrent async I/O.
@@ -747,6 +781,63 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         except Exception as e:
             self.logger.error(f"Error loading remaining game cards: {e}", exc_info=True)
+
+    async def _load_remaining_cards_progressive(
+        self,
+        remaining: list[tuple[str, MergedGame, list[GameDLL], dict[str, list[DLLBackup]]]],
+        grids_by_launcher: dict[str, ft.GridView],
+        cached_image_paths: dict[int, str],
+        create_card_fn,
+    ):
+        """Load remaining game cards progressively in background.
+
+        PERFORMANCE: Creates cards in small batches with yields to keep UI responsive.
+        Shows partial content immediately while rest loads in background.
+        """
+        try:
+            total = len(remaining)
+            loaded = 0
+
+            for i in range(0, total, GAMES_BACKGROUND_BATCH_SIZE):
+                batch = remaining[i:i + GAMES_BACKGROUND_BATCH_SIZE]
+
+                # Create cards for this batch
+                new_cards_by_launcher: dict[str, list[GameCard]] = {}
+                for launcher, mg, dlls, backup_groups in batch:
+                    card = create_card_fn(mg, dlls, backup_groups)
+                    self.game_cards[mg.primary_game.id] = card
+                    self.game_card_containers[mg.primary_game.id] = card
+
+                    # Pre-set cached image if available
+                    if mg.primary_game.steam_app_id and mg.primary_game.steam_app_id in cached_image_paths:
+                        card.image_widget.src = cached_image_paths[mg.primary_game.steam_app_id]
+                        card.image_container.content = card.image_widget
+                        card._image_loaded = True
+
+                    # Make visible immediately (no fade for background cards)
+                    card.opacity = 1
+
+                    if launcher not in new_cards_by_launcher:
+                        new_cards_by_launcher[launcher] = []
+                    new_cards_by_launcher[launcher].append(card)
+
+                # Add cards to their respective grids
+                for launcher, cards in new_cards_by_launcher.items():
+                    if launcher in grids_by_launcher:
+                        grids_by_launcher[launcher].controls.extend(cards)
+                        loaded += len(cards)
+
+                # Single update per batch
+                if self._page_ref:
+                    self._page_ref.update()
+
+                # Yield to event loop to keep UI responsive
+                await asyncio.sleep(0.02)
+
+            self.logger.debug(f"[PERF] Progressive loading complete: {loaded} additional cards")
+
+        except Exception as e:
+            self.logger.error(f"Error in progressive card loading: {e}", exc_info=True)
 
     async def _animate_cards_in(self, game_cards: list[GameCard]):
         """Animate game cards with staggered fade-in for grid layout (optimized)"""

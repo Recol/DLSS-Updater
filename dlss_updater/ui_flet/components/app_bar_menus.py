@@ -99,7 +99,11 @@ class BasePopupMenu(ThemeAwareMixin):
         )
 
     def _build_menu_item(self, item: MenuItem) -> ft.PopupMenuItem:
-        """Build a styled menu item with icon circle, title, and description"""
+        """Build a styled menu item with icon circle, title, and description
+
+        PERF: Only creates Stack+badge Container when show_badge=True.
+        Most items don't need badges, saving 2 controls per item (~32 controls total).
+        """
         is_dark = self._is_dark
 
         # Icon circle (colored or muted based on disabled state)
@@ -126,16 +130,6 @@ class BasePopupMenu(ThemeAwareMixin):
                 alignment=ft.Alignment.CENTER,
             )
 
-        # Badge indicator
-        badge = ft.Container(
-            width=8,
-            height=8,
-            bgcolor=ft.Colors.RED,
-            border_radius=4,
-            visible=item.show_badge,
-        )
-        self._badge_refs[item.id] = badge
-
         # Title text
         title_color = (
             MD3Colors.get_themed("text_tertiary", is_dark)
@@ -161,21 +155,39 @@ class BasePopupMenu(ThemeAwareMixin):
             color=desc_color,
         )
 
+        # PERF: Only wrap icon in Stack if badge is needed
+        if item.show_badge:
+            # Badge indicator - only created when needed
+            badge = ft.Container(
+                width=8,
+                height=8,
+                bgcolor=ft.Colors.RED,
+                border_radius=4,
+                visible=True,
+            )
+            self._badge_refs[item.id] = badge
+
+            icon_with_badge = ft.Stack(
+                controls=[
+                    icon_circle,
+                    ft.Container(
+                        content=badge,
+                        right=-2,
+                        top=-2,
+                    ),
+                ],
+                width=32,
+                height=32,
+            )
+            left_control = icon_with_badge
+        else:
+            # No badge needed - use icon directly (saves Stack + Container)
+            left_control = icon_circle
+
         # Content layout
         content = ft.Row(
             controls=[
-                ft.Stack(
-                    controls=[
-                        icon_circle,
-                        ft.Container(
-                            content=badge,
-                            right=-2,
-                            top=-2,
-                        ),
-                    ],
-                    width=32,
-                    height=32,
-                ),
+                left_control,
                 ft.Column(
                     controls=[title_text, description_text],
                     spacing=2,

@@ -72,19 +72,18 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         content_bg = "rgba(46, 46, 46, 0.95)" if is_dark else "rgba(255, 255, 255, 0.95)"
         border_color = "rgba(255, 255, 255, 0.1)" if is_dark else "rgba(0, 0, 0, 0.1)"
 
+        # PERF: Use Column spacing instead of spacer Containers (-3 controls)
         self.content_container = ft.Container(
             content=ft.Column(
                 controls=[
                     self.progress_ring,
-                    ft.Container(height=16),
                     self.progress_text,
-                    ft.Container(height=8),
                     self.progress_bar,
-                    ft.Container(height=16),
                     self.status_text,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
+                spacing=12,  # Replaces spacer Containers
             ),
             bgcolor=content_bg,
             border_radius=16,

@@ -250,14 +250,14 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
             scroll=ft.ScrollMode.AUTO,
         )
 
+        # PERF: Removed spacer Container - Column spacing handles gaps (-1 control)
         return ft.Column(
             controls=[
                 self.search_field,
                 self._info_box,
-                ft.Container(height=8),
                 self.games_column,
             ],
-            spacing=8,
+            spacing=12,  # Slightly increased to compensate for removed spacer
             expand=True,
         )
 

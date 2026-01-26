@@ -1242,6 +1242,12 @@ async def find_all_dlls(progress_callback=None):
         if dlls_with_versions == 0 and recorded_dlls > 0:
             logger.warning("No DLL versions extracted! Check get_dll_version() function")
 
+        # Force garbage collection to release pefile/mmap memory
+        # Version extraction reads 50+ DLLs (20-50MB each) - need explicit cleanup
+        import gc
+        gc.collect()
+        logger.debug("Forced garbage collection after version extraction")
+
         # Report completion
         await _safe_progress_callback(progress_callback, 100, 100, f"Scan complete: {recorded_games} games, {recorded_dlls} DLLs")
 

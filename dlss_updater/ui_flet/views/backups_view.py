@@ -300,17 +300,30 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
         # PERFORMANCE: Skip full reload if already loaded (fast tab switching)
         if self._backups_loaded and not force:
-            self.logger.debug("Backups already loaded - skipping redundant reload")
-            # Just ensure the view is visible
+            self.logger.debug("Backups already loaded - animating cards on tab switch")
+            # Ensure the view is visible
             if self.backups:
                 self.backups_grid_container.visible = True
                 self.empty_state.visible = False
+
+                # Animate cards progressively on tab switch for better UX
+                visible_cards = self.backups_grid.controls[:INITIAL_BATCH_SIZE]
+                if visible_cards:
+                    # Reset opacity for animation
+                    for card in visible_cards:
+                        card.opacity = 0
+                        card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
+                    if self._page_ref:
+                        self._page_ref.update()
+                    # Trigger staggered fade-in
+                    anim_task = asyncio.create_task(self._animate_cards_in(visible_cards))
+                    register_task(anim_task, "animate_backups_tab_switch")
             else:
                 self.empty_state.visible = True
                 self.backups_grid_container.visible = False
+                if self._page_ref:
+                    self._page_ref.update()
             self.loading_indicator.visible = False
-            if self._page_ref:
-                self._page_ref.update()
             return
 
         self.is_loading = True
@@ -470,6 +483,23 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
         except Exception as e:
             self.logger.error(f"Error loading remaining backup cards: {e}", exc_info=True)
+
+    async def _animate_cards_in(self, cards: list):
+        """Animate backup cards with staggered fade-in for better UX"""
+        # Small initial delay
+        await asyncio.sleep(0.05)
+
+        # Animate cards in batches of 4 for smooth effect
+        batch_size = 4
+        for batch_start in range(0, len(cards), batch_size):
+            batch_end = min(batch_start + batch_size, len(cards))
+            # Set opacity for entire batch
+            for card in cards[batch_start:batch_end]:
+                card.opacity = 1
+            # Single update per batch
+            if self._page_ref:
+                self._page_ref.update()
+            await asyncio.sleep(0.06)  # 60ms delay per batch
 
     async def _on_refresh_clicked(self, e):
         """Handle refresh button click with rotation animation"""
