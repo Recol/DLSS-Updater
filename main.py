@@ -8,11 +8,20 @@ import os
 import sysconfig
 
 # Free-threaded Python 3.14 GIL configuration
-# Note: Some C extensions (msgpack) may re-enable GIL when loaded
+# Note: PyInstaller spec file sets 'X gil=0' OPTION to force GIL disabled at bootloader level
+# This env var is for child processes and documentation purposes
 _is_free_threaded = bool(sysconfig.get_config_var('Py_GIL_DISABLED'))
 if _is_free_threaded:
     # Set environment variable for child processes and to indicate intent
     os.environ['PYTHON_GIL'] = '0'
+    # Suppress GIL re-enablement warnings from C extensions that haven't declared compatibility
+    # This is defense-in-depth; the PyInstaller OPTION should handle most cases
+    import warnings
+    warnings.filterwarnings(
+        "ignore",
+        message=".*GIL has been enabled.*",
+        category=RuntimeWarning
+    )
 
 # Install faster event loop based on platform (must be done before any asyncio usage)
 if sys.platform == 'win32':

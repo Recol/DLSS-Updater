@@ -33,6 +33,7 @@ dependencies = [
     "flet==0.80.4; platform_system == 'Linux'",  # Core framework for Linux
     "flet-desktop-light==0.80.4; platform_system == 'Linux'",  # Lightweight desktop runtime (no libmpv/media dependencies)
     "msgspec>=0.20.0",
+    "msgpack>=1.1.2",  # Free-threading compatible (has Py_mod_gil declaration)
     "aiohttp",
     "requests",  # Fallback for DLL downloads when aiohttp fails
     "pyinstaller",

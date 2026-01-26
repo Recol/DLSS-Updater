@@ -112,7 +112,8 @@ echo -e "\n${YELLOW}[4/6] Building Linux application with PyInstaller...${NC}"
 rm -rf build/pyinstaller dist/DLSS_Updater .flatpak-builder/ build-dir/ repo/
 
 # Run PyInstaller with the Linux spec file
-uv run pyinstaller DLSS_Updater_Linux.spec --distpath dist --workpath build/pyinstaller
+# PYTHON_GIL=0 suppresses msgpack GIL warning during analysis phase
+PYTHON_GIL=0 uv run pyinstaller DLSS_Updater_Linux.spec --distpath dist --workpath build/pyinstaller
 
 # Verify the binary was created
 if [ ! -f "dist/DLSS_Updater" ]; then

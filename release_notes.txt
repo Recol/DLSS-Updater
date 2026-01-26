@@ -1,4 +1,9 @@
 Version 3.7.0:
+Free-Threaded Python GIL Fix - Resolved GIL re-enablement warning for msgpack:
+  - Added PyInstaller OPTION 'X gil=0' to force GIL disabled at bootloader level.
+  - Pinned msgpack>=1.1.2 (has Py_mod_gil declaration for free-threading compatibility).
+  - Added RuntimeWarning filter for GIL-related warnings as defense-in-depth.
+  - Windows and Linux builds now properly run with GIL disabled throughout.
 Flet 0.80.4 Migration - Major framework upgrade with breaking API changes:
   Removed Features:
   - Removed DLSS SR Preset Override feature entirely.

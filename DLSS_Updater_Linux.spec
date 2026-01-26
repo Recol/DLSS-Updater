@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec file for Linux builds
+# Build with: PYTHON_GIL=0 pyinstaller DLSS_Updater_Linux.spec
+# (suppresses msgpack GIL warning during analysis phase)
 
 import os
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
@@ -60,7 +62,7 @@ exe = EXE(
     a.binaries,
     a.zipfiles,
     a.datas,
-    [],
+    [('X gil=0', None, 'OPTION')],  # Force GIL disabled for free-threaded Python 3.14
     name='DLSS_Updater',
     debug=False,
     bootloader_ignore_signals=False,
