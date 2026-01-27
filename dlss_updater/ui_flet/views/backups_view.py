@@ -1,33 +1,34 @@
 """
-Backups View - Browse and restore DLL backups
+Backups View - Browse and restore DLL backups grouped by game
 
 PERFORMANCE NOTES:
-- Uses GridView with virtualization (only visible cards are rendered)
+- Uses ListView with BackupGroup components (ExpansionTile per game)
 - Progressive loading: first batch shown immediately, rest created in background
-- Data preparation runs in thread pool for parallel processing
+- Data preparation runs in thread pool for parallel processing (HyperParallelLoader)
 - Batch UI updates minimize page.update() calls
+- BackupGroup uses native ExpansionTile for GPU-accelerated expand/collapse
+- Collapsed groups show ~6 controls, expanded shows ~8 per backup row
 """
 
 import asyncio
+import itertools
 import math
 import time
-from typing import Callable, Any
-from concurrent.futures import ThreadPoolExecutor
 import flet as ft
 
 from dlss_updater.database import db_manager, DLLBackup
 from dlss_updater.models import GameWithBackupCount, GameDLLBackup
 from dlss_updater.backup_manager import restore_dll_from_backup, delete_backup
-from dlss_updater.ui_flet.components.backup_card import BackupCard
+from dlss_updater.ui_flet.components.backup_group import BackupGroup
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask
 from dlss_updater.task_registry import register_task
 
-# Number of cards to create in first batch (shown immediately)
-INITIAL_BATCH_SIZE = 12
-# Number of cards per background batch
-BACKGROUND_BATCH_SIZE = 20
+# Number of groups to create in first batch (shown immediately)
+INITIAL_BATCH_SIZE = 8
+# Number of groups per background batch
+BACKGROUND_BATCH_SIZE = 12
 
 
 class BackupsView(ThemeAwareMixin, ft.Column):
@@ -231,21 +232,18 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             visible=False,
         )
 
-        # Backups grid - VIRTUALIZED GridView for performance
-        # Only visible cards are rendered (typically 4-8 at once)
-        # max_extent=400 gives 2-3 columns on typical screens
-        # BackupCard has fixed height=220px (same as GameCard), aspect_ratio = 400/220 ≈ 1.82
-        self.backups_grid = ft.GridView(
+        # Backups list - Using ListView for BackupGroup components (expandable tiles)
+        # Each BackupGroup expands vertically, so ListView is more appropriate than GridView
+        # ListView provides virtualization for performance with many groups
+        self.backups_list = ft.ListView(
             controls=[],
-            max_extent=400,  # Responsive columns based on 400px max width
-            child_aspect_ratio=1.82,  # Matches BackupCard fixed height (400/220)
             padding=16,
-            spacing=12,
-            run_spacing=12,
+            spacing=8,
             expand=True,
+            auto_scroll=False,  # Maintain scroll position
         )
-        self.backups_grid_container = ft.Container(
-            content=self.backups_grid,
+        self.backups_list_container = ft.Container(
+            content=self.backups_list,
             expand=True,
             visible=False,
         )
@@ -258,7 +256,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 controls=[
                     self.empty_state,
                     self.loading_indicator,
-                    self.backups_grid_container,
+                    self.backups_list_container,
                 ],
                 expand=True,
             ),
@@ -292,6 +290,9 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         PERFORMANCE: Skips full reload if backups are already loaded (tab switching).
         Use force=True to trigger a full refresh (explicit refresh button).
 
+        Uses BackupGroup components which group backups by game for efficient display.
+        Each group is an ExpansionTile that can be collapsed/expanded.
+
         Args:
             force: If True, forces a full reload even if backups are already loaded.
         """
@@ -300,27 +301,27 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
         # PERFORMANCE: Skip full reload if already loaded (fast tab switching)
         if self._backups_loaded and not force:
-            self.logger.debug("Backups already loaded - animating cards on tab switch")
+            self.logger.debug("Backups already loaded - animating groups on tab switch")
             # Ensure the view is visible
             if self.backups:
-                self.backups_grid_container.visible = True
+                self.backups_list_container.visible = True
                 self.empty_state.visible = False
 
-                # Animate cards progressively on tab switch for better UX
-                visible_cards = self.backups_grid.controls[:INITIAL_BATCH_SIZE]
-                if visible_cards:
+                # Animate groups progressively on tab switch for better UX
+                visible_groups = self.backups_list.controls[:INITIAL_BATCH_SIZE]
+                if visible_groups:
                     # Reset opacity for animation
-                    for card in visible_cards:
-                        card.opacity = 0
-                        card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
+                    for group in visible_groups:
+                        group.opacity = 0
+                        group.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
                     if self._page_ref:
                         self._page_ref.update()
                     # Trigger staggered fade-in
-                    anim_task = asyncio.create_task(self._animate_cards_in(visible_cards))
+                    anim_task = asyncio.create_task(self._animate_groups_in(visible_groups))
                     register_task(anim_task, "animate_backups_tab_switch")
             else:
                 self.empty_state.visible = True
-                self.backups_grid_container.visible = False
+                self.backups_list_container.visible = False
                 if self._page_ref:
                     self._page_ref.update()
             self.loading_indicator.visible = False
@@ -329,9 +330,9 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         self.is_loading = True
         self.loading_indicator.visible = True
         self.empty_state.visible = False
-        self.backups_grid_container.visible = False
-        # Clear existing cards for fresh reload
-        self.backups_grid.controls.clear()
+        self.backups_list_container.visible = False
+        # Clear existing groups for fresh reload
+        self.backups_list.controls.clear()
         if self._page_ref:
             self._page_ref.update()
 
@@ -341,7 +342,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             # Ensure database pool is ready
             await db_manager.ensure_pool()
 
-            self.logger.info("Loading backups from database...")
+            self.logger.info("Loading backups from database (grouped by game)...")
 
             # PERFORMANCE: Run both database queries in parallel using ThreadPoolExecutor
             # HyperParallelLoader uses true parallelism (not asyncio.to_thread serialization)
@@ -351,16 +352,20 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
             results = loader.load_all([
                 LoadTask("games", lambda: db_manager.get_games_with_backups_sync()),
-                LoadTask("backups", lambda gid=game_id: db_manager.get_all_backups_filtered_sync(gid)),
+                LoadTask("grouped", lambda gid=game_id: db_manager.get_backups_grouped_by_game_sync(gid)),
             ])
 
             self.games_with_backups = results.get("games", [])
-            self.backups = results.get("backups", [])
+            grouped_backups: dict[int, list[GameDLLBackup]] = results.get("grouped", {})
             self._update_game_filter_options()
             db_ms = (time.perf_counter() - start_db) * 1000
             self.logger.debug(f"[PERF] Database queries (hyper-parallel): {db_ms:.1f}ms")
 
-            if not self.backups:
+            # Flatten for total count and clear all operation
+            self.backups = list(itertools.chain.from_iterable(grouped_backups.values()))
+            total_count = len(self.backups)
+
+            if not grouped_backups:
                 self.logger.info("No backups found")
                 self.empty_state.visible = True
                 self.loading_indicator.visible = False
@@ -370,49 +375,39 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                     self._page_ref.update()
                 return
 
-            # PERFORMANCE: Progressive loading with virtualized GridView
-            # 1. Convert data to DLLBackup objects (can be parallelized)
-            # 2. Create first batch of cards immediately (visible cards)
-            # 3. Show UI immediately
-            # 4. Create remaining cards in background batches
+            # PERFORMANCE: Progressive loading with BackupGroup components
+            # 1. Create first batch of groups immediately (visible groups)
+            # 2. Show UI immediately
+            # 3. Create remaining groups in background batches
 
-            start_cards = time.perf_counter()
+            start_groups = time.perf_counter()
 
-            # Step 1: Convert all backup data (lightweight, mostly data copying)
-            dll_backups = [
-                DLLBackup(
-                    id=b.id,
-                    game_dll_id=b.game_dll_id,
-                    game_name=b.game_name,
-                    dll_filename=b.dll_filename,
-                    backup_path=b.backup_path,
-                    backup_size=b.backup_size,
-                    original_version=b.original_version,
-                    backup_created_at=b.backup_created_at,
-                    is_active=b.is_active,
-                )
-                for b in self.backups
-            ]
+            # Convert to list of (game_id, backups) for ordering
+            game_items = list(grouped_backups.items())
 
-            # Step 2: Create first batch immediately (these are visible)
-            first_batch = dll_backups[:INITIAL_BATCH_SIZE]
-            cards = []
-            for backup in first_batch:
-                card = BackupCard(
-                    backup=backup,
+            # Step 1: Create first batch of BackupGroup components
+            first_batch_items = game_items[:INITIAL_BATCH_SIZE]
+            groups = []
+            for gid, backups in first_batch_items:
+                game_name = backups[0].game_name if backups else "Unknown"
+                group = BackupGroup(
+                    game_name=game_name,
+                    game_id=gid,
+                    backups=backups,
                     page=self._page_ref,
                     logger=self.logger,
-                    on_restore=self._on_restore_backup,
-                    on_delete=self._on_delete_backup,
+                    on_restore=self._on_restore_backup_from_group,
+                    on_delete=self._on_delete_backup_from_group,
+                    on_restore_all=self._on_restore_all_for_game,
                 )
-                cards.append(card)
+                groups.append(group)
 
-            first_batch_ms = (time.perf_counter() - start_cards) * 1000
-            self.logger.debug(f"[PERF] First batch ({len(first_batch)} cards): {first_batch_ms:.1f}ms")
+            first_batch_ms = (time.perf_counter() - start_groups) * 1000
+            self.logger.debug(f"[PERF] First batch ({len(first_batch_items)} groups): {first_batch_ms:.1f}ms")
 
-            # Step 3: Show UI immediately with first batch
-            self.backups_grid.controls = cards
-            self.backups_grid_container.visible = True
+            # Step 2: Show UI immediately with first batch
+            self.backups_list.controls = groups
+            self.backups_list_container.visible = True
             self.empty_state.visible = False
             self.loading_indicator.visible = False
             self._update_clear_button_state(True)
@@ -421,14 +416,17 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             if self._page_ref:
                 self._page_ref.update()
 
-            # Step 4: Create remaining cards in background batches (non-blocking)
-            remaining = dll_backups[INITIAL_BATCH_SIZE:]
-            if remaining:
-                task = asyncio.create_task(self._load_remaining_cards(remaining))
-                register_task(task, "load_remaining_backup_cards")
+            # Step 3: Create remaining groups in background batches (non-blocking)
+            remaining_items = game_items[INITIAL_BATCH_SIZE:]
+            if remaining_items:
+                task = asyncio.create_task(self._load_remaining_groups(remaining_items))
+                register_task(task, "load_remaining_backup_groups")
 
             total_ms = (time.perf_counter() - start_total) * 1000
-            self.logger.info(f"Loaded {len(first_batch)} backups instantly, {len(remaining)} loading in background ({total_ms:.1f}ms)")
+            self.logger.info(
+                f"Loaded {len(first_batch_items)} game groups ({total_count} backups total) instantly, "
+                f"{len(remaining_items)} groups loading in background ({total_ms:.1f}ms)"
+            )
 
         except Exception as e:
             self.logger.error(f"Error loading backups: {e}", exc_info=True)
@@ -442,35 +440,41 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             if self._page_ref:
                 self._page_ref.update()
 
-    async def _load_remaining_cards(self, remaining_backups: list[DLLBackup]):
-        """Load remaining backup cards in background batches.
+    async def _load_remaining_groups(self, remaining_items: list[tuple[int, list[GameDLLBackup]]]):
+        """Load remaining BackupGroup components in background batches.
 
-        PERFORMANCE: Creates cards in batches with yields to keep UI responsive.
-        Each batch adds cards to the virtualized GridView which only renders
-        visible items, so adding 100+ cards has minimal performance impact.
+        PERFORMANCE: Creates groups in batches with yields to keep UI responsive.
+        Each batch adds groups to the ListView which provides virtualization.
+
+        Args:
+            remaining_items: List of (game_id, backups) tuples to create groups for
         """
         try:
-            total_remaining = len(remaining_backups)
+            total_remaining = len(remaining_items)
             loaded = 0
 
             for i in range(0, total_remaining, BACKGROUND_BATCH_SIZE):
-                batch = remaining_backups[i:i + BACKGROUND_BATCH_SIZE]
+                batch = remaining_items[i:i + BACKGROUND_BATCH_SIZE]
 
-                # Create cards for this batch
-                new_cards = []
-                for backup in batch:
-                    card = BackupCard(
-                        backup=backup,
+                # Create groups for this batch
+                new_groups = []
+                for gid, backups in batch:
+                    game_name = backups[0].game_name if backups else "Unknown"
+                    group = BackupGroup(
+                        game_name=game_name,
+                        game_id=gid,
+                        backups=backups,
                         page=self._page_ref,
                         logger=self.logger,
-                        on_restore=self._on_restore_backup,
-                        on_delete=self._on_delete_backup,
+                        on_restore=self._on_restore_backup_from_group,
+                        on_delete=self._on_delete_backup_from_group,
+                        on_restore_all=self._on_restore_all_for_game,
                     )
-                    new_cards.append(card)
+                    new_groups.append(group)
 
-                # Add to grid (virtualized - only visible cards render)
-                self.backups_grid.controls.extend(new_cards)
-                loaded += len(new_cards)
+                # Add to list (virtualized - only visible groups render)
+                self.backups_list.controls.extend(new_groups)
+                loaded += len(new_groups)
 
                 # Single update per batch
                 if self._page_ref:
@@ -479,27 +483,27 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 # Yield to event loop to keep UI responsive
                 await asyncio.sleep(0.01)
 
-            self.logger.debug(f"[PERF] Background loaded {loaded} additional backup cards")
+            self.logger.debug(f"[PERF] Background loaded {loaded} additional backup groups")
 
         except Exception as e:
-            self.logger.error(f"Error loading remaining backup cards: {e}", exc_info=True)
+            self.logger.error(f"Error loading remaining backup groups: {e}", exc_info=True)
 
-    async def _animate_cards_in(self, cards: list):
-        """Animate backup cards with staggered fade-in for better UX"""
+    async def _animate_groups_in(self, groups: list):
+        """Animate backup groups with staggered fade-in for better UX"""
         # Small initial delay
         await asyncio.sleep(0.05)
 
-        # Animate cards in batches of 4 for smooth effect
-        batch_size = 4
-        for batch_start in range(0, len(cards), batch_size):
-            batch_end = min(batch_start + batch_size, len(cards))
+        # Animate groups in batches of 3 for smooth effect (fewer groups than cards)
+        batch_size = 3
+        for batch_start in range(0, len(groups), batch_size):
+            batch_end = min(batch_start + batch_size, len(groups))
             # Set opacity for entire batch
-            for card in cards[batch_start:batch_end]:
-                card.opacity = 1
+            for group in groups[batch_start:batch_end]:
+                group.opacity = 1
             # Single update per batch
             if self._page_ref:
                 self._page_ref.update()
-            await asyncio.sleep(0.06)  # 60ms delay per batch
+            await asyncio.sleep(0.08)  # 80ms delay per batch (slightly longer for groups)
 
     async def _on_refresh_clicked(self, e):
         """Handle refresh button click with rotation animation"""
@@ -825,6 +829,184 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             error_dialog = ft.AlertDialog(
                 title=ft.Text("Error"),
                 content=ft.Text(f"Failed to delete backup: {str(e)}"),
+                actions=[
+                    ft.TextButton(
+                        "OK",
+                        on_click=lambda e: self._page_ref.pop_dialog(),
+                    ),
+                ],
+            )
+            self._page_ref.show_dialog(error_dialog)
+
+    # -------------------------------------------------------------------------
+    # BackupGroup callback methods (for grouped backup display)
+    # -------------------------------------------------------------------------
+
+    def _on_restore_backup_from_group(self, backup: GameDLLBackup):
+        """Handle restore callback from BackupGroup component.
+
+        Converts GameDLLBackup to DLLBackup and delegates to existing restore logic.
+        """
+        # Convert GameDLLBackup to DLLBackup for compatibility with existing restore logic
+        dll_backup = DLLBackup(
+            id=backup.id,
+            game_dll_id=backup.game_dll_id,
+            game_name=backup.game_name,
+            dll_filename=backup.dll_filename,
+            backup_path=backup.backup_path,
+            backup_size=backup.backup_size,
+            original_version=backup.original_version,
+            backup_created_at=backup.backup_created_at,
+            is_active=backup.is_active,
+        )
+        self._on_restore_backup(dll_backup)
+
+    def _on_delete_backup_from_group(self, backup: GameDLLBackup):
+        """Handle delete callback from BackupGroup component.
+
+        Converts GameDLLBackup to DLLBackup and delegates to existing delete logic.
+        """
+        # Convert GameDLLBackup to DLLBackup for compatibility with existing delete logic
+        dll_backup = DLLBackup(
+            id=backup.id,
+            game_dll_id=backup.game_dll_id,
+            game_name=backup.game_name,
+            dll_filename=backup.dll_filename,
+            backup_path=backup.backup_path,
+            backup_size=backup.backup_size,
+            original_version=backup.original_version,
+            backup_created_at=backup.backup_created_at,
+            is_active=backup.is_active,
+        )
+        self._on_delete_backup(dll_backup)
+
+    def _on_restore_all_for_game(self, game_id: int, game_name: str):
+        """Handle restore all backups for a specific game from BackupGroup.
+
+        Shows a confirmation dialog and restores all backups for the given game.
+        """
+        # Create dialog first without actions
+        dialog = ft.AlertDialog(
+            title=ft.Text("Restore All Backups?"),
+            content=ft.Column(
+                controls=[
+                    ft.Text(f"This will restore all backup DLLs for:"),
+                    ft.Text(game_name, weight=ft.FontWeight.BOLD),
+                    ft.Divider(),
+                    ft.Text(
+                        "Make sure the game is closed before restoring.",
+                        color=ft.Colors.ORANGE,
+                        size=12,
+                    ),
+                ],
+                tight=True,
+                spacing=8,
+            ),
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        # Add actions after dialog variable exists
+        dialog.actions = [
+            ft.TextButton(
+                "Cancel",
+                on_click=lambda e: self._page_ref.pop_dialog(),
+            ),
+            ft.ElevatedButton(
+                "Restore All",
+                on_click=self._create_restore_all_handler(game_id, game_name, dialog),
+                style=ft.ButtonStyle(
+                    bgcolor="#2D6E88",
+                    color=ft.Colors.WHITE,
+                ),
+            ),
+        ]
+
+        self._page_ref.show_dialog(dialog)
+
+    def _create_restore_all_handler(self, game_id: int, game_name: str, dialog: ft.AlertDialog):
+        """Create async restore all handler for specific game"""
+        async def handler(e):
+            await self._perform_restore_all(game_id, game_name, dialog)
+        return handler
+
+    async def _perform_restore_all(self, game_id: int, game_name: str, dialog: ft.AlertDialog):
+        """Perform restore all operation for a game.
+
+        Restores all backups for the specified game sequentially and shows results.
+        """
+        self._page_ref.pop_dialog()
+
+        # Show progress indicator
+        progress_dialog = ft.AlertDialog(
+            title=ft.Text("Restoring..."),
+            content=ft.Column(
+                controls=[
+                    ft.ProgressRing(),
+                    ft.Text(f"Restoring all backups for {game_name}...", size=12),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=12,
+                tight=True,
+            ),
+        )
+        self._page_ref.show_dialog(progress_dialog)
+        self._page_ref.update()
+
+        try:
+            # Get all backups for this game using sync method in thread
+            grouped = await asyncio.to_thread(
+                db_manager.get_backups_grouped_by_game_sync, game_id
+            )
+            backups = grouped.get(game_id, [])
+
+            success_count = 0
+            error_count = 0
+
+            for backup in backups:
+                try:
+                    success, _ = await restore_dll_from_backup(backup.id)
+                    if success:
+                        success_count += 1
+                    else:
+                        error_count += 1
+                except Exception as ex:
+                    self.logger.error(f"Error restoring backup {backup.id}: {ex}")
+                    error_count += 1
+
+            # Close progress dialog
+            self._page_ref.pop_dialog()
+
+            # Show result summary
+            total = len(backups)
+            if error_count == 0:
+                result_title = "Restore Complete"
+                result_message = f"Successfully restored all {success_count} backup(s) for {game_name}."
+            else:
+                result_title = "Restore Partially Complete"
+                result_message = f"Restored {success_count} of {total} backup(s) for {game_name}.\n{error_count} backup(s) failed."
+
+            result_dialog = ft.AlertDialog(
+                title=ft.Text(result_title),
+                content=ft.Text(result_message),
+                actions=[
+                    ft.TextButton(
+                        "OK",
+                        on_click=lambda e: self._page_ref.pop_dialog(),
+                    ),
+                ],
+            )
+            self._page_ref.show_dialog(result_dialog)
+
+            # Refresh backups list
+            await self.load_backups(force=True)
+
+        except Exception as e:
+            self.logger.error(f"Error restoring all backups for game {game_id}: {e}", exc_info=True)
+            self._page_ref.pop_dialog()
+
+            error_dialog = ft.AlertDialog(
+                title=ft.Text("Error"),
+                content=ft.Text(f"Failed to restore backups: {str(e)}"),
                 actions=[
                     ft.TextButton(
                         "OK",

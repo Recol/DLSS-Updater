@@ -360,12 +360,38 @@ class GameCard(ThemeAwareMixin, ft.Card):
         return sorted(list(groups_present))
 
     def _create_update_popup_menu(self) -> ft.PopupMenuButton:
-        """Create popup menu button for selective DLL updates"""
+        """Create popup menu button for selective DLL updates.
+
+        Menu items are populated upfront since Flet's on_open fires after rendering.
+        """
         is_dark = self._registry.is_dark
         primary_color = MD3Colors.get_primary(is_dark)
+
+        # Store references for theming
+        self.update_button_icon = ft.Icon(ft.Icons.UPDATE, size=18, color=primary_color)
+        self.update_button_text = ft.Text("Update", size=14, color=primary_color)
+        self.update_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=primary_color)
+
+        # Use content property to show "Update" text instead of just an icon
+        return ft.PopupMenuButton(
+            content=ft.Row(
+                controls=[
+                    self.update_button_icon,
+                    self.update_button_text,
+                    self.update_button_arrow,
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            tooltip="Select DLLs to update",
+            items=self._build_update_menu_items(),
+        )
+
+    def _build_update_menu_items(self) -> list[ft.PopupMenuItem]:
+        """Build the actual update menu items (extracted from _create_update_popup_menu)."""
+        is_dark = self._registry.is_dark
         groups = self._get_dll_groups_for_game()
 
-        # Build menu items
         menu_items = [
             ft.PopupMenuItem(
                 content="Update All",
@@ -399,25 +425,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                     )
                 )
 
-        # Store references for theming
-        self.update_button_icon = ft.Icon(ft.Icons.UPDATE, size=18, color=primary_color)
-        self.update_button_text = ft.Text("Update", size=14, color=primary_color)
-        self.update_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=primary_color)
-
-        # Use content property to show "Update" text instead of just an icon
-        return ft.PopupMenuButton(
-            content=ft.Row(
-                controls=[
-                    self.update_button_icon,
-                    self.update_button_text,
-                    self.update_button_arrow,
-                ],
-                spacing=4,
-                tight=True,
-            ),
-            tooltip="Select DLLs to update",
-            items=menu_items,
-        )
+        return menu_items
 
     def _on_update_group_selected(self, group: str):
         """Handle DLL group selection from popup menu"""
@@ -428,7 +436,10 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self.on_update_callback(self.game, group)
 
     def _create_restore_popup_menu(self) -> ft.PopupMenuButton:
-        """Create popup menu button for selective DLL restore from backups"""
+        """Create popup menu button for selective DLL restore from backups.
+
+        Menu items are populated upfront since Flet's on_open fires after rendering.
+        """
         is_dark = self._registry.is_dark
         disabled_color = MD3Colors.get_themed("text_tertiary", is_dark)
         success_color = MD3Colors.get_success(is_dark)
@@ -455,9 +466,30 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 disabled=True,
             )
 
+        # Store references for theming (enabled state)
+        self.restore_button_icon = ft.Icon(ft.Icons.RESTORE, size=18, color=success_color)
+        self.restore_button_text = ft.Text("Restore", size=14, color=success_color)
+        self.restore_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=success_color)
+
+        return ft.PopupMenuButton(
+            content=ft.Row(
+                controls=[
+                    self.restore_button_icon,
+                    self.restore_button_text,
+                    self.restore_button_arrow,
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            tooltip="Restore DLLs from backup",
+            items=self._build_restore_menu_items(),
+        )
+
+    def _build_restore_menu_items(self) -> list[ft.PopupMenuItem]:
+        """Build the actual restore menu items (extracted from _create_restore_popup_menu)."""
+        is_dark = self._registry.is_dark
         groups = sorted(self.backup_groups.keys())
 
-        # Build menu items
         menu_items = [
             ft.PopupMenuItem(
                 content="Restore All",
@@ -485,24 +517,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                     )
                 )
 
-        # Store references for theming
-        self.restore_button_icon = ft.Icon(ft.Icons.RESTORE, size=18, color=success_color)
-        self.restore_button_text = ft.Text("Restore", size=14, color=success_color)
-        self.restore_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=success_color)
-
-        return ft.PopupMenuButton(
-            content=ft.Row(
-                controls=[
-                    self.restore_button_icon,
-                    self.restore_button_text,
-                    self.restore_button_arrow,
-                ],
-                spacing=4,
-                tight=True,
-            ),
-            tooltip="Restore DLLs from backup",
-            items=menu_items,
-        )
+        return menu_items
 
     def _on_restore_group_selected(self, group: str):
         """Handle DLL group selection from restore popup menu"""
@@ -707,14 +722,15 @@ class GameCard(ThemeAwareMixin, ft.Card):
             # Rebuild restore button
             new_restore_button = self._create_restore_popup_menu()
 
-            # Find and replace in action buttons container (index 3 due to spacer at index 2)
+            # Find and replace in action buttons row (index 3 due to spacer at index 2)
+            # Structure: right_content.controls = [name_row, dll_badges, spacer, action_buttons_row]
+            # action_buttons_row is a ft.Row with controls = [update_button, restore_button]
             if self.right_content and len(self.right_content.controls) >= 4:
-                action_buttons_container = self.right_content.controls[3]
-                if action_buttons_container.content and action_buttons_container.content.controls:
-                    if len(action_buttons_container.content.controls) >= 2:
-                        action_buttons_container.content.controls[1] = new_restore_button
-                        self.restore_button = new_restore_button
-                        action_buttons_container.content.update()
+                action_buttons_row = self.right_content.controls[3]
+                if hasattr(action_buttons_row, 'controls') and len(action_buttons_row.controls) >= 2:
+                    action_buttons_row.controls[1] = new_restore_button
+                    self.restore_button = new_restore_button
+                    action_buttons_row.update()
 
     def _build_path_display(self) -> ft.Row:
         """Build path display row, supporting multiple paths for merged games."""
@@ -806,3 +822,22 @@ class GameCard(ThemeAwareMixin, ft.Card):
             "restore_button_text.color": MD3Colors.get_themed_pair("success"),
             "restore_button_arrow.color": MD3Colors.get_themed_pair("success"),
         }
+
+    async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
+        """Apply theme with optional cascade delay.
+
+        Overrides ThemeAwareMixin.apply_theme to also rebuild menu items with
+        correct theme colors.
+
+        Args:
+            is_dark: Whether dark mode is active
+            delay_ms: Milliseconds to wait before applying (for cascade effect)
+        """
+        # Rebuild menu items with new theme colors
+        if self.update_button:
+            self.update_button.items = self._build_update_menu_items()
+        if self.restore_button and not self.restore_button.disabled:
+            self.restore_button.items = self._build_restore_menu_items()
+
+        # Call parent implementation for standard themed property updates
+        await super().apply_theme(is_dark, delay_ms)

@@ -978,7 +978,7 @@ class MainView(ft.Column):
                 # Not loaded yet - show loading indicator and start background load
                 self.backups_view.loading_indicator.visible = True
                 self.backups_view.empty_state.visible = False
-                self.backups_view.backups_grid_container.visible = False
+                self.backups_view.backups_list_container.visible = False
                 needs_loading_update = True
                 register_task(asyncio.create_task(self._load_backups_background()), "load_backups_background")
             # If already loaded, no task needed (view is cached)

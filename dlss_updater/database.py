@@ -1211,6 +1211,157 @@ class DatabaseManager:
             logger.error(f"Error getting filtered backups (sync): {e}", exc_info=True)
             return []
 
+    def get_backups_paginated_sync(
+        self,
+        limit: int = 12,
+        offset: int = 0,
+        game_id: int | None = None,
+    ) -> tuple[list[GameDLLBackup], int]:
+        """
+        Get backups with pagination for initial display.
+
+        SYNC method designed for ThreadPoolExecutor parallelism.
+        Enables fast initial load by returning only the first page of results
+        along with total count for pagination UI.
+
+        Args:
+            limit: Maximum number of backups to return (default 12 for initial grid)
+            offset: Number of backups to skip for pagination
+            game_id: Optional game ID to filter by
+
+        Returns:
+            Tuple of (list of GameDLLBackup objects, total count)
+        """
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            # Build base query components
+            base_query = """
+                SELECT b.id, b.game_dll_id, gd.game_id, g.name,
+                       gd.dll_type, gd.dll_filename, b.backup_path,
+                       b.original_version, b.backup_created_at,
+                       b.backup_size, b.is_active
+                FROM dll_backups b
+                INNER JOIN game_dlls gd ON b.game_dll_id = gd.id
+                INNER JOIN games g ON gd.game_id = g.id
+                WHERE b.is_active = 1
+            """
+
+            count_query = """
+                SELECT COUNT(*)
+                FROM dll_backups b
+                INNER JOIN game_dlls gd ON b.game_dll_id = gd.id
+                WHERE b.is_active = 1
+            """
+
+            params: list[int] = []
+            if game_id is not None:
+                base_query += " AND gd.game_id = ?"
+                count_query += " AND gd.game_id = ?"
+                params.append(game_id)
+
+            # Get total count first (fast indexed query)
+            cursor.execute(count_query, params)
+            total_count = cursor.fetchone()[0]
+
+            # Get paginated results
+            base_query += " ORDER BY b.backup_created_at DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+            cursor.execute(base_query, params)
+
+            backups = []
+            for row in cursor:
+                backups.append(GameDLLBackup(
+                    id=row[0],
+                    game_dll_id=row[1],
+                    game_id=row[2],
+                    game_name=row[3],
+                    dll_type=row[4],
+                    dll_filename=row[5],
+                    backup_path=row[6],
+                    original_version=row[7],
+                    backup_created_at=datetime.fromisoformat(row[8]),
+                    backup_size=row[9],
+                    is_active=bool(row[10])
+                ))
+
+            return backups, total_count
+
+        except Exception as e:
+            logger.error(f"Error getting paginated backups (sync): {e}", exc_info=True)
+            return [], 0
+
+    def get_backups_grouped_by_game_sync(
+        self,
+        game_id: int | None = None,
+    ) -> dict[int, list[GameDLLBackup]]:
+        """
+        Get backups grouped by game ID for BackupGroup display.
+
+        SYNC method designed for ThreadPoolExecutor parallelism.
+        Returns backups organized by game for efficient UI rendering
+        of game-grouped backup cards.
+
+        Args:
+            game_id: Optional game ID to filter by (returns single-game dict if set)
+
+        Returns:
+            Dict mapping game_id to list of GameDLLBackup objects
+        """
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            query = """
+                SELECT b.id, b.game_dll_id, gd.game_id, g.name,
+                       gd.dll_type, gd.dll_filename, b.backup_path,
+                       b.original_version, b.backup_created_at,
+                       b.backup_size, b.is_active
+                FROM dll_backups b
+                INNER JOIN game_dlls gd ON b.game_dll_id = gd.id
+                INNER JOIN games g ON gd.game_id = g.id
+                WHERE b.is_active = 1
+            """
+
+            params: list[int] = []
+            if game_id is not None:
+                query += " AND gd.game_id = ?"
+                params.append(game_id)
+
+            # Order by game name first, then by backup date for grouping
+            query += " ORDER BY g.name, b.backup_created_at DESC"
+
+            cursor.execute(query, params)
+
+            # Group by game_id during iteration (single pass)
+            grouped: dict[int, list[GameDLLBackup]] = {}
+            for row in cursor:
+                backup = GameDLLBackup(
+                    id=row[0],
+                    game_dll_id=row[1],
+                    game_id=row[2],
+                    game_name=row[3],
+                    dll_type=row[4],
+                    dll_filename=row[5],
+                    backup_path=row[6],
+                    original_version=row[7],
+                    backup_created_at=datetime.fromisoformat(row[8]),
+                    backup_size=row[9],
+                    is_active=bool(row[10])
+                )
+                game_id_key = backup.game_id
+                if game_id_key not in grouped:
+                    grouped[game_id_key] = []
+                grouped[game_id_key].append(backup)
+
+            return grouped
+
+        except Exception as e:
+            logger.error(f"Error getting grouped backups (sync): {e}", exc_info=True)
+            return {}
+
     # ===== Backup Operations =====
 
     async def insert_backup(self, backup_data: dict[str, Any]) -> int | None:
