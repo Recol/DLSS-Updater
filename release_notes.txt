@@ -1,3 +1,40 @@
+Version 3.9.0:
+Navigation Transition Performance Optimization:
+  - Reduced navigation transitions from ~600ms to <100ms (most views) / <200ms (games view).
+  - Content detachment: Only the active view's subtree is attached to the Flet control tree.
+    Inactive containers have content=None, removing their subtrees from serialization.
+  - Single page.update() per transition instead of 2 (no fade-out gap needed).
+  - GamesView isolation: Uses is_isolated=True so page.update() from navigation skips
+    the ~500+ control games subtree. All GamesView internal updates use self.update().
+  - ImageLoadCoordinator updated to use targeted view updates instead of page-level updates.
+  - Game card fallback image loading uses card-level self.update() (~21 controls vs ~4000).
+  Performance:
+  - Hub/Settings transitions: ~50-70ms (was ~600ms) — ~10x faster.
+  - Launchers transitions: ~120-160ms (was ~600ms) — ~4x faster.
+  - Games transitions: ~50-80ms (was ~600ms) — ~10x faster (with isolation).
+  - Games→Hub/Settings: ~30-40ms (was ~600ms) — ~18x faster.
+  - Python view objects persist through detach/reattach (state preserved).
+
+Version 3.8.0:
+Hub-Based Navigation Redesign:
+  - Replaced tab-based navigation with a staggered/asymmetric hub home screen.
+  - Hub features 3 navigation cards: Launchers, Games, and Settings with left-edge accent bars.
+  - Cards have hover animations (scale + shadow + border glow) using GPU-accelerated transforms.
+  - Hub stats loaded via HyperParallelLoader showing game count and configured launcher count.
+  - Added floating pill navigation bar (capsule at bottom) shown when inside views.
+  - Pill features Home button + 3 view icons with active state (colored circle behind icon).
+  - Fade transitions between views (150ms opacity, GPU-accelerated, no layout recalc).
+  - Stack-based visibility toggle preserves view state across navigation (instant revisits).
+  - Navigation stack supports back navigation via Escape key or pill Home button.
+  - New Settings view provides access to Update Preferences, UI Preferences, Blacklist, Theme toggle.
+  - Removed standalone Backups tab (backup/restore already available per-game in Games view).
+  - All new components support ThemeAwareMixin for dark/light theme switching.
+  Performance:
+  - Hub screen: ~20 controls (3 cards x ~5 inner controls + layout wrappers).
+  - Floating pill: ~13 controls total.
+  - Fade transitions: 2x page.update() per transition (~300ms total).
+  - Removing Backups tab eliminates ~400-1000 controls from the tree.
+
 Version 3.7.0:
 Free-Threaded Python GIL Fix - Resolved GIL re-enablement warning for msgpack:
   - Added PyInstaller OPTION 'X gil=0' to force GIL disabled at bootloader level.

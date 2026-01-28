@@ -47,8 +47,9 @@ class ImageLoadCoordinator:
     Performance improvement: ~5x faster (1.9s -> 350-400ms for 11 images)
     """
 
-    def __init__(self, page: ft.Page, logger=None):
+    def __init__(self, page: ft.Page, logger=None, view_ref: ft.Control | None = None):
         self._page_ref = page
+        self._view_ref = view_ref  # Isolated view for targeted updates
         self._logger = logger
         self._pending_cards: list[tuple['GameCard', str]] = []
         self._batch_task: asyncio.Task | None = None
@@ -112,14 +113,16 @@ class ImageLoadCoordinator:
                     self._logger.debug(f"[ImageLoadCoordinator] Error setting up image for card: {e}")
         setup_ms = (time.perf_counter() - start_setup) * 1000
 
-        # SINGLE page.update() to attach all controls to render tree
+        # SINGLE update to attach all controls to render tree
+        # Use view_ref.update() for isolated views (serializes only GamesView subtree)
         start_update1 = time.perf_counter()
         try:
-            if self._page_ref:
-                self._page_ref.update()
+            update_target = self._view_ref or self._page_ref
+            if update_target:
+                update_target.update()
         except Exception as e:
             if self._logger:
-                self._logger.debug(f"[ImageLoadCoordinator] Error during first page.update(): {e}")
+                self._logger.debug(f"[ImageLoadCoordinator] Error during first update(): {e}")
             return
         update1_ms = (time.perf_counter() - start_update1) * 1000
 
@@ -136,14 +139,15 @@ class ImageLoadCoordinator:
                 pass  # Card may have been disposed
         anim_ms = (time.perf_counter() - start_anim) * 1000
 
-        # SINGLE page.update() to trigger all animations together
+        # SINGLE update to trigger all animations together
         start_update2 = time.perf_counter()
         try:
-            if self._page_ref:
-                self._page_ref.update()
+            update_target = self._view_ref or self._page_ref
+            if update_target:
+                update_target.update()
         except Exception as e:
             if self._logger:
-                self._logger.debug(f"[ImageLoadCoordinator] Error during animation page.update(): {e}")
+                self._logger.debug(f"[ImageLoadCoordinator] Error during animation update(): {e}")
         update2_ms = (time.perf_counter() - start_update2) * 1000
 
         total_ms = (time.perf_counter() - start_total) * 1000
@@ -157,9 +161,14 @@ class ImageLoadCoordinator:
 class GamesView(ThemeAwareMixin, ft.Column):
     """Games library view with launcher tabs
 
-    Note: Cannot use is_isolated=True because view content needs to be updated
-    via page.update() for tab switching and game loading operations.
+    PERFORMANCE: Uses is_isolated=True so page.update() from navigation and
+    other components skips this ~500+ control subtree. All internal updates
+    use self.update() instead. Exception: page-level dialogs still use
+    self._page_ref.update().
     """
+
+    def is_isolated(self):
+        return True
 
     def __init__(self, page: ft.Page, logger):
         super().__init__()
@@ -376,22 +385,19 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 # Reset opacity for animation
                 for card in visible_cards:
                     card.opacity = 0
-                if self._page_ref:
-                    self._page_ref.update()
+                self.update()
                 # Trigger staggered fade-in
                 anim_task = asyncio.create_task(self._animate_cards_in(visible_cards))
                 register_task(anim_task, "animate_cards_tab_switch")
             else:
-                if self._page_ref:
-                    self._page_ref.update()
+                self.update()
             return
 
         self.is_loading = True
         self.loading_indicator.visible = True
         self.empty_state.visible = False
         self.tabs_container.visible = False
-        if self._page_ref:
-            self._page_ref.update()
+        self.update()
 
         try:
             # Ensure database pool is ready
@@ -408,8 +414,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 self.loading_indicator.visible = False
                 self._update_delete_button_state(False)
                 self._games_loaded = False  # Allow retry on next tab switch
-                if self._page_ref:
-                    self._page_ref.update()
+                self.update()
                 return
 
             # Build launcher tabs
@@ -439,8 +444,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         finally:
             self.is_loading = False
-            if self._page_ref:
-                self._page_ref.update()
+            self.update()
 
     async def _build_launcher_tabs(self):
         """Build tabs for each launcher with games (Flet 0.80.4 TabBar/TabBarView pattern)
@@ -707,9 +711,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                         card._image_loaded = True
                         cards_updated += 1
 
-            # Single page.update() for all image updates
-            if cards_updated > 0 and self._page_ref:
-                self._page_ref.update()
+            # Single self.update() for all image updates (isolated view)
+            if cards_updated > 0:
+                self.update()
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             self.logger.debug(f"[PERF] Loaded {cards_updated} uncached images in {elapsed_ms:.1f}ms")
@@ -770,9 +774,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 for card in new_cards:
                     card.opacity = 1
 
-                # Single update per batch
-                if self._page_ref:
-                    self._page_ref.update()
+                # Single update per batch (isolated view)
+                self.update()
 
                 # Yield to event loop
                 await asyncio.sleep(0.02)
@@ -827,9 +830,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
                         grids_by_launcher[launcher].controls.extend(cards)
                         loaded += len(cards)
 
-                # Single update per batch
-                if self._page_ref:
-                    self._page_ref.update()
+                # Single update per batch (isolated view)
+                self.update()
 
                 # Yield to event loop to keep UI responsive
                 await asyncio.sleep(0.02)
@@ -853,23 +855,21 @@ class GamesView(ThemeAwareMixin, ft.Column):
             # Set opacity for entire batch
             for card in cards_to_animate[batch_start:batch_end]:
                 card.opacity = 1
-            # Single update per batch instead of per card
-            if self._page_ref:
-                self._page_ref.update()
+            # Single update per batch instead of per card (isolated view)
+            self.update()
             await asyncio.sleep(0.08)  # 80ms delay per batch (smoother than 40ms per card)
 
         # Set remaining cards to visible immediately
         for card in game_cards[12:]:
             card.opacity = 1
-        if self._page_ref:
-            self._page_ref.update()
+        self.update()
 
     async def _on_refresh_clicked(self, e):
         """Handle refresh button click with rotation animation"""
         # Rotate refresh button
         if self.refresh_button_ref.current:
             self.refresh_button_ref.current.rotate += math.pi * 2  # 360 degrees
-            self._page_ref.update()
+            self.update()
 
         # Force=True to bypass the "already loaded" optimization
         await self.load_games(force=True)
@@ -947,10 +947,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         # PERF: Only update if something changed
         start_update = time.perf_counter()
-        if changed_cards and self._page_ref:
-            # GridView requires full page update for visibility changes
+        if changed_cards:
+            # GridView requires full view update for visibility changes
             # Individual card.update() doesn't work well with virtualization
-            self._page_ref.update()
+            self.update()
         update_ms = (time.perf_counter() - start_update) * 1000
 
         total_ms = (time.perf_counter() - start_total) * 1000
@@ -979,8 +979,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             else:
                 card.visible = True
 
-        if self._page_ref:
-            self._page_ref.update()
+        self.update()
 
     def _get_current_launcher(self) -> str | None:
         """Get the currently selected launcher tab."""

@@ -2618,6 +2618,24 @@ class DatabaseManager:
             logger.error(f"Error getting game count: {e}", exc_info=True)
             return 0
 
+    def get_game_count_sync(self) -> int:
+        """Get total game count (sync, for HyperParallelLoader)."""
+        return self._get_game_count()
+
+    def get_configured_launchers_count_sync(self) -> int:
+        """Count launchers that have configured paths (sync, for HyperParallelLoader)."""
+        try:
+            from dlss_updater.config import config_manager, LauncherPathName
+            count = 0
+            for launcher in LauncherPathName:
+                paths = config_manager.get_launcher_paths(launcher)
+                if paths:
+                    count += 1
+            return count
+        except Exception as e:
+            logger.error(f"Error counting configured launchers: {e}", exc_info=True)
+            return 0
+
     # ===== Search History Operations =====
 
     async def add_search_history(

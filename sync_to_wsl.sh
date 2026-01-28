@@ -1,0 +1,2 @@
+#\!/bin/bash
+rsync -avz --progress --exclude=.venv/ --exclude=venv/ --exclude=__pycache__/ --exclude="*.pyc" --exclude=.git/ --exclude=build/ --exclude=dist/ --exclude="*.egg-info/" --exclude=.mypy_cache/ --exclude=.pytest_cache/ --exclude=.ruff_cache/ --exclude="*.log" --exclude=node_modules/ --exclude=repo/ --exclude=build-dir/ --exclude="*.flatpak" --exclude=.flet/ --exclude=flet_client/ --exclude=.flatpak-builder/ /mnt/c/Github/DLSS-Updater/ ~/DLSS-Updater/

@@ -640,15 +640,15 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # Single wait for control to be added to page (Flet 0.80.4 is faster)
         await asyncio.sleep(0.1)
 
-        # Phase 2: Trigger fade-in with single page update
+        # Phase 2: Trigger fade-in with single card update
         async with self._ui_lock:
             if not self._page_ref:
                 return
             # Set final opacity and trigger animation
             self.image_container.opacity = 1
             try:
-                # Use page.update() - more reliable for concurrent card loading
-                self._page_ref.update()
+                # Use self.update() — card-level update (isolated GamesView)
+                self.update()
             except Exception:
                 pass  # Page may be closing
 

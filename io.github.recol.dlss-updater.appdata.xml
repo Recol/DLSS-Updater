@@ -64,6 +64,30 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="3.9.0" date="2026-01-28">
+      <description>
+        <p>Navigation Transition Performance Optimization</p>
+        <ul>
+          <li>Reduced navigation transitions from ~600ms to under 100ms (most views)</li>
+          <li>Content detachment: only the active view is serialized during page updates</li>
+          <li>Single page.update() per transition instead of 2 (no fade-out gap)</li>
+          <li>GamesView isolation: 500+ control subtree excluded from navigation updates</li>
+          <li>Hub/Settings transitions ~10x faster, Games transitions ~10-18x faster</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.8.0" date="2026-01-27">
+      <description>
+        <p>Hub-Based Navigation Redesign</p>
+        <ul>
+          <li>Replaced tab-based navigation with a hub home screen</li>
+          <li>Added floating pill navigation bar shown when inside views</li>
+          <li>Navigation stack supports back navigation via Escape key</li>
+          <li>New Settings view for Update Preferences, UI Preferences, Blacklist, Theme</li>
+          <li>Removed standalone Backups tab (available per-game in Games view)</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.7.0" date="2026-01-24">
       <description>
         <p>Flet 0.80.4 Migration - Major framework upgrade</p>
