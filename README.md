@@ -49,7 +49,8 @@ The current supported DLL included is FSR 4 (version 4.0.2.0).
 The current supported XeSS DLLs include XeSS 2.0.2, XeSS Frame Generation 1.2.2, and XeLL 1.2.1. Please see the [Intel XeSS releases](https://github.com/intel/xess/releases) for game support details.
 
 ## GUI
-<img width="1097" height="716" alt="image" src="https://github.com/user-attachments/assets/59732e2c-add3-4ad2-ac85-0e0fed6e7ee9" />
+<img width="873" height="805" alt="image" src="https://github.com/user-attachments/assets/0e43780c-79d4-4c83-98c5-f90312d9186d" />
+
 
 
 
