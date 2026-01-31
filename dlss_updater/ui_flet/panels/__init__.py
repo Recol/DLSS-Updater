@@ -6,10 +6,12 @@ from .preferences_panel import PreferencesPanel
 from .release_notes_panel import ReleaseNotesPanel
 from .blacklist_panel import BlacklistPanel
 from .ui_preferences_panel import UIPreferencesPanel
+from .linux_dlss_panel import LinuxDLSSPresetsPanel
 
 __all__ = [
     "PreferencesPanel",
     "ReleaseNotesPanel",
     "BlacklistPanel",
     "UIPreferencesPanel",
+    "LinuxDLSSPresetsPanel",
 ]

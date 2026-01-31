@@ -181,14 +181,23 @@ class DLSSOverlayDialog(ThemeAwareMixin):
         """Copy launch options to clipboard (Linux)"""
         is_dark = self._registry.is_dark
         launch_opts = f"{self.LINUX_OVERLAY_ENV} %command%"
-        self._page_ref.set_clipboard(launch_opts)
-        self._page_ref.snack_bar = ft.SnackBar(
-            content=ft.Text("Launch options copied to clipboard!"),
-            bgcolor=MD3Colors.get_success(is_dark),
-        )
-        self._page_ref.snack_bar.open = True
-        self._page_ref.update()
-        self.logger.info("Linux DLSS overlay launch options copied to clipboard")
+        try:
+            await ft.Clipboard().set(launch_opts)
+            self._page_ref.snack_bar = ft.SnackBar(
+                content=ft.Text("Launch options copied to clipboard!"),
+                bgcolor=MD3Colors.get_success(is_dark),
+            )
+            self._page_ref.snack_bar.open = True
+            self._page_ref.update()
+            self.logger.info("Linux DLSS overlay launch options copied to clipboard")
+        except Exception as ex:
+            self.logger.warning(f"Clipboard operation failed: {ex}")
+            self._page_ref.snack_bar = ft.SnackBar(
+                content=ft.Text("Failed to copy to clipboard"),
+                bgcolor=MD3Colors.get_error(is_dark),
+            )
+            self._page_ref.snack_bar.open = True
+            self._page_ref.update()
 
     async def _show_linux_dialog(self):
         """Show Linux-specific dialog with environment variable instructions"""

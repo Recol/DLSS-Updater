@@ -491,3 +491,54 @@ class GPUInfo(msgspec.Struct):
     vram_mb: int
     driver_version: str
     detection_method: str  # "nvml" | "fallback" | "manual"
+
+
+# =============================================================================
+# Linux DLSS SR Presets (DXVK-NVAPI)
+# =============================================================================
+
+class DLSSPreset(StrEnum):
+    """
+    DLSS Super Resolution render presets for Linux/DXVK-NVAPI.
+
+    These presets control the internal rendering quality/performance balance
+    when using DLSS SR through Proton/Wine with DXVK-NVAPI.
+    """
+    DEFAULT = "default"
+    PRESET_K = "preset_k"  # Lighter preset (RTX 20/30 recommended)
+    PRESET_L = "preset_l"  # Balanced preset
+    PRESET_M = "preset_m"  # Heavier preset (RTX 40/50 recommended)
+
+    @property
+    def env_value(self) -> str:
+        """Get DXVK-NVAPI environment variable value."""
+        mapping = {
+            "default": "",
+            "preset_k": "render_preset_k",
+            "preset_l": "render_preset_l",
+            "preset_m": "render_preset_m",
+        }
+        return mapping.get(self.value, "")
+
+    @property
+    def display_name(self) -> str:
+        """Get human-readable display name."""
+        names = {
+            "default": "Default (No Override)",
+            "preset_k": "Preset K (Lighter)",
+            "preset_l": "Preset L (Balanced)",
+            "preset_m": "Preset M (Heavier)",
+        }
+        return names.get(self.value, self.value)
+
+
+class LinuxDLSSConfig(msgspec.Struct, frozen=True):
+    """
+    Configuration for Linux DLSS SR presets.
+
+    Used to generate Steam launch options for DXVK-NVAPI environment variables.
+    """
+    selected_preset: str = "default"
+    overlay_enabled: bool = False
+    wayland_enabled: bool = False
+    hdr_enabled: bool = False

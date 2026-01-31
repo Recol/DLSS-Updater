@@ -11,6 +11,7 @@ from .logger import setup_logger
 from .models import (
     MAX_PATHS_PER_LAUNCHER,
     LauncherPathsConfig,
+    LinuxDLSSConfig,
     PerformanceConfig,
     UpdatePreferencesConfig,
 )
@@ -250,6 +251,15 @@ class ConfigManager(configparser.ConfigParser):
             if not self.has_section("UIPreferences"):
                 self.add_section("UIPreferences")
                 self["UIPreferences"]["SmoothScrolling"] = "true"  # Enabled by default
+                self._save_unlocked()
+
+            # Initialize LinuxDLSSPresets section with defaults if missing
+            if not self.has_section("LinuxDLSSPresets"):
+                self.add_section("LinuxDLSSPresets")
+                self["LinuxDLSSPresets"]["SelectedPreset"] = "default"
+                self["LinuxDLSSPresets"]["OverlayEnabled"] = "false"
+                self["LinuxDLSSPresets"]["WaylandEnabled"] = "false"
+                self["LinuxDLSSPresets"]["HDREnabled"] = "false"
                 self._save_unlocked()
 
             self.initialized = True
@@ -616,6 +626,46 @@ class ConfigManager(configparser.ConfigParser):
         """
         # No-op: high-performance mode is now always enabled
         pass
+
+    # =========================================================================
+    # Linux DLSS SR Presets Configuration
+    # =========================================================================
+
+    def get_linux_dlss_config(self) -> LinuxDLSSConfig:
+        """
+        Get Linux DLSS preset configuration.
+
+        Returns:
+            LinuxDLSSConfig with current settings
+        """
+        with _config_lock:
+            if not self.has_section("LinuxDLSSPresets"):
+                return LinuxDLSSConfig()
+
+            section = self["LinuxDLSSPresets"]
+            return LinuxDLSSConfig(
+                selected_preset=section.get("SelectedPreset", "default"),
+                overlay_enabled=section.getboolean("OverlayEnabled", False),
+                wayland_enabled=section.getboolean("WaylandEnabled", False),
+                hdr_enabled=section.getboolean("HDREnabled", False),
+            )
+
+    def save_linux_dlss_config(self, config: LinuxDLSSConfig) -> None:
+        """
+        Save Linux DLSS preset configuration.
+
+        Args:
+            config: LinuxDLSSConfig to save
+        """
+        with _config_lock:
+            if not self.has_section("LinuxDLSSPresets"):
+                self.add_section("LinuxDLSSPresets")
+
+            self["LinuxDLSSPresets"]["SelectedPreset"] = config.selected_preset
+            self["LinuxDLSSPresets"]["OverlayEnabled"] = str(config.overlay_enabled).lower()
+            self["LinuxDLSSPresets"]["WaylandEnabled"] = str(config.wayland_enabled).lower()
+            self["LinuxDLSSPresets"]["HDREnabled"] = str(config.hdr_enabled).lower()
+            self._save_unlocked()
 
 
 config_manager = ConfigManager()

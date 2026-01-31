@@ -27,6 +27,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         on_open_ui_preferences=None,
         on_open_blacklist=None,
         on_open_dlss_overlay=None,
+        on_open_dlss_sr_presets=None,
         on_toggle_theme=None,
     ):
         super().__init__()
@@ -39,6 +40,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         self._on_open_ui_preferences = on_open_ui_preferences
         self._on_open_blacklist = on_open_blacklist
         self._on_open_dlss_overlay = on_open_dlss_overlay
+        self._on_open_dlss_sr_presets = on_open_dlss_sr_presets
         self._on_toggle_theme = on_toggle_theme
 
         is_dark = page.theme_mode == ft.ThemeMode.DARK
@@ -52,6 +54,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
             "ui_prefs":     ("#9C27B0", "#6A1B9A"),    # Purple (settings accent)
             "blacklist":    ("#EF5350", "#C62828"),     # Red (warning/block)
             "dlss_overlay": ("#76B900", "#558B00"),     # NVIDIA green
+            "dlss_linux_presets": ("#4FC3F7", "#0288D1"),  # Light blue (Linux DLSS)
             "theme":        ("#FF9800", "#E65100"),     # Amber (light/dark toggle)
         }
 
@@ -105,6 +108,17 @@ class SettingsView(ThemeAwareMixin, ft.Column):
                 _tc("dlss_overlay"),
                 is_dark,
                 on_click=lambda e: self._handle_click(self._on_open_dlss_overlay, e),
+            ))
+
+        # Add Linux DLSS SR Presets if available (Linux only with NVIDIA GPU)
+        if FEATURES.dlss_linux_presets:
+            tiles.insert(4, self._create_settings_tile(
+                "Linux DLSS SR Presets",
+                "Configure Super Resolution presets for Proton/Wine",
+                ft.Icons.TUNE,
+                _tc("dlss_linux_presets"),
+                is_dark,
+                on_click=lambda e: self._handle_click(self._on_open_dlss_sr_presets, e),
             ))
 
         # Header

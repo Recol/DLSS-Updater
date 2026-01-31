@@ -16,6 +16,9 @@ dlss_updater_datas = collect_data_files('dlss_updater')
 flet_datas = collect_data_files('flet')
 flet_desktop_datas = collect_data_files('flet_desktop')
 
+# Note: msgspec is handled by custom hook in pyinstaller_hooks/hook-msgspec.py
+# The hook properly collects the free-threaded Python C extension (.cp314t-*.pyd)
+
 a = Analysis(
     ['main.py'],
     pathex=['.'],
@@ -31,7 +34,7 @@ a = Analysis(
         'importlib.metadata',  # Imported inside function in utils.py
         'flet_desktop',      # Internal runtime used by flet (never directly imported)
     ] + dlss_updater_imports,
-    hookspath=[],
+    hookspath=['pyinstaller_hooks'],  # Custom hooks directory for msgspec
     hooksconfig={},
     runtime_hooks=[],
     excludes=[

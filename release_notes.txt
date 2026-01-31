@@ -1,3 +1,28 @@
+Version 3.9.1:
+Linux DLSS SR Presets (Linux Only):
+  - Reintroduced DLSS Super Resolution preset configuration for Linux users.
+  - New "Linux DLSS SR Presets" tile in Settings (visible only on Linux with NVIDIA GPU).
+  - Configure SR presets (Default/K/L/M) for Proton/Wine games via DXVK-NVAPI environment variables.
+  - Preset K: Lighter preset, recommended for RTX 20/30 series GPUs.
+  - Preset L: Balanced preset for quality/performance trade-off.
+  - Preset M: Heavier preset, recommended for RTX 40/50 series GPUs.
+  - Additional toggles: DLSS Debug Overlay, Wayland support, HDR support.
+  - Live command preview shows generated Steam launch options.
+  - Copy to clipboard button for easy pasting into Steam's "Set Launch Options".
+  - Settings are persisted and remembered between sessions.
+Bug Fixes:
+  - Fixed "Copy Path" button crashing the application when clipboard is unavailable.
+    All clipboard operations now wrapped in try-except with user-friendly error messages.
+    Affected components: GameCard, LauncherCard, BackupCard, DLSSOverlayDialog, MainView.
+  - Fixed "Refresh Games" throwing ImportError: cannot import name 'fetch_and_cache_steam_image'.
+    The function was renamed to 'fetch_steam_image' but games_view.py still referenced the old name.
+  - Fixed theme toggle on Windows throwing "ModuleNotFoundError: No module named 'msgspec._core'".
+    PyInstaller's collect_all() doesn't recognize free-threaded Python extensions (.cp314t-*.pyd).
+    Added custom PyInstaller hook (hook-msgspec.py) to manually detect and bundle the C extension.
+  - Theme toggle now shows a restart dialog instead of attempting automatic restart.
+    Automatic restart had compatibility issues with PyInstaller's frozen executables on both
+    Windows and Linux. Users can choose "Restart Now" to exit or "Later" to continue working.
+
 Version 3.9.0:
 Navigation Transition Performance Optimization:
   - Reduced navigation transitions from ~600ms to <100ms (most views) / <200ms (games view).

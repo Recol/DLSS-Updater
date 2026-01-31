@@ -201,8 +201,20 @@ class BackupCard(ThemeAwareMixin, ft.Card):
     async def _on_copy_path_clicked(self, e, path: str):
         """Copy path to clipboard with snackbar confirmation"""
         is_dark = self._registry.is_dark
-        await self._page_ref.set_clipboard_async(path)
-        self._page_ref.show_dialog(ft.SnackBar(content=ft.Text("Path copied to clipboard"), bgcolor=MD3Colors.get_primary(is_dark)))
+        try:
+            await ft.Clipboard().set(path)
+            self._page_ref.show_dialog(ft.SnackBar(
+                content=ft.Text("Path copied to clipboard"),
+                bgcolor=MD3Colors.get_primary(is_dark),
+            ))
+        except Exception as ex:
+            from dlss_updater.logger import setup_logger
+            logger = setup_logger("BackupCard")
+            logger.warning(f"Clipboard operation failed: {ex}")
+            self._page_ref.show_dialog(ft.SnackBar(
+                content=ft.Text("Failed to copy to clipboard"),
+                bgcolor=MD3Colors.get_error(is_dark),
+            ))
 
     def _format_date(self, dt: datetime) -> str:
         """Format datetime for display"""

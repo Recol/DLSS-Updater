@@ -784,17 +784,25 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
         # Copy all paths, one per line
         copy_content = "\n".join(self.all_paths)
-        await self._page_ref.set_clipboard_async(copy_content)
 
-        if len(self.all_paths) > 1:
-            message = f"{len(self.all_paths)} paths copied to clipboard"
-        else:
-            message = "Path copied to clipboard"
+        try:
+            await ft.Clipboard().set(copy_content)
 
-        self._page_ref.show_dialog(ft.SnackBar(
-            content=ft.Text(message),
-            bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
-        ))
+            if len(self.all_paths) > 1:
+                message = f"{len(self.all_paths)} paths copied to clipboard"
+            else:
+                message = "Path copied to clipboard"
+
+            self._page_ref.show_dialog(ft.SnackBar(
+                content=ft.Text(message),
+                bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
+            ))
+        except Exception as ex:
+            self.logger.warning(f"Clipboard operation failed: {ex}")
+            self._page_ref.show_dialog(ft.SnackBar(
+                content=ft.Text("Failed to copy to clipboard"),
+                bgcolor=MD3Colors.get_error(is_dark),
+            ))
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """Return themed property mappings for theme-aware updates.

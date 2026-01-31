@@ -666,7 +666,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         Uses asyncio.gather() for parallel HTTP requests (I/O-bound).
         Single page.update() after all images are fetched and applied.
         """
-        from dlss_updater.steam_integration import fetch_and_cache_steam_image
+        from dlss_updater.steam_integration import fetch_steam_image
 
         start_time = time.perf_counter()
 
@@ -687,7 +687,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             async def fetch_with_id(app_id: int) -> tuple[int, str | None]:
                 """Fetch image and return (app_id, path) tuple."""
                 try:
-                    path = await fetch_and_cache_steam_image(app_id)
+                    path = await fetch_steam_image(app_id)
                     return (app_id, path)
                 except Exception as e:
                     self.logger.debug(f"Failed to fetch image for app {app_id}: {e}")

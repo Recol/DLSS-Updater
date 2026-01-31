@@ -26,6 +26,7 @@ class FeatureSupport(NamedTuple):
     auto_launcher_detection: bool
     admin_elevation: bool
     dlss_linux_overlay: bool        # Can use debug overlay via env vars (Linux only)
+    dlss_linux_presets: bool        # Can configure SR presets via env vars (Linux only)
     nvidia_gpu_detected: bool       # NVIDIA GPU present (checked at startup)
 
 
@@ -94,6 +95,7 @@ def get_feature_support() -> FeatureSupport:
             auto_launcher_detection=True,
             admin_elevation=True,
             dlss_linux_overlay=False,           # Windows doesn't need this
+            dlss_linux_presets=False,           # Windows doesn't need this
             nvidia_gpu_detected=nvidia_gpu,
         )
     elif platform == Platform.LINUX:
@@ -103,7 +105,8 @@ def get_feature_support() -> FeatureSupport:
             directstorage=False,    # Windows-only technology
             auto_launcher_detection=False,  # No registry for launcher paths
             admin_elevation=False,  # Flatpak sandboxing handles permissions
-            dlss_linux_overlay=nvidia_gpu,      # Linux overlay via DXVK-NVAPI
+            dlss_linux_overlay=True,            # Always available on Linux
+            dlss_linux_presets=True,            # Always available on Linux
             nvidia_gpu_detected=nvidia_gpu,
         )
     else:
@@ -115,6 +118,7 @@ def get_feature_support() -> FeatureSupport:
             auto_launcher_detection=False,
             admin_elevation=False,
             dlss_linux_overlay=False,
+            dlss_linux_presets=False,
             nvidia_gpu_detected=False,
         )
 

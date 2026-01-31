@@ -514,10 +514,19 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         """Copy all configured paths to clipboard"""
         if self.current_paths:
             paths_text = "\n".join(self.current_paths)
-            self._page_ref.set_clipboard(paths_text)
-            self._page_ref.snack_bar = ft.SnackBar(ft.Text("Paths copied to clipboard"))
-            self._page_ref.snack_bar.open = True
-            self._page_ref.update()
+            try:
+                await ft.Clipboard().set(paths_text)
+                self._page_ref.snack_bar = ft.SnackBar(ft.Text("Paths copied to clipboard"))
+                self._page_ref.snack_bar.open = True
+                self._page_ref.update()
+            except Exception as ex:
+                self.logger.warning(f"Clipboard operation failed: {ex}")
+                self._page_ref.snack_bar = ft.SnackBar(
+                    ft.Text("Failed to copy to clipboard"),
+                    bgcolor=ft.Colors.ERROR,
+                )
+                self._page_ref.snack_bar.open = True
+                self._page_ref.update()
 
     async def _on_open_explorer(self, e):
         """Open first path in file manager (cross-platform, non-blocking)"""

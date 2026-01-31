@@ -496,25 +496,19 @@ def create_app_bar_menus(
     page: ft.Page,
     is_dark: bool,
     callbacks: dict[str, Callable],
-    features_dlss_overlay: bool = True,
-) -> tuple[CommunityMenu, PreferencesMenu, ApplicationMenu]:
+) -> tuple[CommunityMenu, ApplicationMenu]:
     """
-    Factory function to create all 3 app bar menu components.
+    Factory function to create app bar menu components.
 
     Args:
         page: Flet page reference
         is_dark: Whether dark mode is active
         callbacks: Dict of callback functions for menu items
-        features_dlss_overlay: Whether DLSS overlay is available
 
     Returns:
-        Tuple of (CommunityMenu, PreferencesMenu, ApplicationMenu)
+        Tuple of (CommunityMenu, ApplicationMenu)
     """
     community = CommunityMenu(page, is_dark, callbacks)
-    preferences = PreferencesMenu(
-        page, is_dark, callbacks,
-        features_dlss_overlay=features_dlss_overlay,
-    )
     application = ApplicationMenu(page, is_dark, callbacks)
 
-    return community, preferences, application
+    return community, application

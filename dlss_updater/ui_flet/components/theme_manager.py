@@ -7,6 +7,7 @@ Designed for Python 3.14 free-threaded compatibility.
 from __future__ import annotations
 
 import asyncio
+import sys
 from typing import TYPE_CHECKING
 
 import flet as ft
@@ -71,15 +72,129 @@ class ThemeManager:
 
     async def toggle_theme_async(self) -> None:
         """
-        Toggle theme and restart the application.
+        Toggle theme and show restart confirmation dialog.
         A full restart ensures all components render correctly with the new theme.
         """
         async with self._toggle_lock:
             self.is_dark = not self.is_dark
             self._save_preference()
 
-            # Restart the application for clean theme application
-            self._restart_application()
+            # Show restart confirmation dialog
+            await self._show_theme_restart_dialog()
+
+    async def _show_theme_restart_dialog(self) -> None:
+        """
+        Show a modal dialog informing the user that a restart is required
+        for the theme change to take effect.
+        """
+        from dlss_updater.platform_utils import IS_WINDOWS
+
+        # Use the NEW theme state for dialog colors (previews the new theme)
+        is_dark = self.is_dark
+        new_theme_name = "Dark" if is_dark else "Light"
+
+        async def on_close_now(e):
+            """Handle 'Close Now' button click - exits the application (Windows only)."""
+            self._page_ref.pop_dialog()
+            sys.exit(0)
+
+        async def on_ok(e):
+            """Handle 'OK' button click - just closes the dialog."""
+            self._page_ref.pop_dialog()
+
+        # Platform-specific message
+        if IS_WINDOWS:
+            message_text = "The application will close. Please reopen it to see the new theme."
+        else:
+            message_text = "Please close and reopen the application to see the new theme."
+
+        # Build dialog content
+        content = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Icon(
+                                ft.Icons.INFO_OUTLINE,
+                                color=MD3Colors.get_primary(is_dark),
+                                size=24,
+                            ),
+                            ft.Text(
+                                f"Theme changed to {new_theme_name} Mode",
+                                size=14,
+                                weight=ft.FontWeight.W_500,
+                                color=MD3Colors.get_text_primary(is_dark),
+                            ),
+                        ],
+                        spacing=12,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Container(
+                        content=ft.Text(
+                            message_text,
+                            size=13,
+                            color=MD3Colors.get_text_secondary(is_dark),
+                        ),
+                        padding=ft.padding.only(left=36),
+                    ),
+                ],
+                spacing=12,
+                tight=True,
+            ),
+            width=380,
+            padding=ft.padding.only(top=8, bottom=8),
+        )
+
+        # Platform-specific actions
+        if IS_WINDOWS:
+            actions = [
+                ft.FilledButton(
+                    "Close Now",
+                    on_click=on_close_now,
+                    style=ft.ButtonStyle(
+                        bgcolor=MD3Colors.get_primary(is_dark),
+                        color=MD3Colors.ON_PRIMARY,
+                    ),
+                ),
+            ]
+        else:
+            actions = [
+                ft.FilledButton(
+                    "OK",
+                    on_click=on_ok,
+                    style=ft.ButtonStyle(
+                        bgcolor=MD3Colors.get_primary(is_dark),
+                        color=MD3Colors.ON_PRIMARY,
+                    ),
+                ),
+            ]
+
+        # Create the dialog
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                controls=[
+                    ft.Icon(
+                        ft.Icons.RESTART_ALT,
+                        color=MD3Colors.get_primary(is_dark),
+                        size=24,
+                    ),
+                    ft.Text(
+                        "Restart Required",
+                        color=MD3Colors.get_text_primary(is_dark),
+                    ),
+                ],
+                spacing=10,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            content=content,
+            bgcolor=MD3Colors.get_surface(is_dark),
+            actions=actions,
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        self._page_ref.show_dialog(dialog)
+        self._page_ref.update()
 
     def apply_theme(self, save: bool = True) -> None:
         """
@@ -182,21 +297,6 @@ class ThemeManager:
             config_manager.save()
         except Exception as e:
             print(f"Failed to save theme preference: {e}")
-
-    def _restart_application(self) -> None:
-        """Restart the application to apply theme changes cleanly"""
-        import sys
-        import os
-
-        # Get the executable path
-        if getattr(sys, 'frozen', False):
-            # Running as compiled executable (PyInstaller)
-            executable = sys.executable
-            os.execv(executable, [executable] + sys.argv[1:])
-        else:
-            # Running as Python script
-            python = sys.executable
-            os.execv(python, [python] + sys.argv)
 
     def is_dark_mode(self) -> bool:
         """Check if currently in dark mode"""

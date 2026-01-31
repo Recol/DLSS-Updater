@@ -74,7 +74,7 @@ from dlss_updater.ui_flet.components.theme_manager import ThemeManager
 from dlss_updater.ui_flet.theme.colors import Shadows
 from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDialog
 from dlss_updater.ui_flet.components.slide_panel import PanelManager
-from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel
+from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel, LinuxDLSSPresetsPanel
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
@@ -86,7 +86,7 @@ from dlss_updater.ui_flet.views.settings_view import SettingsView
 from dlss_updater.ui_flet.navigation.navigation_controller import NavigationController
 from dlss_updater.ui_flet.components.dll_cache_snackbar import DLLCacheProgressSnackbar
 from dlss_updater.ui_flet.components.app_bar_menus import (
-    CommunityMenu, PreferencesMenu, ApplicationMenu, create_app_bar_menus
+    CommunityMenu, ApplicationMenu, create_app_bar_menus
 )
 from dlss_updater.version import __version__
 from dlss_updater.utils import find_game_root
@@ -132,7 +132,6 @@ class MainView(ft.Column):
 
         # Popup menu components (created in _create_app_bar)
         self.community_menu: CommunityMenu | None = None
-        self.preferences_menu: PreferencesMenu | None = None
         self.application_menu: ApplicationMenu | None = None
 
         # Discord banner
@@ -222,6 +221,7 @@ class MainView(ft.Column):
             on_open_ui_preferences=self._on_ui_preferences_clicked,
             on_open_blacklist=self._on_blacklist_clicked,
             on_open_dlss_overlay=self._on_dlss_overlay_clicked,
+            on_open_dlss_sr_presets=self._on_dlss_sr_presets_clicked,
             on_toggle_theme=self._toggle_theme_from_menu,
         )
 
@@ -491,22 +491,15 @@ class MainView(ft.Column):
             "discord": lambda _: open_url("https://discord.com/users/162568099839606784"),
             "discord_invite": self._on_show_discord_invite_clicked,
             "release_notes": self._on_release_notes_clicked,
-            # Preferences menu callbacks
-            "update_prefs": self._on_settings_clicked,
-            "ui_prefs": self._on_ui_preferences_clicked,
-            "blacklist": self._on_blacklist_clicked,
-            "dlss_overlay": self._on_dlss_overlay_clicked,
-            "theme": self._toggle_theme_from_menu,
             # Application menu callbacks
             "check_updates": self._on_check_updates_clicked,
         }
 
-        # Create the 3 popup menus using the factory function
-        self.community_menu, self.preferences_menu, self.application_menu = create_app_bar_menus(
+        # Create the 2 popup menus using the factory function
+        self.community_menu, self.application_menu = create_app_bar_menus(
             page=self._page_ref,
             is_dark=is_dark,
             callbacks=menu_callbacks,
-            features_dlss_overlay=FEATURES.dlss_overlay,
         )
 
         # Compact top bar with 3 popup menu buttons on the right
@@ -531,9 +524,8 @@ class MainView(ft.Column):
                     spacing=2,
                     expand=True,
                 ),
-                # Right side buttons: Community (Heart), Preferences (Gear), Application (Grid)
+                # Right side buttons: Community (Heart), Application (Grid)
                 self.community_menu.button,
-                self.preferences_menu.button,
                 self.application_menu.button,
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -584,19 +576,16 @@ class MainView(ft.Column):
         # Rebuild all popup menus with new theme colors
         if self.community_menu:
             self.community_menu.rebuild(is_dark)
-        if self.preferences_menu:
-            self.preferences_menu.rebuild(is_dark)
         if self.application_menu:
             self.application_menu.rebuild(is_dark)
 
         # Update the buttons in the app bar
         if hasattr(self, 'app_bar_container') and self.app_bar_container:
             top_bar = self.app_bar_container.content  # Container -> Row
-            if hasattr(top_bar, 'controls') and len(top_bar.controls) >= 4:
-                # Update button references (controls: title_col, community, prefs, app)
+            if hasattr(top_bar, 'controls') and len(top_bar.controls) >= 3:
+                # Update button references (controls: title_col, community, app)
                 top_bar.controls[1] = self.community_menu.button
-                top_bar.controls[2] = self.preferences_menu.button
-                top_bar.controls[3] = self.application_menu.button
+                top_bar.controls[2] = self.application_menu.button
 
         # NOTE: No page.update() here - batched in _toggle_theme_from_menu()
 
@@ -932,8 +921,12 @@ class MainView(ft.Column):
 
         async def copy_command(e):
             """Copy the override command to clipboard"""
-            await self._page_ref.set_clipboard_async(override_cmd)
-            await self._show_snackbar("Command copied to clipboard")
+            try:
+                await ft.Clipboard().set(override_cmd)
+                await self._show_snackbar("Command copied to clipboard")
+            except Exception as ex:
+                self.logger.warning(f"Clipboard operation failed: {ex}")
+                await self._show_snackbar("Failed to copy to clipboard")
 
         dialog = ft.AlertDialog(
             modal=True,
@@ -1005,6 +998,12 @@ class MainView(ft.Column):
         """Handle DLSS overlay settings button click"""
         dialog = DLSSOverlayDialog(self._page_ref, self.logger)
         await dialog.show()
+
+    async def _on_dlss_sr_presets_clicked(self, e):
+        """Handle Linux DLSS SR presets settings button click"""
+        panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
+        panel = LinuxDLSSPresetsPanel(self._page_ref, self.logger)
+        await panel_manager.show_content(panel)
 
     async def _on_settings_clicked(self, e):
         """Handle settings button click"""
