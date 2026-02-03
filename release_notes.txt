@@ -1,3 +1,29 @@
+Version 3.9.2:
+Bug Fixes - Data Lifecycle and Version Handling:
+  Critical Fixes:
+  - Fixed phantom games persisting after uninstall. Games that are uninstalled now get cleaned up
+    during the next scan. The scanner now runs post-scan cleanup to remove games whose paths
+    no longer exist on the filesystem.
+  - Fixed orphan DLL records accumulating when DLLs are removed from game directories.
+    The cleanup process now removes DLL records for files that no longer exist.
+  - Fixed version display inconsistency showing comma-separated versions (310,4,0,0) instead of
+    dot-separated (310.4.0.0). All DLL versions are now normalized to dot format at extraction time.
+  - Fixed MergedGame AttributeError crash when clicking Update/Restore in DLL group dialog
+    for games with duplicate installations. Callbacks now always receive Game objects.
+  - Fixed "Up to date" dialog showing stale versions. The DLL dialog now refreshes versions
+    from the actual filesystem before displaying, ensuring accuracy.
+  - Added cleanup_duplicate_games() and cleanup_duplicate_backups() calls during post-scan
+    to prevent database bloat from duplicate entries.
+  UI Improvements:
+  - New shutdown progress dialog shows step-by-step progress when closing the application.
+    Displays current operation (9 steps total) with progress bar and spinner.
+    Prevents the appearance of the app "freezing" during cleanup.
+Database:
+  - Added cleanup_missing_games() - removes games whose paths no longer exist.
+  - Added cleanup_orphan_dlls() - removes DLL records for deleted files.
+  - Added perform_post_scan_cleanup() - unified post-scan cleanup orchestration.
+  - Added refresh_dll_versions_for_game() - re-reads DLL versions from filesystem.
+
 Version 3.9.1:
 Linux DLSS SR Presets (Linux Only):
   - Reintroduced DLSS Super Resolution preset configuration for Linux users.

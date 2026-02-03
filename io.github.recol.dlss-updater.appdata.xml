@@ -64,6 +64,20 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="3.9.2" date="2026-02-03">
+      <description>
+        <p>Data Lifecycle and UX Improvements</p>
+        <ul>
+          <li>Phantom Game Cleanup: Uninstalled games are now automatically removed from the database on rescan</li>
+          <li>Version Format Normalization: DLL versions consistently display in dot-separated format</li>
+          <li>DLL Count Consistency: Fixed issue where updating custom folder games could reduce DLL count</li>
+          <li>MergedGame AttributeError: Fixed crash when using Update/Restore on duplicate game entries</li>
+          <li>Stale Version Display: DLL versions refreshed from filesystem before showing dialog</li>
+          <li>Database Cleanup: Automatic cleanup of duplicate games, backups, and orphan DLL records</li>
+          <li>Shutdown Progress Dialog: Visual feedback during app shutdown showing cleanup progress</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.9.0" date="2026-01-28">
       <description>
         <p>Navigation Transition Performance Optimization</p>

@@ -722,6 +722,200 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    async def cleanup_missing_games(self, valid_game_paths: set[str]) -> int:
+        """
+        Remove games whose paths no longer exist on the filesystem.
+
+        This method compares stored game paths against the set of valid paths
+        from the current scan and the actual filesystem. Games are deleted if:
+        1. Their path is not in the valid_game_paths set (not found in current scan)
+        2. AND the path no longer exists on the filesystem
+
+        This double-check prevents accidentally deleting games that might be on
+        unmounted drives or temporarily inaccessible locations.
+
+        Args:
+            valid_game_paths: Set of game paths found in the current scan
+
+        Returns:
+            Number of games removed from database
+
+        Note:
+            CASCADE delete will automatically remove associated game_dlls,
+            dll_backups, and update_history records.
+        """
+        return await asyncio.to_thread(self._cleanup_missing_games, valid_game_paths)
+
+    def _cleanup_missing_games(self, valid_game_paths: set[str]) -> int:
+        """Remove games not in valid_game_paths and not on filesystem (runs in thread)"""
+        import os
+
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            # Get all game paths from database
+            cursor.execute("SELECT id, path FROM games")
+            all_games = cursor.fetchall()
+
+            # Normalize valid paths for comparison
+            valid_paths_normalized = {os.path.normcase(os.path.normpath(p)) for p in valid_game_paths}
+
+            # Find games to delete (not in valid set AND not on filesystem)
+            games_to_delete = []
+            for game_id, game_path in all_games:
+                path_normalized = os.path.normcase(os.path.normpath(game_path))
+
+                if path_normalized not in valid_paths_normalized:
+                    # Path not in current scan - check if it still exists on filesystem
+                    if not os.path.exists(game_path):
+                        games_to_delete.append(game_id)
+                        logger.debug(f"Marking phantom game for deletion: {game_path}")
+
+            if not games_to_delete:
+                logger.info("No phantom games found")
+                return 0
+
+            # Batch delete phantom games (CASCADE handles related records)
+            placeholders = ','.join('?' * len(games_to_delete))
+            cursor.execute(f"DELETE FROM games WHERE id IN ({placeholders})", games_to_delete)
+
+            conn.commit()
+            deleted_count = len(games_to_delete)
+            logger.info(f"Cleaned up {deleted_count} phantom game(s)")
+            return deleted_count
+
+        except sqlite3.OperationalError as e:
+            if "readonly database" in str(e):
+                logger.warning(f"Database is read-only. Cannot cleanup phantom games.")
+            else:
+                logger.error(f"Error cleaning up phantom games: {e}", exc_info=True)
+            conn.rollback()
+            return 0
+        except Exception as e:
+            logger.error(f"Error cleaning up phantom games: {e}", exc_info=True)
+            conn.rollback()
+            return 0
+        finally:
+            conn.close()
+
+    async def cleanup_orphan_dlls(self, valid_dll_paths: set[str]) -> int:
+        """
+        Remove DLL records whose files no longer exist on the filesystem.
+
+        This method compares stored DLL paths against the set of valid paths
+        from the current scan and the actual filesystem. DLLs are deleted if:
+        1. Their path is not in the valid_dll_paths set (not found in current scan)
+        2. AND the path no longer exists on the filesystem
+
+        Args:
+            valid_dll_paths: Set of DLL paths found in the current scan
+
+        Returns:
+            Number of DLL records removed from database
+        """
+        return await asyncio.to_thread(self._cleanup_orphan_dlls, valid_dll_paths)
+
+    def _cleanup_orphan_dlls(self, valid_dll_paths: set[str]) -> int:
+        """Remove DLL records not in valid_dll_paths and not on filesystem (runs in thread)"""
+        import os
+
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            # Get all DLL paths from database
+            cursor.execute("SELECT id, dll_path FROM game_dlls")
+            all_dlls = cursor.fetchall()
+
+            # Normalize valid paths for comparison
+            valid_paths_normalized = {os.path.normcase(os.path.normpath(p)) for p in valid_dll_paths}
+
+            # Find DLLs to delete (not in valid set AND not on filesystem)
+            dlls_to_delete = []
+            for dll_id, dll_path in all_dlls:
+                path_normalized = os.path.normcase(os.path.normpath(dll_path))
+
+                if path_normalized not in valid_paths_normalized:
+                    # Path not in current scan - check if it still exists on filesystem
+                    if not os.path.exists(dll_path):
+                        dlls_to_delete.append(dll_id)
+                        logger.debug(f"Marking orphan DLL for deletion: {dll_path}")
+
+            if not dlls_to_delete:
+                logger.info("No orphan DLLs found")
+                return 0
+
+            # Batch delete orphan DLLs (CASCADE handles backups and history)
+            placeholders = ','.join('?' * len(dlls_to_delete))
+            cursor.execute(f"DELETE FROM game_dlls WHERE id IN ({placeholders})", dlls_to_delete)
+
+            conn.commit()
+            deleted_count = len(dlls_to_delete)
+            logger.info(f"Cleaned up {deleted_count} orphan DLL record(s)")
+            return deleted_count
+
+        except sqlite3.OperationalError as e:
+            if "readonly database" in str(e):
+                logger.warning(f"Database is read-only. Cannot cleanup orphan DLLs.")
+            else:
+                logger.error(f"Error cleaning up orphan DLLs: {e}", exc_info=True)
+            conn.rollback()
+            return 0
+        except Exception as e:
+            logger.error(f"Error cleaning up orphan DLLs: {e}", exc_info=True)
+            conn.rollback()
+            return 0
+        finally:
+            conn.close()
+
+    async def perform_post_scan_cleanup(
+        self,
+        valid_game_paths: set[str],
+        valid_dll_paths: set[str]
+    ) -> dict[str, int]:
+        """
+        Run all cleanup operations after a scan.
+
+        This method orchestrates the complete post-scan cleanup process:
+        1. Remove phantom games (uninstalled games still in DB)
+        2. Remove orphan DLLs (DLL records for deleted files)
+        3. Cleanup duplicate game entries
+        4. Cleanup duplicate backup entries
+
+        Args:
+            valid_game_paths: Set of game paths found in current scan
+            valid_dll_paths: Set of DLL paths found in current scan
+
+        Returns:
+            Dict with cleanup counts:
+            - 'phantom_games': Number of phantom games removed
+            - 'orphan_dlls': Number of orphan DLLs removed
+            - 'duplicate_games': Number of duplicate game entries removed
+            - 'duplicate_backups': Number of duplicate backup entries removed
+        """
+        results = {}
+
+        # Cleanup phantom games (games that no longer exist)
+        results['phantom_games'] = await self.cleanup_missing_games(valid_game_paths)
+
+        # Cleanup orphan DLLs (DLL records for files that no longer exist)
+        results['orphan_dlls'] = await self.cleanup_orphan_dlls(valid_dll_paths)
+
+        # Cleanup duplicate game entries (same name + launcher)
+        results['duplicate_games'] = await asyncio.to_thread(self._cleanup_duplicate_games)
+
+        # Cleanup duplicate backup entries (keep most recent per DLL)
+        results['duplicate_backups'] = await asyncio.to_thread(self._cleanup_duplicate_backups)
+
+        total_cleaned = sum(results.values())
+        if total_cleaned > 0:
+            logger.info(f"Post-scan cleanup complete: {results}")
+        else:
+            logger.debug("Post-scan cleanup: no stale data found")
+
+        return results
+
     # ===== GameDLL Operations =====
 
     async def upsert_game_dll(self, dll_data: dict[str, Any]) -> GameDLL | None:
@@ -866,6 +1060,91 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error updating DLL version: {e}", exc_info=True)
             conn.rollback()
+        finally:
+            conn.close()
+
+    async def refresh_dll_versions_for_game(self, game_id: int) -> list[GameDLL]:
+        """
+        Re-read DLL versions from filesystem and update database.
+
+        This method reads the actual file versions from disk for all DLLs
+        associated with a game, updates the database if versions differ,
+        and returns the refreshed DLL list.
+
+        Use this before showing the DLL dialog to ensure displayed versions
+        match the actual files on disk (fixes Bug 5: stale version cache).
+
+        Args:
+            game_id: The game ID to refresh DLLs for
+
+        Returns:
+            List of GameDLL objects with current versions from filesystem
+        """
+        return await asyncio.to_thread(self._refresh_dll_versions_for_game, game_id)
+
+    def _refresh_dll_versions_for_game(self, game_id: int) -> list[GameDLL]:
+        """Re-read DLL versions from filesystem (runs in thread)"""
+        import os
+        from dlss_updater.updater import get_dll_version
+
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            # Get all DLLs for this game
+            cursor.execute("""
+                SELECT id, game_id, dll_type, dll_filename, dll_path, current_version, detected_at
+                FROM game_dlls
+                WHERE game_id = ?
+            """, (game_id,))
+
+            rows = cursor.fetchall()
+            refreshed_dlls = []
+            updates_needed = []
+
+            for row in rows:
+                dll_id = row[0]
+                dll_path = row[4]
+                stored_version = row[5]
+
+                # Check if file exists and read fresh version
+                fresh_version = None
+                if os.path.exists(dll_path):
+                    fresh_version = get_dll_version(dll_path)
+
+                # Track if update needed
+                if fresh_version and fresh_version != stored_version:
+                    updates_needed.append((fresh_version, dll_id))
+                    logger.debug(f"Version changed for {dll_path}: {stored_version} -> {fresh_version}")
+
+                # Build GameDLL with fresh version (or stored if file missing)
+                refreshed_dlls.append(GameDLL(
+                    id=dll_id,
+                    game_id=row[1],
+                    dll_type=row[2],
+                    dll_filename=row[3],
+                    dll_path=dll_path,
+                    current_version=fresh_version if fresh_version else stored_version,
+                    detected_at=datetime.fromisoformat(row[6])
+                ))
+
+            # Batch update changed versions
+            if updates_needed:
+                cursor.executemany("""
+                    UPDATE game_dlls
+                    SET current_version = ?
+                    WHERE id = ?
+                """, updates_needed)
+                conn.commit()
+                logger.info(f"Refreshed {len(updates_needed)} DLL version(s) for game_id {game_id}")
+
+            return refreshed_dlls
+
+        except Exception as e:
+            logger.error(f"Error refreshing DLL versions: {e}", exc_info=True)
+            conn.rollback()
+            # Fall back to returning stored versions
+            return self._get_dlls_for_game(game_id)
         finally:
             conn.close()
 

@@ -258,12 +258,28 @@ async def main(page: ft.Page):
                 return  # Already shutting down, avoid double-shutdown
             _shutdown_in_progress = True
 
+            # Show shutdown progress dialog for visual feedback
+            from dlss_updater.ui_flet.dialogs.shutdown_progress_dialog import ShutdownProgressDialog
+            progress_dialog = ShutdownProgressDialog(page, logger)
+
             try:
-                # Run cleanup first
-                await main_view.shutdown()
+                progress_dialog.show()
+
+                # Run cleanup with progress callback
+                await main_view.shutdown(progress_callback=progress_dialog.update_step)
+
+                # Show completion state briefly
+                progress_dialog.show_complete()
+
             except Exception as ex:
                 logger.error(f"Shutdown error: {ex}")
             finally:
+                # Close dialog before destroying window
+                try:
+                    progress_dialog.close()
+                except Exception:
+                    pass
+
                 # CRITICAL: Destroy window to terminate the Flet/Flutter process
                 try:
                     await page.window.destroy()

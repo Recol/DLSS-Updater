@@ -93,6 +93,36 @@ _dll_version_cache: dict = {}
 _parse_version_cache: dict = {}
 
 
+def normalize_version_string(version_str: str | None) -> str | None:
+    """
+    Normalize version string to dot-separated format.
+
+    PE files often return versions in comma-separated format (e.g., "310,4,0,0")
+    but LATEST_DLL_VERSIONS uses dot format (e.g., "310.4.0.0"). This function
+    normalizes all versions to dot format at extraction time for consistent display
+    and comparison.
+
+    Args:
+        version_str: Raw version string from PE file or None
+
+    Returns:
+        Normalized version string with dots, or None if input is None/empty
+
+    Examples:
+        >>> normalize_version_string("310,4,0,0")
+        '310.4.0.0'
+        >>> normalize_version_string("3.1.0.0")
+        '3.1.0.0'
+        >>> normalize_version_string("  3, 10, 5, 0  ")
+        '3.10.5.0'
+    """
+    if not version_str:
+        return None
+    # Replace commas with dots and remove extra whitespace
+    normalized = version_str.replace(",", ".").replace(" ", "").strip()
+    return normalized if normalized else None
+
+
 def parse_version(version_string):
     """
     Parse a version string into a format that can be compared.
@@ -186,7 +216,10 @@ def get_dll_version(dll_path):
                             for st in entry.StringTable:
                                 for key, value in st.entries.items():
                                     if key == b"FileVersion":
-                                        version_str = value.decode("utf-8").strip()
+                                        raw_version = value.decode("utf-8").strip()
+                                        # Normalize version to dot-separated format
+                                        # PE files often use commas (310,4,0,0) but we want dots
+                                        version_str = normalize_version_string(raw_version)
                                         break
 
             # Cache the result (thread-safe write)

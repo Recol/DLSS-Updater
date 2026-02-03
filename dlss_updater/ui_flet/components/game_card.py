@@ -527,6 +527,18 @@ class GameCard(ThemeAwareMixin, ft.Card):
     async def _show_dll_dialog(self):
         """Show the grouped DLL dialog with technology categories"""
         from dlss_updater.ui_flet.dialogs.dll_group_dialog import DLLGroupDialog
+        from dlss_updater.database import db_manager
+
+        # Refresh DLL versions from filesystem before showing dialog
+        # This ensures displayed versions match actual files (fixes Bug 5: stale cache)
+        try:
+            refreshed_dlls = await db_manager.refresh_dll_versions_for_game(self.game.id)
+            if refreshed_dlls:
+                self.dlls = refreshed_dlls
+                self.logger.debug(f"Refreshed {len(refreshed_dlls)} DLL versions for {self.game.name}")
+        except Exception as e:
+            self.logger.warning(f"Failed to refresh DLL versions: {e}")
+            # Continue with existing dlls if refresh fails
 
         # Determine which game object to pass (MergedGame or Game)
         game_to_show = self.merged_game if self.merged_game else self.game

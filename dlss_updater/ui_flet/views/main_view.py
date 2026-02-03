@@ -1422,24 +1422,40 @@ class MainView(ft.Column):
         if hasattr(self, 'games_view') and self.games_view:
             await self.games_view.on_view_hidden()
 
-    async def shutdown(self):
-        """Graceful shutdown with timeout and comprehensive cleanup."""
+    async def shutdown(self, progress_callback=None):
+        """
+        Graceful shutdown with timeout, comprehensive cleanup, and progress reporting.
+
+        Args:
+            progress_callback: Optional callback(step: int) to report shutdown progress.
+                              Steps 1-9 correspond to different cleanup phases.
+        """
         import sys
         import asyncio
+
+        async def report_progress(step: int):
+            """Report progress to callback, handling errors gracefully."""
+            if progress_callback:
+                try:
+                    progress_callback(step)
+                except Exception:
+                    pass  # Don't let callback errors block shutdown
 
         self.logger.info("Shutting down application...")
         SHUTDOWN_TIMEOUT = 5.0
 
         try:
             async with asyncio.timeout(SHUTDOWN_TIMEOUT):
-                # 1. Cancel all registered background tasks
+                # Step 1: Cancel all registered background tasks
+                await report_progress(1)
                 try:
                     from dlss_updater.task_registry import cancel_all_tasks
                     await cancel_all_tasks(timeout=3.0)
                 except Exception as e:
                     self.logger.warning(f"Error cancelling background tasks: {e}")
 
-                # 2. Shutdown games view (clears card references, theme registration)
+                # Step 2: Shutdown games view (clears card references, theme registration)
+                await report_progress(2)
                 try:
                     if hasattr(self, 'games_view') and self.games_view:
                         await self.games_view.on_shutdown()
@@ -1447,7 +1463,8 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error shutting down games view: {e}")
 
-                # 3. Stop cache manager (releases memory maps, stops cleanup loop)
+                # Step 3: Stop cache manager (releases memory maps, stops cleanup loop)
+                await report_progress(3)
                 try:
                     from dlss_updater.cache_manager import cache_manager
                     await cache_manager.stop()
@@ -1455,7 +1472,8 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error stopping cache manager: {e}")
 
-                # 4. Shutdown search service (saves history, releases indexes)
+                # Step 4: Shutdown search service (saves history, releases indexes)
+                await report_progress(4)
                 try:
                     from dlss_updater.search_service import search_service
                     await search_service.shutdown()
@@ -1463,7 +1481,8 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error shutting down search service: {e}")
 
-                # 5. Close HTTP session
+                # Step 5: Close HTTP session
+                await report_progress(5)
                 try:
                     from dlss_updater.dll_repository import close_http_session
                     await close_http_session()
@@ -1471,7 +1490,8 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error closing HTTP session: {e}")
 
-                # 6. Close database connections
+                # Step 6: Close database connections
+                await report_progress(6)
                 try:
                     from dlss_updater.database import db_manager
                     await db_manager.close()
@@ -1479,7 +1499,8 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error closing database: {e}")
 
-                # 7. Shutdown thread pool executors (prevents orphaned threads)
+                # Step 7: Shutdown thread pool executors (prevents orphaned threads)
+                await report_progress(7)
                 try:
                     from dlss_updater.updater import shutdown_version_executor
                     import asyncio
@@ -1488,7 +1509,8 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error shutting down executors: {e}")
 
-                # 8. Cleanup logger panel handler (remove Flet handler reference)
+                # Step 8: Cleanup logger panel handler (remove Flet handler reference)
+                await report_progress(8)
                 try:
                     if hasattr(self, 'logger_panel') and self.logger_panel:
                         self.logger_panel.cleanup()
@@ -1496,9 +1518,11 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error cleaning up logger panel: {e}")
 
+            # Step 9: Finalize
+            await report_progress(9)
             self.logger.info("Application shutdown complete")
 
-            # 9. Shutdown logging LAST (after all logging is done)
+            # Shutdown logging LAST (after all logging is done)
             try:
                 from dlss_updater.logger import shutdown_logging
                 shutdown_logging()

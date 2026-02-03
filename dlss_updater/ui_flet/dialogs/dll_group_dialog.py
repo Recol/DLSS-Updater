@@ -569,10 +569,11 @@ class DLLGroupDialog(ThemeAwareMixin):
         if self.dialog:
             self._page_ref.pop_dialog()
 
-        # Invoke callback with merged game if available, otherwise primary game
-        game_to_update = self.merged_game if self.merged_game else self.game
+        # Always pass Game object - callbacks expect .name attribute
+        # MergedGame doesn't have .name directly, so we use self.game
+        # (which is already extracted from MergedGame.primary_game in __init__)
         if self.on_update_callback:
-            self.on_update_callback(game_to_update, group_name)
+            self.on_update_callback(self.game, group_name)
 
     def _on_restore_clicked(self, group_name: str):
         """Handle Restore button click"""
@@ -583,7 +584,8 @@ class DLLGroupDialog(ThemeAwareMixin):
         if self.dialog:
             self._page_ref.pop_dialog()
 
-        # Invoke callback with merged game if available, otherwise primary game
-        game_to_restore = self.merged_game if self.merged_game else self.game
+        # Always pass Game object - callbacks expect .name attribute
+        # MergedGame doesn't have .name directly, so we use self.game
+        # (which is already extracted from MergedGame.primary_game in __init__)
         if self.on_restore_callback:
-            self.on_restore_callback(game_to_restore, group_name)
+            self.on_restore_callback(self.game, group_name)

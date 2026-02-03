@@ -1242,6 +1242,26 @@ async def find_all_dlls(progress_callback=None):
         if dlls_with_versions == 0 and recorded_dlls > 0:
             logger.warning("No DLL versions extracted! Check get_dll_version() function")
 
+        # Phase 6: Cleanup phantom games and orphan DLLs
+        # This removes games that were uninstalled and DLLs that no longer exist
+        await _safe_progress_callback(progress_callback, 97, 100, "Cleaning up stale data...")
+
+        # Build sets of valid paths from the current scan
+        valid_game_paths = set(games_result.keys())
+        valid_dll_paths = {dll['dll_path'] for dll in dlls_to_insert}
+
+        cleanup_results = await db_manager.perform_post_scan_cleanup(
+            valid_game_paths,
+            valid_dll_paths
+        )
+
+        if any(cleanup_results.values()):
+            logger.info(f"Post-scan cleanup removed: "
+                       f"{cleanup_results.get('phantom_games', 0)} phantom games, "
+                       f"{cleanup_results.get('orphan_dlls', 0)} orphan DLLs, "
+                       f"{cleanup_results.get('duplicate_games', 0)} duplicate games, "
+                       f"{cleanup_results.get('duplicate_backups', 0)} duplicate backups")
+
         # Force garbage collection to release pefile/mmap memory
         # Version extraction reads 50+ DLLs (20-50MB each) - need explicit cleanup
         import gc
