@@ -29,7 +29,7 @@ dependencies = [
     "appdirs",
     "rapidfuzz>=3.14.3",  # Fast fuzzy string matching for game search
     "flet==0.80.4; platform_system == 'Windows'",  # Core framework for Windows
-    "flet-desktop==0.80.4; platform_system == 'Windows'",  # Desktop runtime for Windows
+    "flet-desktop==0.80.5; platform_system == 'Windows'",  # Desktop runtime for Windows
     "flet==0.80.4; platform_system == 'Linux'",  # Core framework for Linux
     "flet-desktop-light==0.80.4; platform_system == 'Linux'",  # Lightweight desktop runtime (no libmpv/media dependencies)
     "msgspec>=0.20.0",
