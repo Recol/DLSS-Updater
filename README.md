@@ -110,13 +110,7 @@ sudo pacman -S flatpak
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 ```
 
-**Install from Flathub:**
-```sh
-flatpak install flathub io.github.recol.dlss-updater
-flatpak run io.github.recol.dlss-updater
-```
-
-**Or download from GitHub Releases:**
+**Download from GitHub Releases:**
 ```sh
 # Download DLSS_Updater-X.Y.Z.flatpak from the Releases page, then:
 flatpak install --user DLSS_Updater-X.Y.Z.flatpak
