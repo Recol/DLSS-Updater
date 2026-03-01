@@ -797,11 +797,11 @@ class GamesView(ThemeAwareMixin, ft.Column):
         PERFORMANCE: Creates cards in small batches with yields to keep UI responsive.
         Shows partial content immediately while rest loads in background.
         """
-        try:
-            total = len(remaining)
-            loaded = 0
+        total = len(remaining)
+        loaded = 0
 
-            for i in range(0, total, GAMES_BACKGROUND_BATCH_SIZE):
+        for i in range(0, total, GAMES_BACKGROUND_BATCH_SIZE):
+            try:
                 batch = remaining[i:i + GAMES_BACKGROUND_BATCH_SIZE]
 
                 # Create cards for this batch
@@ -830,16 +830,33 @@ class GamesView(ThemeAwareMixin, ft.Column):
                         grids_by_launcher[launcher].controls.extend(cards)
                         loaded += len(cards)
 
-                # Single update per batch (isolated view)
-                self.update()
+                # Single update per batch (isolated view); guard against view detach
+                try:
+                    self.update()
+                except RuntimeError:
+                    # View detached from page tree (user navigated away).
+                    # Cards are already in controls list and will render on next update.
+                    pass
+
+                # Trigger image loading for uncached cards in this batch
+                uncached_in_batch = [
+                    c
+                    for cards in new_cards_by_launcher.values()
+                    for c in cards
+                    if not c._image_loaded and c.game.steam_app_id
+                ]
+                if uncached_in_batch:
+                    img_task = asyncio.create_task(self._load_uncached_images(uncached_in_batch))
+                    register_task(img_task, "load_uncached_bg_images")
 
                 # Yield to event loop to keep UI responsive
                 await asyncio.sleep(0.02)
 
-            self.logger.debug(f"[PERF] Progressive loading complete: {loaded} additional cards")
+            except Exception as e:
+                self.logger.error(f"Error in progressive batch {i}: {e}", exc_info=True)
+                # Continue to next batch — don't abandon remaining cards
 
-        except Exception as e:
-            self.logger.error(f"Error in progressive card loading: {e}", exc_info=True)
+        self.logger.debug(f"[PERF] Progressive loading complete: {loaded} additional cards")
 
     async def _animate_cards_in(self, game_cards: list[GameCard]):
         """Animate game cards with staggered fade-in for grid layout (optimized)"""

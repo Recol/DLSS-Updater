@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+  <release version="3.9.3" date="2026-03-01">
+      <description>
+        <p>Bug fixes</p>
+        <ul>
+          <li>Fix for progressive loading of games.</li>
+          <li>Adjustments to the default Linux flatpak permissions to read/write to allow writing by default.</li>
+          <li>Some upgrades to dependencies to fix CVE reports.</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.9.2" date="2026-02-03">
       <description>
         <p>Data Lifecycle and UX Improvements</p>

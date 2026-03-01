@@ -1,6 +1,6 @@
 [project]
 name = "dlss-updater"
-version = "3.9.2"
+version = "3.9.3"
 description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -23,38 +23,38 @@ classifiers = [
 ]
 
 dependencies = [
-    "pefile",
-    "psutil>=7.2.0",
-    "packaging",
-    "appdirs",
+    "pefile>=2024.8.26",
+    "psutil>=7.2.2",
+    "packaging>=25.0",
+    "platformdirs>=4.9.2",  # Replaces unmaintained appdirs (abandoned 2020); near-identical API
     "rapidfuzz>=3.14.3",  # Fast fuzzy string matching for game search
-    "flet==0.80.5; platform_system == 'Windows'",  # Core framework for Windows
-    "flet-desktop==0.80.5; platform_system == 'Windows'",  # Desktop runtime for Windows
-    "flet==0.80.5; platform_system == 'Linux'",  # Core framework for Linux
-    "flet-desktop-light==0.80.5; platform_system == 'Linux'",  # Lightweight desktop runtime (no libmpv/media dependencies)
+    "flet==0.81.0; platform_system == 'Windows'",  # Core framework for Windows
+    "flet-desktop==0.81.0; platform_system == 'Windows'",  # Desktop runtime for Windows
+    "flet==0.81.0; platform_system == 'Linux'",  # Core framework for Linux
+    "flet-desktop-light==0.81.0; platform_system == 'Linux'",  # Lightweight desktop runtime (no libmpv/media dependencies)
     "msgspec>=0.20.0",
     "msgpack>=1.1.2",  # Free-threading compatible (has Py_mod_gil declaration)
-    "aiohttp",
-    "requests",  # Fallback for DLL downloads when aiohttp fails
-    "pyinstaller",
+    "aiohttp>=3.13.3",
+    "requests>=2.32.5",  # Fallback for DLL downloads when aiohttp fails; 2.32.5 fixes CVE-2024-47081
+    "pyinstaller>=6.19.0",
     "aiosqlite>=0.22.0",
     "aiofiles>=25.1.0",
-    "pillow>=12.0.0",  # Image thumbnail generation, Python 3.14 free-threaded compatible
+    "pillow>=12.1.1",  # Image thumbnail generation, Python 3.14 free-threaded compatible
     # scandir-rs is optional - provides 6-70x faster directory scanning
     # Falls back to os.walk when unavailable (e.g., free-threaded Python)
     # "scandir-rs>=2.9.3; platform_system == 'Windows'",
-    "winloop>=0.1.7; platform_system == 'Windows'",
-    "uvloop>=0.21.0; platform_system == 'Linux'",
-    "pytest-codspeed>=4.2.0",
+    "winloop>=0.5.0; platform_system == 'Windows'",
+    "uvloop>=0.22.1; platform_system == 'Linux'",
+    "pytest-codspeed>=4.3.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
-    "pytest-asyncio",
-    "flake8",
-    "pylint",
-    "ruff",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "flake8>=7.3.0",
+    "pylint>=4.0.5",
+    "ruff>=0.15.4",
 ]
 build = [
     "pyinstaller",

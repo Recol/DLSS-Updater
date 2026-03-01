@@ -134,22 +134,22 @@ def get_app_config_dir() -> Path:
     """
     Get the application config directory based on platform.
 
-    - Windows: Uses appdirs (typically AppData/Local/Recol/DLSS-Updater)
+    - Windows: Uses platformdirs (typically AppData/Local/Recol/DLSS-Updater)
     - Linux: Uses ~/.local/share/dlss-updater (XDG-compliant, Flatpak-compatible)
 
     Returns:
         Path to the config directory (created if doesn't exist)
     """
     if IS_WINDOWS:
-        import appdirs
-        config_dir = Path(appdirs.user_config_dir("DLSS-Updater", "Recol"))
+        import platformdirs
+        config_dir = Path(platformdirs.user_config_dir("DLSS-Updater", "Recol"))
     elif IS_LINUX:
         # Use XDG data dir for Flatpak compatibility
         config_dir = Path.home() / ".local" / "share" / "dlss-updater"
     else:
         # Fallback for unknown platforms
-        import appdirs
-        config_dir = Path(appdirs.user_config_dir("DLSS-Updater", "Recol"))
+        import platformdirs
+        config_dir = Path(platformdirs.user_config_dir("DLSS-Updater", "Recol"))
 
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir

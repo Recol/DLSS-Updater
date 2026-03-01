@@ -1,3 +1,12 @@
+Version 3.9.3:
+Bug Fixes - Games Tab Progressive Loading:
+  - Fixed remaining game cards (beyond the initial 16) loading indefinitely as blank/grey boxes.
+    Background batch cards now trigger Steam image fetching the same way the initial batch does.
+  - Fixed a single exception in any background batch silently aborting all remaining card creation.
+    Each batch is now independently protected so a failure in one batch doesn't prevent the rest.
+Adjustments to default Linux permissions from :ro to :rw to enable writing to folders by default.
+Dependency upgrades to fix library CVE reports.
+
 Version 3.9.2:
 Bug Fixes - Data Lifecycle and Version Handling:
   Critical Fixes:

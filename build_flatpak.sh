@@ -139,10 +139,10 @@ flatpak build-finish build-dir \
     --device=dri \
     --share=ipc \
     --share=network \
-    --filesystem=home:ro \
-    --filesystem=/mnt:ro \
-    --filesystem=/media:ro \
-    --filesystem=/run/media:ro \
+    --filesystem=home:rw \
+    --filesystem=/mnt:rw \
+    --filesystem=/media:rw \
+    --filesystem=/run/media:rw \
     --filesystem=xdg-config/DLSS-Updater:rw \
     --filesystem=xdg-cache/DLSS-Updater:rw \
     --filesystem=~/.local/share/dlss-updater:create \

@@ -896,11 +896,11 @@ async def initialize_cache_manager() -> None:
     Call this at application startup to register standard caches
     and start the background cleanup loop.
     """
-    import appdirs
+    import platformdirs
 
     app_name = "DLSS-Updater"
     app_author = "Recol"
-    cache_dir = Path(appdirs.user_cache_dir(app_name, app_author))
+    cache_dir = Path(platformdirs.user_cache_dir(app_name, app_author))
 
     # Register DLL cache (critical - no eviction)
     dll_cache = cache_dir / "dlls"

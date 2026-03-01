@@ -33,10 +33,10 @@ finish-args:
 
   # Filesystem - broad coverage for game directories
   # Read-only access to detect and scan game installations
-  - --filesystem=home:ro
-  - --filesystem=/mnt:ro
-  - --filesystem=/media:ro
-  - --filesystem=/run/media:ro
+  - --filesystem=home:rw
+  - --filesystem=/mnt:rw
+  - --filesystem=/media:rw
+  - --filesystem=/run/media:rw
   # Read-write access for app config, cache, and data
   - --filesystem=xdg-config/DLSS-Updater:rw
   - --filesystem=xdg-cache/DLSS-Updater:rw
