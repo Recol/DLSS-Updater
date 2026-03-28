@@ -100,55 +100,63 @@ class ImageLoadCoordinator:
         # Disable auto-update to prevent any intermediate updates during batch setup
         ft.context.disable_auto_update()
 
-        # Phase 1: Setup all images (opacity=0) - no UI update yet
-        start_setup = time.perf_counter()
-        for card, image_path in cards_to_update:
+        try:
+            # Phase 1: Setup all images (opacity=0) - no UI update yet
+            start_setup = time.perf_counter()
+            for card, image_path in cards_to_update:
+                try:
+                    card.image_widget.src = image_path
+                    card.image_container.opacity = 0
+                    card.image_container.animate_opacity = ft.Animation(300, ft.AnimationCurve.EASE_IN)
+                    card.image_container.content = card.image_widget
+                except Exception as e:
+                    if self._logger:
+                        self._logger.debug(f"[ImageLoadCoordinator] Error setting up image for card: {e}")
+            setup_ms = (time.perf_counter() - start_setup) * 1000
+
+            # Re-enable before update so the explicit update() is processed normally
+            ft.context.enable_auto_update()
+
+            # SINGLE update to attach all controls to render tree
+            # Use view_ref.update() for isolated views (serializes only GamesView subtree)
+            start_update1 = time.perf_counter()
             try:
-                card.image_widget.src = image_path
-                card.image_container.opacity = 0
-                card.image_container.animate_opacity = ft.Animation(300, ft.AnimationCurve.EASE_IN)
-                card.image_container.content = card.image_widget
+                update_target = self._view_ref or self._page_ref
+                if update_target:
+                    update_target.update()
             except Exception as e:
                 if self._logger:
-                    self._logger.debug(f"[ImageLoadCoordinator] Error setting up image for card: {e}")
-        setup_ms = (time.perf_counter() - start_setup) * 1000
+                    self._logger.debug(f"[ImageLoadCoordinator] Error during first update(): {e}")
+                return
+            update1_ms = (time.perf_counter() - start_update1) * 1000
 
-        # SINGLE update to attach all controls to render tree
-        # Use view_ref.update() for isolated views (serializes only GamesView subtree)
-        start_update1 = time.perf_counter()
-        try:
-            update_target = self._view_ref or self._page_ref
-            if update_target:
-                update_target.update()
-        except Exception as e:
-            if self._logger:
-                self._logger.debug(f"[ImageLoadCoordinator] Error during first update(): {e}")
-            return
-        update1_ms = (time.perf_counter() - start_update1) * 1000
+            # Brief delay for render tree attachment (30ms)
+            await asyncio.sleep(0.03)
 
-        # Brief delay for render tree attachment (30ms)
-        await asyncio.sleep(0.03)
+            # Phase 2: Trigger all fade-in animations simultaneously
+            start_anim = time.perf_counter()
+            for card, _ in cards_to_update:
+                try:
+                    card.image_container.opacity = 1
+                    card._image_loaded = True
+                except Exception:
+                    pass  # Card may have been disposed
+            anim_ms = (time.perf_counter() - start_anim) * 1000
 
-        # Phase 2: Trigger all fade-in animations simultaneously
-        start_anim = time.perf_counter()
-        for card, _ in cards_to_update:
+            # SINGLE update to trigger all animations together
+            start_update2 = time.perf_counter()
             try:
-                card.image_container.opacity = 1
-                card._image_loaded = True
-            except Exception:
-                pass  # Card may have been disposed
-        anim_ms = (time.perf_counter() - start_anim) * 1000
-
-        # SINGLE update to trigger all animations together
-        start_update2 = time.perf_counter()
-        try:
-            update_target = self._view_ref or self._page_ref
-            if update_target:
-                update_target.update()
-        except Exception as e:
-            if self._logger:
-                self._logger.debug(f"[ImageLoadCoordinator] Error during animation update(): {e}")
-        update2_ms = (time.perf_counter() - start_update2) * 1000
+                update_target = self._view_ref or self._page_ref
+                if update_target:
+                    update_target.update()
+            except Exception as e:
+                if self._logger:
+                    self._logger.debug(f"[ImageLoadCoordinator] Error during animation update(): {e}")
+            update2_ms = (time.perf_counter() - start_update2) * 1000
+        except Exception:
+            # Always re-enable auto-update even if something fails mid-batch
+            ft.context.enable_auto_update()
+            raise
 
         total_ms = (time.perf_counter() - start_total) * 1000
         if self._logger:

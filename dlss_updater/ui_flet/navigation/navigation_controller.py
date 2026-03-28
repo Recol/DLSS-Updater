@@ -72,31 +72,37 @@ class NavigationController(ft.Column):
         for name, view in views.items():
             self._view_refs[name] = view
 
-        # Build view containers (Stack-based content detachment)
-        self._view_containers: dict[str, ft.Container] = {}
+        # Build view wrappers (Stack-based content detachment)
+        # IMPORTANT: Use ft.Column wrappers instead of ft.Container to avoid
+        # Flet 0.83.0 bug where ObjectPatch corrupts __prev_classes['content']
+        # on views attached via Container.content. Column uses .controls instead,
+        # which doesn't trigger the bug.
+        self._view_containers: dict[str, ft.Column] = {}
 
-        # Hub container (visible and attached by default — it's the initial view)
-        hub_container = ft.Container(
-            content=hub_view,
+        # Hub wrapper (visible and attached by default — it's the initial view)
+        hub_wrapper = ft.Column(
+            controls=[hub_view],
             visible=True,
             opacity=1.0,
             expand=True,
+            spacing=0,
         )
-        self._view_containers[self.HUB] = hub_container
+        self._view_containers[self.HUB] = hub_wrapper
 
-        # Other view containers (hidden and detached by default)
+        # Other view wrappers (hidden and detached by default)
         for name, view in views.items():
-            container = ft.Container(
-                content=None,  # Detached — excluded from serialization
+            wrapper = ft.Column(
+                controls=[],  # Detached — excluded from serialization
                 visible=False,
                 opacity=0.0,
                 expand=True,
+                spacing=0,
             )
-            self._view_containers[name] = container
+            self._view_containers[name] = wrapper
 
         # Content stack with all views
         content_stack = ft.Stack(
-            controls=[hub_container] + [
+            controls=[hub_wrapper] + [
                 self._view_containers[name]
                 for name in self.VIEW_NAMES
                 if name in self._view_containers
@@ -194,11 +200,13 @@ class NavigationController(ft.Column):
         is_hub = new_view == self.HUB
 
         # SINGLE UPDATE: Detach old subtree, attach new subtree, swap visibility
-        old_container.content = None  # Detach old subtree from serialization
+        # Uses Column.controls instead of Container.content to avoid Flet 0.83.0
+        # ObjectPatch bug with __prev_classes['content'] corruption.
+        old_container.controls = []  # Detach old subtree from serialization
         old_container.visible = False
         old_container.opacity = 0.0
 
-        new_container.content = self._view_refs[new_view]  # Attach new subtree
+        new_container.controls = [self._view_refs[new_view]]  # Attach new subtree
         new_container.visible = True
         new_container.opacity = 1.0  # Instant show (no fade-out gap)
 

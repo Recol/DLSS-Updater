@@ -1,3 +1,33 @@
+Version 3.9.4:
+Framework Upgrade - Flet 0.82.2 → 0.83.0:
+  - Upgraded Flet from 0.82.2 to 0.83.0.
+  - Removed flet-desktop-light dependency (deprecated in Flet 0.83.0).
+    Linux builds now use flet-desktop which defaults to "light" flavor automatically.
+  - Performance gains from Flet's new Prop/value diffing engine (up to 6.7x for animated UIs,
+    1.5-3.4x for typical UI updates) — zero code changes required to benefit.
+  - page.update() double-fire eliminated automatically: redundant auto-update after an
+    explicit page.update() call is now skipped by the framework.
+  - ft.context.enable_auto_update() added as complement to disable_auto_update().
+  - New ft.Scrollbar and ft.ScrollbarOrientation available for future use.
+  - Fixed crash when navigating away from Settings and back.
+    Flet 0.83.0's diff engine corrupted __prev_classes['content'] on views attached via
+    Container.content. Replaced Container wrappers with Column wrappers in navigation
+    controller to avoid the bug entirely.
+  - Fixed logger panel toggle button not expanding/collapsing the log view.
+    LoggerPanel uses is_isolated=True but was calling page.update() which skips isolated
+    controls. Now correctly uses self.update() for panel-level changes.
+Bug Fixes:
+  - Fixed "Latest" DLL version numbers showing incorrect/stale values in the DLL Details
+    dialog on the Games page (Issue #167). Versions were hardcoded and never updated
+    from the local DLL cache. Latest versions are now read from the cached DLL files
+    after cache initialization, reflecting what games would actually be updated to.
+Dependencies:
+  - winloop 0.5.0 → 0.6.0 (Windows): Updated cp314t wheels for win_arm64/amd64/win32.
+  - packaging 25.0 → 26.0: Major version bump, pure Python, no breaking changes.
+  - aiohttp 3.13.3 → 3.13.4: Patch update with cp314t wheels.
+  - aiosqlite 0.22.0 → 0.22.1: Minor patch update.
+  - platformdirs 4.9.2 → 4.9.4: Minor patch update.
+
 Version 3.9.3:
 Bug Fixes - Games Tab Progressive Loading:
   - Fixed remaining game cards (beyond the initial 16) loading indefinitely as blank/grey boxes.

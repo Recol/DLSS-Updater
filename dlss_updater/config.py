@@ -140,6 +140,26 @@ LATEST_DLL_VERSIONS = {
 }
 
 
+def update_latest_dll_versions_from_cache() -> None:
+    """Update LATEST_DLL_VERSIONS by reading actual versions from cached DLL files.
+
+    Called after initialize_dll_paths() so the UI displays the real version
+    of each DLL in the local cache — i.e. what a game would be updated TO.
+    The hardcoded values above serve only as fallbacks before cache init.
+    """
+    from .updater import get_dll_version
+
+    with _dll_paths_lock:
+        paths = dict(LATEST_DLL_PATHS)
+
+    for dll_name, dll_path in paths.items():
+        if dll_path and Path(dll_path).exists():
+            version = get_dll_version(dll_path)
+            if version:
+                with _dll_paths_lock:
+                    LATEST_DLL_VERSIONS[dll_name] = version
+
+
 # IMPORTANT: We'll initialize this later to avoid circular imports
 LATEST_DLL_PATHS = {}
 

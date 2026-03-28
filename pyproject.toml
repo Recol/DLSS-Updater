@@ -1,6 +1,6 @@
 [project]
 name = "dlss-updater"
-version = "3.9.3"
+version = "3.9.4"
 description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -25,25 +25,25 @@ classifiers = [
 dependencies = [
     "pefile>=2024.8.26",
     "psutil>=7.2.2",
-    "packaging>=25.0",
-    "platformdirs>=4.9.2",  # Replaces unmaintained appdirs (abandoned 2020); near-identical API
+    "packaging>=26.0",
+    "platformdirs>=4.9.4",  # Replaces unmaintained appdirs (abandoned 2020); near-identical API
     "rapidfuzz>=3.14.3",  # Fast fuzzy string matching for game search
-    "flet==0.82.2; platform_system == 'Windows'",  # Core framework for Windows
-    "flet-desktop==0.82.2; platform_system == 'Windows'",  # Desktop runtime for Windows
-    "flet==0.82.2; platform_system == 'Linux'",  # Core framework for Linux
-    "flet-desktop-light==0.82.2; platform_system == 'Linux'",  # Lightweight desktop runtime (no libmpv/media dependencies)
+    "flet==0.83.0; platform_system == 'Windows'",  # Core framework for Windows
+    "flet-desktop==0.83.0; platform_system == 'Windows'",  # Desktop runtime for Windows
+    "flet==0.83.0; platform_system == 'Linux'",  # Core framework for Linux
+    "flet-desktop==0.83.0; platform_system == 'Linux'",  # Desktop runtime for Linux (flet-desktop-light removed in 0.83.0; flet-desktop defaults to "light" flavor on Linux automatically)
     "msgspec>=0.20.0",
     "msgpack>=1.1.2",  # Free-threading compatible (has Py_mod_gil declaration)
-    "aiohttp>=3.13.3",
+    "aiohttp>=3.13.4",
     "requests>=2.32.5",  # Fallback for DLL downloads when aiohttp fails; 2.32.5 fixes CVE-2024-47081
     "pyinstaller>=6.19.0",
-    "aiosqlite>=0.22.0",
+    "aiosqlite>=0.22.1",
     "aiofiles>=25.1.0",
     "pillow>=12.1.1",  # Image thumbnail generation, Python 3.14 free-threaded compatible
     # scandir-rs is optional - provides 6-70x faster directory scanning
     # Falls back to os.walk when unavailable (e.g., free-threaded Python)
     # "scandir-rs>=2.9.3; platform_system == 'Windows'",
-    "winloop>=0.5.0; platform_system == 'Windows'",
+    "winloop>=0.6.0; platform_system == 'Windows'",  # 0.6.0: cp314t wheels for win_arm64/amd64/win32 (Mar 23 2026)
     "uvloop>=0.22.1; platform_system == 'Linux'",
     "pytest-codspeed>=4.3.0",
 ]

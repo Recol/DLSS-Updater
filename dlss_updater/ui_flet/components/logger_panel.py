@@ -49,13 +49,15 @@ class FletLoggerHandler(logging.Handler):
         }
 
     def _safe_update(self):
-        """Safely update page, handling destroyed session during shutdown"""
+        """Safely update the logger panel via panel-level self.update().
+
+        LoggerPanel uses is_isolated=True, so page.update() skips this control.
+        The handler must update through the panel's own update() method.
+        """
         try:
-            if self._page_ref and hasattr(self._page_ref, 'session'):
-                self._page_ref.update()
-        except RuntimeError:
-            # Session destroyed during shutdown - ignore
-            pass
+            self.logger_panel.update()
+        except (RuntimeError, Exception):
+            pass  # Session destroyed or control not attached
 
     def _get_level_color(self, level: str) -> str:
         """Get themed color for log level"""
@@ -392,12 +394,15 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
         self._register_theme_aware()
 
     def _safe_update(self):
-        """Safely update page, handling destroyed session during shutdown"""
+        """Safely update panel, handling destroyed session during shutdown.
+
+        Uses self.update() instead of page.update() because LoggerPanel has
+        is_isolated=True — page-level updates skip isolated controls entirely.
+        """
         if self._shutdown:
             return
         try:
-            if self._page_ref and hasattr(self._page_ref, 'session'):
-                self._page_ref.update()
+            self.update()
         except RuntimeError:
             # Session destroyed during shutdown - mark as shutdown
             self._shutdown = True

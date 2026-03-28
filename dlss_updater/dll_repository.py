@@ -8,7 +8,7 @@ import aiohttp
 import aiofiles
 import concurrent.futures
 from .logger import setup_logger
-from .config import initialize_dll_paths, Concurrency
+from .config import initialize_dll_paths, update_latest_dll_versions_from_cache, Concurrency
 
 logger = setup_logger()
 
@@ -508,6 +508,7 @@ async def initialize_dll_cache_async(progress_callback=None):
     with _cache_init_lock:
         _cache_initialized = True
     initialize_dll_paths()
+    update_latest_dll_versions_from_cache()
 
     await report_progress(100, 100, "DLL cache initialized")
 
@@ -607,6 +608,7 @@ def initialize_dll_cache(progress_callback=None):
     with _cache_init_lock:
         _cache_initialized = True
     initialize_dll_paths()
+    update_latest_dll_versions_from_cache()
 
     if progress_callback:
         progress_callback(100, 100, "DLL cache initialized")
