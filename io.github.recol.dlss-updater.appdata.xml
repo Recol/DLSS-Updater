@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+  <release version="3.9.7" date="2026-03-29">
+      <description>
+        <p>MSI Build Fix - Free-threaded Python runtime (Issue #176)</p>
+        <ul>
+          <li>Fixed MSI installer failing to start with "Disabling the GIL is not supported by this build"</li>
+          <li>MSI GitHub Actions workflow now uses Python 3.14t (free-threaded) instead of standard 3.14</li>
+          <li>Ensures the bundled Python interpreter supports the -X gil=0 flag required by the application</li>
+        </ul>
+      </description>
+    </release>
   <release version="3.9.6" date="2026-03-29">
       <description>
         <p>Steam API Integration - Dramatically improved game image loading (Issue #175)</p>

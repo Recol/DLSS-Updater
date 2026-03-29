@@ -1,3 +1,10 @@
+Version 3.9.7:
+MSI Build Fix - Free-threaded Python runtime (Issue #176):
+  - Fixed MSI installer failing to start with "Disabling the GIL is not supported by this build".
+    The GitHub Actions MSI workflow was using standard Python 3.14 instead of the free-threaded
+    variant (3.14t). The PyInstaller spec embeds -X gil=0 which requires free-threaded Python.
+  - Changed build-msi.yml to use python-version: "3.14t" matching the Flatpak build workflow.
+
 Version 3.9.6:
 Steam API Integration - Dramatically improved game image loading (Issue #175):
   - Added optional Steam API key support for accurate game app ID resolution.
