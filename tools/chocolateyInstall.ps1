@@ -1,26 +1,27 @@
-$toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-$fileLocation = Join-Path $toolsDir 'DLSS_Updater.exe'
+$ErrorActionPreference = 'Stop'
 
-# Create a shortcut that runs as admin
-$shortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "DLSS Updater.lnk"
-$shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = $fileLocation
-$shortcut.Arguments = "--gui"
-$shortcut.Save()
+$toolsDir = "$(Split-Path -Parent $MyInvocation.MyCommand.Definition)"
+$fileLocation = Join-Path $toolsDir 'DLSS_Updater.msi'
 
-# Set the shortcut to run as administrator
-$bytes = [System.IO.File]::ReadAllBytes($shortcutPath)
-$bytes[0x15] = $bytes[0x15] -bor 0x20 # Set run as administrator flag
-[System.IO.File]::WriteAllBytes($shortcutPath, $bytes)
+# Clean up old portable exe if upgrading from pre-MSI version
+$oldExe = Join-Path $toolsDir 'DLSS_Updater.exe'
+if (Test-Path $oldExe) {
+    Write-Host "Upgrading from portable to MSI installation..."
+    Get-Process -Name "DLSS_Updater" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    $oldShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "DLSS Updater.lnk"
+    if (Test-Path $oldShortcut) {
+        Remove-Item $oldShortcut -Force
+    }
+}
 
 $packageArgs = @{
-  packageName   = $env:ChocolateyPackageName
-  fileType      = 'exe'
-  file          = $fileLocation
-  softwareName  = 'DLSS Updater*'
-  silentArgs    = "--gui"
-  validExitCodes= @(0)
-  # Force running as admin
-  requireAdmin  = $true
+    packageName    = $env:ChocolateyPackageName
+    fileType       = 'msi'
+    file           = $fileLocation
+    softwareName   = 'DLSS Updater*'
+    silentArgs     = "/qn /norestart /l*v `"$($env:TEMP)\$($env:ChocolateyPackageName).$($env:chocolateyPackageVersion).MsiInstall.log`""
+    validExitCodes = @(0, 3010, 1641)
 }
+
+Install-ChocolateyInstallPackage @packageArgs

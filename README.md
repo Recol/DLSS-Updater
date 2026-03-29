@@ -83,21 +83,30 @@ The games that are blacklisted can be disabled manually by clicking the "Manage 
 
 ### Windows
 
-#### Running the Pre-built Application
+#### MSI Installer (Recommended)
 
-1. Download the latest release from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page.
-2. Extract the downloaded `DLSS.Updater.X.Y.Z.zip` file.
-3. Run the `DLSS_Updater.exe` executable as an administrator.
+The MSI installer is the preferred way to install DLSS Updater on Windows. It installs to Program Files with a proper Add/Remove Programs entry.
 
-#### Winget
-
+**Winget (recommended):**
 ```sh
 winget install "DLSS Updater"
 ```
 
-#### Chocolatey
+**Chocolatey:**
 
 Download DLSS Updater from [Chocolatey](https://community.chocolatey.org/packages/dlss-updater/).
+
+**Direct download:**
+
+Download `DLSS.Updater.X.Y.Z.msi` from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page and run it.
+
+#### Portable Executable
+
+If you prefer a standalone executable that doesn't require installation:
+
+1. Download `DLSS.Updater.X.Y.Z.zip` from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page.
+2. Extract the ZIP file.
+3. Run `DLSS_Updater.exe` as an administrator.
 
 ### Linux
 
@@ -180,13 +189,19 @@ If you prefer to build the application yourself, follow these steps:
     uv sync --frozen
     ```
 
-3. **Build the Executable:**
+3. **Build the Portable Executable:**
 
     ```sh
     uv run pyinstaller DLSS_Updater.spec
     ```
 
-4. **Run the Built Executable:**
+4. **Or build the MSI Installer:**
+
+    ```sh
+    pwsh build_msi.ps1
+    ```
+
+5. **Run the Built Executable:**
 
     ```sh
     .\dist\DLSS_Updater.exe

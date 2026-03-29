@@ -4,48 +4,34 @@ permissions:
   contents: read
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Build MSI Installer"]
+    types: [completed]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
     - uses: actions/checkout@v6
 
-    - name: Set up uv with Python 3.14
-      uses: astral-sh/setup-uv@v7
-      with:
-        python-version: "3.14"
-        enable-cache: true
-        cache-dependency-glob: "**/uv.lock"
-
-    - name: Install dependencies
-      run: |
-        uv sync --frozen --extra build
-
-    - name: Clean build and dist directories
-      run: |
-        if (Test-Path build) { Remove-Item -Recurse -Force build }
-        if (Test-Path dist) { Remove-Item -Recurse -Force dist }
-      shell: pwsh
-
-    - name: Build application
-      run: uv run pyinstaller DLSS_Updater.spec --noconfirm
-
-    - name: Get latest release version
+    - name: Get latest release version and download MSI
       id: get_version
       run: |
-        $latest_release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest"
+        $latest_release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest" -Headers @{ "Authorization" = "Bearer ${{ secrets.GITHUB_TOKEN }}" }
         $version = $latest_release.tag_name -replace '^[vV]', ''
         echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+        New-Item -ItemType Directory -Force -Path dist
+        $msiUrl = "https://github.com/${{ github.repository }}/releases/download/$($latest_release.tag_name)/DLSS.Updater.$version.msi"
+        Invoke-WebRequest -Uri $msiUrl -OutFile "dist\DLSS_Updater.msi"
       shell: pwsh
 
     - name: Generate file hash
       run: |
-        $hash = (Get-FileHash "dist\DLSS_Updater.exe" -Algorithm SHA256).Hash
+        $hash = (Get-FileHash "dist\DLSS_Updater.msi" -Algorithm SHA256).Hash
         echo "FILE_HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
       id: hash
@@ -53,8 +39,8 @@ jobs:
     - name: Update VERIFICATION.txt
       run: |
         $content = Get-Content -Path VERIFICATION.txt -Raw
-        $content = $content -replace 'path\\to\\DLSS_Updater.exe', 'DLSS_Updater.exe'
-        $content += "`n`nChecksum (SHA256) for DLSS_Updater.exe: ${{ steps.hash.outputs.FILE_HASH }}"
+        $content = $content -replace 'path\\to\\DLSS_Updater\.msi', 'DLSS_Updater.msi'
+        $content += "`n`nChecksum (SHA256) for DLSS_Updater.msi: ${{ steps.hash.outputs.FILE_HASH }}"
         $content | Set-Content -Path VERIFICATION.txt
       shell: pwsh
 

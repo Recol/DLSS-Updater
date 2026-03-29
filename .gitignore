@@ -17,6 +17,7 @@ flet_client/
 flet-linux.tar.gz
 appimagetool-x86_64.AppImage
 *.dist/
+dist/
 
 # Flatpak build artifacts
 .flatpak-builder/

@@ -64,6 +64,19 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+  <release version="3.9.5" date="2026-03-29">
+      <description>
+        <p>MSI installer for Windows, resolving Windows Defender false positive issues</p>
+        <ul>
+          <li>Added MSI installer build using PyInstaller (onedir) + Briefcase for winget and Chocolatey</li>
+          <li>Resolves Windows Defender false positive (Trojan:Win32/Wacatac.H!ml) blocking winget submission</li>
+          <li>MSI installs to Program Files with proper Add/Remove Programs entry</li>
+          <li>Portable single-exe distribution remains available via direct download</li>
+          <li>Updated winget manifest to InstallerType: msi</li>
+          <li>Updated Chocolatey package to use MSI with proper msiexec install/uninstall</li>
+        </ul>
+      </description>
+    </release>
   <release version="3.9.4" date="2026-03-28">
       <description>
         <p>Flet 0.83.0 upgrade, bug fixes, and dependency updates</p>

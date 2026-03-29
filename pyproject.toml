@@ -1,6 +1,6 @@
 [project]
 name = "dlss-updater"
-version = "3.9.4"
+version = "3.9.5"
 description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -58,6 +58,7 @@ dev = [
 ]
 build = [
     "pyinstaller",
+    "briefcase>=0.4.1",
 ]
 
 [project.urls]
@@ -102,3 +103,26 @@ org = "io.github.recol"
 description = "Update DLSS/XeSS/FSR DLLs for games"
 # Entry point module (main.py in root)
 module_name = "main"
+
+[tool.briefcase]
+# Briefcase external app configuration for MSI packaging
+# Used to wrap PyInstaller onedir output into a Windows MSI installer
+# Build flow: pyinstaller DLSS_Updater_MSI.spec → briefcase package windows
+project_name = "DLSS Updater"
+bundle = "io.github.recol"
+version = "3.9.5"
+url = "https://github.com/Recol/DLSS-Updater"
+license.file = "LICENSE"
+author = "Recol (Deco)"
+
+[tool.briefcase.app.dlss_updater]
+formal_name = "DLSS Updater"
+description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
+icon = "dlss_updater/icons/dlss_updater"
+
+[tool.briefcase.app.dlss_updater.windows]
+# Points to PyInstaller onedir output directory
+external_package_path = "dist/DLSS_Updater"
+external_package_executable_path = "DLSS_Updater.exe"
+system_installer = true
+use_full_install_path = false

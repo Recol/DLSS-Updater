@@ -2,7 +2,7 @@ VERIFICATION
 Verification is intended to assist the Chocolatey moderators and community
 in verifying that this package's contents are trustworthy.
 
-This package is published by the DLSS Updater Project itself. The binaries are 
+This package is published by the DLSS Updater Project itself. The binaries are
 identical to those published in the GitHub releases section.
 
 Project URL: https://github.com/Recol/DLSS-Updater
@@ -12,7 +12,7 @@ To verify the binaries:
 
 1. Download the official release from the GitHub releases page
 2. Generate a checksum using Get-FileHash in PowerShell
-   Get-FileHash path\to\DLSS_Updater.exe -Algorithm SHA256
+   Get-FileHash path\to\DLSS_Updater.msi -Algorithm SHA256
 3. Compare the checksum with the one provided in the release notes or in this file
 
 Alternatively, you can use the verification methods provided by GitHub to ensure

@@ -1,3 +1,20 @@
+Version 3.9.5:
+MSI Installer for Windows - Replaces portable ZIP for winget and Chocolatey distributions:
+  - Added MSI installer build using PyInstaller (onedir) + Briefcase external app packaging.
+  - Resolves Windows Defender false positive detection (Trojan:Win32/Wacatac.H!ml) that blocked
+    winget package submission. The onedir mode eliminates the self-extracting archive pattern
+    that triggers Defender's ML heuristic, and UPX compression is disabled for MSI builds.
+  - MSI installs to Program Files with proper Add/Remove Programs entry.
+  - Portable single-exe distribution remains available via direct download.
+  - New build-msi.yml GitHub Actions workflow automates MSI builds on release.
+  - Updated winget manifest from InstallerType: zip (portable) to InstallerType: msi.
+  - Updated Chocolatey package to embed MSI with proper install/uninstall via msiexec.
+  - Existing winget/Chocolatey users: uninstall old version, then install new MSI version.
+Build System:
+  - Added DLSS_Updater_MSI.spec for onedir PyInstaller builds (UPX disabled).
+  - Added Briefcase external app configuration in pyproject.toml.
+  - Briefcase >= 0.4.1 added as build dependency for MSI packaging via WiX Toolset.
+
 Version 3.9.4:
 Framework Upgrade - Flet 0.82.2 → 0.83.0:
   - Upgraded Flet from 0.82.2 to 0.83.0.

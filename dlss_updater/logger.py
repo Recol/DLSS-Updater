@@ -16,8 +16,19 @@ def _get_log_directory() -> Path:
         log_dir.mkdir(parents=True, exist_ok=True)
         return log_dir
     elif getattr(sys, "frozen", False):
-        # Windows frozen: use executable directory
-        return Path(sys.executable).parent
+        # Windows frozen: try executable directory first (portable exe),
+        # fall back to AppData if not writable (MSI install in Program Files)
+        exe_dir = Path(sys.executable).parent
+        try:
+            test_file = exe_dir / '.write_test'
+            test_file.touch()
+            test_file.unlink()
+            return exe_dir
+        except (PermissionError, OSError):
+            from platformdirs import user_data_dir
+            log_dir = Path(user_data_dir("DLSS Updater", "Recol"))
+            log_dir.mkdir(parents=True, exist_ok=True)
+            return log_dir
     else:
         # Development: use module directory
         return Path(__file__).parent

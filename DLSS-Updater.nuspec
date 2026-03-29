@@ -18,7 +18,7 @@
 
 **Note: This application requires administrative privileges to run.**
 
-This package does not contain malware, it is a limitation of Pyinstaller with the binary not being signed, please see https://github.com/pyinstaller/pyinstaller/issues/6754#issuecomment-1100821249 for more details.</description>
+This package installs DLSS Updater via a standard Windows MSI installer.</description>
     <releaseNotes>https://github.com/Recol/DLSS-Updater/blob/main/release_notes.txt</releaseNotes>
     <tags>dlss nvidia gaming update-tool admin</tags>
     <dependencies>
@@ -26,7 +26,8 @@ This package does not contain malware, it is a limitation of Pyinstaller with th
     </dependencies>
   </metadata>
   <files>
-    <file src="dist\DLSS_Updater.exe" target="tools" />
+    <file src="dist\DLSS_Updater.msi" target="tools" />
+    <file src="tools\chocolateyBeforeModify.ps1" target="tools" />
     <file src="tools\chocolateyInstall.ps1" target="tools" />
     <file src="tools\chocolateyUninstall.ps1" target="tools" />
     <file src="VERIFICATION.TXT" target="tools" />

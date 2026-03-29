@@ -1,8 +1,9 @@
 name: Winget Release
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Build MSI Installer"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +12,8 @@ permissions:
 jobs:
   winget:
     runs-on: windows-latest
-    
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
     steps:
     - uses: actions/checkout@v6
     
@@ -24,31 +26,25 @@ jobs:
         }
         $latest_release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest" -Headers $headers
         $version = $latest_release.tag_name -replace '^[vV]', ''
-        $zipUrl = "https://github.com/${{ github.repository }}/releases/download/$($latest_release.tag_name)/DLSS.Updater.$version.zip"
-        
-        # Download ZIP to calculate hash
-        Invoke-WebRequest -Uri $zipUrl -OutFile "DLSS.Updater.zip"
-        $hash = (Get-FileHash -Path "DLSS.Updater.zip" -Algorithm SHA256).Hash
-        
-        # Extract ZIP to check actual structure
-        Expand-Archive -Path "DLSS.Updater.zip" -DestinationPath "extracted" -Force
-        Write-Host "Extracted contents:"
-        Get-ChildItem -Path "extracted" -Recurse | ForEach-Object { Write-Host $_.FullName }
-        
-        # Find the actual path to DLSS_Updater.exe
-        $exePath = Get-ChildItem -Path "extracted" -Filter "DLSS_Updater.exe" -Recurse | Select-Object -First 1
-        if ($exePath) {
-            $relativePath = $exePath.FullName.Replace("$PWD\extracted\", "").Replace("\", "/")
-            Write-Host "Found exe at: $relativePath"
-            echo "RELATIVE_EXE_PATH=$relativePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-        } else {
-            Write-Error "DLSS_Updater.exe not found in ZIP"
-            exit 1
-        }
-        
+        $msiUrl = "https://github.com/${{ github.repository }}/releases/download/$($latest_release.tag_name)/DLSS.Updater.$version.msi"
+
+        # Download MSI to calculate hash and extract ProductCode
+        Invoke-WebRequest -Uri $msiUrl -OutFile "DLSS.Updater.msi"
+        $hash = (Get-FileHash -Path "DLSS.Updater.msi" -Algorithm SHA256).Hash
+
+        # Extract ProductCode from MSI using COM
+        $installer = New-Object -ComObject WindowsInstaller.Installer
+        $database = $installer.OpenDatabase("$PWD\DLSS.Updater.msi", 0)
+        $view = $database.OpenView("SELECT Value FROM Property WHERE Property = 'ProductCode'")
+        $view.Execute()
+        $record = $view.Fetch()
+        $productCode = $record.StringData(1)
+        Write-Host "ProductCode: $productCode"
+
         echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-        echo "URL=$zipUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        echo "URL=$msiUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         echo "HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        echo "PRODUCT_CODE=$productCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         echo "TAG_NAME=$($latest_release.tag_name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
       
@@ -56,25 +52,25 @@ jobs:
       id: build_manifests
       run: |
         $version = "${{ steps.release_info.outputs.VERSION }}"
-        $exePath = "${{ steps.release_info.outputs.RELATIVE_EXE_PATH }}"
-        $zipUrl = "${{ steps.release_info.outputs.URL }}"
+        $msiUrl = "${{ steps.release_info.outputs.URL }}"
         $hash = "${{ steps.release_info.outputs.HASH }}"
+        $productCode = "${{ steps.release_info.outputs.PRODUCT_CODE }}"
         $tagName = "${{ steps.release_info.outputs.TAG_NAME }}"
-        
+
         # Create manifest directory
         $manifestDir = "manifests/r/Recol/DLSSUpdater/$version"
         New-Item -Path $manifestDir -ItemType Directory -Force
-        
+
         # Create version manifest
         $versionContent = "PackageIdentifier: Recol.DLSSUpdater`r`n"
         $versionContent += "PackageVersion: $version`r`n"
         $versionContent += "DefaultLocale: en-US`r`n"
         $versionContent += "ManifestType: version`r`n"
         $versionContent += "ManifestVersion: 1.6.0"
-        
+
         $versionPath = Join-Path $manifestDir "Recol.DLSSUpdater.yaml"
         Set-Content -Path $versionPath -Value $versionContent -NoNewline
-        
+
         # Create installer manifest
         $installerContent = "PackageIdentifier: Recol.DLSSUpdater`r`n"
         $installerContent += "PackageVersion: $version`r`n"
@@ -84,19 +80,20 @@ jobs:
         $installerContent += "InstallModes:`r`n"
         $installerContent += "- interactive`r`n"
         $installerContent += "- silent`r`n"
+        $installerContent += "- silentWithProgress`r`n"
+        $installerContent += "ElevationRequirement: elevationRequired`r`n"
         $installerContent += "Installers:`r`n"
         $installerContent += "- Architecture: x64`r`n"
-        $installerContent += "  InstallerType: zip`r`n"
-        $installerContent += "  InstallerUrl: $zipUrl`r`n"
+        $installerContent += "  InstallerType: msi`r`n"
+        $installerContent += "  InstallerUrl: $msiUrl`r`n"
         $installerContent += "  InstallerSha256: $hash`r`n"
-        $installerContent += "  NestedInstallerType: portable`r`n"
-        $installerContent += "  NestedInstallerFiles:`r`n"
-        $installerContent += "  - RelativeFilePath: $exePath`r`n"
-        $installerContent += "    PortableCommandAlias: dlss-updater`r`n"
+        $installerContent += "  ProductCode: '$productCode'`r`n"
         $installerContent += "  UpgradeBehavior: install`r`n"
+        $installerContent += "  InstallerSwitches:`r`n"
+        $installerContent += "    Custom: /norestart`r`n"
         $installerContent += "ManifestType: installer`r`n"
         $installerContent += "ManifestVersion: 1.6.0"
-        
+
         $installerPath = Join-Path $manifestDir "Recol.DLSSUpdater.installer.yaml"
         Set-Content -Path $installerPath -Value $installerContent -NoNewline
         
