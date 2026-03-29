@@ -4,43 +4,45 @@ permissions:
   contents: read
 
 on:
-  workflow_run:
-    workflows: ["Build MSI Installer"]
-    types: [completed]
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
     - uses: actions/checkout@v6
 
-    - name: Get latest release version and download MSI
+    - name: Get latest release version and MSI hash
       id: get_version
       run: |
         $latest_release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest" -Headers @{ "Authorization" = "Bearer ${{ secrets.GITHUB_TOKEN }}" }
         $version = $latest_release.tag_name -replace '^[vV]', ''
         echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-        New-Item -ItemType Directory -Force -Path dist
+        # Download MSI only to compute hash
         $msiUrl = "https://github.com/${{ github.repository }}/releases/download/$($latest_release.tag_name)/DLSS.Updater.$version.msi"
-        Invoke-WebRequest -Uri $msiUrl -OutFile "dist\DLSS_Updater.msi"
+        $tempMsi = Join-Path $env:TEMP "DLSS.Updater.msi"
+        Invoke-WebRequest -Uri $msiUrl -OutFile $tempMsi
+        $hash = (Get-FileHash $tempMsi -Algorithm SHA256).Hash
+        echo "FILE_HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        Remove-Item $tempMsi -Force
       shell: pwsh
 
-    - name: Generate file hash
+    - name: Write CHECKSUM file
       run: |
-        $hash = (Get-FileHash "dist\DLSS_Updater.msi" -Algorithm SHA256).Hash
-        echo "FILE_HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        Set-Content -Path "tools\CHECKSUM" -Value "${{ steps.get_version.outputs.FILE_HASH }}" -NoNewline
       shell: pwsh
-      id: hash
 
     - name: Update VERIFICATION.txt
       run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
         $content = Get-Content -Path VERIFICATION.txt -Raw
         $content = $content -replace 'path\\to\\DLSS_Updater\.msi', 'DLSS_Updater.msi'
-        $content += "`n`nChecksum (SHA256) for DLSS_Updater.msi: ${{ steps.hash.outputs.FILE_HASH }}"
+        $content += "`n`nChecksum (SHA256) for DLSS.Updater.$version.msi: ${{ steps.get_version.outputs.FILE_HASH }}"
+        $content += "`nDownload URL: https://github.com/${{ github.repository }}/releases/download/V$version/DLSS.Updater.$version.msi"
         $content | Set-Content -Path VERIFICATION.txt
       shell: pwsh
 
