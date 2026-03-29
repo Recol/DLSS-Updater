@@ -34,8 +34,6 @@ jobs:
 
     - name: Build with PyInstaller
       run: uv run pyinstaller DLSS_Updater_MSI.spec --noconfirm
-      env:
-        PYTHON_GIL: "0"
 
     - name: Package MSI with Briefcase
       run: uv run briefcase package windows --no-input
