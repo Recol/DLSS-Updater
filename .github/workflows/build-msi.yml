@@ -83,6 +83,20 @@ jobs:
         echo "MSI_HASH=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
 
+    - name: Remove stale MSI assets from release
+      run: |
+        # Remove any existing .msi assets to avoid duplicates with different naming
+        $assets = gh release view "${{ steps.msi_info.outputs.TAG }}" --json assets --jq '.assets[].name' 2>$null
+        foreach ($asset in $assets) {
+          if ($asset -like "*.msi") {
+            Write-Host "Removing stale asset: $asset"
+            gh release delete-asset "${{ steps.msi_info.outputs.TAG }}" "$asset" --yes
+          }
+        }
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: pwsh
+
     - name: Upload MSI to release
       run: |
         gh release upload "${{ steps.msi_info.outputs.TAG }}" "${{ steps.msi_info.outputs.MSI_PATH }}" --clobber
