@@ -1070,7 +1070,10 @@ async def find_all_dlls(progress_callback=None):
         from dlss_updater.database import db_manager
         from dlss_updater.steam_integration import (
             find_steam_app_id_by_name,
-            detect_steam_app_id_from_manifest
+            detect_steam_app_id_from_manifest,
+            find_app_id_via_api,
+            find_app_id_via_store_search,
+            get_steam_owned_games,
         )
         from dlss_updater.utils import extract_game_name
         from dlss_updater.constants import DLL_TYPE_MAP
@@ -1134,27 +1137,66 @@ async def find_all_dlls(progress_callback=None):
         # Phase 2: Prepare game records with Steam app IDs (parallel lookup)
         await _safe_progress_callback(progress_callback, 78, 100, "Looking up Steam app IDs...")
 
+        # Pre-fetch owned games from Steam API if credentials are configured
+        from dlss_updater.config import config_manager
+        _has_api_credentials = config_manager.has_steam_api_credentials()
+        if _has_api_credentials:
+            try:
+                await get_steam_owned_games(
+                    config_manager.get_steam_api_key(),
+                    config_manager.get_steam_id(),
+                )
+                logger.info("Pre-fetched owned games from Steam API for resolution")
+            except Exception as e:
+                logger.warning(f"Failed to fetch owned games from Steam API: {e}")
+                _has_api_credentials = False
+
+        # Store search rate limiter (shared across all prepare_game_data calls)
+        _store_search_semaphore = asyncio.Semaphore(3)
+
         games_to_insert = []
         game_dll_mapping = {}  # Maps game path to list of DLL paths
 
         async def prepare_game_data(launcher: str, game_dir_str: str, game_dlls: list):
             game_dir = Path(game_dir_str)
-            game_name = game_dir.name  # Use directory name directly instead of parsing DLL path
+            game_name = game_dir.name
 
-            # Try to find Steam app ID
             app_id = None
+            resolution_source = None
+
+            # Tier 1: Manifest detection (100% accurate for Steam games)
             if launcher == "Steam":
                 app_id = await detect_steam_app_id_from_manifest(game_dir)
+                if app_id:
+                    resolution_source = 'manifest'
 
+            # Tier 2: Steam API owned games (if credentials configured)
+            if app_id is None and _has_api_credentials:
+                app_id = await find_app_id_via_api(game_name)
+                if app_id:
+                    resolution_source = 'api'
+
+            # Tier 3: Store search API (rate-limited, no auth required)
+            if app_id is None:
+                async with _store_search_semaphore:
+                    app_id = await find_app_id_via_store_search(game_name)
+                    if app_id:
+                        resolution_source = 'store_search'
+                        await asyncio.sleep(1.5)  # Rate limit only on actual API hits
+
+            # Tier 4: FTS5 fuzzy match (last resort)
             if app_id is None:
                 app_id = await find_steam_app_id_by_name(game_name)
+                if app_id:
+                    resolution_source = 'fts5'
 
             return {
                 'name': game_name,
                 'path': game_dir_str,
                 'launcher': launcher,
                 'steam_app_id': app_id,
-                'dlls': game_dlls  # Keep track of DLLs for this game
+                'resolution_source': resolution_source,
+                'dlls': game_dlls,
             }
 
         # Gather all game preparation tasks

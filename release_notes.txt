@@ -1,3 +1,24 @@
+Version 3.9.6:
+Steam API Integration - Dramatically improved game image loading (Issue #175):
+  - Added optional Steam API key support for accurate game app ID resolution.
+    Users can provide their free Steam Web API key to resolve game images
+    via their owned games list instead of relying on fuzzy name matching.
+  - Four-tier app ID resolution system:
+    1. Steam manifest detection (existing, 100% accurate for Steam games)
+    2. Steam API owned games lookup (new, ~99% accurate for all owned games)
+    3. Steam Store search API (new, ~90% accurate, no auth required)
+    4. FTS5 fuzzy database match (existing fallback)
+  - Steam API card on Games tab with:
+    - API key input with validation
+    - Auto-detected Steam ID from local Steam installation
+    - One-click "Re-resolve Games" to fix images from previous scans
+    - Link to get a free API key at steamcommunity.com/dev/apikey
+  - Smart cache invalidation: only re-fetches images when app ID actually changes.
+    Games resolved via manifest are never re-resolved (already 100% accurate).
+  - Added resolution_source tracking to game records for intelligent re-resolution.
+  - Re-resolution engine that batch-updates app IDs, clears old cached images,
+    and resets failed fetch flags when better app IDs are found.
+
 Version 3.9.5:
 MSI Installer for Windows - Replaces portable ZIP for winget and Chocolatey distributions:
   - Added MSI installer build using PyInstaller (onedir) + Briefcase external app packaging.

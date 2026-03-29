@@ -335,9 +335,18 @@ class GamesView(ThemeAwareMixin, ft.Column):
             visible=False,
         )
 
+        # Steam API configuration card
+        from dlss_updater.ui_flet.components.steam_api_card import SteamAPICard
+
+        self.steam_api_card = SteamAPICard(
+            page=self._page_ref,
+            on_reresolution_complete=self._on_reresolution_complete,
+        )
+
         # Assemble
         self.controls = [
             self.header,
+            self.steam_api_card,
             self.divider,
             ft.Stack(
                 controls=[
@@ -440,6 +449,11 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
             # Mark as loaded for fast tab switching
             self._games_loaded = True
+
+            # Initialize Steam API card (check improvement count, auto-detect ID)
+            if hasattr(self, 'steam_api_card') and self.steam_api_card:
+                init_task = asyncio.create_task(self.steam_api_card.initialize())
+                register_task(init_task, "steam_api_card_init")
 
             self.logger.info(f"Loaded {sum(len(games) for games in self.games_by_launcher.values())} games from {len(self.games_by_launcher)} launchers")
 
@@ -897,6 +911,14 @@ class GamesView(ThemeAwareMixin, ft.Column):
             self.update()
 
         # Force=True to bypass the "already loaded" optimization
+        await self.load_games(force=True)
+
+    async def _on_reresolution_complete(self):
+        """Called after re-resolution updates game app IDs.
+
+        Reloads the games view to show updated images.
+        """
+        self.logger.info("Re-resolution complete, reloading games view...")
         await self.load_games(force=True)
 
     # ===== Search Methods =====

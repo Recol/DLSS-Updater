@@ -32,6 +32,11 @@ What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on yo
   - Configure DLSS Super Resolution presets (K/L/M) with GPU-based recommendations
   - Preset L is heavier and may reduce performance
   - Linux: Generate Steam launch options with copy-to-clipboard
+- **Steam API Integration:** Optional Steam Web API key support for accurate game image resolution
+  - Connect your free Steam API key for near-perfect game image matching
+  - Auto-detects your Steam ID from local installation
+  - Four-tier app ID resolution: Manifest → Steam API → Store Search → FTS5 fuzzy match
+  - One-click re-resolution to fix images from previous scans
 - A built in backup system for restoring game binaries if needed.
 - Support for updating Ray Reconstruction/Frame Generation/Streamline (Reflex Low Latency etc) DLL's.
 - Support for updating XeSS/FSR/DirectStorage DLL's (DirectStorage is Windows-only).

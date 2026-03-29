@@ -435,9 +435,23 @@ class DatabaseManager:
                 )
             """)
 
+            # Migration: Add resolution_source column if missing
+            try:
+                cursor.execute("ALTER TABLE games ADD COLUMN resolution_source TEXT")
+                logger.info("Migration: Added resolution_source column to games table")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            # One-time migration: mark existing Steam-launcher games with app IDs as manifest-resolved
+            cursor.execute("""
+                UPDATE games SET resolution_source = 'manifest'
+                WHERE launcher = 'Steam' AND steam_app_id IS NOT NULL AND resolution_source IS NULL
+            """)
+
             # Create indexes
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_games_launcher ON games(launcher)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_games_steam_app_id ON games(steam_app_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_games_resolution_source ON games(resolution_source)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_game_dlls_game_id ON game_dlls(game_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_game_dlls_dll_type ON game_dlls(dll_type)")
             # Composite index for queries filtering by game_id AND dll_type
@@ -480,18 +494,23 @@ class DatabaseManager:
 
         try:
             cursor.execute("""
-                INSERT INTO games (name, path, launcher, steam_app_id, last_scanned)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO games (name, path, launcher, steam_app_id, resolution_source, last_scanned)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(path) DO UPDATE SET
                     name = excluded.name,
                     steam_app_id = COALESCE(excluded.steam_app_id, games.steam_app_id),
+                    resolution_source = CASE
+                        WHEN excluded.steam_app_id IS NOT NULL THEN excluded.resolution_source
+                        ELSE games.resolution_source
+                    END,
                     last_scanned = CURRENT_TIMESTAMP
                 RETURNING *
             """, (
                 game_data['name'],
                 game_data['path'],
                 game_data['launcher'],
-                game_data.get('steam_app_id')
+                game_data.get('steam_app_id'),
+                game_data.get('resolution_source')
             ))
 
             row = cursor.fetchone()
@@ -505,7 +524,8 @@ class DatabaseManager:
                     launcher=row[3],
                     steam_app_id=row[4],
                     last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6])
+                    created_at=datetime.fromisoformat(row[6]),
+                    resolution_source=row[7] if len(row) > 7 else None
                 )
             return None
 
@@ -533,7 +553,8 @@ class DatabaseManager:
                     launcher,
                     steam_app_id,
                     MAX(last_scanned) as last_scanned,
-                    MIN(created_at) as created_at
+                    MIN(created_at) as created_at,
+                    resolution_source
                 FROM games
                 GROUP BY name, launcher, steam_app_id
                 ORDER BY launcher, name
@@ -548,7 +569,8 @@ class DatabaseManager:
                     launcher=row[3],
                     steam_app_id=row[4],
                     last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6])
+                    created_at=datetime.fromisoformat(row[6]),
+                    resolution_source=row[7]
                 )
 
                 if game.launcher not in games_by_launcher:
@@ -577,7 +599,7 @@ class DatabaseManager:
 
         try:
             cursor.execute("""
-                SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at
+                SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at, resolution_source
                 FROM games
                 ORDER BY launcher, name
             """)
@@ -591,7 +613,8 @@ class DatabaseManager:
                     launcher=row[3],
                     steam_app_id=row[4],
                     last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6])
+                    created_at=datetime.fromisoformat(row[6]),
+                    resolution_source=row[7]
                 )
 
                 if game.launcher not in games_by_launcher:
@@ -1177,16 +1200,20 @@ class DatabaseManager:
         try:
             # Use executemany for batch insert
             game_data = [
-                (g['name'], g['path'], g['launcher'], g.get('steam_app_id'))
+                (g['name'], g['path'], g['launcher'], g.get('steam_app_id'), g.get('resolution_source'))
                 for g in games
             ]
 
             cursor.executemany("""
-                INSERT INTO games (name, path, launcher, steam_app_id, last_scanned)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO games (name, path, launcher, steam_app_id, resolution_source, last_scanned)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(path) DO UPDATE SET
                     name = excluded.name,
                     steam_app_id = COALESCE(excluded.steam_app_id, games.steam_app_id),
+                    resolution_source = CASE
+                        WHEN excluded.steam_app_id IS NOT NULL THEN excluded.resolution_source
+                        ELSE games.resolution_source
+                    END,
                     last_scanned = CURRENT_TIMESTAMP
             """, game_data)
 
@@ -1197,7 +1224,7 @@ class DatabaseManager:
             placeholders = ','.join('?' * len(paths))
 
             cursor.execute(f"""
-                SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at
+                SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at, resolution_source
                 FROM games
                 WHERE path IN ({placeholders})
             """, paths)
@@ -1210,7 +1237,8 @@ class DatabaseManager:
                     launcher=row[3],
                     steam_app_id=row[4],
                     last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6])
+                    created_at=datetime.fromisoformat(row[6]),
+                    resolution_source=row[7]
                 )
                 result[game.path] = game
 
@@ -2835,7 +2863,7 @@ class DatabaseManager:
 
             if launcher:
                 cursor.execute("""
-                    SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at
+                    SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at, resolution_source
                     FROM games
                     WHERE name LIKE ? COLLATE NOCASE AND launcher = ?
                     ORDER BY
@@ -2849,7 +2877,7 @@ class DatabaseManager:
                 """, (search_pattern, launcher, query.strip(), query.strip(), limit))
             else:
                 cursor.execute("""
-                    SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at
+                    SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at, resolution_source
                     FROM games
                     WHERE name LIKE ? COLLATE NOCASE
                     ORDER BY
@@ -2871,7 +2899,8 @@ class DatabaseManager:
                     launcher=row[3],
                     steam_app_id=row[4],
                     last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6])
+                    created_at=datetime.fromisoformat(row[6]),
+                    resolution_source=row[7]
                 ))
 
             return games
@@ -3038,6 +3067,225 @@ class DatabaseManager:
             conn.rollback()
         finally:
             conn.close()
+
+    # ===== Steam Resolution Operations =====
+
+    async def get_games_needing_reresolution(self) -> list[Game]:
+        """Get games that would benefit from re-resolution (FTS5, NULL source, or no app_id).
+
+        Returns games whose steam_app_id was resolved via lower-confidence methods
+        (fts5) or not resolved at all (NULL resolution_source, NULL steam_app_id).
+        These are candidates for re-resolution via higher-confidence methods
+        (Steam API, store search).
+
+        Returns:
+            List of Game objects needing re-resolution
+        """
+        return await asyncio.to_thread(self._get_games_needing_reresolution)
+
+    def _get_games_needing_reresolution(self) -> list[Game]:
+        """Get games needing re-resolution (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at, resolution_source
+                FROM games
+                WHERE resolution_source IN ('fts5') OR resolution_source IS NULL OR steam_app_id IS NULL
+            """)
+
+            return [Game(
+                id=row[0],
+                name=row[1],
+                path=row[2],
+                launcher=row[3],
+                steam_app_id=row[4],
+                last_scanned=datetime.fromisoformat(row[5]),
+                created_at=datetime.fromisoformat(row[6]),
+                resolution_source=row[7]
+            ) for row in cursor.fetchall()]
+
+        except Exception as e:
+            logger.error(f"Error getting games needing re-resolution: {e}", exc_info=True)
+            return []
+
+    def get_games_needing_reresolution_sync(self) -> list[Game]:
+        """Get games needing re-resolution (sync, for HyperParallelLoader)."""
+        return self._get_games_needing_reresolution()
+
+    async def get_all_games_for_reresolution(self) -> list[Game]:
+        """Get ALL games for forced re-resolution (ignores resolution_source)."""
+        return await asyncio.to_thread(self._get_all_games_for_reresolution)
+
+    def _get_all_games_for_reresolution(self) -> list[Game]:
+        """Get all games for forced re-resolution (runs in thread)."""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at, resolution_source
+                FROM games
+            """)
+
+            return [Game(
+                id=row[0],
+                name=row[1],
+                path=row[2],
+                launcher=row[3],
+                steam_app_id=row[4],
+                last_scanned=datetime.fromisoformat(row[5]),
+                created_at=datetime.fromisoformat(row[6]),
+                resolution_source=row[7]
+            ) for row in cursor.fetchall()]
+
+        except Exception as e:
+            logger.error(f"Error getting all games for re-resolution: {e}", exc_info=True)
+            return []
+
+    async def batch_update_game_app_ids(self, updates: list[dict]) -> int:
+        """Batch update steam_app_id and resolution_source for multiple games.
+
+        Used after re-resolution to persist improved app ID mappings.
+
+        Args:
+            updates: List of dicts with keys: game_id, steam_app_id, resolution_source
+
+        Returns:
+            Number of games updated
+        """
+        if not updates:
+            return 0
+        return await asyncio.to_thread(self._batch_update_game_app_ids, updates)
+
+    def _batch_update_game_app_ids(self, updates: list[dict]) -> int:
+        """Batch update game app IDs (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.executemany(
+                "UPDATE games SET steam_app_id = ?, resolution_source = ? WHERE id = ?",
+                [(u['steam_app_id'], u['resolution_source'], u['game_id']) for u in updates]
+            )
+            conn.commit()
+            count = len(updates)  # executemany rowcount is unreliable (last stmt only)
+            logger.info(f"Batch updated app IDs for {count} games")
+            return count
+
+        except Exception as e:
+            logger.error(f"Error batch updating game app IDs: {e}", exc_info=True)
+            conn.rollback()
+            return 0
+
+    def batch_update_game_app_ids_sync(self, updates: list[dict]) -> int:
+        """Batch update game app IDs (sync, for HyperParallelLoader)."""
+        return self._batch_update_game_app_ids(updates)
+
+    async def clear_fetch_failed_for_app_ids(self, app_ids: list[int]) -> int:
+        """Reset fetch_failed=0 for specified app IDs, enabling fresh image fetches.
+
+        When a game's steam_app_id changes due to re-resolution, the old app ID's
+        fetch_failed state should be cleared so the new app ID can be fetched.
+
+        Args:
+            app_ids: List of Steam app IDs to reset
+
+        Returns:
+            Number of rows updated
+        """
+        if not app_ids:
+            return 0
+        return await asyncio.to_thread(self._clear_fetch_failed_for_app_ids, app_ids)
+
+    def _clear_fetch_failed_for_app_ids(self, app_ids: list[int]) -> int:
+        """Clear fetch_failed for app IDs (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            placeholders = ','.join('?' * len(app_ids))
+            cursor.execute(
+                f"UPDATE steam_images SET fetch_failed = 0 WHERE steam_app_id IN ({placeholders})",
+                app_ids
+            )
+            conn.commit()
+            count = cursor.rowcount
+            if count > 0:
+                logger.info(f"Cleared fetch_failed for {count} steam_images rows")
+            return count
+
+        except Exception as e:
+            logger.error(f"Error clearing fetch_failed for app IDs: {e}", exc_info=True)
+            conn.rollback()
+            return 0
+
+    def clear_fetch_failed_for_app_ids_sync(self, app_ids: list[int]) -> int:
+        """Clear fetch_failed for app IDs (sync, for HyperParallelLoader)."""
+        return self._clear_fetch_failed_for_app_ids(app_ids)
+
+    async def delete_cached_images_for_app_ids(self, app_ids: list[int]) -> int:
+        """Delete steam_images rows and corresponding .webp files for specified app IDs.
+
+        Used when a game's steam_app_id changes - the old cached image is no longer
+        valid and should be removed from both the database and disk.
+
+        Args:
+            app_ids: List of Steam app IDs whose cached images should be deleted
+
+        Returns:
+            Number of database rows deleted
+        """
+        if not app_ids:
+            return 0
+        return await asyncio.to_thread(self._delete_cached_images_for_app_ids, app_ids)
+
+    def _delete_cached_images_for_app_ids(self, app_ids: list[int]) -> int:
+        """Delete cached images for app IDs (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            placeholders = ','.join('?' * len(app_ids))
+
+            # Get file paths before deleting rows
+            cursor.execute(
+                f"SELECT local_path FROM steam_images WHERE steam_app_id IN ({placeholders})",
+                app_ids
+            )
+            paths = [row[0] for row in cursor.fetchall() if row[0]]
+
+            # Delete DB rows
+            cursor.execute(
+                f"DELETE FROM steam_images WHERE steam_app_id IN ({placeholders})",
+                app_ids
+            )
+            conn.commit()
+            db_count = cursor.rowcount
+
+            # Delete files from disk
+            deleted_files = 0
+            for path_str in paths:
+                try:
+                    p = Path(path_str)
+                    if p.exists():
+                        p.unlink()
+                        deleted_files += 1
+                except Exception:
+                    pass
+
+            logger.info(f"Deleted {db_count} DB rows and {deleted_files} cached image files for {len(app_ids)} app IDs")
+            return db_count
+
+        except Exception as e:
+            logger.error(f"Error deleting cached images for app IDs: {e}", exc_info=True)
+            conn.rollback()
+            return 0
+
+    def delete_cached_images_for_app_ids_sync(self, app_ids: list[int]) -> int:
+        """Delete cached images for app IDs (sync, for HyperParallelLoader)."""
+        return self._delete_cached_images_for_app_ids(app_ids)
 
 
 # Singleton instance

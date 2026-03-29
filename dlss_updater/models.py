@@ -188,6 +188,7 @@ class Game(msgspec.Struct):
     steam_app_id: int | None = None
     last_scanned: datetime = msgspec.field(default_factory=datetime.now)
     created_at: datetime = msgspec.field(default_factory=datetime.now)
+    resolution_source: str | None = None  # 'manifest', 'api', 'store_search', 'fts5'
 
 
 class MergedGame(msgspec.Struct):

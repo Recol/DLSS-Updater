@@ -282,6 +282,14 @@ class ConfigManager(configparser.ConfigParser):
                 self["LinuxDLSSPresets"]["HDREnabled"] = "false"
                 self._save_unlocked()
 
+            # Initialize SteamAPI section for Steam Web API authentication
+            if not self.has_section("SteamAPI"):
+                self.add_section("SteamAPI")
+                self["SteamAPI"]["ApiKey"] = ""
+                self["SteamAPI"]["SteamId"] = ""
+                self["SteamAPI"]["AutoDetectedSteamId"] = ""
+                self._save_unlocked()
+
             self.initialized = True
 
     def update_launcher_path(
@@ -686,6 +694,62 @@ class ConfigManager(configparser.ConfigParser):
             self["LinuxDLSSPresets"]["WaylandEnabled"] = str(config.wayland_enabled).lower()
             self["LinuxDLSSPresets"]["HDREnabled"] = str(config.hdr_enabled).lower()
             self._save_unlocked()
+
+    # =========================================================================
+    # Steam Web API Configuration
+    # =========================================================================
+
+    def get_steam_api_key(self) -> str:
+        """Get the user's Steam Web API key."""
+        with _config_lock:
+            if not self.has_section("SteamAPI"):
+                return ""
+            return self["SteamAPI"].get("ApiKey", "")
+
+    def set_steam_api_key(self, key: str):
+        """Store the user's Steam Web API key."""
+        with _config_lock:
+            if not self.has_section("SteamAPI"):
+                self.add_section("SteamAPI")
+            self["SteamAPI"]["ApiKey"] = key
+            self._save_unlocked()
+
+    def get_steam_id(self) -> str:
+        """Get the Steam 64-bit ID. Prefers user-set ID, falls back to auto-detected."""
+        with _config_lock:
+            if not self.has_section("SteamAPI"):
+                return ""
+            user_id = self["SteamAPI"].get("SteamId", "")
+            return user_id or self["SteamAPI"].get("AutoDetectedSteamId", "")
+
+    def set_steam_id(self, steam_id: str):
+        """Set the Steam 64-bit ID explicitly."""
+        with _config_lock:
+            if not self.has_section("SteamAPI"):
+                self.add_section("SteamAPI")
+            self["SteamAPI"]["SteamId"] = steam_id
+            self._save_unlocked()
+
+    def set_auto_detected_steam_id(self, steam_id: str):
+        """Store an auto-detected Steam 64-bit ID (from loginusers.vdf)."""
+        with _config_lock:
+            if not self.has_section("SteamAPI"):
+                self.add_section("SteamAPI")
+            self["SteamAPI"]["AutoDetectedSteamId"] = steam_id
+            self._save_unlocked()
+
+    def has_steam_api_credentials(self) -> bool:
+        """Check if both API key and Steam ID are configured."""
+        return bool(self.get_steam_api_key()) and bool(self.get_steam_id())
+
+    def clear_steam_api_credentials(self):
+        """Remove all Steam API credentials."""
+        with _config_lock:
+            if self.has_section("SteamAPI"):
+                self["SteamAPI"]["ApiKey"] = ""
+                self["SteamAPI"]["SteamId"] = ""
+                self["SteamAPI"]["AutoDetectedSteamId"] = ""
+                self._save_unlocked()
 
 
 config_manager = ConfigManager()

@@ -55,6 +55,11 @@ class SteamIntegration:
         self._db_populated = False  # Track if database has been populated
 
         self.semaphore = asyncio.Semaphore(self.IMAGE_SEMAPHORE)
+
+        # Steam API owned games cache (for tiered resolution)
+        self._owned_games_cache: dict[str, int] | None = None  # normalized_name -> app_id
+        self._owned_games_lock = threading.Lock()
+
         logger.info(f"Steam image cache directory: {self.image_cache_dir}")
 
     async def migrate_image_cache(self) -> bool:
@@ -454,6 +459,211 @@ class SteamIntegration:
         successful = sum(1 for r in results if isinstance(r, Path))
         logger.info(f"Image download complete: {successful}/{len(app_ids)} successful")
 
+    async def validate_api_key(self, api_key: str) -> bool:
+        """Validate Steam API key via ISteamWebAPIUtil/GetSupportedAPIList.
+
+        This is a lightweight endpoint with no rate limiting that requires
+        a valid API key. Returns True if the key is valid.
+        """
+        url = f"https://api.steampowered.com/ISteamWebAPIUtil/GetSupportedAPIList/v1/?key={api_key}"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    is_valid = resp.status == 200
+                    if is_valid:
+                        logger.info("Steam API key validated successfully")
+                    else:
+                        logger.warning(f"Steam API key validation failed: HTTP {resp.status}")
+                    return is_valid
+        except Exception as e:
+            logger.error(f"Error validating Steam API key: {e}")
+            return False
+
+    async def get_owned_games(self, api_key: str, steam_id: str) -> dict[str, int]:
+        """Fetch user's owned games via IPlayerService/GetOwnedGames.
+
+        Returns dict mapping normalized game name (spaceless) -> app_id.
+        This is a single API call that returns all owned games with names.
+        The result is cached in _owned_games_cache for use by find_app_id_via_api().
+
+        Args:
+            api_key: Steam Web API key
+            steam_id: Steam 64-bit user ID
+
+        Returns:
+            Dict mapping normalized_name -> app_id
+
+        Raises:
+            ValueError: If API returns non-200 status
+        """
+        url = (
+            f"https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
+            f"?key={api_key}&steamid={steam_id}"
+            f"&include_appinfo=1&include_played_free_games=1"
+            f"&skip_unvetted_apps=0"
+        )
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                if resp.status == 401:
+                    raise ValueError("Invalid API key")
+                if resp.status != 200:
+                    raise ValueError(f"Steam API returned HTTP {resp.status}")
+                data = _json_decoder.decode(await resp.read())
+
+        response = data.get("response", {})
+        games = response.get("games", [])
+
+        if not games and response.get("game_count", 0) == 0:
+            logger.warning(
+                "GetOwnedGames returned 0 games. "
+                "User's Steam profile game details may be set to private."
+            )
+
+        result = {}
+        for game in games:
+            name = game.get("name", "")
+            appid = game.get("appid")
+            if name and appid:
+                normalized = self.normalize_game_name(name).replace(' ', '')
+                result[normalized] = appid
+
+        logger.info(f"Fetched {len(result)} owned games from Steam API for user {steam_id}")
+
+        with self._owned_games_lock:
+            self._owned_games_cache = result
+
+        return result
+
+    async def find_app_id_via_api(self, game_name: str) -> int | None:
+        """Look up a game in the cached owned games list.
+
+        Must call get_owned_games() first to populate the cache.
+        Performs a normalized name match against the user's Steam library.
+
+        Args:
+            game_name: Game name (typically the directory name)
+
+        Returns:
+            Steam app ID if found in owned games, None otherwise
+        """
+        with self._owned_games_lock:
+            cache = self._owned_games_cache
+
+        if cache is None:
+            return None
+
+        normalized = self.normalize_game_name(game_name).replace(' ', '')
+        app_id = cache.get(normalized)
+
+        if app_id:
+            logger.debug(f"Found app ID {app_id} for '{game_name}' via Steam API owned games")
+
+        return app_id
+
+    async def find_app_id_via_store_search(self, game_name: str) -> int | None:
+        """Search Steam Store API for a game by name.
+
+        Uses store.steampowered.com/api/storesearch which is unauthenticated
+        but rate-limited to ~200 requests per 5 minutes.
+
+        Args:
+            game_name: Game name to search for
+
+        Returns:
+            Steam app ID of the best match, or None
+        """
+        import urllib.parse
+        encoded_name = urllib.parse.quote(game_name)
+        url = f"https://store.steampowered.com/api/storesearch/?term={encoded_name}&l=english&cc=US"
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 429:
+                        logger.warning("Steam store search rate limited, skipping")
+                        return None
+                    if resp.status != 200:
+                        logger.debug(f"Store search returned HTTP {resp.status} for '{game_name}'")
+                        return None
+                    data = _json_decoder.decode(await resp.read())
+
+            items = data.get("items", [])
+            if not items:
+                logger.debug(f"Store search found no results for '{game_name}'")
+                return None
+
+            best = items[0]
+            app_id = best.get("id")
+            matched_name = best.get("name", "unknown")
+            logger.debug(f"Store search for '{game_name}' -> app_id {app_id} ('{matched_name}')")
+            return app_id
+
+        except TimeoutError:
+            logger.debug(f"Store search timed out for '{game_name}'")
+            return None
+        except Exception as e:
+            logger.debug(f"Store search error for '{game_name}': {e}")
+            return None
+
+    async def detect_steam_id_from_loginusers_vdf(self) -> str | None:
+        """Auto-detect Steam 64-bit ID from loginusers.vdf.
+
+        Parses Steam's config/loginusers.vdf to find the most recently
+        logged-in user (MostRecent=1). The top-level keys in the 'users'
+        block are Steam64 IDs.
+
+        Returns:
+            Steam 64-bit ID string, or None if not detectable
+        """
+        try:
+            from .scanner import get_steam_install_path
+
+            steam_path = get_steam_install_path()
+            if not steam_path:
+                logger.debug("Cannot detect Steam ID: Steam installation not found")
+                return None
+
+            vdf_path = Path(steam_path) / "config" / "loginusers.vdf"
+            if not vdf_path.exists():
+                logger.debug(f"loginusers.vdf not found at {vdf_path}")
+                return None
+
+            # Parse the VDF file (simple key-value format)
+            content = await asyncio.to_thread(vdf_path.read_text, encoding='utf-8', errors='ignore')
+
+            # Parse users block - keys are Steam64 IDs
+            # Format: "76561198084417777" { "PersonaName" "User" "MostRecent" "1" }
+            current_steam_id = None
+            most_recent_id = None
+            first_id = None
+
+            for line in content.split('\n'):
+                line = line.strip()
+
+                # Match Steam64 ID (17-digit number as a quoted key)
+                id_match = re.match(r'^"(\d{17})"', line)
+                if id_match:
+                    current_steam_id = id_match.group(1)
+                    if first_id is None:
+                        first_id = current_steam_id
+
+                # Check for MostRecent flag
+                if current_steam_id and '"MostRecent"' in line and '"1"' in line:
+                    most_recent_id = current_steam_id
+
+            result = most_recent_id or first_id
+            if result:
+                logger.info(f"Auto-detected Steam ID: {result}")
+            else:
+                logger.debug("No Steam ID found in loginusers.vdf")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error detecting Steam ID from loginusers.vdf: {e}", exc_info=True)
+            return None
+
 
 # Singleton instance
 steam_integration = SteamIntegration()
@@ -509,3 +719,28 @@ async def search_steam_apps(query: str, limit: int = 10) -> list[tuple[int, str]
         List of tuples (appid, name) matching the query
     """
     return await steam_integration.search_steam_apps(query, limit)
+
+
+async def validate_steam_api_key(api_key: str) -> bool:
+    """Validate a Steam Web API key."""
+    return await steam_integration.validate_api_key(api_key)
+
+
+async def get_steam_owned_games(api_key: str, steam_id: str) -> dict[str, int]:
+    """Fetch user's owned games from Steam API."""
+    return await steam_integration.get_owned_games(api_key, steam_id)
+
+
+async def find_app_id_via_api(game_name: str) -> int | None:
+    """Look up game in cached Steam API owned games."""
+    return await steam_integration.find_app_id_via_api(game_name)
+
+
+async def find_app_id_via_store_search(game_name: str) -> int | None:
+    """Search Steam Store for a game by name."""
+    return await steam_integration.find_app_id_via_store_search(game_name)
+
+
+async def detect_steam_id() -> str | None:
+    """Auto-detect Steam 64-bit ID from local Steam installation."""
+    return await steam_integration.detect_steam_id_from_loginusers_vdf()

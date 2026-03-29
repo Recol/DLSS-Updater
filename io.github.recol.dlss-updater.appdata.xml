@@ -64,6 +64,19 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+  <release version="3.9.6" date="2026-03-29">
+      <description>
+        <p>Steam API Integration - Dramatically improved game image loading (Issue #175)</p>
+        <ul>
+          <li>Added optional Steam API key support for accurate game app ID resolution</li>
+          <li>Four-tier resolution: Manifest → Steam API → Store Search → FTS5 fuzzy match</li>
+          <li>Steam API card on Games tab with API key input, validation, and auto-detected Steam ID</li>
+          <li>One-click re-resolution to fix images from previous scans when API key is added</li>
+          <li>Smart cache invalidation: only re-fetches images when app ID actually changes</li>
+          <li>Resolution source tracking for intelligent re-resolution decisions</li>
+        </ul>
+      </description>
+    </release>
   <release version="3.9.5" date="2026-03-29">
       <description>
         <p>MSI installer for Windows, resolving Windows Defender false positive issues</p>
