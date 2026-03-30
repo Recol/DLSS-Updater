@@ -156,7 +156,15 @@ class DLLGroupDialog(ThemeAwareMixin):
             status_color = MD3Colors.get_success(is_dark)
             status_icon = ft.Icons.CHECK_CIRCLE
 
-        # Dialog content
+        # Responsive dimensions
+        # Dialog chrome: inset_padding(48v) + title(~56) + actions(~52) + content_padding(32) ≈ 188px
+        page_w = self._page_ref.width or 800
+        page_h = self._page_ref.height or 600
+        content_width = max(page_w - 80, 400)   # 40px margin each side, min 400
+        # Content height = page - dialog chrome; scroll area uses expand=True inside
+        content_height = max(page_h - 200, 200)
+
+        # Dialog content — fixed height container, scroll area expands to fill
         content = ft.Container(
             content=ft.Column(
                 controls=[
@@ -196,23 +204,25 @@ class DLLGroupDialog(ThemeAwareMixin):
                         padding=ft.padding.only(bottom=12),
                     ),
                     ft.Divider(height=1, color=MD3Colors.get_divider(is_dark)),
-                    # Scrollable expansion panels
+                    # Scrollable expansion panels — expand to fill remaining space
                     ft.Container(
                         content=ft.Column(
                             controls=[expansion_list],
                             scroll=ft.ScrollMode.AUTO,
                         ),
-                        height=450,
+                        expand=True,
                         padding=ft.padding.only(top=8),
                     ),
                 ],
                 spacing=0,
+                expand=True,
             ),
-            width=700,
+            width=content_width,
+            height=content_height,
             padding=16,
         )
 
-        # Create dialog
+        # Create dialog with Close in native actions area
         self.dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("DLL Details", color=MD3Colors.get_text_primary(is_dark)),

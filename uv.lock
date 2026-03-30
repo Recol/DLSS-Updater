@@ -350,7 +350,7 @@ wheels = [
 
 [[package]]
 name = "dlss-updater"
-version = "3.9.8"
+version = "3.9.9"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

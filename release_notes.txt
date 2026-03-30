@@ -1,3 +1,10 @@
+Version 3.9.9:
+UI Fix - DLL Details dialog scaling:
+  - DLL Details dialog now scales responsively with the application window size instead
+    of using fixed dimensions. The dialog spans the full window minus small margins,
+    and the scroll area expands to fill available space. Fixes content and Close button
+    being cut off when the window is resized or minimized.
+
 Version 3.9.8:
 Bug Fixes - Scanner crash and image loading:
   - Fixed UnboundLocalError in find_all_dlls() where config_manager was inaccessible.
