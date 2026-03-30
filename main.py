@@ -104,12 +104,21 @@ async def main(page: ft.Page):
     """
     # Configure page
     page.title = "DLSS Updater"
-    page.window.width = 900
-    page.window.height = 700
     page.window.min_width = 700
     page.window.min_height = 500
     page.padding = 0
     page.spacing = 0
+
+    # Restore saved window state (position, size, maximized)
+    from dlss_updater.config import config_manager
+    _saved_window = config_manager.get_window_state()
+    page.window.width = max(_saved_window["width"], 700)
+    page.window.height = max(_saved_window["height"], 500)
+    if _saved_window["top"] is not None and _saved_window["left"] is not None:
+        page.window.top = _saved_window["top"]
+        page.window.left = _saved_window["left"]
+    if _saved_window["maximized"]:
+        page.window.maximized = True
 
     # Detect initial theme (OS preference or user override)
     is_dark = _detect_initial_theme()
@@ -250,13 +259,63 @@ async def main(page: ft.Page):
     # See: https://flet.dev/docs/controls/page/#app-exit-confirmation
     _shutdown_in_progress = False
 
+    # --- Window state persistence (debounced save on resize/move) ---
+    _window_save_task: asyncio.Task | None = None
+
+    def _save_window_state_now():
+        """Capture current window geometry and persist to config (sync)."""
+        if page.window.maximized:
+            # Only persist the maximized flag; keep the last normal geometry
+            # so restoring from maximized lands at the previous size/position.
+            try:
+                prev = config_manager.get_window_state()
+                config_manager.save_window_state(
+                    width=prev["width"],
+                    height=prev["height"],
+                    top=prev["top"],
+                    left=prev["left"],
+                    maximized=True,
+                )
+            except Exception:
+                pass
+            return
+
+        try:
+            config_manager.save_window_state(
+                width=page.window.width or 900,
+                height=page.window.height or 700,
+                top=page.window.top,
+                left=page.window.left,
+                maximized=False,
+            )
+        except Exception as ex:
+            logger.debug(f"Failed to save window state: {ex}")
+
+    async def _debounced_window_save():
+        """Save window state after 300ms of no further changes."""
+        await asyncio.sleep(0.3)
+        _save_window_state_now()
+
+    def _schedule_window_save():
+        """Schedule a debounced save of window state."""
+        nonlocal _window_save_task
+        if _window_save_task and not _window_save_task.done():
+            _window_save_task.cancel()
+        _window_save_task = register_task(
+            asyncio.create_task(_debounced_window_save()),
+            "window_state_save"
+        )
+
     async def handle_window_event(e: ft.WindowEvent):
-        """Handle window events, particularly close requests."""
+        """Handle window events: close requests and state persistence."""
         nonlocal _shutdown_in_progress
         if e.type == ft.WindowEventType.CLOSE:
             if _shutdown_in_progress:
                 return  # Already shutting down, avoid double-shutdown
             _shutdown_in_progress = True
+
+            # Save final window state immediately before shutdown
+            _save_window_state_now()
 
             # Show shutdown progress dialog for visual feedback
             from dlss_updater.ui_flet.dialogs.shutdown_progress_dialog import ShutdownProgressDialog
@@ -287,6 +346,19 @@ async def main(page: ft.Page):
                     # Force exit if destroy fails
                     import os
                     os._exit(0)
+
+        elif e.type in (
+            ft.WindowEventType.RESIZED,
+            ft.WindowEventType.MOVED,
+        ):
+            _schedule_window_save()
+
+        elif e.type in (
+            ft.WindowEventType.MAXIMIZE,
+            ft.WindowEventType.UNMAXIMIZE,
+        ):
+            # Save maximized state immediately (no debounce needed)
+            _save_window_state_now()
 
     page.window.prevent_close = True
     page.window.on_event = handle_window_event

@@ -1,3 +1,19 @@
+Version 4.0:
+Window State Persistence (Issue #183):
+  - The application now remembers window size, position, and maximized state between
+    sessions. On startup, the window restores to its previous location and dimensions.
+  - Debounced save on resize/move (300ms) to avoid excessive disk writes.
+  - Maximized state is preserved separately so restoring from maximized returns to the
+    previous normal size and position.
+  - Saved in existing config.ini under [WindowState] section.
+
+Steam Image Fix - New CDN URL format fallback (Issue #182):
+  - Fixed game art not loading for newer Steam games (e.g. Resident Evil 9: Requiem).
+    Steam has migrated newer titles to hash-based image URLs that cannot be predicted
+    from the app ID alone. When legacy CDN URLs return 404, the app now falls back to
+    the Steam appdetails API to resolve the actual header image URL.
+  - Affects any game released after Steam's CDN migration (~late 2025+).
+
 Version 3.9.9:
 UI Fix - DLL Details dialog scaling:
   - DLL Details dialog now scales responsively with the application window size instead

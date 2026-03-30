@@ -751,6 +751,75 @@ class ConfigManager(configparser.ConfigParser):
                 self["SteamAPI"]["AutoDetectedSteamId"] = ""
                 self._save_unlocked()
 
+    # =========================================================================
+    # Window State Persistence
+    # =========================================================================
+
+    # Default window dimensions (used on first launch or if saved state is invalid)
+    _WINDOW_DEFAULTS = {
+        "Width": "900",
+        "Height": "700",
+        "Top": "",
+        "Left": "",
+        "Maximized": "false",
+    }
+
+    def get_window_state(self) -> dict[str, float | bool | None]:
+        """Get saved window state (position, size, maximized).
+
+        Returns:
+            Dict with keys: width, height, top, left, maximized.
+            top/left may be None if never saved (let OS position the window).
+        """
+        with _config_lock:
+            if not self.has_section("WindowState"):
+                return {
+                    "width": 900.0,
+                    "height": 700.0,
+                    "top": None,
+                    "left": None,
+                    "maximized": False,
+                }
+
+            section = self["WindowState"]
+
+            def _float_or_none(key: str) -> float | None:
+                val = section.get(key, "")
+                if not val:
+                    return None
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return None
+
+            return {
+                "width": _float_or_none("Width") or 900.0,
+                "height": _float_or_none("Height") or 700.0,
+                "top": _float_or_none("Top"),
+                "left": _float_or_none("Left"),
+                "maximized": section.getboolean("Maximized", False),
+            }
+
+    def save_window_state(
+        self,
+        width: float,
+        height: float,
+        top: float | None,
+        left: float | None,
+        maximized: bool,
+    ) -> None:
+        """Save window state to config (thread-safe)."""
+        with _config_lock:
+            if not self.has_section("WindowState"):
+                self.add_section("WindowState")
+
+            self["WindowState"]["Width"] = str(int(width))
+            self["WindowState"]["Height"] = str(int(height))
+            self["WindowState"]["Top"] = str(int(top)) if top is not None else ""
+            self["WindowState"]["Left"] = str(int(left)) if left is not None else ""
+            self["WindowState"]["Maximized"] = str(maximized).lower()
+            self._save_unlocked()
+
 
 config_manager = ConfigManager()
 

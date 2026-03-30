@@ -400,7 +400,7 @@ class SteamIntegration:
                 # Save as .webp instead of .jpg for optimized thumbnails
                 cache_file = self.image_cache_dir / f"{app_id}.webp"
 
-                # Try primary CDN first, then fallback
+                # Try primary CDN first, then fallback (legacy URL format)
                 urls = [
                     f"{self.CDN_PRIMARY}/{app_id}/header.jpg",
                     f"{self.CDN_FALLBACK}/{app_id}/header.jpg"
@@ -409,16 +409,13 @@ class SteamIntegration:
                 async with aiohttp.ClientSession() as session:
                     for url in urls:
                         try:
-                            # Async network request
                             async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                                 if response.status == 200:
                                     raw_data = await response.read()
 
-                                    # Create and save WebP thumbnail (async CPU + file I/O)
                                     from .image_optimizer import save_thumbnail
                                     await save_thumbnail(raw_data, cache_file)
 
-                                    # Record in database (async DB write)
                                     await db_manager.cache_steam_image(app_id, str(cache_file))
 
                                     logger.info(f"Fetched and cached thumbnail for Steam app {app_id}")
@@ -435,8 +432,33 @@ class SteamIntegration:
                             logger.debug(f"Error fetching from {url}: {e}")
                             continue
 
-                # All URLs failed - expected for games without images
-                logger.debug(f"Failed to fetch image for Steam app {app_id} from all CDNs")
+                    # CDN URLs failed — newer games use hash-based URLs that
+                    # can only be discovered via the appdetails API.
+                    try:
+                        api_url = f"https://store.steampowered.com/api/appdetails?appids={app_id}"
+                        async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                            if response.status == 200:
+                                data = _json_decoder.decode(await response.read())
+                                app_data = data.get(str(app_id), {})
+                                if app_data.get("success"):
+                                    header_url = app_data.get("data", {}).get("header_image")
+                                    if header_url:
+                                        async with session.get(header_url, timeout=aiohttp.ClientTimeout(total=10)) as img_resp:
+                                            if img_resp.status == 200:
+                                                raw_data = await img_resp.read()
+
+                                                from .image_optimizer import save_thumbnail
+                                                await save_thumbnail(raw_data, cache_file)
+
+                                                await db_manager.cache_steam_image(app_id, str(cache_file))
+
+                                                logger.info(f"Fetched thumbnail for Steam app {app_id} via appdetails API")
+                                                return cache_file
+                    except Exception as e:
+                        logger.debug(f"appdetails fallback failed for app {app_id}: {e}")
+
+                # All methods failed - expected for games without images
+                logger.debug(f"Failed to fetch image for Steam app {app_id} from all sources")
                 await db_manager.mark_image_fetch_failed(app_id)
                 return None
 
