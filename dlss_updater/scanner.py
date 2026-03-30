@@ -1138,7 +1138,6 @@ async def find_all_dlls(progress_callback=None):
         await _safe_progress_callback(progress_callback, 78, 100, "Looking up Steam app IDs...")
 
         # Pre-fetch owned games from Steam API if credentials are configured
-        from dlss_updater.config import config_manager
         _has_api_credentials = config_manager.has_steam_api_credentials()
         if _has_api_credentials:
             try:

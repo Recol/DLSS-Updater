@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+  <release version="3.9.8" date="2026-03-30">
+      <description>
+        <p>Bug Fixes - Scanner crash and image loading</p>
+        <ul>
+          <li>Fixed UnboundLocalError in find_all_dlls() where a redundant local import of config_manager shadowed the module-level import</li>
+          <li>Fixed "can not serialize WindowsPath object" error when loading uncached game images</li>
+          <li>Scan now correctly reads user DLL update preferences and loads all game images without errors</li>
+        </ul>
+      </description>
+    </release>
   <release version="3.9.7" date="2026-03-29">
       <description>
         <p>MSI Build Fix - Free-threaded Python runtime (Issue #176)</p>

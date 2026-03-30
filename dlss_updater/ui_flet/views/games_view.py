@@ -728,7 +728,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 app_id, path = result
                 if path:
                     for card in app_id_to_cards.get(app_id, []):
-                        card.image_widget.src = path
+                        card.image_widget.src = str(path)
                         card.image_container.content = card.image_widget  # Replace skeleton
                         card._image_loaded = True
                         cards_updated += 1
