@@ -12,7 +12,7 @@
     <docsUrl>https://github.com/Recol/DLSS-Updater?tab=readme-ov-file#execution-instructions</docsUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <packageSourceUrl>https://github.com/Recol/DLSS-Updater/releases</packageSourceUrl>
-    <iconUrl>https://github.com/Recol/DLSS-Updater/blob/main/dlss_updater/icons/dlss_updater.png</iconUrl>
+    <iconUrl>https://raw.githubusercontent.com/Recol/DLSS-Updater/main/dlss_updater/icons/dlss_updater.png</iconUrl>
     <summary>A tool to update DLSS DLLs for various games and launchers.</summary>
     <description>DLSS Updater is a utility that automatically updates DLSS (Deep Learning Super Sampling) DLLs for games across multiple platforms including Steam, EA Play, Ubisoft, Epic Games, GOG, and Battle.net. It simplifies the process of keeping your games up-to-date with the latest DLSS improvements.
 

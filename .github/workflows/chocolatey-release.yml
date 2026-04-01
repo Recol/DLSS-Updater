@@ -56,5 +56,5 @@ jobs:
         CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
       run: |
         choco apikey --key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
-        choco push dlss-updater.${{ steps.get_version.outputs.VERSION }}.nupkg --source https://push.chocolatey.org/
+        choco push dlss-updater.${{ steps.get_version.outputs.VERSION }}.nupkg --source https://push.chocolatey.org/ --force
       shell: pwsh
