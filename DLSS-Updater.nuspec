@@ -26,7 +26,7 @@ This package installs DLSS Updater via a standard Windows MSI installer.</descri
     </dependencies>
   </metadata>
   <files>
-    <file src="tools\CHECKSUM" target="tools" />
+    <file src="tools\CHECKSUM" target="tools\CHECKSUM" />
     <file src="tools\chocolateyBeforeModify.ps1" target="tools" />
     <file src="tools\chocolateyInstall.ps1" target="tools" />
     <file src="tools\chocolateyUninstall.ps1" target="tools" />
