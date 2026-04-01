@@ -64,6 +64,18 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.0.0" date="2026-04-01">
+      <description>
+        <p>Launcher UX improvements, Steam multi-library detection, and window state persistence</p>
+        <ul>
+          <li>Window State Persistence: App remembers window size, position, and maximized state between sessions (Issue #183)</li>
+          <li>Steam Image Fix: Fallback to Steam appdetails API for newer games using hash-based CDN URLs (Issue #182)</li>
+          <li>Rescan Prompt: Snackbar with "Rescan" action button appears after removing or resetting launcher paths (Issue #181)</li>
+          <li>Steam Multi-Library Auto-Detect: Auto-Detect now discovers all Steam library folders across multiple drives via libraryfolders.vdf (Issue #180)</li>
+          <li>Launcher Page Refresh Fix: LauncherCard now correctly uses self.update() for isolated control updates (Issue #179)</li>
+        </ul>
+      </description>
+    </release>
   <release version="3.9.9" date="2026-03-30">
       <description>
         <p>UI Fix - DLL Details dialog now scales responsively with window size</p>

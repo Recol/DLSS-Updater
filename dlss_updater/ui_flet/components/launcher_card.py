@@ -40,6 +40,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         on_add_subfolder: Callable,  # New: callback for adding sub-folder
         page: ft.Page,
         logger: logging.Logger,
+        on_path_removed: Callable | None = None,
     ):
         # Store instance variables
         self.name_str = name
@@ -50,6 +51,10 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         self.on_add_subfolder_callback = on_add_subfolder
         self._page_ref = page
         self.logger = logger
+        self.on_path_removed_callback = on_path_removed
+
+        # Track whether control has been added to the page
+        self._attached = False
 
         # State - multi-path support
         self.current_paths: list[str] = []  # List of configured paths
@@ -93,6 +98,10 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
 
         # Register for theme updates
         self._register_theme_aware()
+
+    def did_mount(self):
+        """Called when control is added to the page."""
+        self._attached = True
 
     @property
     def name(self) -> str:
@@ -335,8 +344,9 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         # Update UI
         await self._update_paths_display()
 
-        # Note: We don't trigger a re-scan here - user can manually scan
-        # to update the game list after removing paths
+        # Notify parent to show rescan prompt
+        if self.on_path_removed_callback:
+            await self.on_path_removed_callback(self.name_str)
 
     async def _update_paths_display(self):
         """Update the paths display in subtitle area."""
@@ -389,8 +399,8 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         else:
             self.path_health_icon.visible = False
 
-        if self._page_ref:
-            self._page_ref.update()
+        if self._attached:
+            self.update()
 
     async def set_paths(self, paths: list[str]):
         """
@@ -418,8 +428,8 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                 self.game_count_text.value = "Paths configured"
                 self.game_count_text.color = MD3Colors.SUCCESS
 
-        if self._page_ref:
-            self._page_ref.update()
+        if self._attached:
+            self.update()
 
     # Keep set_path for backward compatibility
     async def set_path(self, path: str):
@@ -495,8 +505,8 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             # Clear controls when no games
             self.controls = []
 
-        if self._page_ref:
-            self._page_ref.update()
+        if self._attached:
+            self.update()
 
     def _validate_paths_sync(self) -> bool:
         """Check if all paths exist (sync version for filesystem I/O)"""
@@ -552,19 +562,38 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
 
     async def _on_auto_detect(self, e):
         """Attempt to auto-detect launcher path (offloads blocking scan to thread pool)"""
-        from dlss_updater.scanner import auto_detect_launcher_path
-        # Wrap blocking filesystem scan in thread pool to avoid freezing UI
-        detected = await asyncio.to_thread(auto_detect_launcher_path, self.launcher_enum)
-        if detected:
-            added = config_manager.add_launcher_path(self.launcher_enum, detected)
-            if added:
-                self.current_paths.append(detected)
-                await self._update_paths_display()
-                self._page_ref.snack_bar = ft.SnackBar(ft.Text(f"Detected: {detected}"))
+        from dlss_updater.scanner import auto_detect_launcher_path, auto_detect_steam_library_paths
+
+        if self.launcher_enum == LauncherPathName.STEAM:
+            # Steam: detect all library folders via libraryfolders.vdf
+            detected_paths = await asyncio.to_thread(auto_detect_steam_library_paths)
+            if detected_paths:
+                added_count = 0
+                for path in detected_paths:
+                    if config_manager.add_launcher_path(self.launcher_enum, path):
+                        self.current_paths.append(path)
+                        added_count += 1
+                if added_count > 0:
+                    await self._update_paths_display()
+                    msg = f"Detected {added_count} Steam library path(s)"
+                else:
+                    msg = "All detected paths already configured"
+                self._page_ref.snack_bar = ft.SnackBar(ft.Text(msg))
             else:
-                self._page_ref.snack_bar = ft.SnackBar(ft.Text("Path already configured or at limit"))
+                self._page_ref.snack_bar = ft.SnackBar(ft.Text("Could not auto-detect Steam paths"))
         else:
-            self._page_ref.snack_bar = ft.SnackBar(ft.Text("Could not auto-detect path"))
+            # Other launchers: single registry-based detection
+            detected = await asyncio.to_thread(auto_detect_launcher_path, self.launcher_enum)
+            if detected:
+                added = config_manager.add_launcher_path(self.launcher_enum, detected)
+                if added:
+                    self.current_paths.append(detected)
+                    await self._update_paths_display()
+                    self._page_ref.snack_bar = ft.SnackBar(ft.Text(f"Detected: {detected}"))
+                else:
+                    self._page_ref.snack_bar = ft.SnackBar(ft.Text("Path already configured or at limit"))
+            else:
+                self._page_ref.snack_bar = ft.SnackBar(ft.Text("Could not auto-detect path"))
         self._page_ref.snack_bar.open = True
         self._page_ref.update()
 

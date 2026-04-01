@@ -1,4 +1,21 @@
-Version 4.0:
+Version 4.0.0:
+Rescan Prompt After Path Changes (Issue #181):
+  - After removing a path or resetting paths on the Launchers page, a snackbar now
+    appears with a "Rescan" action button prompting the user to refresh the game list.
+    Previously there was no feedback that stale games might remain in the list.
+
+Steam Multi-Library Auto-Detect (Issue #180):
+  - Steam Auto-Detect now discovers all Steam library folders across multiple drives,
+    not just the primary installation. It reads Steam's libraryfolders.vdf (which the
+    scanner already used for game discovery) to find all configured library paths.
+    Previously only the registry install path (typically C: drive) was detected.
+
+Launcher Page Refresh Fix (Issue #179):
+  - Fixed Launchers page not refreshing after adding/removing paths or pressing Reset.
+    LauncherCard uses is_isolated=True but was calling page.update() (which skips isolated
+    controls) instead of self.update(). Changes were applied in Python but never sent to
+    the frontend until the user navigated away and back.
+
 Window State Persistence (Issue #183):
   - The application now remembers window size, position, and maximized state between
     sessions. On startup, the window restores to its previous location and dimensions.

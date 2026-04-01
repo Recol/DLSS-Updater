@@ -685,6 +685,7 @@ class MainView(ft.Column):
                 on_add_subfolder=self._create_add_subfolder_handler(config["enum"]),
                 page=self._page_ref,
                 logger=self.logger,
+                on_path_removed=self._on_launcher_path_removed,
             )
 
             # Load existing paths from config (multi-path support)
@@ -876,7 +877,7 @@ class MainView(ft.Column):
 
             if card:
                 await card.set_paths([])
-                await self._show_snackbar(f"All paths cleared for {card.name}")
+                await self._show_rescan_snackbar(f"All paths cleared for {card.name}")
 
         # Customize message based on path count
         if path_count > 1:
@@ -1411,6 +1412,17 @@ class MainView(ft.Column):
         self._page_ref.overlay.append(snackbar)
         snackbar.open = True
         self._page_ref.update()
+
+    async def _show_rescan_snackbar(self, message: str):
+        """Show a snackbar informing the user to rescan."""
+        await self._show_snackbar(
+            f"{message} — rescan to update the game list",
+            duration=4000,
+        )
+
+    async def _on_launcher_path_removed(self, launcher_name: str):
+        """Callback when a path is removed from a launcher card."""
+        await self._show_rescan_snackbar(f"Path removed from {launcher_name}")
 
     async def _cleanup_games_view(self):
         """Release Games view resources based on user preference.

@@ -577,6 +577,48 @@ def auto_detect_launcher_path(launcher: LauncherPathName) -> str | None:
         return None
 
 
+def auto_detect_steam_library_paths() -> list[str]:
+    """
+    Auto-detect all Steam library paths by reading libraryfolders.vdf.
+
+    Unlike auto_detect_launcher_path (which only returns the primary install),
+    this reads Steam's libraryfolders.vdf to discover all library folders
+    across multiple drives.
+
+    Returns:
+        List of steamapps/common paths for all discovered libraries.
+        Empty list if Steam is not installed or detection fails.
+    """
+    # First, get the Steam install root from registry
+    primary = auto_detect_launcher_path(LauncherPathName.STEAM)
+    if not primary:
+        return []
+
+    # primary is e.g. "C:\Program Files (x86)\Steam\steamapps\common"
+    # We need the Steam root to find libraryfolders.vdf
+    steam_root = primary.replace("\\steamapps\\common", "").replace("/steamapps/common", "")
+
+    # Use existing get_steam_libraries to parse libraryfolders.vdf
+    libraries = get_steam_libraries(steam_root)
+
+    # get_steam_libraries returns Path objects of steamapps/common dirs
+    paths = []
+    for lib_path in libraries:
+        path_str = str(lib_path)
+        if Path(path_str).exists():
+            paths.append(path_str)
+            logger.debug(f"Auto-detected Steam library: {path_str}")
+        else:
+            logger.debug(f"Steam library path does not exist, skipping: {path_str}")
+
+    if not paths:
+        # Fallback to just the primary path
+        paths = [primary]
+
+    logger.info(f"Auto-detected {len(paths)} Steam library path(s)")
+    return paths
+
+
 async def auto_detect_all_launcher_paths() -> dict[LauncherPathName, str | None]:
     """
     Auto-detect paths for all launchers that support registry detection.
