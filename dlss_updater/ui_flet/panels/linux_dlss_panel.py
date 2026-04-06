@@ -167,7 +167,7 @@ class LinuxDLSSPresetsPanel(ThemeAwareMixin, PanelContentBase):
         """Copy the current command to clipboard."""
         if self._command_field and self._command_field.value:
             try:
-                await self._page_ref.set_clipboard_async(self._command_field.value)
+                await ft.Clipboard().set(self._command_field.value)
                 self._show_snackbar("Copied to clipboard!", "#4CAF50")
             except Exception as ex:
                 self.logger.warning(f"Failed to copy to clipboard: {ex}")

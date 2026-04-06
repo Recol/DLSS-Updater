@@ -1,3 +1,12 @@
+Version 4.0.1:
+Clipboard Fix (Issue #189):
+  - Fixed "Failed to copy to clipboard: 'Page' object has no attribute 'set_clipboard_async'"
+    error when clicking the copy button for Steam launch options in the Linux DLSS panel.
+    The method was using a non-existent API; updated to use ft.Clipboard().set().
+
+Flet Upgrade:
+  - Upgraded Flet from 0.83.0 to 0.84.0 on Linux (Windows was already on 0.84.0).
+
 Version 4.0.0:
 Rescan Prompt After Path Changes (Issue #181):
   - After removing a path or resetting paths on the Launchers page, a snackbar now

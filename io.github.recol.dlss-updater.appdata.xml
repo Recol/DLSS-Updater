@@ -64,6 +64,15 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.0.1" date="2026-04-06">
+      <description>
+        <p>Clipboard fix and Flet upgrade</p>
+        <ul>
+          <li>Fixed clipboard copy button error in Linux DLSS panel (Issue #189)</li>
+          <li>Upgraded Flet from 0.83.0 to 0.84.0 on Linux</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.0.0" date="2026-04-01">
       <description>
         <p>Launcher UX improvements, Steam multi-library detection, and window state persistence</p>

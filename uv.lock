@@ -350,16 +350,14 @@ wheels = [
 
 [[package]]
 name = "dlss-updater"
-version = "4.0.0"
+version = "4.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "aiohttp" },
     { name = "aiosqlite" },
-    { name = "flet", version = "0.83.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'linux'" },
-    { name = "flet", version = "0.83.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
-    { name = "flet-desktop", version = "0.83.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'linux'" },
-    { name = "flet-desktop", version = "0.83.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "flet", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "flet-desktop", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "msgpack" },
     { name = "msgspec" },
     { name = "packaging" },
@@ -395,10 +393,10 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "briefcase", marker = "extra == 'build'", specifier = ">=0.4.1" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=7.3.0" },
-    { name = "flet", marker = "sys_platform == 'linux'", specifier = "==0.83.0" },
-    { name = "flet", marker = "sys_platform == 'win32'", specifier = "==0.83.1" },
-    { name = "flet-desktop", marker = "sys_platform == 'linux'", specifier = "==0.83.0" },
-    { name = "flet-desktop", marker = "sys_platform == 'win32'", specifier = "==0.83.1" },
+    { name = "flet", marker = "sys_platform == 'linux'", specifier = "==0.84.0" },
+    { name = "flet", marker = "sys_platform == 'win32'", specifier = "==0.84.0" },
+    { name = "flet-desktop", marker = "sys_platform == 'linux'", specifier = "==0.84.0" },
+    { name = "flet-desktop", marker = "sys_platform == 'win32'", specifier = "==0.84.0" },
     { name = "msgpack", specifier = ">=1.1.2" },
     { name = "msgspec", specifier = ">=0.20.0" },
     { name = "packaging", specifier = ">=26.0" },
@@ -461,68 +459,29 @@ wheels = [
 
 [[package]]
 name = "flet"
-version = "0.83.0"
+version = "0.84.0"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "sys_platform == 'linux'",
-]
 dependencies = [
-    { name = "httpx", marker = "platform_system != 'Pyodide' and sys_platform == 'linux'" },
-    { name = "msgpack", marker = "sys_platform == 'linux'" },
-    { name = "oauthlib", marker = "platform_system != 'Pyodide' and sys_platform == 'linux'" },
-    { name = "repath", marker = "sys_platform == 'linux'" },
+    { name = "httpx", marker = "(platform_system != 'Pyodide' and sys_platform == 'linux') or (platform_system != 'Pyodide' and sys_platform == 'win32')" },
+    { name = "msgpack", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "oauthlib", marker = "(platform_system != 'Pyodide' and sys_platform == 'linux') or (platform_system != 'Pyodide' and sys_platform == 'win32')" },
+    { name = "repath", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/27/94/d0015aa876d0b0573c7ce24f6f609a627ff05a5e34606f227c257eb82064/flet-0.83.0.tar.gz", hash = "sha256:2ac8ed79ffa4a970fbbd9a8324573248e427ce8932e0cca445a2c75392defeae", size = 473714, upload-time = "2026-03-26T19:07:26.806Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/8e/d042b5cefa507195683ba439ee183ce24f0cdfa13005b0a8ab64dd403e72/flet-0.84.0.tar.gz", hash = "sha256:f8a4121666c8df2d1c5ea10b14113755895328251b7ce4ab37b140fc8b23fa36", size = 472575, upload-time = "2026-04-01T19:23:59.207Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/1b/09d0feb4c2178c8e9e5c64551f9af128ca6d43a5f91d19d345536a0fa48e/flet-0.83.0-py3-none-any.whl", hash = "sha256:2c9c6cd5e4c23256f93a843519efe6416a8d189573ef85e905db3ad5467f704b", size = 561276, upload-time = "2026-03-26T19:07:25.247Z" },
-]
-
-[[package]]
-name = "flet"
-version = "0.83.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "sys_platform == 'win32'",
-]
-dependencies = [
-    { name = "httpx", marker = "platform_system != 'Pyodide' and sys_platform == 'win32'" },
-    { name = "msgpack", marker = "sys_platform == 'win32'" },
-    { name = "oauthlib", marker = "platform_system != 'Pyodide' and sys_platform == 'win32'" },
-    { name = "repath", marker = "sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/11/d7/102d2a3fafafd37b6c6f7a28a0a71ee9209085734faa138ff36dc3806ff9/flet-0.83.1.tar.gz", hash = "sha256:75115db74674ace37abe6642f84f3cbb6d8c7ab77ccfe2a62547003bd3b27e14", size = 474044, upload-time = "2026-03-29T18:24:51.618Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7d/20/ac67c2d17d1e23570178c663caac98db9a08b966981282258c4977ac0ef9/flet-0.83.1-py3-none-any.whl", hash = "sha256:fcea71fe39a025c54eb913fea1b09ff608702e8ab05d71fec37aff793d9b8439", size = 561413, upload-time = "2026-03-29T18:24:52.942Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/cf/2ea7810646e310977b2f756c875b3556dc8893aa706177106712ba8f77f9/flet-0.84.0-py3-none-any.whl", hash = "sha256:0661e317a7451d7ca562dde22520598e0ada74038ea171783c18dbc26c6cc5ca", size = 560353, upload-time = "2026-04-01T19:23:57.914Z" },
 ]
 
 [[package]]
 name = "flet-desktop"
-version = "0.83.0"
+version = "0.84.0"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "sys_platform == 'linux'",
-]
 dependencies = [
-    { name = "flet", version = "0.83.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'linux'" },
+    { name = "flet", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d3/7c/9f604932d0b77861d59b0a0507beb1a184ddcf40261f162173216dea198d/flet_desktop-0.83.0.tar.gz", hash = "sha256:13479988252793ef0592daaea413b385e4e00a0a96b54710cf1a5f18ab565ed9", size = 6110, upload-time = "2026-03-26T19:07:32.152Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/64/4aff45661c4a7f950c1162b127dfcfcdc6f66c6814ad2384beb41097956a/flet_desktop-0.84.0.tar.gz", hash = "sha256:85e2c54372dc61b4e2d594fbcd0f1e47488b6dd23e27ab40a31e753ade83d0af", size = 6096, upload-time = "2026-04-01T19:24:04.992Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/86/d80c529f5d8050fbdfaab72b3c5bb355aef87e94734f0587c993b12ff301/flet_desktop-0.83.0-py3-none-any.whl", hash = "sha256:fcae3a271cc62b6fd18d5db21c79114cb6c524cae0d1a71cabb8c4fedbb10a55", size = 6205, upload-time = "2026-03-26T19:07:31.113Z" },
-]
-
-[[package]]
-name = "flet-desktop"
-version = "0.83.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "sys_platform == 'win32'",
-]
-dependencies = [
-    { name = "flet", version = "0.83.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/39/66/ed5c51ff884a2edad198a5c48282d9e34c40884106b658002f6183e22522/flet_desktop-0.83.1.tar.gz", hash = "sha256:054b659bf08eb8e37bfb9e495ec3391f471cd21b0451f770027ca4bab4251755", size = 6115, upload-time = "2026-03-29T18:24:57.429Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/4c/2c/9c86558c4763227e28ba22cc8f25cb6ddb73d476785d31a85871c070dd3f/flet_desktop-0.83.1-py3-none-any.whl", hash = "sha256:05a5a009d1ae7edef255dcf92861e0862e3ea4ebe74c670dfca719b35ee2be19", size = 6205, upload-time = "2026-03-29T18:24:58.291Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/ea/6a54be2a614902be7898df2011651f8caadff37509ac8eccbd1a17972bf5/flet_desktop-0.84.0-py3-none-any.whl", hash = "sha256:5e91ae87e0f0a0146ff22344aa981b79d7c7a9f535fe70703f3c4f328f521fd1", size = 6193, upload-time = "2026-04-01T19:24:03.916Z" },
 ]
 
 [[package]]

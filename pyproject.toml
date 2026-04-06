@@ -1,6 +1,6 @@
 [project]
 name = "dlss-updater"
-version = "4.0.0"
+version = "4.0.1"
 description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -30,8 +30,8 @@ dependencies = [
     "rapidfuzz>=3.14.3",  # Fast fuzzy string matching for game search
     "flet==0.84.0; platform_system == 'Windows'",  # Core framework for Windows
     "flet-desktop==0.84.0; platform_system == 'Windows'",  # Desktop runtime for Windows
-    "flet==0.83.0; platform_system == 'Linux'",  # Core framework for Linux
-    "flet-desktop==0.83.0; platform_system == 'Linux'",  # Desktop runtime for Linux (flet-desktop-light removed in 0.83.0; flet-desktop defaults to "light" flavor on Linux automatically)
+    "flet==0.84.0; platform_system == 'Linux'",  # Core framework for Linux
+    "flet-desktop==0.84.0; platform_system == 'Linux'",  # Desktop runtime for Linux (flet-desktop-light removed in 0.83.0; flet-desktop defaults to "light" flavor on Linux automatically)
     "msgspec>=0.20.0",
     "msgpack>=1.1.2",  # Free-threading compatible (has Py_mod_gil declaration)
     "aiohttp>=3.13.4",
@@ -110,7 +110,7 @@ module_name = "main"
 # Build flow: pyinstaller DLSS_Updater_MSI.spec → briefcase package windows
 project_name = "DLSS Updater"
 bundle = "io.github.recol"
-version = "4.0.0"
+version = "4.0.1"
 url = "https://github.com/Recol/DLSS-Updater"
 license.file = "LICENSE"
 author = "Recol (Deco)"
