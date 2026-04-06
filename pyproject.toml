@@ -29,7 +29,7 @@ dependencies = [
     "platformdirs>=4.9.4",  # Replaces unmaintained appdirs (abandoned 2020); near-identical API
     "rapidfuzz>=3.14.3",  # Fast fuzzy string matching for game search
     "flet==0.83.1; platform_system == 'Windows'",  # Core framework for Windows
-    "flet-desktop==0.83.1; platform_system == 'Windows'",  # Desktop runtime for Windows
+    "flet-desktop==0.84.0; platform_system == 'Windows'",  # Desktop runtime for Windows
     "flet==0.83.0; platform_system == 'Linux'",  # Core framework for Linux
     "flet-desktop==0.83.0; platform_system == 'Linux'",  # Desktop runtime for Linux (flet-desktop-light removed in 0.83.0; flet-desktop defaults to "light" flavor on Linux automatically)
     "msgspec>=0.20.0",
