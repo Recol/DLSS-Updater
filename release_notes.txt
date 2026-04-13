@@ -1,3 +1,44 @@
+Version 4.1.0:
+Personal Game Ignore List (Issue #194):
+  - Added per-game ignore toggle on each game card (eye icon) to exclude
+    specific games from DLL updates.
+  - Ignored games are visually dimmed (50% opacity) and their update buttons
+    are disabled to prevent accidental updates.
+  - Both "Update All" and individual game updates respect the ignore list.
+  - Ignore toggle button overlays the game card image (top-right corner) for
+    quick access without cluttering the action buttons row.
+  - "Hide ignored games" filter toggle moved to the Games view header bar.
+  - Added "Ignored Games" settings panel (Settings > Ignored Games) with
+    search and per-game toggle switches for bulk management.
+  - Ignore list is stored in the database and persists across sessions.
+  - Supports merged/multi-install games (ignoring applies to all installations).
+
+Outdated vs Current DLL Indicators:
+  - Game cards now show color-coded badges: amber "N/M outdated" when DLLs need
+    updates, green "N DLLs current" when everything is up to date.
+  - Detailed tooltips list each DLL's current vs latest version.
+
+Backup Disk Usage Display:
+  - Games view header now shows total backup count and disk usage (e.g. "43 backups · 1.2 GB").
+  - Loaded in parallel via HyperParallelLoader with zero additional latency.
+
+Enhanced FilePicker UX:
+  - Launcher cards with no paths now show a styled "Click to add a game folder"
+    drop zone with icon and description, instead of an empty card.
+  - Hover effect highlights the zone border for interactive feedback.
+
+Game Launch Button (Steam Only):
+  - Steam game cards now show a play button that launches the game via
+    steam://rungameid/{app_id} protocol. Cross-platform (Windows + Linux).
+
+DLL Badge Refresh:
+  - Game card DLL badges (outdated/current counts) now refresh automatically
+    after "Update All" completes, reading actual file versions from disk.
+  - Refresh Games button also re-reads DLL versions from the filesystem,
+    fixing stale badge counts after external updates.
+  - Settings panel ignore toggles now sync to game cards in real-time
+    (previously required reloading the Games view).
+
 Version 4.0.1:
 Clipboard Fix (Issue #189):
   - Fixed "Failed to copy to clipboard: 'Page' object has no attribute 'set_clipboard_async'"

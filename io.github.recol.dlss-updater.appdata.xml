@@ -64,6 +64,21 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.1.0" date="2026-04-13">
+      <description>
+        <p>Personal game ignore list, DLL status indicators, and UX improvements</p>
+        <ul>
+          <li>Personal game ignore list: exclude specific games from updates via image overlay toggle (Issue #194)</li>
+          <li>Ignored Games settings panel for bulk management with search</li>
+          <li>Ignore filter moved to header bar; action buttons no longer misalign at narrow widths</li>
+          <li>Game cards show color-coded outdated/current DLL badges</li>
+          <li>DLL badges auto-refresh after Update All and Refresh Games (reads versions from disk)</li>
+          <li>Backup disk usage summary in Games view header</li>
+          <li>Enhanced empty-state UX for launcher path cards</li>
+          <li>Game launch button for Steam games via steam:// protocol</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.0.1" date="2026-04-06">
       <description>
         <p>Clipboard fix and Flet upgrade</p>

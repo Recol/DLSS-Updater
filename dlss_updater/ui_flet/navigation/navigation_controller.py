@@ -150,10 +150,14 @@ class NavigationController(ft.Column):
         Args:
             view_name: One of HUB, LAUNCHERS, GAMES, SETTINGS
         """
+        self.logger.debug(f"[NAV] navigate_to({view_name}) called, current={self._current_view}")
         if view_name == self._current_view:
+            self.logger.debug(f"[NAV] already on {view_name}, skipping")
             return
 
+        self.logger.debug(f"[NAV] acquiring transition lock...")
         async with self._transition_lock:
+            self.logger.debug(f"[NAV] lock acquired, transitioning...")
             await self._transition_to(view_name)
 
     async def navigate_back(self):
@@ -199,9 +203,10 @@ class NavigationController(ft.Column):
 
         is_hub = new_view == self.HUB
 
-        # SINGLE UPDATE: Detach old subtree, attach new subtree, swap visibility
+        # SINGLE UPDATE: Detach old subtree, attach new subtree, swap visibility.
         # Uses Column.controls instead of Container.content to avoid Flet 0.83.0
         # ObjectPatch bug with __prev_classes['content'] corruption.
+        self.logger.debug(f"[NAV] detaching {old_view}, attaching {new_view}")
         old_container.controls = []  # Detach old subtree from serialization
         old_container.visible = False
         old_container.opacity = 0.0
@@ -219,10 +224,12 @@ class NavigationController(ft.Column):
             self._pill_wrapper.opacity = 1.0
             self._pill.set_active(new_view)
 
-        # SINGLE page.update() — serializes only: nav shell + active view + pill
+        # SINGLE page.update() — serializes nav shell + active view + pill
+        self.logger.debug(f"[NAV] calling page.update()...")
         t_update = time.perf_counter()
         self._page_ref.update()
         t_update_done = time.perf_counter()
+        self.logger.debug(f"[NAV] page.update() returned: {(t_update_done-t_update)*1000:.1f}ms")
 
         self._current_view = new_view
 

@@ -25,7 +25,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
     not be included in page.update() and would require individual card.update() calls.
     """
 
-    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None):
+    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None):
         super().__init__()
 
         # Handle both Game and MergedGame
@@ -44,12 +44,15 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self.on_update_callback = on_update
         self.on_view_backups_callback = on_view_backups
         self.on_restore_callback = on_restore
+        self.on_ignore_toggle_callback = on_ignore_toggle
         self.backup_groups = backup_groups or {}
         self.has_backups = bool(backup_groups)
+        self.is_ignored = is_ignored
 
         # Button references for loading state
         self.update_button: ft.PopupMenuButton | None = None
         self.restore_button: ft.PopupMenuButton | None = None
+        self.ignore_button: ft.IconButton | None = None
         self.is_updating = False
 
         # Reference to dll_badges for refresh
@@ -133,23 +136,41 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
     def _check_for_updates(self) -> bool:
         """Check if any DLLs have updates available"""
+        outdated, _, _ = self._get_update_counts()
+        return outdated > 0
+
+    def _get_update_counts(self) -> tuple[int, int, int]:
+        """Count outdated, current, and unknown DLLs.
+
+        Returns:
+            Tuple of (outdated_count, current_count, unknown_count)
+        """
         from dlss_updater.config import LATEST_DLL_VERSIONS
         from dlss_updater.updater import parse_version
 
+        outdated = 0
+        current = 0
+        unknown = 0
+
         for dll in self.dlls:
             if not dll.current_version or not dll.dll_filename:
+                unknown += 1
                 continue
             latest_version = LATEST_DLL_VERSIONS.get(dll.dll_filename.lower())
             if not latest_version:
+                unknown += 1
                 continue
             try:
                 current_parsed = parse_version(dll.current_version)
                 latest_parsed = parse_version(latest_version)
                 if current_parsed < latest_parsed:
-                    return True
+                    outdated += 1
+                else:
+                    current += 1
             except Exception:
-                continue
-        return False
+                unknown += 1
+
+        return (outdated, current, unknown)
 
     def _build_dll_popover_items(self) -> list[ft.PopupMenuItem]:
         """Build popup menu items for all DLLs with color coding and update status"""
@@ -221,6 +242,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             alignment=ft.Alignment.CENTER,
         )
 
+
         # Game name text - store reference for theming
         self.game_name_text = ft.Text(
             self.game.name,
@@ -261,15 +283,47 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self.update_button = self._create_update_popup_menu()
         self.restore_button = self._create_restore_popup_menu()
 
+        # Launch button (Steam games only)
+        self.launch_button = self._create_launch_button()
+
+        # Ignore toggle button — positioned as overlay on image (top-right)
+        self.ignore_button = ft.IconButton(
+            icon=ft.Icons.VISIBILITY if self.is_ignored else ft.Icons.VISIBILITY_OFF,
+            icon_size=16,
+            tooltip="Unignore this game" if self.is_ignored else "Ignore this game",
+            on_click=self._on_ignore_clicked,
+            width=28,
+            height=28,
+            style=ft.ButtonStyle(
+                color={
+                    ft.ControlState.DEFAULT: "#FF9800" if self.is_ignored else ft.Colors.WHITE,
+                },
+                bgcolor={
+                    ft.ControlState.DEFAULT: ft.Colors.with_opacity(0.7, "#FF9800") if self.is_ignored else ft.Colors.with_opacity(0.5, ft.Colors.BLACK),
+                },
+                padding=ft.padding.all(4),
+                shape=ft.RoundedRectangleBorder(radius=8),
+            ),
+        )
+
+        # Apply ignored visual state
+        if self.is_ignored:
+            self.opacity = 0.5
+            if self.update_button:
+                self.update_button.disabled = True
+
         # PERFORMANCE: Flattened action buttons row (removed Container wrapper)
-        # Row with wrap handles overflow without needing clip_behavior
+        action_buttons_controls = [
+            self.update_button,
+            self.restore_button,
+        ]
+        if self.launch_button:
+            action_buttons_controls.append(self.launch_button)
+
         action_buttons_row = ft.Row(
-            controls=[
-                self.update_button,
-                self.restore_button,
-            ],
+            controls=action_buttons_controls,
             spacing=8,
-            wrap=True,  # Allow buttons to wrap when narrow
+            wrap=True,
             run_spacing=4,
         )
 
@@ -287,12 +341,25 @@ class GameCard(ThemeAwareMixin, ft.Card):
             alignment=ft.MainAxisAlignment.START,
         )
 
+        # Image with ignore overlay (Stack: image + positioned ignore button)
+        self._image_stack = ft.Stack(
+            controls=[
+                self.image_container,
+                ft.Container(
+                    content=self.ignore_button,
+                    right=2,
+                    top=2,
+                ),
+            ],
+            width=140,
+            height=140,
+        )
+
         # Card content layout
-        # Height 220px to accommodate wrapped buttons at narrow widths (was 180px)
         self.content = ft.Container(
             content=ft.Row(
                 controls=[
-                    self.image_container,
+                    self._image_stack,
                     self.right_content,
                 ],
                 spacing=16,
@@ -318,9 +385,24 @@ class GameCard(ThemeAwareMixin, ft.Card):
             )
 
         dll_count = len(self.dlls)
-        has_updates = self._check_for_updates()
-        badge_text = f"+{dll_count} DLL" if dll_count == 1 else f"+{dll_count} DLLs"
-        badge_color = MD3Colors.get_warning(is_dark) if has_updates else MD3Colors.get_primary(is_dark)
+        outdated, current, unknown = self._get_update_counts()
+        has_updates = outdated > 0
+
+        # Build badge text with update status detail
+        if has_updates:
+            badge_text = f"{outdated}/{dll_count} outdated"
+            badge_color = MD3Colors.get_warning(is_dark)
+            badge_icon = ft.Icons.ARROW_UPWARD
+            status_tooltip = f"{outdated} outdated, {current} current"
+            if unknown:
+                status_tooltip += f", {unknown} unknown"
+        else:
+            badge_text = f"{dll_count} DLL{'s' if dll_count != 1 else ''} current"
+            badge_color = MD3Colors.get_success(is_dark)
+            badge_icon = ft.Icons.CHECK_CIRCLE_OUTLINE
+            status_tooltip = f"All {current} DLLs are up to date"
+            if unknown:
+                status_tooltip += f" ({unknown} unknown)"
 
         # PERFORMANCE: Flattened badge structure (GestureDetector > Container > Row)
         # Reduced from Container > GestureDetector > Container > Row to GestureDetector > Container
@@ -329,7 +411,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 content=ft.Row(
                     controls=[
                         ft.Icon(
-                            ft.Icons.ARROW_UPWARD if has_updates else ft.Icons.EXTENSION,
+                            badge_icon,
                             size=14,
                             color=ft.Colors.WHITE,
                         ),
@@ -342,7 +424,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 padding=ft.padding.symmetric(horizontal=8, vertical=4),
                 border_radius=8,
                 height=28,
-                tooltip=f"View {dll_count} DLL{'s' if dll_count != 1 else ''} - click for details",
+                tooltip=f"{status_tooltip} - click for details",
             ),
             on_tap=lambda e: self._page_ref.run_task(self._show_dll_dialog),
             mouse_cursor=ft.MouseCursor.CLICK,
@@ -524,6 +606,52 @@ class GameCard(ThemeAwareMixin, ft.Card):
         if self.on_restore_callback:
             self.on_restore_callback(self.game, group)
 
+    def _create_launch_button(self) -> ft.IconButton | None:
+        """Create a launch button for Steam games.
+
+        Returns an IconButton that opens the game via steam:// protocol,
+        or None for non-Steam games (button is not shown).
+        """
+        is_steam = self.game.launcher == "Steam" and self.game.steam_app_id
+        if not is_steam:
+            return None
+
+        is_dark = self._registry.is_dark
+        return ft.IconButton(
+            icon=ft.Icons.PLAY_ARROW_ROUNDED,
+            icon_size=20,
+            icon_color=MD3Colors.get_primary(is_dark),
+            tooltip=f"Launch via Steam",
+            on_click=lambda e: self._launch_game(),
+            style=ft.ButtonStyle(
+                padding=ft.padding.all(6),
+            ),
+            width=32,
+            height=32,
+        )
+
+    def _launch_game(self):
+        """Launch the game via Steam protocol."""
+        import webbrowser
+        import subprocess
+        import sys
+
+        if not self.game.steam_app_id:
+            return
+
+        url = f"steam://rungameid/{self.game.steam_app_id}"
+        try:
+            if sys.platform == "linux":
+                subprocess.Popen(
+                    ["xdg-open", url],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                webbrowser.open(url)
+        except Exception as ex:
+            self.logger.warning(f"Failed to launch game: {ex}")
+
     async def _show_dll_dialog(self):
         """Show the grouped DLL dialog with technology categories"""
         from dlss_updater.ui_flet.dialogs.dll_group_dialog import DLLGroupDialog
@@ -663,6 +791,35 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 self.update()
             except Exception:
                 pass  # Page may be closing
+
+    def _on_ignore_clicked(self, e):
+        """Toggle ignore status and notify parent."""
+        new_state = not self.is_ignored
+        if self.on_ignore_toggle_callback:
+            self.on_ignore_toggle_callback(
+                self.merged_game if self.merged_game else self.game,
+                new_state
+            )
+
+    def set_ignored(self, ignored: bool):
+        """Update ignore visual state. Called by GamesView after DB confirms the change."""
+        self.is_ignored = ignored
+        self.opacity = 0.5 if ignored else 1.0
+        if self.ignore_button:
+            self.ignore_button.icon = ft.Icons.VISIBILITY if ignored else ft.Icons.VISIBILITY_OFF
+            self.ignore_button.tooltip = "Unignore this game" if ignored else "Ignore this game"
+            self.ignore_button.style = ft.ButtonStyle(
+                color={
+                    ft.ControlState.DEFAULT: "#FF9800" if ignored else ft.Colors.WHITE,
+                },
+                bgcolor={
+                    ft.ControlState.DEFAULT: ft.Colors.with_opacity(0.7, "#FF9800") if ignored else ft.Colors.with_opacity(0.5, ft.Colors.BLACK),
+                },
+                padding=ft.padding.all(4),
+                shape=ft.RoundedRectangleBorder(radius=8),
+            )
+        if self.update_button:
+            self.update_button.disabled = ignored
 
     def _on_hover(self, e):
         """Handle hover effect with multi-layer shadow and border glow"""

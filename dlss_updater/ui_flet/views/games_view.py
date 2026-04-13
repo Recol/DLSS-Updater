@@ -23,7 +23,7 @@ from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator
 from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask, BatchedImageLoader
-from dlss_updater.config import is_dll_cache_ready
+from dlss_updater.config import is_dll_cache_ready, config_manager
 from dlss_updater.search_service import search_service
 from dlss_updater.task_registry import register_task
 
@@ -31,6 +31,9 @@ from dlss_updater.task_registry import register_task
 # First batch shows immediately, rest loads in background
 GAMES_INITIAL_BATCH_SIZE = 16  # Visible cards on typical screen
 GAMES_BACKGROUND_BATCH_SIZE = 24  # Cards per background batch
+
+# Grid density: (max_extent, child_aspect_ratio, image_size)
+GRID_DENSITY_DEFAULT = (320, 1.45, 140)
 
 if TYPE_CHECKING:
     from dlss_updater.ui_flet.components.game_card import GameCard
@@ -169,14 +172,12 @@ class ImageLoadCoordinator:
 class GamesView(ThemeAwareMixin, ft.Column):
     """Games library view with launcher tabs
 
-    PERFORMANCE: Uses is_isolated=True so page.update() from navigation and
-    other components skips this ~500+ control subtree. All internal updates
-    use self.update() instead. Exception: page-level dialogs still use
-    self._page_ref.update().
+    NOTE: GamesView is NOT isolated. Isolation conflicts with page-level
+    navigation (content detachment) and causes deadlocks when filter handlers
+    call self.update() followed by navigation's page.update(). With content
+    detachment, GamesView is detached before page.update() on nav-away, so
+    page.update() cost is only incurred on nav-to-games.
     """
-
-    def is_isolated(self):
-        return True
 
     def __init__(self, page: ft.Page, logger):
         super().__init__()
@@ -203,9 +204,16 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self._search_generation: int = 0
         self.search_bar: SearchBar | None = None
 
+        # Personal ignore list state
+        self._ignored_game_ids: set[int] = set()
+        self._show_ignored_games: bool = True  # Default: show ignored games (dimmed)
+
         # PERFORMANCE: Track if games are already loaded to prevent redundant rebuilds
         # on tab switching. Only reload on explicit refresh or when forced=True
         self._games_loaded = False
+
+        # Debug: track reentrant updates
+        self._update_in_progress = False
 
         # Initialize theme system reference before building UI
         self._registry = get_theme_registry()
@@ -258,6 +266,14 @@ class GamesView(ThemeAwareMixin, ft.Column):
             color=MD3Colors.get_text_primary(is_dark),
         )
 
+        # Backup stats (populated after loading)
+        self.backup_stats_text = ft.Text(
+            "",
+            size=12,
+            color=MD3Colors.get_on_surface_variant(is_dark),
+            italic=True,
+        )
+
         self.loading_text = ft.Text(
             "Loading games...",
             color=MD3Colors.get_text_primary(is_dark),
@@ -265,14 +281,24 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         self.divider = ft.Divider(height=1, color=MD3Colors.get_outline(is_dark))
 
+        # Ignore filter button (in header row alongside other actions)
+        self.ignore_filter_button = ft.IconButton(
+            icon=ft.Icons.VISIBILITY,
+            icon_size=18,
+            tooltip="Hide ignored games",
+            on_click=self._on_ignore_filter_toggle,
+        )
+
         # Header
         self.header = ft.Container(
             content=ft.Row(
                 controls=[
                     self.header_title,
+                    self.backup_stats_text,
                     ft.Container(expand=True),  # Spacer
                     self.search_bar,
-                    ft.Container(width=16),  # Spacing
+                    ft.Container(width=8),  # Spacing
+                    self.ignore_filter_button,
                     self._create_delete_db_button(),
                     ft.IconButton(
                         icon=ft.Icons.REFRESH,
@@ -373,7 +399,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
             "header_title.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
             "loading_text.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
             "divider.color": (MD3Colors.get_outline(True), MD3Colors.get_outline(False)),
+            "backup_stats_text.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
         }
+
+    async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
+        """Apply theme."""
+        await super().apply_theme(is_dark, delay_ms)
 
     async def load_games(self, force: bool = False):
         """Load games from database and display.
@@ -399,9 +430,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
             # Animate cards progressively on tab switch for better UX
             visible_cards = list(self.game_cards.values())[:GAMES_INITIAL_BATCH_SIZE]
             if visible_cards:
-                # Reset opacity for animation
+                # Reset opacity for animation (ignored cards stay dimmed, not hidden)
                 for card in visible_cards:
-                    card.opacity = 0
+                    card.opacity = 0 if not card.is_ignored else 0.5
                 self.update()
                 # Trigger staggered fade-in
                 anim_task = asyncio.create_task(self._animate_cards_in(visible_cards))
@@ -532,11 +563,16 @@ class GamesView(ThemeAwareMixin, ft.Column):
             LoadTask("dlls", lambda: db_manager.batch_get_dlls_for_games_sync(all_game_ids)),
             LoadTask("backups", lambda: db_manager.batch_get_backups_grouped_sync(all_game_ids)),
             LoadTask("images", lambda: db_manager._batch_get_cached_image_paths(all_steam_app_ids)),
+            LoadTask("ignored", lambda: db_manager.batch_get_ignored_game_ids_sync()),
+            LoadTask("backup_stats", lambda: db_manager.get_backup_summary_stats_sync()),
         ])
 
         dlls_by_game: dict[int, list[GameDLL]] = results.get("dlls", {})
         backups_by_game: dict[int, dict[str, list[DLLBackup]]] = results.get("backups", {})
         cached_image_paths: dict[int, str] = results.get("images", {})
+        self._ignored_game_ids = results.get("ignored", set())
+        backup_stats: tuple[int, int] = results.get("backup_stats", (0, 0))
+        self._update_backup_stats(backup_stats[0], backup_stats[1])
 
         data_ms = (time.perf_counter() - start_data) * 1000
         self.logger.debug(f"[PERF] Batch data loading ({len(all_game_ids)} games): {data_ms:.1f}ms")
@@ -567,6 +603,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         # Card creation helper
         def create_card(merged: MergedGame, dlls: list[GameDLL], backup_groups: dict[str, list[DLLBackup]]) -> GameCard:
+            is_ignored = bool(set(merged.all_game_ids) & self._ignored_game_ids)
+            merged.is_ignored = is_ignored
             card = GameCard(
                 game=merged,
                 dlls=dlls,
@@ -575,8 +613,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 on_update=self._on_game_update,
                 on_restore=self._on_game_restore,
                 backup_groups=backup_groups,
+                is_ignored=is_ignored,
+                on_ignore_toggle=self._on_game_ignore_toggle,
             )
-            card.opacity = 0
+            card.opacity = 0 if not is_ignored else 0.5
             card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
             return card
 
@@ -596,10 +636,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
             game_count = len(self.games_by_launcher[launcher])
 
             # Create GridView first (will be populated progressively)
+            max_extent, aspect_ratio, _ = GRID_DENSITY_DEFAULT
+
             game_grid = ft.GridView(
                 controls=[],
-                max_extent=320,
-                child_aspect_ratio=1.45,
+                max_extent=max_extent,
+                child_aspect_ratio=aspect_ratio,
                 padding=16,
                 spacing=12,
                 run_spacing=12,
@@ -744,11 +786,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
             self.logger.warning(f"Error loading uncached images: {e}")
 
     async def _on_tab_changed(self, e):
-        """Handle tab change - reapply search filter to new tab."""
-        if self.search_query:
-            await self._execute_search(self.search_query, self._search_generation)
-        else:
-            await self._show_all_games()
+        """Handle tab change - reapply all filters to new tab."""
+        self._apply_visibility()
+        self.update()
 
     async def _load_remaining_game_cards(
         self,
@@ -792,9 +832,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                             task = asyncio.create_task(card.load_image(path, coordinator=coordinator))
                             register_task(task, f"load_image_bg_{card.game.name[:15]}")
 
-                # Make cards visible immediately (no stagger for background cards)
+                # Make cards visible immediately (respect ignored state)
                 for card in new_cards:
-                    card.opacity = 1
+                    card.opacity = 0.5 if card.is_ignored else 1
 
                 # Single update per batch (isolated view)
                 self.update()
@@ -839,8 +879,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
                         card.image_container.content = card.image_widget
                         card._image_loaded = True
 
-                    # Make visible immediately (no fade for background cards)
-                    card.opacity = 1
+                    # Make visible immediately (respect ignored state)
+                    card.opacity = 0.5 if card.is_ignored else 1
 
                     if launcher not in new_cards_by_launcher:
                         new_cards_by_launcher[launcher] = []
@@ -891,16 +931,16 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         for batch_start in range(0, len(cards_to_animate), batch_size):
             batch_end = min(batch_start + batch_size, len(cards_to_animate))
-            # Set opacity for entire batch
+            # Set opacity for entire batch (respect ignored state)
             for card in cards_to_animate[batch_start:batch_end]:
-                card.opacity = 1
+                card.opacity = 0.5 if card.is_ignored else 1
             # Single update per batch instead of per card (isolated view)
             self.update()
             await asyncio.sleep(0.08)  # 80ms delay per batch (smoother than 40ms per card)
 
         # Set remaining cards to visible immediately
         for card in game_cards[12:]:
-            card.opacity = 1
+            card.opacity = 0.5 if card.is_ignored else 1
         self.update()
 
     async def _on_refresh_clicked(self, e):
@@ -910,8 +950,27 @@ class GamesView(ThemeAwareMixin, ft.Column):
             self.refresh_button_ref.current.rotate += math.pi * 2  # 360 degrees
             self.update()
 
+        # Refresh DLL versions from filesystem before rebuilding cards
+        # This ensures the DB has current versions after any external updates
+        await self.refresh_all_badges()
+
         # Force=True to bypass the "already loaded" optimization
         await self.load_games(force=True)
+
+    def _update_backup_stats(self, count: int, total_size: int):
+        """Update the backup stats display in the header."""
+        if count == 0:
+            self.backup_stats_text.value = ""
+        else:
+            if total_size < 1024:
+                size_str = f"{total_size} B"
+            elif total_size < 1024 * 1024:
+                size_str = f"{total_size / 1024:.1f} KB"
+            elif total_size < 1024 * 1024 * 1024:
+                size_str = f"{total_size / (1024 * 1024):.1f} MB"
+            else:
+                size_str = f"{total_size / (1024 * 1024 * 1024):.1f} GB"
+            self.backup_stats_text.value = f"{count} DLL backup{'s' if count != 1 else ''} · {size_str}"
 
     async def _on_reresolution_complete(self):
         """Called after re-resolution updates game app IDs.
@@ -920,6 +979,81 @@ class GamesView(ThemeAwareMixin, ft.Column):
         """
         self.logger.info("Re-resolution complete, reloading games view...")
         await self.load_games(force=True)
+
+    # ===== Filter Methods =====
+
+    def _card_passes_filters(self, card: GameCard) -> bool:
+        """Check if a card passes all active filters (search, ignore)."""
+        # Ignore filter
+        if not self._show_ignored_games and card.is_ignored:
+            return False
+
+        # Search query filter
+        if self.search_query:
+            if self.search_query.lower() not in card.game.name.lower():
+                return False
+
+        return True
+
+    def _apply_visibility(self) -> int:
+        """Apply all filters to set card visibility. Returns matching count."""
+        current_launcher = self._get_current_launcher()
+        matching = 0
+
+        for game_id, card in self.game_cards.items():
+            # Launcher tab filter
+            if current_launcher and card.game.launcher != current_launcher:
+                card.visible = False
+                continue
+
+            visible = self._card_passes_filters(card)
+            card.visible = visible
+            if visible:
+                matching += 1
+
+        return matching
+
+    # ===== Ignore List Methods =====
+
+    def _on_ignore_filter_toggle(self, e):
+        """Toggle visibility of ignored games."""
+        self._show_ignored_games = not self._show_ignored_games
+        self.ignore_filter_button.icon = ft.Icons.VISIBILITY if self._show_ignored_games else ft.Icons.VISIBILITY_OFF
+        self.ignore_filter_button.tooltip = "Hide ignored games" if self._show_ignored_games else "Show ignored games"
+        self._apply_visibility()
+        self.update()
+
+    def _on_game_ignore_toggle(self, game, ignored: bool):
+        """Handle ignore toggle from GameCard — launches async DB update."""
+        if self._page_ref:
+            self._page_ref.run_task(self._perform_ignore_toggle, game, ignored)
+
+    async def _perform_ignore_toggle(self, game, ignored: bool):
+        """Persist ignore status to database and update card UI."""
+        # For MergedGame, use primary_game.id; for Game, use .id directly
+        game_id = game.primary_game.id if isinstance(game, MergedGame) else game.id
+        game_name = game.primary_game.name if isinstance(game, MergedGame) else game.name
+
+        success = await db_manager.set_game_ignored(game_id, ignored)
+        if not success:
+            self.logger.error(f"Failed to set ignore status for {game_name}")
+            return
+
+        # Update local tracking set
+        if ignored:
+            self._ignored_game_ids.add(game_id)
+        else:
+            self._ignored_game_ids.discard(game_id)
+
+        # Update the card visually
+        card = self.game_cards.get(game_id)
+        if card:
+            card.set_ignored(ignored)
+            self._apply_visibility()
+            self.update()
+
+        action = "ignored" if ignored else "un-ignored"
+        self.logger.info(f"Game '{game_name}' {action}")
 
     # ===== Search Methods =====
 
@@ -952,7 +1086,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         await self._execute_search(query, current_gen)
 
     async def _execute_search(self, query: str, generation: int):
-        """Execute search filtering on game cards."""
+        """Execute search filtering on game cards (composes with sort/filter)."""
         import time
         from dlss_updater.ui_flet.perf_monitor import perf_logger
 
@@ -962,49 +1096,20 @@ class GamesView(ThemeAwareMixin, ft.Column):
         if generation != self._search_generation:
             return
 
-        query_lower = query.lower()
-
-        # Get current tab launcher
-        current_launcher = self._get_current_launcher()
-
-        # Filter cards by visibility (set on card directly for GridView)
-        # PERF: Track changed cards to minimize update scope
+        # Use unified visibility system (respects tech/status filters too)
         start_filter = time.perf_counter()
-        matching_count = 0
-        changed_cards: list[GameCard] = []
-
-        for game_id, card in self.game_cards.items():
-            if current_launcher and card.game.launcher != current_launcher:
-                continue
-
-            # Check if game name matches query
-            matches = query_lower in card.game.name.lower()
-            old_visible = card.visible
-
-            # Set visibility on card directly (GridView handles layout)
-            card.visible = matches
-            if matches:
-                matching_count += 1
-
-            # Track if visibility changed
-            if old_visible != matches:
-                changed_cards.append(card)
-
+        matching_count = self._apply_visibility()
         filter_ms = (time.perf_counter() - start_filter) * 1000
 
-        # PERF: Only update if something changed
         start_update = time.perf_counter()
-        if changed_cards:
-            # GridView requires full view update for visibility changes
-            # Individual card.update() doesn't work well with virtualization
-            self.update()
+        self.update()
         update_ms = (time.perf_counter() - start_update) * 1000
 
         total_ms = (time.perf_counter() - start_total) * 1000
         perf_logger.debug(f"[PERF] search '{query}': filter={filter_ms:.1f}ms, update={update_ms:.1f}ms, total={total_ms:.1f}ms, matches={matching_count}")
 
         # Save to search history AFTER logging (non-blocking, fire-and-forget)
-        # This avoids blocking the search response with database I/O
+        current_launcher = self._get_current_launcher()
         if matching_count > 0 and len(query) >= 2:
             asyncio.create_task(self._save_search_history_background(query, current_launcher, matching_count))
 
@@ -1017,15 +1122,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
             self.logger.debug(f"Error saving search history: {e}")
 
     async def _show_all_games(self):
-        """Show all games (clear search filter)."""
-        current_launcher = self._get_current_launcher()
-
-        for game_id, card in self.game_cards.items():
-            if current_launcher:
-                card.visible = card.game.launcher == current_launcher
-            else:
-                card.visible = True
-
+        """Show all games (clear search filter, respects other active filters)."""
+        self._apply_visibility()
         self.update()
 
     def _get_current_launcher(self) -> str | None:
@@ -1184,6 +1282,37 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 ),
             ]
             self._page_ref.show_dialog(error_dialog)
+
+    async def refresh_all_badges(self):
+        """Refresh DLL badges on all game cards.
+
+        Re-reads actual DLL versions from the filesystem (not just the DB),
+        updates the database, then refreshes each card's badge. This handles
+        the case where a global update wrote new DLL files but the DB's
+        current_version wasn't updated.
+        """
+        if not self.game_cards:
+            return
+
+        game_ids = list(self.game_cards.keys())
+
+        # Refresh versions from filesystem -> DB for all games in parallel
+        refresh_tasks = [
+            db_manager.refresh_dll_versions_for_game(gid) for gid in game_ids
+        ]
+        results = await asyncio.gather(*refresh_tasks, return_exceptions=True)
+
+        refreshed = 0
+        for game_id, result in zip(game_ids, results):
+            if isinstance(result, Exception):
+                self.logger.warning(f"Failed to refresh DLLs for game {game_id}: {result}")
+                continue
+            card = self.game_cards.get(game_id)
+            if card and result:
+                await card.refresh_dlls(result)
+                refreshed += 1
+
+        self.logger.info(f"Refreshed DLL badges for {refreshed}/{len(game_ids)} game cards")
 
     def _on_game_update(self, game, dll_group: str = "all"):
         """Handle game update button click - launches async update"""
@@ -1550,11 +1679,15 @@ class GamesView(ThemeAwareMixin, ft.Column):
         search index are preserved for instant tab switching. This avoids the
         ~1.5s rebuild cost on every tab switch.
         """
+        import asyncio
         from dlss_updater.config import config_manager
         from dlss_updater.search_service import search_service
 
-        # Only clear resources if user preference says so
-        if not config_manager.get_keep_games_in_memory():
+        # Read config off the event loop to avoid deadlock with _config_lock
+        # (filter handlers may have fire-and-forget config writes in flight)
+        keep_in_memory = await asyncio.to_thread(config_manager.get_keep_games_in_memory)
+
+        if not keep_in_memory:
             search_service.clear_index()
             self._games_loaded = False  # Force reload on next tab switch
             self.logger.debug("Games view hidden - search index cleared, will reload on next visit")

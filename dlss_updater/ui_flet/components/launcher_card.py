@@ -206,6 +206,9 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             height=28,
         )
 
+        # Styled "add folder" zone for empty state (shown in expansion content)
+        self._add_folder_zone = self._create_add_folder_zone(is_dark)
+
         # Paths row - holds path chips and add button
         self.paths_row = ft.Row(
             controls=[self.add_subfolder_btn],  # Initially just the add button
@@ -273,6 +276,63 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             spacing=8,
             tight=True,
         )
+
+    def _create_add_folder_zone(self, is_dark: bool) -> ft.Container:
+        """
+        Create a styled empty-state zone that invites users to add a game folder.
+        Shown in the expansion content area when no paths are configured.
+        Dashed-border appearance with folder icon and descriptive text.
+        Clicking opens the native file picker (same as Add Sub-Folder button).
+        """
+        primary = MD3Colors.get_primary(is_dark)
+        border_color = f"{primary}60"  # 37% opacity for subtle dashed look
+
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Icon(
+                        ft.Icons.FOLDER_OPEN,
+                        size=36,
+                        color=primary,
+                    ),
+                    ft.Text(
+                        "Click to add a game folder",
+                        size=14,
+                        weight=ft.FontWeight.W_500,
+                        color=MD3Colors.get_on_surface(is_dark),
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    ft.Text(
+                        "Browse for a folder containing game installations",
+                        size=12,
+                        color=MD3Colors.get_on_surface_variant(is_dark),
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=6,
+            ),
+            alignment=ft.Alignment.CENTER,
+            padding=ft.padding.symmetric(horizontal=24, vertical=20),
+            border=ft.border.all(2, border_color),
+            border_radius=12,
+            ink=True,
+            on_click=self.on_add_subfolder_callback,
+            on_hover=self._on_zone_hover,
+        )
+
+    def _on_zone_hover(self, e):
+        """Handle hover on the add-folder zone — highlight border."""
+        is_dark = self._registry.is_dark
+        primary = MD3Colors.get_primary(is_dark)
+        if e.data == "true":
+            e.control.border = ft.border.all(2, primary)
+            e.control.bgcolor = f"{primary}0A"  # 4% tint
+        else:
+            e.control.border = ft.border.all(2, f"{primary}60")
+            e.control.bgcolor = None
+        if self._attached:
+            self.update()
 
     def _create_path_chip(self, path: str, is_dark: bool) -> ft.Container:
         """
@@ -420,8 +480,8 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         # Update game count text if no paths
         if not self.current_paths:
             self.game_count_text.value = ""
-            # Clear controls when no path
-            self.controls = []
+            # Show styled add-folder zone instead of empty content
+            self.controls = [self._add_folder_zone]
         else:
             # Will be updated by set_games()
             if self.games_count == 0:
@@ -502,8 +562,11 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             self.game_count_text.value = "No games found"
             self.game_count_text.color = MD3Colors.get_on_surface_variant(is_dark)
 
-            # Clear controls when no games
-            self.controls = []
+            # Show add-folder zone if no paths, otherwise empty
+            if not self.current_paths:
+                self.controls = [self._add_folder_zone]
+            else:
+                self.controls = []
 
         if self._attached:
             self.update()
@@ -776,6 +839,13 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             # Update config menu icon color
             if hasattr(self, 'config_menu'):
                 self.config_menu.icon_color = MD3Colors.get_on_surface_variant(is_dark)
+
+            # Rebuild add-folder zone with new theme colors
+            if hasattr(self, '_add_folder_zone'):
+                self._add_folder_zone = self._create_add_folder_zone(is_dark)
+                # Re-attach if currently shown
+                if not self.current_paths:
+                    self.controls = [self._add_folder_zone]
 
             # Update path chips by rebuilding paths display
             if self.current_paths:

@@ -91,6 +91,9 @@ class AsyncUpdateCoordinator:
         self._progress_callback = progress_callback
         self._cancel_requested = False
 
+        # Filter out DLLs belonging to personally-ignored games
+        dll_dict = await self._filter_ignored_games(dll_dict)
+
         # Get current settings
         settings = get_current_settings()
         backup_enabled = config_manager.get_backup_preference()
@@ -245,6 +248,39 @@ class AsyncUpdateCoordinator:
             self.logger.error(f"Update failed: {e}", exc_info=True)
             raise
 
+    async def _filter_ignored_games(self, dll_dict: dict[str, list]) -> dict[str, list]:
+        """Remove DLL paths belonging to personally-ignored games from the update set."""
+        ignored_ids = await asyncio.to_thread(db_manager.batch_get_ignored_game_ids_sync)
+        if not ignored_ids:
+            return dll_dict
+
+        all_paths = []
+        for paths in dll_dict.values():
+            all_paths.extend(str(p) for p in paths)
+
+        path_to_game_id = await asyncio.to_thread(
+            db_manager.batch_get_game_ids_for_dll_paths_sync, all_paths
+        )
+
+        filtered = {}
+        skipped_count = 0
+        for launcher, paths in dll_dict.items():
+            kept = []
+            for p in paths:
+                game_id = path_to_game_id.get(str(p).lower())
+                if game_id and game_id in ignored_ids:
+                    skipped_count += 1
+                    self.logger.info(f"Skipping ignored game (id={game_id}): {p}")
+                else:
+                    kept.append(p)
+            if kept:
+                filtered[launcher] = kept
+
+        if skipped_count:
+            self.logger.info(f"Filtered {skipped_count} DLLs from ignored games")
+
+        return filtered
+
     async def scan_and_update(
         self,
         progress_callback: Callable[[UpdateProgress], None] | None = None
@@ -328,6 +364,16 @@ class AsyncUpdateCoordinator:
         }
 
         try:
+            # Check if game is in personal ignore list
+            if await db_manager.is_game_ignored(game_id):
+                self.logger.info(f"Game '{game_name}' (id={game_id}) is in personal ignore list, skipping")
+                results['skipped'].append({
+                    'dll_type': 'All',
+                    'dll_path': '',
+                    'reason': 'Game is in your personal ignore list'
+                })
+                return results
+
             # Get DLLs for this game from database
             game_dlls = await db_manager.get_dlls_for_game(game_id)
 

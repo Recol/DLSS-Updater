@@ -26,6 +26,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         on_open_preferences=None,
         on_open_ui_preferences=None,
         on_open_blacklist=None,
+        on_open_ignore_list=None,
         on_open_dlss_overlay=None,
         on_open_dlss_sr_presets=None,
         on_toggle_theme=None,
@@ -39,6 +40,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         self._on_open_preferences = on_open_preferences
         self._on_open_ui_preferences = on_open_ui_preferences
         self._on_open_blacklist = on_open_blacklist
+        self._on_open_ignore_list = on_open_ignore_list
         self._on_open_dlss_overlay = on_open_dlss_overlay
         self._on_open_dlss_sr_presets = on_open_dlss_sr_presets
         self._on_toggle_theme = on_toggle_theme
@@ -53,6 +55,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
             "update_prefs": ("#2D6E88", "#1A5A70"),    # Teal (brand primary)
             "ui_prefs":     ("#9C27B0", "#6A1B9A"),    # Purple (settings accent)
             "blacklist":    ("#EF5350", "#C62828"),     # Red (warning/block)
+            "ignore_list":  ("#FF9800", "#E65100"),     # Orange (personal ignore)
             "dlss_overlay": ("#76B900", "#558B00"),     # NVIDIA green
             "dlss_linux_presets": ("#4FC3F7", "#0288D1"),  # Light blue (Linux DLSS)
             "theme":        ("#FF9800", "#E65100"),     # Amber (light/dark toggle)
@@ -87,6 +90,14 @@ class SettingsView(ThemeAwareMixin, ft.Column):
                 _tc("blacklist"),
                 is_dark,
                 on_click=lambda e: self._handle_click(self._on_open_blacklist, e),
+            ),
+            self._create_settings_tile(
+                "Ignored Games",
+                "Manage your personal game ignore list",
+                ft.Icons.VISIBILITY_OFF,
+                _tc("ignore_list"),
+                is_dark,
+                on_click=lambda e: self._handle_click(self._on_open_ignore_list, e),
             ),
             self._create_settings_tile(
                 "Theme",

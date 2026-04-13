@@ -435,6 +435,15 @@ class DatabaseManager:
                 )
             """)
 
+            # Personal game ignore list
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ignored_games (
+                    game_id INTEGER PRIMARY KEY,
+                    ignored_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+                )
+            """)
+
             # Migration: Add resolution_source column if missing
             try:
                 cursor.execute("ALTER TABLE games ADD COLUMN resolution_source TEXT")
@@ -627,6 +636,110 @@ class DatabaseManager:
             logger.error(f"Error getting all games by launcher: {e}", exc_info=True)
             return {}
 
+
+    # ===== Personal Ignore List Operations =====
+
+    async def set_game_ignored(self, game_id: int, ignored: bool) -> bool:
+        """Add or remove a game from the personal ignore list."""
+        return await asyncio.to_thread(self._set_game_ignored, game_id, ignored)
+
+    def _set_game_ignored(self, game_id: int, ignored: bool) -> bool:
+        """Set game ignored status (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+        try:
+            if ignored:
+                cursor.execute(
+                    "INSERT OR IGNORE INTO ignored_games (game_id) VALUES (?)",
+                    (game_id,)
+                )
+            else:
+                cursor.execute(
+                    "DELETE FROM ignored_games WHERE game_id = ?",
+                    (game_id,)
+                )
+            conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error setting game {game_id} ignored={ignored}: {e}")
+            conn.rollback()
+            return False
+
+    async def is_game_ignored(self, game_id: int) -> bool:
+        """Check if a single game is in the personal ignore list."""
+        return await asyncio.to_thread(self._is_game_ignored, game_id)
+
+    def _is_game_ignored(self, game_id: int) -> bool:
+        """Check game ignored status (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT 1 FROM ignored_games WHERE game_id = ?",
+                (game_id,)
+            )
+            return cursor.fetchone() is not None
+        except Exception as e:
+            logger.error(f"Error checking ignored status for game {game_id}: {e}")
+            return False
+
+    def batch_get_ignored_game_ids_sync(self) -> set[int]:
+        """Get all ignored game IDs as a set. SYNC for ThreadPoolExecutor/HyperParallelLoader."""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT game_id FROM ignored_games")
+            return {row[0] for row in cursor.fetchall()}
+        except Exception as e:
+            logger.error(f"Error batch getting ignored game IDs: {e}")
+            return set()
+
+    async def get_all_ignored_games(self) -> list[Game]:
+        """Get full Game objects for all ignored games, ordered by name."""
+        return await asyncio.to_thread(self._get_all_ignored_games)
+
+    def _get_all_ignored_games(self) -> list[Game]:
+        """Get all ignored games with details (runs in thread)"""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT g.id, g.name, g.path, g.launcher, g.steam_app_id,
+                       g.last_scanned, g.created_at, g.resolution_source
+                FROM games g
+                INNER JOIN ignored_games ig ON g.id = ig.game_id
+                ORDER BY g.name COLLATE NOCASE
+            """)
+            return [
+                Game(
+                    id=row[0], name=row[1], path=row[2], launcher=row[3],
+                    steam_app_id=row[4],
+                    last_scanned=datetime.fromisoformat(row[5]),
+                    created_at=datetime.fromisoformat(row[6]),
+                    resolution_source=row[7]
+                )
+                for row in cursor.fetchall()
+            ]
+        except Exception as e:
+            logger.error(f"Error getting all ignored games: {e}")
+            return []
+
+    def batch_get_game_ids_for_dll_paths_sync(self, dll_paths: list[str]) -> dict[str, int]:
+        """Map DLL file paths to their game_ids. SYNC for ThreadPoolExecutor."""
+        if not dll_paths:
+            return {}
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+        try:
+            placeholders = ",".join("?" * len(dll_paths))
+            cursor.execute(
+                f"SELECT dll_path, game_id FROM game_dlls WHERE dll_path IN ({placeholders})",
+                dll_paths
+            )
+            return {row[0].lower(): row[1] for row in cursor.fetchall()}
+        except Exception as e:
+            logger.error(f"Error batch mapping dll paths to game IDs: {e}")
+            return {}
 
     async def delete_all_games(self):
         """
@@ -1454,6 +1567,32 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting games with backups (sync): {e}", exc_info=True)
             return []
+
+    def get_backup_summary_stats_sync(self) -> tuple[int, int]:
+        """
+        Get summary statistics for all active backups: total count and total size in bytes.
+
+        SYNC method designed for ThreadPoolExecutor parallelism.
+
+        Returns:
+            Tuple of (count, total_size_bytes). Returns (0, 0) on failure.
+        """
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                "SELECT COUNT(*), COALESCE(SUM(backup_size), 0) "
+                "FROM dll_backups WHERE is_active = 1"
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return (0, 0)
+            return (int(row[0]), int(row[1]))
+
+        except Exception as e:
+            logger.error(f"Error getting backup summary stats (sync): {e}", exc_info=True)
+            return (0, 0)
 
     def get_all_backups_filtered_sync(self, game_id: int | None = None) -> list[GameDLLBackup]:
         """

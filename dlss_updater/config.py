@@ -484,6 +484,34 @@ class ConfigManager(configparser.ConfigParser):
             self["UIPreferences"]["SmoothScrolling"] = str(enabled).lower()
             self.save()  # Persist to disk immediately
 
+    def get_grid_density(self) -> str:
+        """Get grid density preference (default: comfortable)
+
+        Returns:
+            One of 'compact', 'comfortable', or 'large'
+        """
+        with _config_lock:
+            if not self.has_section("UIPreferences"):
+                return "comfortable"
+            value = self["UIPreferences"].get("GridDensity", "comfortable")
+            if value not in ("compact", "comfortable", "large"):
+                return "comfortable"
+            return value
+
+    def set_grid_density(self, density: str):
+        """Set grid density preference and persist to config file
+
+        Args:
+            density: One of 'compact', 'comfortable', or 'large'
+        """
+        if density not in ("compact", "comfortable", "large"):
+            density = "comfortable"
+        with _config_lock:
+            if not self.has_section("UIPreferences"):
+                self.add_section("UIPreferences")
+            self["UIPreferences"]["GridDensity"] = density
+            self._save_unlocked()
+
     def get_keep_games_in_memory(self) -> bool:
         """Get keep games in memory preference (default: enabled)"""
         with _config_lock:
@@ -497,6 +525,24 @@ class ConfigManager(configparser.ConfigParser):
             if not self.has_section("UIPreferences"):
                 self.add_section("UIPreferences")
             self["UIPreferences"]["KeepGamesInMemory"] = str(enabled).lower()
+            self.save()
+
+    def get_sort_preference(self) -> str:
+        """Get game sort preference (default: 'name_asc')"""
+        with _config_lock:
+            if not self.has_section("UIPreferences"):
+                return "name_asc"
+            return self["UIPreferences"].get("SortPreference", "name_asc")
+
+    def set_sort_preference(self, sort: str):
+        """Set game sort preference"""
+        valid = ("name_asc", "name_desc", "dll_count", "outdated_first")
+        if sort not in valid:
+            return
+        with _config_lock:
+            if not self.has_section("UIPreferences"):
+                self.add_section("UIPreferences")
+            self["UIPreferences"]["SortPreference"] = sort
             self.save()
 
     def get_all_blacklist_skips(self):

@@ -74,7 +74,7 @@ from dlss_updater.ui_flet.components.theme_manager import ThemeManager
 from dlss_updater.ui_flet.theme.colors import Shadows
 from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDialog
 from dlss_updater.ui_flet.components.slide_panel import PanelManager
-from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel, LinuxDLSSPresetsPanel
+from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel, LinuxDLSSPresetsPanel, IgnoreListPanel
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
@@ -220,6 +220,7 @@ class MainView(ft.Column):
             on_open_preferences=self._on_settings_clicked,
             on_open_ui_preferences=self._on_ui_preferences_clicked,
             on_open_blacklist=self._on_blacklist_clicked,
+            on_open_ignore_list=self._on_ignore_list_clicked,
             on_open_dlss_overlay=self._on_dlss_overlay_clicked,
             on_open_dlss_sr_presets=self._on_dlss_sr_presets_clicked,
             on_toggle_theme=self._toggle_theme_from_menu,
@@ -995,6 +996,45 @@ class MainView(ft.Column):
         panel = BlacklistPanel(self._page_ref, self.logger)
         await panel_manager.show_content(panel)
 
+    async def _on_ignore_list_clicked(self, e):
+        """Handle ignore list button click"""
+        panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
+        panel = IgnoreListPanel(
+            self._page_ref, self.logger,
+            on_ignore_changed=self._on_ignore_changed_from_panel,
+        )
+        await panel_manager.show_content(panel)
+
+    def _on_ignore_changed_from_panel(self, game_id: int, ignored: bool):
+        """Sync ignore state from Settings panel to GamesView cards."""
+        if not self.games_view or not self.games_view._games_loaded:
+            return
+
+        # Update the GamesView's tracking set
+        if ignored:
+            self.games_view._ignored_game_ids.add(game_id)
+        else:
+            self.games_view._ignored_game_ids.discard(game_id)
+
+        # Find the card — may be keyed by primary_game.id for merged games
+        card = self.games_view.game_cards.get(game_id)
+        if not card:
+            # Check if game_id belongs to a merged game card
+            for c in self.games_view.game_cards.values():
+                if c.merged_game and game_id in c.merged_game.all_game_ids:
+                    card = c
+                    break
+
+        if card:
+            # For merged games, check if ANY of its IDs are ignored
+            if card.merged_game:
+                is_ignored = bool(set(card.merged_game.all_game_ids) & self.games_view._ignored_game_ids)
+            else:
+                is_ignored = ignored
+            card.set_ignored(is_ignored)
+            self.games_view._apply_visibility()
+            self.games_view.update()
+
     async def _on_dlss_overlay_clicked(self, e):
         """Handle DLSS overlay settings button click"""
         dialog = DLSSOverlayDialog(self._page_ref, self.logger)
@@ -1293,6 +1333,10 @@ class MainView(ft.Column):
             # Show results dialog
             summary_dialog = UpdateSummaryDialog(self._page_ref, self.logger, result)
             await summary_dialog.show()
+
+            # Refresh game card DLL badges if games view is loaded
+            if self.games_view and self.games_view._games_loaded:
+                await self.games_view.refresh_all_badges()
 
         except Exception as ex:
             self.logger.error(f"Update failed: {ex}", exc_info=True)

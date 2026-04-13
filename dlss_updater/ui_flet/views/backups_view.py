@@ -162,6 +162,13 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             color=MD3Colors.get_text_primary(is_dark),
         )
 
+        self.backup_stats_text = ft.Text(
+            "",  # Initially empty, populated after loading
+            size=13,
+            color=MD3Colors.get_on_surface_variant(is_dark),
+            italic=True,
+        )
+
         self.loading_text = ft.Text(
             "Loading backups...",
             color=MD3Colors.get_text_primary(is_dark),
@@ -174,6 +181,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             content=ft.Row(
                 controls=[
                     self.header_title,
+                    self.backup_stats_text,
                     ft.Container(expand=True),  # Spacer
                     self._create_game_filter_dropdown(),
                     self._create_clear_all_button(),
@@ -282,7 +290,27 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             "game_filter_dropdown.border_color": (MD3Colors.OUTLINE, MD3Colors.OUTLINE_LIGHT),
             "game_filter_dropdown.focused_border_color": (MD3Colors.PRIMARY, MD3Colors.PRIMARY_LIGHT),
             "game_filter_dropdown.fill_color": (MD3Colors.SURFACE_VARIANT, MD3Colors.SURFACE_VARIANT_LIGHT),
+            "backup_stats_text.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
         }
+
+    def _format_size(self, size_bytes: int) -> str:
+        """Format bytes to human-readable string"""
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+
+    def _update_backup_stats(self, count: int, total_size: int):
+        """Update the backup stats display text"""
+        if count == 0:
+            self.backup_stats_text.value = ""
+        else:
+            size_str = self._format_size(total_size)
+            self.backup_stats_text.value = f"{count} backup{'s' if count != 1 else ''} · {size_str}"
 
     async def load_backups(self, force: bool = False):
         """Load backups from database with optional game filter.
@@ -353,11 +381,14 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             results = loader.load_all([
                 LoadTask("games", lambda: db_manager.get_games_with_backups_sync()),
                 LoadTask("grouped", lambda gid=game_id: db_manager.get_backups_grouped_by_game_sync(gid)),
+                LoadTask("stats", lambda: db_manager.get_backup_summary_stats_sync()),
             ])
 
             self.games_with_backups = results.get("games", [])
             grouped_backups: dict[int, list[GameDLLBackup]] = results.get("grouped", {})
             self._update_game_filter_options()
+            backup_stats = results.get("stats", (0, 0))
+            self._update_backup_stats(backup_stats[0], backup_stats[1])
             db_ms = (time.perf_counter() - start_db) * 1000
             self.logger.debug(f"[PERF] Database queries (hyper-parallel): {db_ms:.1f}ms")
 
@@ -370,6 +401,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 self.empty_state.visible = True
                 self.loading_indicator.visible = False
                 self._update_clear_button_state(False)
+                self._update_backup_stats(0, 0)
                 self._backups_loaded = True
                 if self._page_ref:
                     self._page_ref.update()

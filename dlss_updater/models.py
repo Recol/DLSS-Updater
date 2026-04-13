@@ -201,6 +201,7 @@ class MergedGame(msgspec.Struct):
     primary_game: Game  # First game found (for name, steam_app_id, etc.)
     all_game_ids: list[int]  # All game.id values that were merged
     all_paths: list[str]  # All installation paths
+    is_ignored: bool = False  # Set during card creation from ignored_game_ids set
 
 
 class GameDLL(msgspec.Struct):
