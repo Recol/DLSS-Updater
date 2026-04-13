@@ -43,7 +43,7 @@ dependencies = [
     # scandir-rs is optional - provides 6-70x faster directory scanning
     # Falls back to os.walk when unavailable (e.g., free-threaded Python)
     # "scandir-rs>=2.9.3; platform_system == 'Windows'",
-    "winloop>=0.6.0; platform_system == 'Windows'",  # 0.6.0: cp314t wheels for win_arm64/amd64/win32 (Mar 23 2026)
+    "winloop>=0.6.2; platform_system == 'Windows'",  # 0.6.0: cp314t wheels for win_arm64/amd64/win32 (Mar 23 2026)
     "uvloop>=0.22.1; platform_system == 'Linux'",
     "pytest-codspeed>=4.3.0",
 ]
