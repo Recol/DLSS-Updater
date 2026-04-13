@@ -40,10 +40,11 @@ What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on yo
 - A built in backup system for restoring game binaries if needed.
 - Support for updating Ray Reconstruction/Frame Generation/Streamline (Reflex Low Latency etc) DLL's.
 - Support for updating XeSS/FSR/DirectStorage DLL's (DirectStorage is Windows-only).
-- A GUI!
+- Steam API connectivity.
 - Support for manual folder locations.
 - Backups of updated games to be restored.
 - Individual game updates for specific binaries.
+- Build your own game blacklist.
 
 
 The current supported DLL included is DLSS 4.5 (version 3.10.5.3), and DLSS 4.5 for FG/RR (version 3.10.5).
@@ -51,8 +52,7 @@ The current supported DLL included is FSR 4 (version 4.0.2.0).
 The current supported XeSS DLLs include XeSS 2.0.2, XeSS Frame Generation 1.2.2, and XeLL 1.2.1. Please see the [Intel XeSS releases](https://github.com/intel/xess/releases) for game support details.
 
 ## GUI
-<img width="905" height="753" alt="image" src="https://github.com/user-attachments/assets/a99c4060-69e7-4686-a3dc-2e81de7999c8" />
-
+<img width="1117" height="761" alt="games_tab" src="https://github.com/user-attachments/assets/70bed810-db3d-4381-ada5-d77bc8b6c7b8" />
 
 
 
