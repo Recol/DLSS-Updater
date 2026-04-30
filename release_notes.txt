@@ -1,3 +1,13 @@
+Version 4.1.3:
+Update Summary: Show Game Names (Issue #207):
+  - Fixed: The Update Complete summary screen was showing "common" instead of the actual game
+    name for every updated DLL. Caused by the high-performance updater finding "steamapps" in
+    the path and returning the next part ("common") rather than skipping to the game folder.
+  - Game names are now resolved using the same launcher-aware extract_game_name() logic used
+    across the rest of the app (handles Steam, EA, Epic, GOG, Ubisoft and custom folder paths).
+  - Standard (fallback) update path also fixed: tuples were being passed to the summary dialog
+    raw instead of being formatted into human-readable "GameName (DLL type)" strings.
+
 Version 4.1.2:
 Windows Taskbar Pinning Fix (Issue #184):
   - Fixed: Pinning the app to the taskbar previously pinned flet.exe (the Flet GUI engine),

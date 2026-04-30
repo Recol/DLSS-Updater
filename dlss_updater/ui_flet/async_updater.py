@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Callable, Any
 
 from dlss_updater.scanner import find_all_dlls
-from dlss_updater.utils import update_dlss_versions, process_single_dll
+from dlss_updater.utils import update_dlss_versions, process_single_dll, extract_game_name
 from dlss_updater.config import config_manager, get_current_settings
 from dlss_updater.models import UpdateProgress, UpdateResult
 from dlss_updater.database import db_manager
@@ -118,6 +118,7 @@ class AsyncUpdateCoordinator:
                             dll_tasks.append(DLLTask(
                                 target_path=str(dll_path),
                                 source_dll_name=dll_name,
+                                game_name=extract_game_name(dll_path, launcher),
                             ))
 
                 # Create progress wrapper to convert (int, int, str) to UpdateProgress
@@ -218,9 +219,20 @@ class AsyncUpdateCoordinator:
                 await asyncio.gather(*_pending_progress_tasks, return_exceptions=True)
 
             # Parse result (update_dlss_versions returns dict with results)
-            updated_games = result.get("updated_games", [])
-            skipped_games = result.get("skipped_games", [])
+            # updated_games: list of (dll_path, launcher, dll_type) tuples
+            # skipped_games: list of (dll_path, launcher, reason, dll_type) tuples
+            raw_updated = result.get("updated_games", [])
+            raw_skipped = result.get("skipped_games", [])
             errors = result.get("errors", [])
+
+            updated_games = [
+                f"{extract_game_name(dll_path, launcher)} ({dll_type})"
+                for dll_path, launcher, dll_type in raw_updated
+            ]
+            skipped_games = [
+                f"{extract_game_name(dll_path, launcher)} ({dll_type}: {reason})"
+                for dll_path, launcher, reason, dll_type in raw_skipped
+            ]
 
             self.logger.info(
                 f"Update complete: {len(updated_games)} updated, "

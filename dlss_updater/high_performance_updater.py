@@ -855,14 +855,25 @@ class DLLTask:
         # Try to extract game name from path if not provided
         if self.game_name == "Unknown Game":
             try:
-                path = Path(self.target_path)
-                # Look for common game directory patterns
-                parts = path.parts
-                for i, part in enumerate(parts):
-                    if part.lower() in ("common", "games", "steamapps"):
-                        if i + 1 < len(parts):
-                            self.game_name = parts[i + 1]
-                            break
+                parts = Path(self.target_path).parts
+                if "steamapps" in parts:
+                    idx = parts.index("steamapps")
+                    if idx + 2 < len(parts):
+                        self.game_name = parts[idx + 2]
+                elif "EA Games" in parts:
+                    self.game_name = parts[parts.index("EA Games") + 1]
+                elif "Epic Games" in parts:
+                    idx = parts.index("Epic Games")
+                    if idx + 1 < len(parts):
+                        self.game_name = parts[idx + 1]
+                elif "GOG Galaxy" in parts:
+                    idx = parts.index("GOG Galaxy")
+                    if "Games" in parts:
+                        self.game_name = parts[parts.index("Games") + 1]
+                    elif idx + 1 < len(parts):
+                        self.game_name = parts[idx + 1]
+                elif len(parts) >= 2:
+                    self.game_name = parts[-2]
             except Exception:
                 pass
 
