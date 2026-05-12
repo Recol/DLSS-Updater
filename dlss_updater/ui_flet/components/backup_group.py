@@ -90,7 +90,7 @@ class BackupRow(ft.Container):
                         icon_color=MD3Colors.get_primary(is_dark),
                         tooltip="Restore this backup",
                         on_click=self._handle_restore,
-                        style=ft.ButtonStyle(padding=ft.padding.all(4)),
+                        style=ft.ButtonStyle(padding=ft.Padding.all(4)),
                         width=32,
                         height=32,
                     ),
@@ -100,7 +100,7 @@ class BackupRow(ft.Container):
                         icon_color=MD3Colors.get_error(is_dark),
                         tooltip="Delete backup",
                         on_click=self._handle_delete,
-                        style=ft.ButtonStyle(padding=ft.padding.all(4)),
+                        style=ft.ButtonStyle(padding=ft.Padding.all(4)),
                         width=32,
                         height=32,
                     ),
@@ -109,7 +109,7 @@ class BackupRow(ft.Container):
                 tight=True,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=16, vertical=6),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=6),
             border_radius=4,
             on_hover=self._on_hover,
         )
@@ -235,7 +235,7 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
                 size=11,
                 color=MD3Colors.get_text_secondary(is_dark),
             ),
-            padding=ft.padding.symmetric(horizontal=8, vertical=2),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=2),
             border_radius=12,
             bgcolor=MD3Colors.get_surface_variant(is_dark),
         )
@@ -255,7 +255,7 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
             on_click=self._handle_restore_all,
             style=ft.ButtonStyle(
                 color=MD3Colors.get_primary(is_dark),
-                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
             ),
             height=32,
         )
@@ -287,8 +287,8 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
             icon_color=MD3Colors.get_primary(is_dark),
             collapsed_text_color=MD3Colors.get_on_surface(is_dark),
             collapsed_icon_color=MD3Colors.get_primary(is_dark),
-            tile_padding=ft.padding.symmetric(horizontal=12, vertical=8),
-            controls_padding=ft.padding.only(left=24, right=12, bottom=8),
+            tile_padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+            controls_padding=ft.Padding.only(left=24, right=12, bottom=8),
             animate_opacity=ft.Animation(80, ft.AnimationCurve.EASE_OUT),
         )
 
@@ -393,7 +393,7 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
             if hasattr(self, '_restore_all_btn'):
                 self._restore_all_btn.style = ft.ButtonStyle(
                     color=MD3Colors.get_primary(is_dark),
-                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                 )
 
             # Rebuild backup rows with new theme

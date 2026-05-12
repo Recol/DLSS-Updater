@@ -1,7 +1,7 @@
 # DLSS Updater - MSI Build Script
 # Builds a Windows MSI installer using PyInstaller (onedir) + Briefcase
 # Usage: pwsh build_msi.ps1
-# Requirements: uv, Python 3.14, WiX Toolset v3 (auto-installed by Briefcase if missing)
+# Requirements: uv, Python 3.14.3 free-threaded (per .python-version), WiX Toolset v3 (auto-installed by Briefcase if missing)
 
 param(
     [switch]$SkipClean,

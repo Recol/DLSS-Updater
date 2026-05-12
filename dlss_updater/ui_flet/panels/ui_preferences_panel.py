@@ -111,7 +111,7 @@ class UIPreferencesPanel(ThemeAwareMixin, PanelContentBase):
                 controls=[self._warning_icon, self._warning_text],
                 spacing=8,
             ),
-            padding=ft.padding.only(left=16),
+            padding=ft.Padding.only(left=16),
         )
 
     def build(self) -> ft.Control:

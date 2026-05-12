@@ -134,7 +134,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         self.container = ft.Container(
             content=content_row,
             bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
-            padding=ft.padding.symmetric(horizontal=16, vertical=12),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=12),
             border_radius=8,
             opacity=0,  # Start hidden (transparent)
             visible=False,  # Start hidden
@@ -151,7 +151,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         self.wrapper = ft.Container(
             content=self.container,
             alignment=ft.Alignment.BOTTOM_CENTER,
-            padding=ft.padding.only(bottom=20),
+            padding=ft.Padding.only(bottom=20),
             expand=True,
         )
 

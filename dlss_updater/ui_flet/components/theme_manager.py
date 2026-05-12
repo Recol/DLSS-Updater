@@ -135,14 +135,14 @@ class ThemeManager:
                             size=13,
                             color=MD3Colors.get_text_secondary(is_dark),
                         ),
-                        padding=ft.padding.only(left=36),
+                        padding=ft.Padding.only(left=36),
                     ),
                 ],
                 spacing=12,
                 tight=True,
             ),
             width=380,
-            padding=ft.padding.only(top=8, bottom=8),
+            padding=ft.Padding.only(top=8, bottom=8),
         )
 
         # Platform-specific actions

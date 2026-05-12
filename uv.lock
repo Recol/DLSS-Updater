@@ -351,14 +351,16 @@ wheels = [
 
 [[package]]
 name = "dlss-updater"
-version = "4.1.4"
+version = "4.1.5"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "aiohttp" },
     { name = "aiosqlite" },
-    { name = "flet", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "flet-desktop", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "flet", version = "0.84.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'linux'" },
+    { name = "flet", version = "0.85.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "flet-desktop", version = "0.84.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'linux'" },
+    { name = "flet-desktop", version = "0.85.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
     { name = "msgpack" },
     { name = "msgspec" },
     { name = "packaging" },
@@ -395,9 +397,9 @@ requires-dist = [
     { name = "briefcase", marker = "extra == 'build'", specifier = ">=0.4.1" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=7.3.0" },
     { name = "flet", marker = "sys_platform == 'linux'", specifier = "==0.84.0" },
-    { name = "flet", marker = "sys_platform == 'win32'", specifier = "==0.84.0" },
+    { name = "flet", marker = "sys_platform == 'win32'", specifier = "==0.85.0" },
     { name = "flet-desktop", marker = "sys_platform == 'linux'", specifier = "==0.84.0" },
-    { name = "flet-desktop", marker = "sys_platform == 'win32'", specifier = "==0.84.0" },
+    { name = "flet-desktop", marker = "sys_platform == 'win32'", specifier = "==0.85.0" },
     { name = "msgpack", specifier = ">=1.1.2" },
     { name = "msgspec", specifier = ">=0.21.1" },
     { name = "packaging", specifier = ">=26.0" },
@@ -462,11 +464,14 @@ wheels = [
 name = "flet"
 version = "0.84.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'linux'",
+]
 dependencies = [
-    { name = "httpx", marker = "(platform_system != 'Pyodide' and sys_platform == 'linux') or (platform_system != 'Pyodide' and sys_platform == 'win32')" },
-    { name = "msgpack", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "oauthlib", marker = "(platform_system != 'Pyodide' and sys_platform == 'linux') or (platform_system != 'Pyodide' and sys_platform == 'win32')" },
-    { name = "repath", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "httpx", marker = "platform_system != 'Pyodide' and sys_platform == 'linux'" },
+    { name = "msgpack", marker = "sys_platform == 'linux'" },
+    { name = "oauthlib", marker = "platform_system != 'Pyodide' and sys_platform == 'linux'" },
+    { name = "repath", marker = "sys_platform == 'linux'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1b/8e/d042b5cefa507195683ba439ee183ce24f0cdfa13005b0a8ab64dd403e72/flet-0.84.0.tar.gz", hash = "sha256:f8a4121666c8df2d1c5ea10b14113755895328251b7ce4ab37b140fc8b23fa36", size = 472575, upload-time = "2026-04-01T19:23:59.207Z" }
 wheels = [
@@ -474,15 +479,51 @@ wheels = [
 ]
 
 [[package]]
+name = "flet"
+version = "0.85.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "httpx", marker = "platform_system != 'Pyodide' and sys_platform == 'win32'" },
+    { name = "msgpack", marker = "sys_platform == 'win32'" },
+    { name = "oauthlib", marker = "platform_system != 'Pyodide' and sys_platform == 'win32'" },
+    { name = "repath", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/96/05/fad3c45a31707779c745e5361f25022f3d8447aba29c6dcaaa4e03e6ec0a/flet-0.85.0.tar.gz", hash = "sha256:17ba534fdf5bc4d806468156302216c4c906d483fa37c505dc629c9e9a42f3ee", size = 501301, upload-time = "2026-05-08T22:15:46.541Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/52/80ecbec0ea38150d755f6686689dd36e4db1812234abc19ebadd80e416f5/flet-0.85.0-py3-none-any.whl", hash = "sha256:ebc0e8bf378be186f664e3a751f0f6d6bc012f1ff50fabbe9b05a92f65414b32", size = 579720, upload-time = "2026-05-08T22:15:47.962Z" },
+]
+
+[[package]]
 name = "flet-desktop"
 version = "0.84.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'linux'",
+]
 dependencies = [
-    { name = "flet", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "flet", version = "0.84.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'linux'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/95/64/4aff45661c4a7f950c1162b127dfcfcdc6f66c6814ad2384beb41097956a/flet_desktop-0.84.0.tar.gz", hash = "sha256:85e2c54372dc61b4e2d594fbcd0f1e47488b6dd23e27ab40a31e753ade83d0af", size = 6096, upload-time = "2026-04-01T19:24:04.992Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/ea/6a54be2a614902be7898df2011651f8caadff37509ac8eccbd1a17972bf5/flet_desktop-0.84.0-py3-none-any.whl", hash = "sha256:5e91ae87e0f0a0146ff22344aa981b79d7c7a9f535fe70703f3c4f328f521fd1", size = 6193, upload-time = "2026-04-01T19:24:03.916Z" },
+]
+
+[[package]]
+name = "flet-desktop"
+version = "0.85.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "flet", version = "0.85.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f7/25/fee47b56b4ff05277708fa0e7b1c2716d7ce20b2d8695cbe062a5c32c64f/flet_desktop-0.85.0.tar.gz", hash = "sha256:7e29ab551e3b956574125b3ba2dbd5771c8d16a0602c93808955893ecdc47362", size = 6076, upload-time = "2026-05-08T22:15:54.305Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/d7/1f1a936dde6e7b5f27345d2ec63a9cd8e505e8a7763ba8119aded210e86e/flet_desktop-0.85.0-py3-none-any.whl", hash = "sha256:9e545f7e6839614ec6abd6305bfa8dbf2b1ddec99c840cc4f625af1f1171e7b1", size = 6177, upload-time = "2026-05-08T22:15:55.08Z" },
 ]
 
 [[package]]
@@ -589,11 +630,11 @@ wheels = [
 
 [[package]]
 name = "idna"
-version = "3.13"
+version = "3.14"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ce/cc/762dfb036166873f0059f3b7de4565e1b5bc3d6f28a414c13da27e442f99/idna-3.13.tar.gz", hash = "sha256:585ea8fe5d69b9181ec1afba340451fba6ba764af97026f92a91d4eef164a242", size = 194210, upload-time = "2026-04-22T16:42:42.314Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/05/b1/efac073e0c297ecf2fb33c346989a529d4e19164f1759102dee5953ee17e/idna-3.14.tar.gz", hash = "sha256:466d810d7a2cc1022bea9b037c39728d51ae7dad40d480fc9b7d7ecf98ba8ee3", size = 198272, upload-time = "2026-05-10T20:32:15.935Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/13/ad7d7ca3808a898b4612b6fe93cde56b53f3034dcde235acb1f0e1df24c6/idna-3.13-py3-none-any.whl", hash = "sha256:892ea0cde124a99ce773decba204c5552b69c3c67ffd5f232eb7696135bc8bb3", size = 68629, upload-time = "2026-04-22T16:42:40.909Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/3c/3f62dee257eb3d6b2c1ef2a09d36d9793c7111156a73b5654d2c2305e5ce/idna-3.14-py3-none-any.whl", hash = "sha256:e677eaf072e290f7b725f9acf0b3a2bd55f9fd6f7c70abe5f0e34823d0accf69", size = 72184, upload-time = "2026-05-10T20:32:14.295Z" },
 ]
 
 [[package]]
@@ -1209,7 +1250,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.33.1"
+version = "2.34.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -1217,9 +1258,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5f/a4/98b9c7c6428a668bf7e42ebb7c79d576a1c3c1e3ae2d47e674b468388871/requests-2.33.1.tar.gz", hash = "sha256:18817f8c57c6263968bc123d237e3b8b08ac046f5456bd1e307ee8f4250d3517", size = 134120, upload-time = "2026-03-30T16:09:15.531Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/b8/7a707d60fea4c49094e40262cc0e2ca6c768cca21587e34d3f705afec47e/requests-2.34.0.tar.gz", hash = "sha256:7d62fe92f50eb82c529b0916bb445afa1531a566fc8f35ffdc64446e771b856a", size = 142436, upload-time = "2026-05-11T19:29:51.717Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/8e/7540e8a2036f79a125c1d2ebadf69ed7901608859186c856fa0388ef4197/requests-2.33.1-py3-none-any.whl", hash = "sha256:4e6d1ef462f3626a1f0a0a9c42dd93c63bad33f9f1c1937509b8c5c8718ab56a", size = 64947, upload-time = "2026-03-30T16:09:13.83Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/e6/e300fce5fe83c30520607a015dabd985df3251e188d234bfe9492e17a389/requests-2.34.0-py3-none-any.whl", hash = "sha256:917520a21b767485ce7c588f4ebb917c436b24a31231b44228715eaeb5a52c60", size = 73021, upload-time = "2026-05-11T19:29:49.923Z" },
 ]
 
 [[package]]

@@ -251,7 +251,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
                 spacing=4,
             ),
             bgcolor=MD3Colors.get_surface_container(is_dark),
-            padding=ft.padding.all(12),
+            padding=ft.Padding.all(12),
             border_radius=4,
         )
 
@@ -334,7 +334,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
         self.error_container = ft.Container(
             content=ft.Text("", color=MD3Colors.get_error(is_dark), size=12),
             bgcolor=MD3Colors.ERROR_CONTAINER if not is_dark else "#4A1515",
-            padding=ft.padding.all(8),
+            padding=ft.Padding.all(8),
             border_radius=4,
             visible=False,
         )
@@ -372,7 +372,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
                 spacing=4,
             ),
             bgcolor=MD3Colors.get_surface_container(is_dark),
-            padding=ft.padding.all(12),
+            padding=ft.Padding.all(12),
             border_radius=4,
         )
 

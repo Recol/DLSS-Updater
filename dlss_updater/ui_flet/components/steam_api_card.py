@@ -152,7 +152,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
                 tight=True,
             ),
             on_click=lambda _: webbrowser.open(STEAM_API_KEY_URL),
-            padding=ft.padding.symmetric(horizontal=10, vertical=6),
+            padding=ft.Padding.symmetric(horizontal=10, vertical=6),
             border_radius=6,
             bgcolor=ft.Colors.with_opacity(0.08, MD3Colors.get_primary(is_dark)),
             ink=True,
@@ -173,7 +173,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
             border_color=MD3Colors.get_outline(is_dark),
             focused_border_color=MD3Colors.get_primary(is_dark),
             bgcolor=MD3Colors.get_surface(is_dark),
-            content_padding=ft.padding.symmetric(horizontal=14, vertical=8),
+            content_padding=ft.Padding.symmetric(horizontal=14, vertical=8),
             text_style=ft.TextStyle(
                 color=MD3Colors.get_on_surface(is_dark),
             ),
@@ -196,7 +196,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
                 bgcolor=MD3Colors.get_primary(is_dark),
                 color=ft.Colors.WHITE,
                 shape=ft.RoundedRectangleBorder(radius=8),
-                padding=ft.padding.symmetric(horizontal=20, vertical=0),
+                padding=ft.Padding.symmetric(horizontal=20, vertical=0),
             ),
         )
 
@@ -235,7 +235,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
                     ft.Container(
                         content=self.steam_id_text,
                         bgcolor=ft.Colors.with_opacity(0.08, MD3Colors.get_on_surface_variant(is_dark)),
-                        padding=ft.padding.symmetric(horizontal=8, vertical=2),
+                        padding=ft.Padding.symmetric(horizontal=8, vertical=2),
                         border_radius=4,
                     ),
                 ],
@@ -257,7 +257,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
                 bgcolor=ft.Colors.with_opacity(0.12, MD3Colors.get_primary(is_dark)),
                 color=MD3Colors.get_primary(is_dark),
                 shape=ft.RoundedRectangleBorder(radius=8),
-                padding=ft.padding.symmetric(horizontal=16, vertical=0),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=0),
             ),
         )
 
@@ -331,7 +331,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
             controls=[
                 ft.Container(
                     content=content_column,
-                    padding=ft.padding.only(left=16, right=16, bottom=14, top=4),
+                    padding=ft.Padding.only(left=16, right=16, bottom=14, top=4),
                 ),
             ],
             expanded=False,
@@ -339,7 +339,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
             bgcolor=ft.Colors.TRANSPARENT,
             collapsed_bgcolor=ft.Colors.TRANSPARENT,
             shape=ft.RoundedRectangleBorder(radius=12),
-            tile_padding=ft.padding.symmetric(horizontal=12, vertical=6),
+            tile_padding=ft.Padding.symmetric(horizontal=12, vertical=6),
         )
 
         # -- Outer container styling (matches HubCard pattern) ----------------
@@ -348,7 +348,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
         self.border_radius = 12
         self.bgcolor = MD3Colors.get_surface(is_dark)
         self.shadow = Shadows.LEVEL_1
-        self.border = ft.border.only(left=ft.BorderSide(3, accent))
+        self.border = ft.Border.only(left=ft.BorderSide(3, accent))
         self.animate = Animations.HOVER
         self.on_hover = self._on_hover
 
@@ -383,7 +383,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             bgcolor=badge_bg,
-            padding=ft.padding.symmetric(horizontal=10, vertical=4),
+            padding=ft.Padding.symmetric(horizontal=10, vertical=4),
             border_radius=12,
             height=26,
         )
@@ -632,7 +632,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
                 self._set_nested_property(prop_path, value)
 
             # Container styling (accent bar + border + shadow)
-            self.border = ft.border.only(left=ft.BorderSide(3, accent))
+            self.border = ft.Border.only(left=ft.BorderSide(3, accent))
 
             # Leading icon circle
             self._leading_icon.bgcolor = accent
@@ -667,7 +667,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
                 bgcolor=primary,
                 color=ft.Colors.WHITE,
                 shape=ft.RoundedRectangleBorder(radius=8),
-                padding=ft.padding.symmetric(horizontal=20, vertical=0),
+                padding=ft.Padding.symmetric(horizontal=20, vertical=0),
             )
 
             # Progress ring
@@ -678,7 +678,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
                 bgcolor=ft.Colors.with_opacity(0.12, primary),
                 color=primary,
                 shape=ft.RoundedRectangleBorder(radius=8),
-                padding=ft.padding.symmetric(horizontal=16, vertical=0),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=0),
             )
 
             # Steam ID container background

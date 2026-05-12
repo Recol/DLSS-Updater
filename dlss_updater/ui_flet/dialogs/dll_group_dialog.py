@@ -213,7 +213,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                             ],
                             spacing=12,
                         ),
-                        padding=ft.padding.only(bottom=12),
+                        padding=ft.Padding.only(bottom=12),
                     ),
                     ft.Divider(height=1, color=MD3Colors.get_divider(is_dark)),
                     # Scrollable expansion panels — expand to fill remaining space
@@ -223,7 +223,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                             scroll=ft.ScrollMode.AUTO,
                         ),
                         expand=True,
-                        padding=ft.padding.only(top=8),
+                        padding=ft.Padding.only(top=8),
                     ),
                 ],
                 spacing=0,
@@ -388,7 +388,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                     weight=ft.FontWeight.BOLD,
                 ),
                 bgcolor=MD3Colors.get_warning(is_dark),
-                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                 border_radius=12,
             )
         else:
@@ -401,7 +401,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                     spacing=4,
                     tight=True,
                 ),
-                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
             )
 
         # Update button
@@ -416,7 +416,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                     ft.ControlState.DISABLED: ft.Colors.GREY_700,
                 },
                 color=ft.Colors.WHITE,
-                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
             ),
             height=32,
         )
@@ -433,7 +433,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                     ft.ControlState.DISABLED: ft.Colors.GREY_700,
                 },
                 color=ft.Colors.WHITE,
-                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
             ),
             height=32,
         )
@@ -477,7 +477,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                 alignment=ft.MainAxisAlignment.START,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=12, vertical=8),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
         )
 
     def _build_group_content(
@@ -502,7 +502,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                 controls=dll_rows,
                 spacing=4,
             ),
-            padding=ft.padding.only(left=32, right=16, top=8, bottom=16),
+            padding=ft.Padding.only(left=32, right=16, top=8, bottom=16),
             bgcolor=MD3Colors.get_themed("surface_dim", is_dark),
         )
 
@@ -557,7 +557,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                         tight=True,
                     ),
                     bgcolor=warning_col,
-                    padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                    padding=ft.Padding.symmetric(horizontal=6, vertical=2),
                     border_radius=10,
                     tooltip=(
                         f"You've rolled back from v{latest_version} of this DLL {event_count} time"
@@ -621,7 +621,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                 alignment=ft.MainAxisAlignment.START,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.all(12),
+            padding=ft.Padding.all(12),
             bgcolor=MD3Colors.get_surface(is_dark),
             border_radius=8,
         )

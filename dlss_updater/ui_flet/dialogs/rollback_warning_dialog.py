@@ -90,7 +90,7 @@ class RollbackWarningDialog:
                                             weight=ft.FontWeight.W_500,
                                         ),
                                         bgcolor=warning_color,
-                                        padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                                        padding=ft.Padding.symmetric(horizontal=6, vertical=2),
                                         border_radius=10,
                                     ),
                                 ],
@@ -107,9 +107,9 @@ class RollbackWarningDialog:
                         spacing=4,
                         tight=True,
                     ),
-                    padding=ft.padding.all(10),
+                    padding=ft.Padding.all(10),
                     bgcolor=surface,
-                    border=ft.border.all(1, warning_color),
+                    border=ft.Border.all(1, warning_color),
                     border_radius=6,
                 )
             )

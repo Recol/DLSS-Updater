@@ -84,7 +84,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
         self._stats_badge = ft.Container(
             content=self._stats_text,
             visible=False,
-            padding=ft.padding.symmetric(horizontal=8, vertical=2),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=2),
             border_radius=10,
             bgcolor=f"{accent}15",
         )
@@ -107,10 +107,10 @@ class HubCard(ThemeAwareMixin, ft.Container):
 
         super().__init__(
             content=card_content,
-            padding=ft.padding.all(24),
+            padding=ft.Padding.all(24),
             border_radius=border_radius_val,
             bgcolor=MD3Colors.get_surface(is_dark),
-            border=ft.border.only(
+            border=ft.Border.only(
                 left=ft.BorderSide(3, accent),
                 top=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
                 right=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
@@ -138,7 +138,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
             max_scale = 1.01 if self._icon_size >= 64 else 1.02
             self.scale = max_scale
             self.shadow = Shadows.LEVEL_3
-            self.border = ft.border.only(
+            self.border = ft.Border.only(
                 left=ft.BorderSide(3, accent),
                 top=ft.BorderSide(1, accent),
                 right=ft.BorderSide(1, accent),
@@ -147,7 +147,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
         else:
             self.scale = 1.0
             self.shadow = Shadows.LEVEL_2
-            self.border = ft.border.only(
+            self.border = ft.Border.only(
                 left=ft.BorderSide(3, accent),
                 top=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
                 right=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
@@ -174,7 +174,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
         accent = self._accent_dark if is_dark else self._accent_light
 
         self.bgcolor = MD3Colors.get_surface(is_dark)
-        self.border = ft.border.only(
+        self.border = ft.Border.only(
             left=ft.BorderSide(3, accent),
             top=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
             right=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),

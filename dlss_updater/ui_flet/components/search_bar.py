@@ -117,7 +117,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             focused_border_color=MD3Colors.get_primary(is_dark),
             bgcolor=MD3Colors.get_surface(is_dark),
             border_radius=8,
-            content_padding=ft.padding.only(left=40, right=40, top=8, bottom=8),
+            content_padding=ft.Padding.only(left=40, right=40, top=8, bottom=8),
             on_change=self._on_text_changed,
             on_focus=self._on_focus,
             on_blur=self._on_blur,

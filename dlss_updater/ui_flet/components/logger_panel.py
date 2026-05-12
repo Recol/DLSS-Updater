@@ -146,7 +146,7 @@ class FletLoggerHandler(logging.Handler):
                     ],
                     spacing=8,
                 ),
-                padding=ft.padding.symmetric(vertical=4, horizontal=8),
+                padding=ft.Padding.symmetric(vertical=4, horizontal=8),
                 border_radius=6,
                 opacity=1,  # No fade animation - instant display for performance
                 data=level,  # Store level for filtering
@@ -246,7 +246,7 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
         self.log_count_badge = ft.Container(
             content=self.log_count_badge_text,
             bgcolor=MD3Colors.get_primary(is_dark),
-            padding=ft.padding.symmetric(horizontal=6, vertical=2),
+            padding=ft.Padding.symmetric(horizontal=6, vertical=2),
             border_radius=10,
             visible=False,
         )
@@ -271,7 +271,7 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
                 ],
                 spacing=8,
             ),
-            padding=ft.padding.symmetric(horizontal=12, vertical=8),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
             opacity=0,
             animate_opacity=Animations.FADE,
         )
@@ -328,7 +328,7 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
-            padding=ft.padding.all(12),
+            padding=ft.Padding.all(12),
             gradient=ft.LinearGradient(
                 begin=ft.Alignment.TOP_LEFT,
                 end=ft.Alignment.BOTTOM_RIGHT,
@@ -368,7 +368,7 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
                 spacing=0,
             ),
             bgcolor=MD3Colors.get_themed("surface_dim", is_dark),
-            padding=ft.padding.all(8),
+            padding=ft.Padding.all(8),
             height=250,  # Fixed height - visibility controls show/hide
             visible=False,
             opacity=0,
@@ -422,7 +422,7 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
             chip = ft.Container(
                 content=chip_text,
                 bgcolor=MD3Colors.get_primary(is_dark) if level == "ALL" else MD3Colors.get_surface_variant(is_dark),
-                padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=6),
                 border_radius=16,
                 on_click=lambda e, lvl=level: self._apply_filter(lvl),
                 data=level,

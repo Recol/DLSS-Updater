@@ -209,8 +209,8 @@ class SlidePanel(ThemeAwareMixin):
         self._header_container = ft.Container(
             content=header_row,
             bgcolor=MD3Colors.get_surface_variant(is_dark),
-            padding=ft.padding.only(left=24, right=16, top=20, bottom=16),
-            border=ft.border.only(
+            padding=ft.Padding.only(left=24, right=16, top=20, bottom=16),
+            border=ft.Border.only(
                 bottom=ft.BorderSide(1, MD3Colors.get_divider(is_dark))
             ),
         )
@@ -282,8 +282,8 @@ class SlidePanel(ThemeAwareMixin):
             content=button_row,
             height=self.FOOTER_HEIGHT,
             bgcolor=MD3Colors.get_surface_variant(is_dark),
-            padding=ft.padding.only(left=24, right=24, top=16, bottom=16),
-            border=ft.border.only(top=ft.BorderSide(1, MD3Colors.get_divider(is_dark))),
+            padding=ft.Padding.only(left=24, right=24, top=16, bottom=16),
+            border=ft.Border.only(top=ft.BorderSide(1, MD3Colors.get_divider(is_dark))),
         )
         return self._footer_container
 

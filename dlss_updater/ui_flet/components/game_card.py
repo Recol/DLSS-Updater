@@ -71,7 +71,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # Card styling optimized for grid layout
         self.elevation = 2
         self.surface_tint_color = MD3Colors.get_primary(is_dark)
-        self.margin = ft.margin.all(0)  # ResponsiveRow handles spacing
+        self.margin = ft.Margin.all(0)  # ResponsiveRow handles spacing
         self.shadow = Shadows.LEVEL_2
         self.width = None  # Let ResponsiveRow control width
         self.expand = True  # Fill available space in grid cell
@@ -229,7 +229,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             width=None,  # Full card width
             height=140,  # Slightly taller for better aspect ratio in grid
             fit=ft.BoxFit.COVER,
-            border_radius=ft.border_radius.all(8),
+            border_radius=ft.BorderRadius.all(8),
             error_content=ft.Icon(ft.Icons.VIDEOGAME_ASSET, size=48, color=ft.Colors.GREY),
         )
 
@@ -301,7 +301,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 bgcolor={
                     ft.ControlState.DEFAULT: ft.Colors.with_opacity(0.7, "#FF9800") if self.is_ignored else ft.Colors.with_opacity(0.5, ft.Colors.BLACK),
                 },
-                padding=ft.padding.all(4),
+                padding=ft.Padding.all(4),
                 shape=ft.RoundedRectangleBorder(radius=8),
             ),
         )
@@ -379,7 +379,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             return ft.Container(
                 content=ft.Text("0 DLLs", size=10, color=MD3Colors.get_themed("text_tertiary", is_dark)),
                 bgcolor=MD3Colors.get_themed("badge_default_bg", is_dark),
-                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                 border_radius=8,
                 height=28,
             )
@@ -421,7 +421,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                     tight=True,
                 ),
                 bgcolor=badge_color,
-                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                 border_radius=8,
                 height=28,
                 tooltip=f"{status_tooltip} - click for details",
@@ -644,7 +644,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             tooltip=f"Launch via Steam",
             on_click=lambda e: self._launch_game(),
             style=ft.ButtonStyle(
-                padding=ft.padding.all(6),
+                padding=ft.Padding.all(6),
             ),
             width=32,
             height=32,
@@ -840,7 +840,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 bgcolor={
                     ft.ControlState.DEFAULT: ft.Colors.with_opacity(0.7, "#FF9800") if ignored else ft.Colors.with_opacity(0.5, ft.Colors.BLACK),
                 },
-                padding=ft.padding.all(4),
+                padding=ft.Padding.all(4),
                 shape=ft.RoundedRectangleBorder(radius=8),
             )
         if self.update_button:
@@ -857,7 +857,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self.elevation = 8
             self.shadow = Shadows.LEVEL_3
             self.scale = 1.015
-            self.border = ft.border.all(1, ft.Colors.with_opacity(0.3, primary_color))
+            self.border = ft.Border.all(1, ft.Colors.with_opacity(0.3, primary_color))
         else:
             self.elevation = 2
             self.shadow = Shadows.LEVEL_2

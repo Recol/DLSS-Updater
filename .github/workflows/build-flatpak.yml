@@ -56,10 +56,10 @@ jobs:
         with:
           version: "latest"
 
-      - name: Set up Python 3.14 (free-threaded)
+      - name: Set up Python 3.14.3 (free-threaded)
         run: |
-          uv python install 3.14t
-          uv python pin 3.14t
+          uv python install 3.14.3+freethreaded
+          uv python pin 3.14.3+freethreaded
 
       - name: Install Python dependencies
         run: uv sync

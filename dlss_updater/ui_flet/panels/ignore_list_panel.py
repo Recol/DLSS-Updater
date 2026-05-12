@@ -134,7 +134,7 @@ class IgnoreListPanel(ThemeAwareMixin, PanelContentBase):
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    padding=ft.padding.all(32),
+                    padding=ft.Padding.all(32),
                     alignment=ft.Alignment.CENTER,
                 )
             ]
@@ -179,8 +179,8 @@ class IgnoreListPanel(ThemeAwareMixin, PanelContentBase):
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
-                    padding=ft.padding.all(12),
-                    border=ft.border.all(1, MD3Colors.get_outline(is_dark)),
+                    padding=ft.Padding.all(12),
+                    border=ft.Border.all(1, MD3Colors.get_outline(is_dark)),
                     border_radius=8,
                 )
             )
@@ -236,7 +236,7 @@ class IgnoreListPanel(ThemeAwareMixin, PanelContentBase):
         self._info_box = ft.Container(
             content=self._info_text,
             bgcolor=MD3Colors.get_themed("surface_bright", is_dark),
-            padding=ft.padding.all(12),
+            padding=ft.Padding.all(12),
             border_radius=4,
         )
 

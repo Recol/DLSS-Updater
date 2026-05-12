@@ -92,7 +92,7 @@ class AppUpdateDialog(ThemeAwareMixin):
                     ],
                     spacing=16,
                 ),
-                padding=ft.padding.all(16),
+                padding=ft.Padding.all(16),
             ),
             bgcolor=MD3Colors.get_surface(is_dark),
         )

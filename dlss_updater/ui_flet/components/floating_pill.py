@@ -122,10 +122,10 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
 
         super().__init__(
             content=pill_row,
-            padding=ft.padding.symmetric(horizontal=16, vertical=4),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=4),
             border_radius=24,
             bgcolor=MD3Colors.get_surface_variant(is_dark),
-            border=ft.border.all(1, MD3Colors.get_outline(is_dark)),
+            border=ft.Border.all(1, MD3Colors.get_outline(is_dark)),
             shadow=Shadows.LEVEL_3,
             animate_opacity=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
         )
@@ -211,7 +211,7 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
             await asyncio.sleep(delay_ms / 1000)
 
         self.bgcolor = MD3Colors.get_surface_variant(is_dark)
-        self.border = ft.border.all(1, MD3Colors.get_outline(is_dark))
+        self.border = ft.Border.all(1, MD3Colors.get_outline(is_dark))
         self._pill_divider.bgcolor = MD3Colors.get_outline(is_dark)
         self._home_icon.color = MD3Colors.get_on_surface_variant(is_dark)
 

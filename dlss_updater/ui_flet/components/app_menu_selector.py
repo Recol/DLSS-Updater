@@ -152,7 +152,7 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
         if e.data == "true":
             # Hover enter
             container.bgcolor = f"{category_color}15"  # 8% opacity
-            container.border = ft.border.all(1, f"{category_color}30")
+            container.border = ft.Border.all(1, f"{category_color}30")
         else:
             # Hover exit
             container.bgcolor = "transparent"
@@ -280,7 +280,7 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
         # Item container with hover effects
         item_container = ft.Container(
             content=content,
-            padding=ft.padding.symmetric(horizontal=12, vertical=10),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=10),
             border_radius=8,
             bgcolor="transparent",
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
@@ -349,8 +349,8 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
             collapsed_icon_color=MD3Colors.get_on_surface_variant(is_dark),
             text_color=MD3Colors.get_on_surface(is_dark),
             collapsed_text_color=MD3Colors.get_on_surface_variant(is_dark),
-            tile_padding=ft.padding.symmetric(horizontal=12, vertical=8),
-            controls_padding=ft.padding.only(left=52, right=8, bottom=8),
+            tile_padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+            controls_padding=ft.Padding.only(left=52, right=8, bottom=8),
             shape=ft.RoundedRectangleBorder(radius=8),
         )
         self._expansion_tiles.append(expansion_tile)
@@ -374,7 +374,7 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
 
         # Container styling (full width, no border)
         self.bgcolor = MD3Colors.get_surface_variant(is_dark)
-        self.padding = ft.padding.symmetric(vertical=8, horizontal=16)
+        self.padding = ft.Padding.symmetric(vertical=8, horizontal=16)
         self.animate = ft.Animation(300, ft.AnimationCurve.EASE_IN_OUT)
 
     def set_badge_visible(self, item_id: str, visible: bool):

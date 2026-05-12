@@ -106,8 +106,12 @@ class MainView(ft.Column):
         self.expand = True
         self.spacing = 0
 
-        # File picker for launcher paths (Flet 0.80.4+ async API)
-        self.file_picker = ft.FilePicker()
+        # Note: In Flet 0.85, FilePicker is a Service (not an overlay control)
+        # and is instantiated inline at the point of use — see the handler in
+        # _create_add_subfolder_handler. The Service base class auto-attaches
+        # to the active page so the underlying Win32 IFileOpenDialog is owned
+        # by the Flet window (valid hwndOwner), which keeps Windows 11's
+        # per-app HDR auto-arbitration from disabling HDR (Issue #216).
         self.current_launcher_selecting: LauncherPathName | None = None
         self.is_adding_subfolder: bool = False  # Track if adding subfolder vs setting primary path
 
@@ -173,7 +177,6 @@ class MainView(ft.Column):
         if await migrate_image_cache_if_needed():
             self.logger.info("Image cache migrated to WebP thumbnail format")
 
-        # Note: In Flet 0.80.4+, FilePicker uses async methods - no overlay needed
         # Note: loading_overlay is added/removed dynamically in show()/hide()
 
         # Create DLL cache progress notification and add wrapper to overlay
@@ -348,10 +351,10 @@ class MainView(ft.Column):
                 spacing=12,
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
-            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+            padding=ft.Padding.symmetric(horizontal=20, vertical=12),
             border_radius=12,
             bgcolor=MD3Colors.get_surface_container(is_dark),
-            border=ft.border.all(1, MD3Colors.get_outline(is_dark)),
+            border=ft.Border.all(1, MD3Colors.get_outline(is_dark)),
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
             on_click=on_click,
         )
@@ -360,10 +363,10 @@ class MainView(ft.Column):
         def on_hover(e):
             if e.data == "true":
                 button_container.bgcolor = f"{color}15"
-                button_container.border = ft.border.all(1, f"{color}30")
+                button_container.border = ft.Border.all(1, f"{color}30")
             else:
                 button_container.bgcolor = MD3Colors.get_surface_container(is_dark)
-                button_container.border = ft.border.all(1, MD3Colors.get_outline(is_dark))
+                button_container.border = ft.Border.all(1, MD3Colors.get_outline(is_dark))
             if self._page_ref:
                 button_container.update()
 
@@ -422,9 +425,9 @@ class MainView(ft.Column):
                 spacing=12,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.all(16),
+            padding=ft.Padding.all(16),
             bgcolor=MD3Colors.get_background(is_dark),
-            border=ft.border.only(top=ft.BorderSide(1, MD3Colors.get_outline(is_dark))),
+            border=ft.Border.only(top=ft.BorderSide(1, MD3Colors.get_outline(is_dark))),
         )
 
         # Create launchers content area container with themed background
@@ -537,7 +540,7 @@ class MainView(ft.Column):
         # PERF: Merged double Container into single (-1 control)
         self.app_bar_container = ft.Container(
             content=top_bar,
-            padding=ft.padding.symmetric(vertical=16, horizontal=16),
+            padding=ft.Padding.symmetric(vertical=16, horizontal=16),
             bgcolor=MD3Colors.get_background(is_dark),
             shadow=Shadows.LEVEL_2,
         )
@@ -603,7 +606,7 @@ class MainView(ft.Column):
         # Update action buttons container background and border
         if hasattr(self, 'launchers_action_buttons') and self.launchers_action_buttons:
             self.launchers_action_buttons.bgcolor = MD3Colors.get_background(is_dark)
-            self.launchers_action_buttons.border = ft.border.only(
+            self.launchers_action_buttons.border = ft.Border.only(
                 top=ft.BorderSide(1, MD3Colors.get_outline(is_dark))
             )
 
@@ -718,7 +721,7 @@ class MainView(ft.Column):
                 controls=[responsive_content],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
-            padding=ft.padding.all(16),
+            padding=ft.Padding.all(16),
             expand=True,
         )
 
@@ -734,7 +737,7 @@ class MainView(ft.Column):
                 await self._show_path_input_dialog(launcher)
             else:
                 # On Windows, use the native file picker (Flet 0.80.4+ async API)
-                path = await self.file_picker.get_directory_path(dialog_title="Add Sub-Folder")
+                path = await ft.FilePicker().get_directory_path(dialog_title="Add Sub-Folder")
                 if path:
                     await self._handle_folder_selected(path, launcher, is_adding=True)
                 self.current_launcher_selecting = None

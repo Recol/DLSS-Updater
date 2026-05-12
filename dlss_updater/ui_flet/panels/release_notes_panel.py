@@ -108,7 +108,7 @@ class ReleaseNotesPanel(ThemeAwareMixin, PanelContentBase):
         self._notes_container = ft.Container(
             content=self._notes_text_control,
             bgcolor=MD3Colors.get_themed("surface_bright", is_dark),
-            padding=ft.padding.all(16),
+            padding=ft.Padding.all(16),
             border_radius=4,
         )
 

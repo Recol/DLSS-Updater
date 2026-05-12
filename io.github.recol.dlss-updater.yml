@@ -51,6 +51,11 @@ finish-args:
 
   # Environment: Ensure Flet's downloaded client can find libsecret
   - --env=LD_LIBRARY_PATH=/app/lib64:/app/lib
+  # Keep the free-threaded Python 3.14 GIL disabled at runtime even if a
+  # bundled C extension (currently msgpack 1.1.2) hasn't declared Py_MOD_GIL_NOT_USED.
+  # The PyInstaller spec also passes -X gil=0 at the bootloader level; this env var
+  # is defense-in-depth and propagates to any child processes spawned by the app.
+  - --env=PYTHON_GIL=0
 
 modules:
   # libsecret - required by Flet's flutter_secure_storage

@@ -194,7 +194,7 @@ class ShutdownProgressDialog:
                 spacing=0,
             ),
             width=450,
-            padding=ft.padding.all(24),
+            padding=ft.Padding.all(24),
         )
 
     def show(self) -> None:

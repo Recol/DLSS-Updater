@@ -116,7 +116,7 @@ class HubView(ThemeAwareMixin, ft.Column):
             ft.Container(
                 content=hub_layout,
                 expand=True,
-                padding=ft.padding.all(24),
+                padding=ft.Padding.all(24),
                 alignment=ft.Alignment.CENTER,
             ),
         ]

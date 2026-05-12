@@ -85,7 +85,7 @@ class HighPerfWarningDialog:
                 spacing=4,
             ),
             bgcolor=self.INFO_BOX_BG,
-            padding=ft.padding.all(12),
+            padding=ft.Padding.all(12),
             border_radius=6,
         )
 
@@ -104,7 +104,7 @@ class HighPerfWarningDialog:
                     leading=ft.Icon(icon, color=self.PRIMARY_BLUE, size=20),
                     title=ft.Text(description, size=13),
                     dense=True,
-                    content_padding=ft.padding.symmetric(horizontal=0, vertical=0),
+                    content_padding=ft.Padding.symmetric(horizontal=0, vertical=0),
                 )
             )
 
@@ -122,7 +122,7 @@ class HighPerfWarningDialog:
                 spacing=0,
                 tight=True,
             ),
-            padding=ft.padding.only(top=8, bottom=8),
+            padding=ft.Padding.only(top=8, bottom=8),
         )
 
     def _build_warning_box(self) -> ft.Container:
@@ -156,9 +156,9 @@ class HighPerfWarningDialog:
                 spacing=6,
             ),
             bgcolor=self.WARNING_BOX_BG,
-            padding=ft.padding.all(12),
+            padding=ft.Padding.all(12),
             border_radius=6,
-            border=ft.border.all(1, self.WARNING_ORANGE),
+            border=ft.Border.all(1, self.WARNING_ORANGE),
         )
 
     def _build_recommendation(self) -> ft.Container:
@@ -177,7 +177,7 @@ class HighPerfWarningDialog:
                 spacing=6,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.only(top=4),
+            padding=ft.Padding.only(top=4),
         )
 
     async def show(self) -> bool:

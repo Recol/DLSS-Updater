@@ -29,7 +29,7 @@ class BackupCard(ThemeAwareMixin, ft.Card):
 
         # Card styling
         self.elevation = 1
-        self.margin = ft.margin.symmetric(horizontal=8, vertical=4)
+        self.margin = ft.Margin.symmetric(horizontal=8, vertical=4)
         self.shadow = Shadows.LEVEL_1
         self.on_hover = self._on_hover_shadow
 

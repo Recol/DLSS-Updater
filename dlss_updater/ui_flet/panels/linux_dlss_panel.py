@@ -199,7 +199,7 @@ class LinuxDLSSPresetsPanel(ThemeAwareMixin, PanelContentBase):
                 spacing=12,
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            padding=ft.padding.all(16),
+            padding=ft.Padding.all(16),
             border_radius=12,
             bgcolor=MD3Colors.get_surface_container(is_dark),
         )

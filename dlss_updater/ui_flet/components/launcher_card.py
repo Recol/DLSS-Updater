@@ -86,15 +86,15 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             icon_color=MD3Colors.PRIMARY,
             collapsed_text_color=MD3Colors.get_on_surface(is_dark),
             collapsed_icon_color=MD3Colors.PRIMARY,
-            tile_padding=ft.padding.symmetric(horizontal=16, vertical=8),
-            controls_padding=ft.padding.only(left=56, right=16, bottom=12, top=4),
+            tile_padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+            controls_padding=ft.Padding.only(left=56, right=16, bottom=12, top=4),
             animate_opacity=ft.Animation(80, ft.AnimationCurve.EASE_OUT),
         )
 
         # Apply custom styling for custom launchers
         if self.is_custom:
             # Custom cards get border
-            self.border = ft.border.all(1, MD3Colors.get_primary(is_dark))
+            self.border = ft.Border.all(1, MD3Colors.get_primary(is_dark))
 
         # Register for theme updates
         self._register_theme_aware()
@@ -201,7 +201,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             on_click=self.on_add_subfolder_callback,
             style=ft.ButtonStyle(
                 color=MD3Colors.PRIMARY,
-                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
             ),
             height=28,
         )
@@ -313,8 +313,8 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                 spacing=6,
             ),
             alignment=ft.Alignment.CENTER,
-            padding=ft.padding.symmetric(horizontal=24, vertical=20),
-            border=ft.border.all(2, border_color),
+            padding=ft.Padding.symmetric(horizontal=24, vertical=20),
+            border=ft.Border.all(2, border_color),
             border_radius=12,
             ink=True,
             on_click=self.on_add_subfolder_callback,
@@ -326,10 +326,10 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         is_dark = self._registry.is_dark
         primary = MD3Colors.get_primary(is_dark)
         if e.data == "true":
-            e.control.border = ft.border.all(2, primary)
+            e.control.border = ft.Border.all(2, primary)
             e.control.bgcolor = f"{primary}0A"  # 4% tint
         else:
-            e.control.border = ft.border.all(2, f"{primary}60")
+            e.control.border = ft.Border.all(2, f"{primary}60")
             e.control.bgcolor = None
         if self._attached:
             self.update()
@@ -370,7 +370,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                         on_click=on_remove_click,
                         tooltip="Remove path",
                         style=ft.ButtonStyle(
-                            padding=ft.padding.all(2),
+                            padding=ft.Padding.all(2),
                         ),
                         width=20,
                         height=20,
@@ -382,7 +382,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             ),
             bgcolor=MD3Colors.get_surface_variant(is_dark),
             border_radius=16,
-            padding=ft.padding.only(left=10, right=4, top=4, bottom=4),
+            padding=ft.Padding.only(left=10, right=4, top=4, bottom=4),
         )
 
     async def _on_remove_path(self, path: str):
@@ -717,7 +717,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                 tight=True,
             ),
             bgcolor=badge_bgcolor,
-            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=4),
             border_radius=16,
             height=26,
         )
@@ -790,7 +790,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                 spacing=12,
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            padding=ft.padding.symmetric(horizontal=0, vertical=6),
+            padding=ft.Padding.symmetric(horizontal=0, vertical=6),
         )
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
@@ -822,7 +822,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
 
             # Custom launchers get themed border
             if self.is_custom:
-                self.border = ft.border.all(1, MD3Colors.get_primary(is_dark))
+                self.border = ft.Border.all(1, MD3Colors.get_primary(is_dark))
 
             # Update path text
             if hasattr(self, 'path_text'):

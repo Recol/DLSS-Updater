@@ -64,6 +64,22 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.1.5" date="2026-05-12">
+      <description>
+        <p>Fixed Windows 11 HDR being disabled when opening the folder picker (Issue #216)</p>
+        <ul>
+          <li>On Windows 11 (notably 24H2 with HDR enabled), clicking "Add Sub-Folder" on a launcher card disabled system HDR while the file dialog was open</li>
+          <li>Root cause: the FilePicker was created but never registered on page.overlay, so the underlying Win32 IFileOpenDialog opened as an unowned top-level window (NULL hwndOwner) that crossed the Flet window's focus group, tripping the per-app HDR auto-arbitration</li>
+          <li>FilePicker is now instantiated inline at the point of use, matching the Flet 0.85 Service pattern — the Service base class auto-attaches to the active page so the dialog inherits the Flet window's focus group and HDR is no longer disabled</li>
+          <li>Upgraded flet 0.84.0 to 0.85.0 and flet-desktop 0.84.0 to 0.85.0 (declarative router, use_dialog hook, video/audio improvements; no FilePicker or window/HDR changes)</li>
+          <li>Migrated 137 call sites across 30 files from the removed ft.padding/margin/border/border_radius module helpers to the new ft.Padding/Margin/Border/BorderRadius classmethods (hard removal in 0.85)</li>
+          <li>Upgraded requests 2.33.1 to 2.34.0 and idna 3.13 to 3.14 (transitive)</li>
+          <li>Pinned Python to 3.14.3+freethreaded (was 3.14+freethreaded) for both Windows and Linux builds — highest 3.14 free-threaded build currently published by astral-sh/python-build-standalone on both platforms (Linux lags Windows on patch releases). PyInstaller specs continue to pass -X gil=0 at the bootloader level. All CI/CD workflows (python-app, pylint, build-flatpak, update-download-badge, codspeed) bumped to match — codspeed in particular was previously benchmarking on regular GIL-enabled CPython 3.14 rather than the free-threaded interpreter the app actually ships with</li>
+          <li>Audited all 34 cp314t native extensions: only msgpack 1.1.2 still triggers the GIL re-enable warning (Cython freethreading_compatible directive landed upstream post-1.1.2 and will ship in the next release). PYTHON_GIL=0 is now also set in the Flatpak finish-args as defense-in-depth so the GIL stays disabled at runtime on Linux</li>
+          <li>Migrated license metadata to PEP 639 format (SPDX `license = "AGPL-3.0-only"` plus `license-files = ["LICENSE"]` in both [project] and [tool.briefcase]) to resolve the deprecation warning emitted by Briefcase 0.4.2 during MSI packaging</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.1.4" date="2026-05-10">
       <description>
         <p>Security patch and dependency upgrades (Issue #210)</p>

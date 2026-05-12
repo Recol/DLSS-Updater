@@ -66,7 +66,7 @@ class UpdateSummaryDialog(ThemeAwareMixin):
                             ],
                             spacing=8,
                         ),
-                        padding=ft.padding.only(bottom=12),
+                        padding=ft.Padding.only(bottom=12),
                     ),
                     ft.Divider(color=MD3Colors.get_divider(is_dark)),
                     ft.Container(
@@ -108,7 +108,7 @@ class UpdateSummaryDialog(ThemeAwareMixin):
                             ],
                             spacing=8,
                         ),
-                        padding=ft.padding.only(bottom=12),
+                        padding=ft.Padding.only(bottom=12),
                     ),
                     ft.Divider(color=MD3Colors.get_divider(is_dark)),
                     ft.Container(
@@ -150,7 +150,7 @@ class UpdateSummaryDialog(ThemeAwareMixin):
                             ],
                             spacing=8,
                         ),
-                        padding=ft.padding.only(bottom=12),
+                        padding=ft.Padding.only(bottom=12),
                     ),
                     ft.Divider(color=MD3Colors.get_divider(is_dark)),
                     ft.Container(
@@ -173,7 +173,7 @@ class UpdateSummaryDialog(ThemeAwareMixin):
                                         ],
                                         spacing=4,
                                     ),
-                                    padding=ft.padding.all(8),
+                                    padding=ft.Padding.all(8),
                                     bgcolor=MD3Colors.get_surface_container(is_dark),
                                     border_radius=4,
                                 )
@@ -213,7 +213,7 @@ class UpdateSummaryDialog(ThemeAwareMixin):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
-                    padding=ft.padding.all(32),
+                    padding=ft.Padding.all(32),
                     height=300,
                 )
             )

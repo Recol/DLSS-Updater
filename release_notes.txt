@@ -1,3 +1,82 @@
+Version 4.1.5:
+HDR Disabled by Folder Picker on Windows 11 (Issue #216):
+  - Fixed: On Windows 11 (notably 24H2 with HDR enabled), clicking the "Add Sub-Folder"
+    button on a launcher card disabled system HDR while the file dialog was open.
+  - Root cause: the FilePicker was held as a long-lived instance with no proper
+    page attachment, so the underlying Win32 IFileOpenDialog opened as an
+    unowned top-level window (NULL hwndOwner). On Windows 11, focus transferring
+    to an unowned, non-HDR-aware dialog crosses the focus-group boundary and
+    trips the per-app HDR auto-arbitration ("Automatically Manage Color for apps"),
+    which disables HDR for the foreground window.
+  - Fix: FilePicker is now instantiated inline at the point of use, matching the
+    canonical Flet 0.85 pattern (FilePicker is a Service subclass — the Service
+    base class auto-attaches to the active page, parenting the dialog to the
+    Flet window so it inherits the same focus group and HDR is no longer disabled).
+  - Note: an interim attempt to do this via page.overlay.append() failed with
+    "Unknown control: FilePicker" because in 0.85 FilePicker is no longer a
+    valid overlay child. Inline instantiation is the supported approach.
+Dependency Upgrades:
+  - flet 0.84.0 -> 0.85.0 (declarative router, use_dialog() hook, video/audio improvements).
+  - flet-desktop 0.84.0 -> 0.85.0 (matches flet).
+  - requests 2.33.1 -> 2.34.0.
+  - idna 3.13 -> 3.14 (transitive, via requests).
+  - All upgrades performed via `uv lock --upgrade`; runtime/free-threaded behaviour
+    unchanged on Python 3.14t. Flet 0.85 release notes contain no FilePicker, page.overlay,
+    or window/HDR-related changes, so the Issue #216 fix is unaffected by the bump.
+Free-Threaded Python Pin Bumped to 3.14.3:
+  - Project's pinned interpreter (.python-version) bumped from "3.14+freethreaded" to
+    "3.14.3+freethreaded" — the highest 3.14 free-threaded build that astral-sh
+    (python-build-standalone) currently publishes for BOTH Windows and Linux x86_64-gnu.
+    Linux is behind Windows on patch releases (3.14.5 is Windows-only at the time of
+    bump; the same patch on Linux isn't published yet). Pinning the highest common
+    version keeps reproducibility across platforms.
+    PyInstaller specs (both Windows and Linux) continue to pass
+    [('X gil=0', None, 'OPTION')] at the bootloader level, so the bundled executable
+    starts with the GIL disabled even if a loaded C extension hasn't declared
+    Py_MOD_GIL_NOT_USED.
+  - All CI/CD workflows pinned to match the new interpreter version:
+    .github/workflows/python-app.yml ("3.14" -> "3.14.3+freethreaded"),
+    .github/workflows/pylint.yml ("3.14" -> "3.14.3+freethreaded"),
+    .github/workflows/update-download-badge.yml ("3.14t" -> "3.14.3+freethreaded"),
+    .github/workflows/build-flatpak.yml (uv python install/pin "3.14t" -> "3.14.3+freethreaded"),
+    .github/workflows/codspeed.yml ("3.14" -> "3.14.3t", and renamed step from "Set up Python 3.10"
+    to "Set up Python 3.14.3 (free-threaded)" — the codspeed workflow was previously running
+    benchmarks on regular GIL-enabled CPython, not the free-threaded interpreter the app
+    actually ships with). build_flatpak.sh and build_msi.ps1 comment/pin also updated.
+PEP 639 License Metadata Migration:
+  - Briefcase 0.4.2 now warns that the PEP 621 `license.file = "LICENSE"` format under
+    [tool.briefcase] is deprecated in favour of PEP 639. Migrated both [project] and
+    [tool.briefcase] to use `license = "AGPL-3.0-only"` (SPDX expression) plus
+    `license-files = ["LICENSE"]`. Resolves the warning emitted during `briefcase package
+    windows` and matches modern packaging tooling (setuptools >= 77, hatchling, uv).
+GIL-Unlock Audit:
+  - Audited all 34 cp314t-tagged native extensions in the dependency tree. Of those,
+    only msgpack 1.1.2's _cmsgpack module still triggers the runtime GIL re-enable
+    warning. The msgpack-python main branch has added `#cython: freethreading_compatible
+    = True` post-1.1.2, so the next msgpack release will fix this upstream. Until then,
+    PYTHON_GIL=0 / -X gil=0 keep the GIL disabled at runtime (set at the PyInstaller
+    bootloader for bundled builds; defense-in-depth env var added to the Flatpak
+    finish-args). All other native extensions (aiohttp, charset_normalizer, frozenlist,
+    markupsafe, msgspec, multidict, Pillow, propcache, psutil, rapidfuzz, winloop,
+    PyYAML, yarl, cffi) load cleanly without re-enabling the GIL.
+  - msgpack is pulled in transitively by Flet (both 0.84-linux and 0.85-win32) for its
+    RPC protocol — it is NOT a Linux-only dependency. The "serious-python" project is
+    not in play here: Flet on desktop uses the system / PyInstaller-bundled Python,
+    not serious-python (which targets mobile/web).
+  - Linux GIL-unlock confirmed wired end-to-end: DLSS_Updater_Linux.spec carries the
+    same -X gil=0 bootloader OPTION as Windows, build_flatpak.sh exports PYTHON_GIL=0
+    during the PyInstaller build phase, and io.github.recol.dlss-updater.yml now
+    sets --env=PYTHON_GIL=0 in finish-args for the runtime sandbox.
+
+Flet 0.85 API Migration:
+  - Migrated 137 call sites across 30 files from the removed module-level helpers
+    (ft.padding.all/symmetric/only/horizontal/vertical, ft.margin.*, ft.border.*,
+    ft.border_radius.*) to the new capitalized classmethods (ft.Padding.*, ft.Margin.*,
+    ft.Border.*, ft.BorderRadius.*).
+  - This was a hard removal in 0.85 (not a deprecation), so the app would crash on
+    startup without the migration (e.g. AttributeError on ft.padding.all in
+    LoadingOverlay.__init__).
+
 Version 4.1.4:
 Security - GitPython newline-injection bypass of CVE-2026-42215 (Issue #210):
   - Bumped GitPython 3.1.49 -> 3.1.50, which patches a newline-injection bypass in

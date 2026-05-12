@@ -94,13 +94,13 @@ if ! command -v uv &> /dev/null; then
     export PATH="$HOME/.cargo/bin:$PATH"
 fi
 
-# Use Python 3.14 free-threaded for Linux builds (matches Windows)
-if ! uv python list | grep -q "3.14"; then
-    echo "Installing Python 3.14 (free-threaded)..."
-    uv python install 3.14t
+# Use Python 3.14.3 free-threaded for Linux builds (matches Windows / .python-version)
+if ! uv python list | grep -q "3.14.3+freethreaded"; then
+    echo "Installing Python 3.14.3 (free-threaded)..."
+    uv python install 3.14.3+freethreaded
 fi
 
-uv python pin 3.14t
+uv python pin 3.14.3+freethreaded
 uv sync --extra build
 
 # =============================================================================

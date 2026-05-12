@@ -568,17 +568,17 @@ class MD3Spacing:
     @classmethod
     def padding(cls, top: int = 0, right: int = 0, bottom: int = 0, left: int = 0) -> ft.Padding:
         """Create Flet Padding object"""
-        return ft.padding.only(top=top, right=right, bottom=bottom, left=left)
+        return ft.Padding.only(top=top, right=right, bottom=bottom, left=left)
 
     @classmethod
     def padding_all(cls, value: int) -> ft.Padding:
         """Create uniform padding"""
-        return ft.padding.all(value)
+        return ft.Padding.all(value)
 
     @classmethod
     def padding_symmetric(cls, vertical: int = 0, horizontal: int = 0) -> ft.Padding:
         """Create symmetric padding"""
-        return ft.padding.symmetric(vertical=vertical, horizontal=horizontal)
+        return ft.Padding.symmetric(vertical=vertical, horizontal=horizontal)
 
 
 class MD3Shadows:
@@ -745,13 +745,13 @@ def create_md3_container(
         bgcolor = MD3ColorSystem.SURFACE
 
     if isinstance(padding, int):
-        padding = ft.padding.all(padding)
+        padding = ft.Padding.all(padding)
 
     return ft.Container(
         content=content,
         bgcolor=bgcolor,
         padding=padding,
-        border_radius=ft.border_radius.all(border_radius),
+        border_radius=ft.BorderRadius.all(border_radius),
         shadow=shadow,
         border=border,
         width=width,
@@ -796,8 +796,8 @@ def create_md3_card(
     return ft.Container(
         content=content,
         bgcolor=MD3ColorSystem.SURFACE,
-        padding=ft.padding.all(MD3Spacing.CARD_PADDING),
-        border_radius=ft.border_radius.all(MD3Spacing.CARD_BORDER_RADIUS),
+        padding=ft.Padding.all(MD3Spacing.CARD_PADDING),
+        border_radius=ft.BorderRadius.all(MD3Spacing.CARD_BORDER_RADIUS),
         shadow=shadow_map.get(elevation, MD3Shadows.LEVEL_2),
         on_click=on_click,
         on_hover=on_hover,
@@ -874,7 +874,7 @@ def create_md3_button(
         elevation=config["elevation"],
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=MD3Spacing.RADIUS_LARGE),
-            padding=ft.padding.symmetric(
+            padding=ft.Padding.symmetric(
                 horizontal=MD3Spacing.PADDING_LARGE,
                 vertical=MD3Spacing.PADDING_SMALL,
             ),
@@ -960,7 +960,7 @@ def create_md3_icon_button(
         icon_size=icon_size,
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=MD3Spacing.RADIUS_FULL),
-            padding=ft.padding.all(MD3Spacing.PADDING_SMALL),
+            padding=ft.Padding.all(MD3Spacing.PADDING_SMALL),
         ),
     )
 

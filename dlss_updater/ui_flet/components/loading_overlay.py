@@ -87,8 +87,8 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
             ),
             bgcolor=content_bg,
             border_radius=16,
-            padding=ft.padding.all(40),
-            border=ft.border.all(1, border_color),
+            padding=ft.Padding.all(40),
+            border=ft.Border.all(1, border_color),
             shadow=Shadows.LEVEL_5,
         )
 
@@ -193,7 +193,7 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
             content_bg = "rgba(46, 46, 46, 0.95)" if is_dark else "rgba(255, 255, 255, 0.95)"
             border_color = "rgba(255, 255, 255, 0.1)" if is_dark else "rgba(0, 0, 0, 0.1)"
             self.content_container.bgcolor = content_bg
-            self.content_container.border = ft.border.all(1, border_color)
+            self.content_container.border = ft.Border.all(1, border_color)
 
             # Update overlay background opacity
             overlay_bg = ft.Colors.with_opacity(0.7, ft.Colors.BLACK) if is_dark else ft.Colors.with_opacity(0.5, ft.Colors.BLACK)

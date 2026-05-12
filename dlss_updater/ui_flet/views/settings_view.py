@@ -146,7 +146,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
                 ],
                 spacing=12,
             ),
-            padding=ft.padding.only(bottom=16),
+            padding=ft.Padding.only(bottom=16),
         )
         self._header_icon = header.content.controls[0]
         self._header_text = header.content.controls[1]
@@ -165,7 +165,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
                     spacing=0,
                     expand=True,
                 ),
-                padding=ft.padding.all(24),
+                padding=ft.Padding.all(24),
                 expand=True,
             ),
         ]
@@ -223,10 +223,10 @@ class SettingsView(ThemeAwareMixin, ft.Column):
                 spacing=16,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.padding.all(16),
+            padding=ft.Padding.all(16),
             border_radius=12,
             bgcolor=MD3Colors.get_surface(is_dark),
-            border=ft.border.all(1, MD3Colors.get_outline(is_dark)),
+            border=ft.Border.all(1, MD3Colors.get_outline(is_dark)),
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
             on_click=on_click,
             ink=True,
