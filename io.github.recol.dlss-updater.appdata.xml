@@ -64,6 +64,18 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.1.6" date="2026-05-16">
+      <description>
+        <p>Fixed Linux Flatpak failing to launch on Steam Deck / CachyOS / strict W^X kernels (Issue #217)</p>
+        <ul>
+          <li>v4.1.5 Flatpak failed to start with "cannot enable executable stack as shared object requires: Invalid argument" because the upstream python-build-standalone 3.14.3+freethreaded artifact (introduced in v4.1.5) ships libpython3.14t.so.1.0 with PT_GNU_STACK marked executable (RWE). Modern Linux kernels enforce W^X and refuse dlopen() on shared objects requesting an executable stack, returning EINVAL</li>
+          <li>v4.1.4 used the 3.14.2+freethreaded artifact which had a clean GNU_STACK (RW); the regression is in the upstream 3.14.3 build, not the DLSS Updater code. Verified end-to-end with readelf -lW on both artifacts (RW on 3.14.2, RWE on 3.14.3)</li>
+          <li>build_flatpak.sh now runs `execstack -c` on the uv-managed Python install immediately after `uv python install`, clearing the executable-stack flag from every .so file before PyInstaller bundles them. A readelf-based hard-verify step refuses to proceed if libpython still has GNU_STACK = RWE, so a broken artifact can never silently ship again</li>
+          <li>execstack added to the apt and dnf install dependencies in build_flatpak.sh. (On Arch, execstack lives in AUR — install manually with `yay -S execstack` if building on Arch)</li>
+          <li>Build-pipeline-only fix — no application code changes. The Windows MSI is unaffected (Windows free-threaded Python ships without an executable-stack program header)</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.1.5" date="2026-05-12">
       <description>
         <p>Fixed Windows 11 HDR being disabled when opening the folder picker (Issue #216)</p>

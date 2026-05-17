@@ -1,3 +1,11 @@
+Version 4.1.6:
+Linux Flatpak Launch Failure on Steam Deck / CachyOS (Issue #217):
+  - Fixed: v4.1.5 Flatpak failed to launch on Steam Deck, CachyOS, and other distros
+    running modern Linux kernels with strict W^X enforcement. The PyInstaller bootloader
+    exited immediately with:
+        "Failed to load Python shared library '/tmp/_MEI.../libpython3.14t.so.1.0':
+         cannot enable executable stack as shared object requires: Invalid argument"
+
 Version 4.1.5:
 HDR Disabled by Folder Picker on Windows 11 (Issue #216):
   - Fixed: On Windows 11 (notably 24H2 with HDR enabled), clicking the "Add Sub-Folder"

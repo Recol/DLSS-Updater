@@ -26,19 +26,22 @@ install_deps() {
         sudo apt-get install -y \
             flatpak \
             flatpak-builder \
-            patchelf
+            patchelf \
+            execstack
     elif command -v dnf &> /dev/null; then
         echo "Detected Fedora/RHEL - installing with dnf"
         sudo dnf install -y \
             flatpak \
             flatpak-builder \
-            patchelf
+            patchelf \
+            execstack
     elif command -v pacman &> /dev/null; then
         echo "Detected Arch Linux - installing with pacman"
         sudo pacman -S --noconfirm \
             flatpak \
             flatpak-builder \
             patchelf
+        echo -e "${YELLOW}Note: execstack is in AUR on Arch — install manually if missing (yay -S execstack)${NC}"
     else
         echo -e "${RED}Could not detect package manager. Please install dependencies manually.${NC}"
         exit 1
@@ -102,6 +105,48 @@ fi
 
 uv python pin 3.14.3+freethreaded
 uv sync --extra build
+
+# =============================================================================
+# Step 3.5: Clear PT_GNU_STACK on bundled libpython (Issue #217)
+# =============================================================================
+# python-build-standalone 3.14.3+freethreaded ships libpython3.14t.so.1.0 with
+# PT_GNU_STACK marked executable (RWE). Modern Linux kernels (Steam Deck SteamOS,
+# CachyOS, recent Arch/Fedora) enforce W^X and reject dlopen() on shared objects
+# requesting an executable stack, breaking the PyInstaller-bundled application.
+# Clearing the flag here means PyInstaller copies the corrected .so into the
+# onefile bundle. 3.14.2+freethreaded did not have this flag set; the regression
+# is in the upstream 3.14.3 build.
+echo -e "\n${YELLOW}[3.5/6] Clearing PT_GNU_STACK on bundled .so files (Issue #217)...${NC}"
+
+if ! command -v execstack &> /dev/null; then
+    echo -e "${RED}Error: execstack not installed. Install with: sudo apt-get install -y execstack${NC}"
+    exit 1
+fi
+
+PY_BIN="$(uv python find 3.14.3+freethreaded)"
+# Inside a uv project, `uv python find` returns the .venv symlink. Resolve to the
+# real interpreter in ~/.local/share/uv/python/... so we patch the source-of-truth
+# libpython that PyInstaller will actually bundle.
+PY_BIN_REAL="$(readlink -f "$PY_BIN")"
+PY_ROOT="$(dirname "$(dirname "$PY_BIN_REAL")")"
+echo "Python install root: $PY_ROOT"
+
+# Clear executable stack on all .so files in the Python install.
+# execstack returns non-zero on files without a GNU_STACK header; suppress with || true.
+find "$PY_ROOT" -name '*.so*' -type f -print0 | xargs -0 -r execstack -c 2>/dev/null || true
+
+# Hard-verify libpython is clean - fail the build rather than ship a broken binary.
+LIBPY="$PY_ROOT/lib/libpython3.14t.so.1.0"
+if [ ! -f "$LIBPY" ]; then
+    echo -e "${RED}Error: libpython not found at $LIBPY${NC}"
+    exit 1
+fi
+if readelf -lW "$LIBPY" | grep -E '^\s*GNU_STACK' | grep -q 'RWE'; then
+    echo -e "${RED}Error: libpython still has executable stack after execstack -c${NC}"
+    readelf -lW "$LIBPY" | grep GNU_STACK
+    exit 1
+fi
+echo -e "${GREEN}libpython GNU_STACK verified clean (RW, not RWE)${NC}"
 
 # =============================================================================
 # Step 4: Build with PyInstaller
