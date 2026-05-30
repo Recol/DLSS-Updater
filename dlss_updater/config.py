@@ -14,6 +14,7 @@ from .models import (
     LinuxDLSSConfig,
     PerformanceConfig,
     UpdatePreferencesConfig,
+    WindowsDLSSConfig,
 )
 
 logger = setup_logger()
@@ -280,6 +281,14 @@ class ConfigManager(configparser.ConfigParser):
                 self["LinuxDLSSPresets"]["OverlayEnabled"] = "false"
                 self["LinuxDLSSPresets"]["WaylandEnabled"] = "false"
                 self["LinuxDLSSPresets"]["HDREnabled"] = "false"
+                self._save_unlocked()
+
+            # Initialize WindowsDLSSPresets section with defaults if missing
+            if not self.has_section("WindowsDLSSPresets"):
+                self.add_section("WindowsDLSSPresets")
+                self["WindowsDLSSPresets"]["SelectedPreset"] = "default"
+                self["WindowsDLSSPresets"]["RRPreset"] = "default"
+                self["WindowsDLSSPresets"]["FGPreset"] = "default"
                 self._save_unlocked()
 
             # Initialize SteamAPI section for Steam Web API authentication
@@ -739,6 +748,47 @@ class ConfigManager(configparser.ConfigParser):
             self["LinuxDLSSPresets"]["OverlayEnabled"] = str(config.overlay_enabled).lower()
             self["LinuxDLSSPresets"]["WaylandEnabled"] = str(config.wayland_enabled).lower()
             self["LinuxDLSSPresets"]["HDREnabled"] = str(config.hdr_enabled).lower()
+            self._save_unlocked()
+
+    # =========================================================================
+    # Windows DLSS SR Presets Configuration (NvAPI Driver Settings)
+    # =========================================================================
+
+    def get_windows_dlss_config(self) -> WindowsDLSSConfig:
+        """
+        Get Windows DLSS preset configuration (SR/RR/FG).
+
+        Returns:
+            WindowsDLSSConfig with the persisted global preset selections.
+        """
+        with _config_lock:
+            if not self.has_section("WindowsDLSSPresets"):
+                return WindowsDLSSConfig()
+
+            section = self["WindowsDLSSPresets"]
+            return WindowsDLSSConfig(
+                selected_preset=section.get("SelectedPreset", "default"),
+                rr_preset=section.get("RRPreset", "default"),
+                fg_preset=section.get("FGPreset", "default"),
+            )
+
+    def save_windows_dlss_config(self, config: WindowsDLSSConfig) -> None:
+        """
+        Save Windows DLSS preset configuration (SR/RR/FG).
+
+        Note: this only persists the selection. Applying it to the driver is
+        done separately via dlss_updater.nvapi_drs.apply_presets().
+
+        Args:
+            config: WindowsDLSSConfig to save.
+        """
+        with _config_lock:
+            if not self.has_section("WindowsDLSSPresets"):
+                self.add_section("WindowsDLSSPresets")
+
+            self["WindowsDLSSPresets"]["SelectedPreset"] = config.selected_preset
+            self["WindowsDLSSPresets"]["RRPreset"] = config.rr_preset
+            self["WindowsDLSSPresets"]["FGPreset"] = config.fg_preset
             self._save_unlocked()
 
     # =========================================================================

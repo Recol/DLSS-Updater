@@ -28,6 +28,13 @@ What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on yo
   - Automatic Steam path detection on Linux
   - Custom folder support for any game location
   - Enable the DLSS Debug Overlay
+- **Configurable DLSS Presets (Windows, experimental):**
+  - "DLSS Settings" card on the home page sets global DLSS preset overrides for every game
+  - Super Resolution (SR): Default / Latest / Preset J / K / L / M
+  - Ray Reconstruction (RR): Default / Latest model
+  - Frame Generation (FG): Default / Latest / Preset A / B
+  - Applied to the NVIDIA driver base profile (the same mechanism as the NVIDIA App's global override); shows the currently applied preset and takes effect at the next game launch
+  - Note: per-game overrides set in the NVIDIA App take priority — set its DLSS override to Default/Off to let this global setting apply
 - **DLSS SR Preset Override (Linux only):**
   - Configure DLSS Super Resolution presets (K/L/M) with GPU-based recommendations
   - Preset L is heavier and may reduce performance

@@ -27,6 +27,7 @@ class FeatureSupport(NamedTuple):
     admin_elevation: bool
     dlss_linux_overlay: bool        # Can use debug overlay via env vars (Linux only)
     dlss_linux_presets: bool        # Can configure SR presets via env vars (Linux only)
+    dlss_windows_presets: bool      # Can set global SR preset via NvAPI DRS (Windows + NVIDIA)
     nvidia_gpu_detected: bool       # NVIDIA GPU present (checked at startup)
 
 
@@ -77,6 +78,22 @@ def _check_nvidia_gpu_present() -> bool:
         return False
 
 
+def _check_nvapi_available() -> bool:
+    """
+    Check whether the NVIDIA driver's NvAPI library is present (Windows only).
+
+    This is a more reliable signal than NVML for NvAPI-based features (DLSS
+    preset override): the package providing NVML (nvidia-ml-py) is optional and
+    may not be bundled, whereas nvapi64.dll ships with every NVIDIA driver.
+
+    Returns:
+        True if nvapi64.dll exists on Windows, False otherwise.
+    """
+    if sys.platform != 'win32':
+        return False
+    return os.path.exists(r"C:\Windows\System32\nvapi64.dll")
+
+
 def get_feature_support() -> FeatureSupport:
     """
     Get feature availability for current platform.
@@ -88,6 +105,9 @@ def get_feature_support() -> FeatureSupport:
     nvidia_gpu = _check_nvidia_gpu_present()
 
     if platform == Platform.WINDOWS:
+        # DLSS preset override needs NvAPI. Trust nvapi64.dll presence as the
+        # primary signal, falling back to NVML detection if the DLL check fails.
+        nvapi_present = _check_nvapi_available()
         return FeatureSupport(
             registry_access=True,
             dlss_overlay=True,
@@ -96,6 +116,7 @@ def get_feature_support() -> FeatureSupport:
             admin_elevation=True,
             dlss_linux_overlay=False,           # Windows doesn't need this
             dlss_linux_presets=False,           # Windows doesn't need this
+            dlss_windows_presets=nvapi_present or nvidia_gpu,  # NvAPI DRS override
             nvidia_gpu_detected=nvidia_gpu,
         )
     elif platform == Platform.LINUX:
@@ -107,6 +128,7 @@ def get_feature_support() -> FeatureSupport:
             admin_elevation=False,  # Flatpak sandboxing handles permissions
             dlss_linux_overlay=True,            # Always available on Linux
             dlss_linux_presets=True,            # Always available on Linux
+            dlss_windows_presets=False,         # Windows-only (NvAPI DRS)
             nvidia_gpu_detected=nvidia_gpu,
         )
     else:
@@ -119,6 +141,7 @@ def get_feature_support() -> FeatureSupport:
             admin_elevation=False,
             dlss_linux_overlay=False,
             dlss_linux_presets=False,
+            dlss_windows_presets=False,
             nvidia_gpu_detected=False,
         )
 

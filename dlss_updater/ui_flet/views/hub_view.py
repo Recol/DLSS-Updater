@@ -31,11 +31,13 @@ class HubView(ThemeAwareMixin, ft.Column):
         page: ft.Page,
         logger: logging.Logger,
         on_navigate=None,
+        on_open_dlss_settings=None,
     ):
         super().__init__()
         self._page_ref = page
         self.logger = logger
         self._on_navigate = on_navigate
+        self._on_open_dlss_settings = on_open_dlss_settings
         self.expand = True
         self.alignment = ft.MainAxisAlignment.CENTER
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
@@ -83,12 +85,29 @@ class HubView(ThemeAwareMixin, ft.Column):
             page=page,
         )
 
-        # Left column: Launchers + Settings stacked
+        # DLSS Settings card (Windows + NVIDIA only) - global SR preset override
+        from dlss_updater.platform_utils import FEATURES
+        left_cards = [self._launchers_card]
+        self._dlss_settings_card = None
+        if FEATURES.dlss_windows_presets and on_open_dlss_settings:
+            self._dlss_settings_card = HubCard(
+                title="DLSS Settings",
+                subtitle="Global DLSS preset\noverrides (SR/RR/FG)",
+                icon=ft.Icons.AUTO_AWESOME,
+                accent_color_dark="#76B900",   # NVIDIA green
+                accent_color_light="#558B00",
+                icon_size=40,
+                title_size=18,
+                on_click=lambda e: self._open_dlss_settings(),
+                border_radius_val=16,
+                page=page,
+            )
+            left_cards.append(self._dlss_settings_card)
+        left_cards.append(self._settings_card)
+
+        # Left column: Launchers (+ DLSS Settings) + Settings stacked
         left_column = ft.Column(
-            controls=[
-                self._launchers_card,
-                self._settings_card,
-            ],
+            controls=left_cards,
             spacing=16,
             expand=True,
             width=280,
@@ -128,6 +147,11 @@ class HubView(ThemeAwareMixin, ft.Column):
         if self._on_navigate:
             if self._page_ref:
                 self._page_ref.run_task(self._on_navigate, view_name)
+
+    def _open_dlss_settings(self):
+        """Open the DLSS Settings panel (global SR preset override)."""
+        if self._on_open_dlss_settings and self._page_ref:
+            self._page_ref.run_task(self._on_open_dlss_settings)
 
     async def load_stats(self):
         """Load hub card stats via HyperParallelLoader."""

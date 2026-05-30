@@ -7,6 +7,7 @@ from .release_notes_panel import ReleaseNotesPanel
 from .blacklist_panel import BlacklistPanel
 from .ui_preferences_panel import UIPreferencesPanel
 from .linux_dlss_panel import LinuxDLSSPresetsPanel
+from .dlss_settings_panel import WindowsDLSSPresetsPanel
 from .ignore_list_panel import IgnoreListPanel
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "BlacklistPanel",
     "UIPreferencesPanel",
     "LinuxDLSSPresetsPanel",
+    "WindowsDLSSPresetsPanel",
     "IgnoreListPanel",
 ]

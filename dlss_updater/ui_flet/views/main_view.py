@@ -74,7 +74,7 @@ from dlss_updater.ui_flet.components.theme_manager import ThemeManager
 from dlss_updater.ui_flet.theme.colors import Shadows
 from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDialog
 from dlss_updater.ui_flet.components.slide_panel import PanelManager
-from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel, LinuxDLSSPresetsPanel, IgnoreListPanel
+from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel, LinuxDLSSPresetsPanel, WindowsDLSSPresetsPanel, IgnoreListPanel
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
@@ -234,6 +234,7 @@ class MainView(ft.Column):
             page=self._page_ref,
             logger=self.logger,
             on_navigate=self._on_hub_navigate,
+            on_open_dlss_settings=self._on_dlss_settings_clicked,
         )
 
         # Create navigation controller (replaces tab bar)
@@ -1047,6 +1048,12 @@ class MainView(ft.Column):
         """Handle Linux DLSS SR presets settings button click"""
         panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
         panel = LinuxDLSSPresetsPanel(self._page_ref, self.logger)
+        await panel_manager.show_content(panel)
+
+    async def _on_dlss_settings_clicked(self, e=None):
+        """Handle Windows DLSS Settings (global SR preset) button click"""
+        panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
+        panel = WindowsDLSSPresetsPanel(self._page_ref, self.logger)
         await panel_manager.show_content(panel)
 
     async def _on_settings_clicked(self, e):

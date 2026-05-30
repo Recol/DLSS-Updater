@@ -64,6 +64,17 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.1.7" date="2026-05-30">
+      <description>
+        <p>New DLSS Settings: global DLSS preset overrides for SR / RR / FG (Windows)</p>
+        <ul>
+          <li>A new "DLSS Settings" card on the home page lets you force global DLSS presets for every game via the NVIDIA driver's NvAPI Driver Settings — the same base-profile mechanism the NVIDIA App uses. Super Resolution exposes Default/Latest/Preset J/K/L/M; Ray Reconstruction and Frame Generation expose Default/Latest model. Applied the next time each game launches; the panel shows the currently applied driver preset for each component on open</li>
+          <li>Note: the NVIDIA App's DLSS override also writes per-game overrides that take priority over this global setting for those games. Set the DLSS override to Default/Off in the NVIDIA App to let this global setting apply (the panel explains this inline)</li>
+          <li>Windows + NVIDIA only; the existing Linux DLSS SR preset panel (DXVK-NVAPI launch options) is unchanged</li>
+          <li>Dependency upgrade: flet and flet-desktop 0.85.0 -&gt; 0.85.2 (Windows); restored nvidia-ml-py for GPU detection</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.1.6" date="2026-05-16">
       <description>
         <p>Fixed Linux Flatpak failing to launch on Steam Deck / CachyOS / strict W^X kernels (Issue #217)</p>

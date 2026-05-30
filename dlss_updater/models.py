@@ -544,3 +544,113 @@ class LinuxDLSSConfig(msgspec.Struct, frozen=True):
     overlay_enabled: bool = False
     wayland_enabled: bool = False
     hdr_enabled: bool = False
+
+
+# =============================================================================
+# Windows DLSS Presets (NvAPI Driver Settings) - SR / RR / FG
+# =============================================================================
+
+class WindowsDLSSPreset(StrEnum):
+    """
+    DLSS Super Resolution render presets for Windows via NvAPI Driver Settings.
+
+    These map to the global override the NVIDIA App writes to the driver base
+    profile (NGX_DLSS_SR_OVERRIDE_RENDER_PRESET_SELECTION). Setting a preset
+    forces every DLSS title to use it regardless of the game's own request.
+
+    See dlss_updater.nvapi_drs for the driver enum values.
+    """
+    DEFAULT = "default"      # No override - game/driver default
+    LATEST = "latest"        # Always use the newest available preset
+    PRESET_J = "preset_j"    # Transformer model (slightly less ghosting than K)
+    PRESET_K = "preset_k"    # Default for DLAA/Quality/Balanced
+    PRESET_L = "preset_l"    # Default for UltraPerformance (RTX 40+)
+    PRESET_M = "preset_m"    # Default for Performance (RTX 40+)
+
+    @property
+    def display_name(self) -> str:
+        """Human-readable display name."""
+        names = {
+            "default": "Default (No Override)",
+            "latest": "Latest (Always Newest)",
+            "preset_j": "Preset J (Transformer)",
+            "preset_k": "Preset K (Quality/Balanced)",
+            "preset_l": "Preset L (Sharper, RTX 40+)",
+            "preset_m": "Preset M (Performance, RTX 40+)",
+        }
+        return names.get(self.value, self.value)
+
+    @property
+    def description(self) -> str:
+        """Description of the preset's characteristics."""
+        descriptions = {
+            "default": "Let each game and the driver choose the preset (no global override).",
+            "latest": "Always use the newest preset shipped with the driver/DLL.",
+            "preset_j": "Transformer model. Less ghosting than K but may flicker slightly more.",
+            "preset_k": "Default for DLAA/Quality/Balanced. Lighter, great on RTX 20/30.",
+            "preset_l": "Sharper, more stable image with less ghosting. Peaks on RTX 40+.",
+            "preset_m": "Preset L-like quality at near-K speed. Peaks on RTX 40+.",
+        }
+        return descriptions.get(self.value, "")
+
+
+class WindowsDLSSModelPreset(StrEnum):
+    """
+    Default/Latest model override for DLSS Ray Reconstruction (RR) via NvAPI
+    Driver Settings.
+
+    Unlike SR (which exposes documented named presets J/K/L/M), the RR render
+    presets are undocumented internal model variants. The meaningful, user-facing
+    control - matching the NVIDIA App's DLSS 4 override - is forcing the newest
+    model ("Latest") or leaving it to the game/driver ("Default").
+    """
+    DEFAULT = "default"  # No override - game/driver default
+    LATEST = "latest"    # Always use the newest model
+
+    @property
+    def display_name(self) -> str:
+        names = {
+            "default": "Default (No Override)",
+            "latest": "Latest (Newest Model)",
+        }
+        return names.get(self.value, self.value)
+
+
+class WindowsDLSSFGPreset(StrEnum):
+    """
+    Frame Generation (FG) preset override via NvAPI Driver Settings.
+
+    FG exposes a couple of named model presets (A, B) in addition to
+    Default/Latest. Higher lettered presets exist in the driver enum but are
+    undocumented internal variants and are intentionally not surfaced.
+    """
+    DEFAULT = "default"   # No override - game/driver default
+    LATEST = "latest"     # Always use the newest model
+    PRESET_A = "preset_a"
+    PRESET_B = "preset_b"
+
+    @property
+    def display_name(self) -> str:
+        names = {
+            "default": "Default (No Override)",
+            "latest": "Latest (Newest Model)",
+            "preset_a": "Preset A",
+            "preset_b": "Preset B",
+        }
+        return names.get(self.value, self.value)
+
+
+class WindowsDLSSConfig(msgspec.Struct, frozen=True):
+    """
+    Configuration for the global Windows DLSS preset overrides (SR/RR/FG).
+
+    Persisted to config.ini and applied to the NVIDIA driver base profile via
+    NvAPI DRS (see dlss_updater.nvapi_drs).
+
+    - selected_preset: SR (Super Resolution) preset key (WindowsDLSSPreset)
+    - rr_preset:       RR (Ray Reconstruction) model key (WindowsDLSSModelPreset)
+    - fg_preset:       FG (Frame Generation) model key (WindowsDLSSModelPreset)
+    """
+    selected_preset: str = "default"  # SR (name kept for back-compat)
+    rr_preset: str = "default"
+    fg_preset: str = "default"
