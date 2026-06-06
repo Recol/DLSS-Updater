@@ -25,7 +25,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
     not be included in page.update() and would require individual card.update() calls.
     """
 
-    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None):
+    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None, on_resolve=None):
         super().__init__()
 
         # Handle both Game and MergedGame
@@ -45,6 +45,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self.on_view_backups_callback = on_view_backups
         self.on_restore_callback = on_restore
         self.on_ignore_toggle_callback = on_ignore_toggle
+        self.on_resolve_callback = on_resolve
         self.backup_groups = backup_groups or {}
         self.has_backups = bool(backup_groups)
         self.is_ignored = is_ignored
@@ -245,14 +246,14 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
         # Game name text - store reference for theming
         self.game_name_text = ft.Text(
-            self.game.name,
+            self.game.display_name,
             size=16,
             weight=ft.FontWeight.BOLD,
             color=MD3Colors.get_text_primary(is_dark),
             max_lines=1,
             overflow=ft.TextOverflow.ELLIPSIS,
             no_wrap=True,  # Prevent wrapping to maintain consistent card height
-            tooltip=self.game.name,  # Show full name on hover
+            tooltip=self.game.display_name,  # Show full name on hover
         )
 
         # Launcher text - store reference for theming
@@ -312,6 +313,22 @@ class GameCard(ThemeAwareMixin, ft.Card):
             if self.update_button:
                 self.update_button.disabled = True
 
+        # Resolve / link-to-Steam overlay button (bottom-right of image, like ignore button)
+        self.resolve_button = ft.IconButton(
+            icon=ft.Icons.EDIT,
+            icon_size=14,
+            tooltip="Edit display" if self.game.is_manually_resolved else "Edit display (image & name)",
+            on_click=self._on_resolve_clicked,
+            width=26,
+            height=26,
+            style=ft.ButtonStyle(
+                color={ft.ControlState.DEFAULT: ft.Colors.WHITE},
+                bgcolor={ft.ControlState.DEFAULT: ft.Colors.with_opacity(0.55, ft.Colors.BLACK)},
+                padding=ft.Padding.all(4),
+                shape=ft.RoundedRectangleBorder(radius=7),
+            ),
+        )
+
         # PERFORMANCE: Flattened action buttons row (removed Container wrapper)
         action_buttons_controls = [
             self.update_button,
@@ -341,7 +358,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             alignment=ft.MainAxisAlignment.START,
         )
 
-        # Image with ignore overlay (Stack: image + positioned ignore button)
+        # Image with overlays: ignore (top-right) + resolve/edit (bottom-right)
         self._image_stack = ft.Stack(
             controls=[
                 self.image_container,
@@ -349,6 +366,11 @@ class GameCard(ThemeAwareMixin, ft.Card):
                     content=self.ignore_button,
                     right=2,
                     top=2,
+                ),
+                ft.Container(
+                    content=self.resolve_button,
+                    right=2,
+                    bottom=2,
                 ),
             ],
             width=140,
@@ -632,7 +654,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
         Returns an IconButton that opens the game via steam:// protocol,
         or None for non-Steam games (button is not shown).
         """
-        is_steam = self.game.launcher == "Steam" and self.game.steam_app_id
+        is_steam = self.game.launcher == "Steam" and self.game.effective_steam_app_id
         if not is_steam:
             return None
 
@@ -656,10 +678,10 @@ class GameCard(ThemeAwareMixin, ft.Card):
         import subprocess
         import sys
 
-        if not self.game.steam_app_id:
+        if not self.game.effective_steam_app_id:
             return
 
-        url = f"steam://rungameid/{self.game.steam_app_id}"
+        url = f"steam://rungameid/{self.game.effective_steam_app_id}"
         try:
             if sys.platform == "linux":
                 subprocess.Popen(
@@ -671,6 +693,76 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 webbrowser.open(url)
         except Exception as ex:
             self.logger.warning(f"Failed to launch game: {ex}")
+
+    def _on_resolve_clicked(self, e):
+        """Open the Steam resolve dialog."""
+        if self._page_ref:
+            self._page_ref.run_task(self._show_resolve_dialog)
+
+    async def _show_resolve_dialog(self):
+        from dlss_updater.ui_flet.dialogs.steam_resolve_dialog import SteamResolveDialog
+        dialog = SteamResolveDialog(
+            page=self._page_ref,
+            logger=self.logger,
+            game=self.game,
+            on_resolved=self._on_resolved,
+        )
+        await dialog.show()
+
+    def _on_resolved(self, override_steam_app_id: int, display_name_override: str):
+        """Called by dialog after a successful save or clear."""
+        if self._page_ref:
+            self._page_ref.run_task(
+                self.apply_resolution, override_steam_app_id, display_name_override
+            )
+
+    async def apply_resolution(self, override_steam_app_id: int, display_name_override: str):
+        """Update card UI after the user links or clears a Steam override.
+
+        Resets the image, updates the title, and refreshes the link button icon.
+        Also fires on_resolve_callback so GamesView can reload the full card if needed.
+        """
+        async with self._ui_lock:
+            # Update in-memory game fields (Game is a non-frozen msgspec.Struct)
+            if override_steam_app_id:
+                self.game.override_steam_app_id = override_steam_app_id
+                self.game.display_name_override = display_name_override or None
+            else:
+                self.game.override_steam_app_id = None
+                self.game.display_name_override = None
+
+            # Refresh title text
+            new_name = self.game.display_name
+            self.game_name_text.value = new_name
+            self.game_name_text.tooltip = new_name
+
+            # Refresh resolve button tooltip
+            self.resolve_button.tooltip = "Edit display" if self.game.is_manually_resolved else "Edit display (image & name)"
+
+            # Reset image so it reloads with the new (or cleared) app_id
+            self._image_loaded = False
+            self.image_container.content = self._create_skeleton_loader()
+            self.image_container.opacity = 1.0
+
+        self.update()
+
+        # Reload image for new app_id (non-blocking)
+        if self.game.effective_steam_app_id:
+            task = asyncio.create_task(self.load_image())
+            task_name = f"resolve_image_{self.game.name[:15]}"
+            try:
+                from dlss_updater.ui_flet.task_registry import register_task
+                register_task(task, task_name)
+            except Exception:
+                pass
+
+        # Notify GamesView so it can persist any coordinated state
+        if self.on_resolve_callback:
+            self.on_resolve_callback(
+                self.merged_game if self.merged_game else self.game,
+                override_steam_app_id,
+                display_name_override,
+            )
 
     async def _show_dll_dialog(self):
         """Show the grouped DLL dialog with technology categories"""
@@ -733,7 +825,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
         if self._image_loaded:
             return
 
-        if not self.game.steam_app_id:
+        effective_app_id = self.game.effective_steam_app_id
+        if not effective_app_id:
             self.logger.debug(f"No Steam app ID for {self.game.name}, skipping image")
             return
 
@@ -744,7 +837,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             # Use prefetched path or check cache
             cached_path = prefetched_path
             if cached_path is None:
-                cached_path = await db_manager.get_cached_image_path(self.game.steam_app_id)
+                cached_path = await db_manager.get_cached_image_path(effective_app_id)
 
             image_path = None
 
@@ -759,8 +852,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
             # Fetch from Steam CDN if no valid cached path
             if image_path is None:
-                self.logger.info(f"Fetching Steam image for {self.game.name} (app_id: {self.game.steam_app_id})")
-                fetched_path = await fetch_steam_image(self.game.steam_app_id)
+                self.logger.info(f"Fetching Steam image for {self.game.name} (app_id: {effective_app_id})")
+                fetched_path = await fetch_steam_image(effective_app_id)
                 if fetched_path:
                     image_path = str(fetched_path)
                     self.logger.info(f"Successfully fetched image for {self.game.name}")

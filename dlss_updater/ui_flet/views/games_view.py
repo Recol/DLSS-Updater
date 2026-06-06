@@ -196,9 +196,6 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self.game_card_containers: dict[int, ft.Container] = {}  # game_id -> container wrapper
         self.update_coordinator: AsyncUpdateCoordinator | None = None
 
-        # Button references for state management
-        self.delete_db_button: ft.ElevatedButton | None = None
-
         # Search state
         self.search_query: str = ""
         self._search_generation: int = 0
@@ -207,6 +204,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Personal ignore list state
         self._ignored_game_ids: set[int] = set()
         self._show_ignored_games: bool = True  # Default: show ignored games (dimmed)
+
+        # Options menu state
+        self._has_games: bool = False
+        self.options_menu: ft.PopupMenuButton | None = None
+        self._options_icon: ft.Icon | None = None
+        self._delete_menu_item: ft.PopupMenuItem | None = None
 
         # PERFORMANCE: Track if games are already loaded to prevent redundant rebuilds
         # on tab switching. Only reload on explicit refresh or when forced=True
@@ -225,37 +228,61 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Register with theme system after UI is built
         self._register_theme_aware()
 
-    def _create_delete_db_button(self) -> ft.ElevatedButton:
-        """Create and store reference to Delete Database button"""
-        self.delete_db_button = ft.ElevatedButton(
-            "Delete Database",
-            icon=ft.Icons.DELETE_SWEEP,
+    def _build_options_menu_items(self) -> list[ft.PopupMenuItem]:
+        """Build options popup menu items reflecting current state."""
+        is_dark = self._get_is_dark()
+        on_surface = MD3Colors.get_on_surface(is_dark)
+        icon_default = MD3Colors.get_themed("icon_default", is_dark)
+
+        ignore_icon = ft.Icons.VISIBILITY_OFF if self._show_ignored_games else ft.Icons.VISIBILITY
+        ignore_label = "Hide ignored games" if self._show_ignored_games else "Show ignored games"
+
+        self._delete_menu_item = ft.PopupMenuItem(
+            content=ft.Row([
+                ft.Icon(ft.Icons.DELETE_SWEEP, size=18,
+                        color=ft.Colors.RED_400 if self._has_games else ft.Colors.GREY_600),
+                ft.Text("Delete Database", size=14,
+                        color=ft.Colors.RED_400 if self._has_games else ft.Colors.GREY_600),
+            ], spacing=8),
             on_click=self._on_delete_all_clicked,
-            disabled=True,  # Initially disabled until games are loaded
-            style=ft.ButtonStyle(
-                bgcolor=ft.Colors.RED_400,
-                color=ft.Colors.WHITE,
-            ),
+            disabled=not self._has_games,
         )
-        return self.delete_db_button
+
+        return [
+            ft.PopupMenuItem(
+                content=ft.Row([
+                    ft.Icon(ignore_icon, size=18, color=icon_default),
+                    ft.Text(ignore_label, size=14, color=on_surface),
+                ], spacing=8),
+                on_click=self._on_ignore_filter_toggle,
+            ),
+            ft.PopupMenuItem(),  # Divider
+            self._delete_menu_item,
+        ]
 
     def _update_delete_button_state(self, has_games: bool):
-        """Update delete button enabled/disabled state"""
-        if self.delete_db_button:
-            self.delete_db_button.disabled = not has_games
+        """Update delete menu item enabled/disabled state."""
+        self._has_games = has_games
+        if self.options_menu:
+            self.options_menu.items = self._build_options_menu_items()
+            try:
+                self.options_menu.update()
+            except Exception:
+                pass
 
     def _build_ui(self):
         """Build initial UI with empty state"""
         # Get theme preference from registry
         is_dark = self._get_is_dark()
 
-        # Create search bar
+        # Create expandable search bar (collapses to icon by default)
         self.search_bar = SearchBar(
             on_search=self._on_search_changed,
             on_clear=self._on_search_cleared,
             on_history_selected=self._on_history_selected,
             placeholder="Search games...",
-            width=300,
+            expandable=True,
+            expanded_width=300,
         )
 
         # Store themed element references
@@ -281,12 +308,21 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         self.divider = ft.Divider(height=1, color=MD3Colors.get_outline(is_dark))
 
-        # Ignore filter button (in header row alongside other actions)
-        self.ignore_filter_button = ft.IconButton(
-            icon=ft.Icons.VISIBILITY,
-            icon_size=18,
-            tooltip="Hide ignored games",
-            on_click=self._on_ignore_filter_toggle,
+        # Options popup menu (contains hide ignored + delete database)
+        self._options_icon = ft.Icon(
+            ft.Icons.TUNE,
+            size=20,
+        )
+        self.options_menu = ft.PopupMenuButton(
+            content=ft.Container(
+                content=self._options_icon,
+                width=40,
+                height=40,
+                border_radius=8,
+                alignment=ft.Alignment.CENTER,
+                tooltip="More options",
+            ),
+            items=self._build_options_menu_items(),
         )
 
         # Header
@@ -297,9 +333,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                     self.backup_stats_text,
                     ft.Container(expand=True),  # Spacer
                     self.search_bar,
-                    ft.Container(width=8),  # Spacing
-                    self.ignore_filter_button,
-                    self._create_delete_db_button(),
+                    self.options_menu,
                     ft.IconButton(
                         icon=ft.Icons.REFRESH,
                         tooltip="Refresh Games",
@@ -405,6 +439,13 @@ class GamesView(ThemeAwareMixin, ft.Column):
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme."""
         await super().apply_theme(is_dark, delay_ms)
+        # Rebuild options menu items to apply new theme colors
+        if self.options_menu:
+            self.options_menu.items = self._build_options_menu_items()
+            try:
+                self.options_menu.update()
+            except Exception:
+                pass
 
     async def load_games(self, force: bool = False):
         """Load games from database and display.
@@ -547,8 +588,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
             for mg in merged_games:
                 all_merged_games.append((launcher, mg))
                 all_game_ids.extend(mg.all_game_ids)
-                if mg.primary_game.steam_app_id:
-                    all_steam_app_ids.append(mg.primary_game.steam_app_id)
+                eff = mg.primary_game.effective_steam_app_id
+                if eff:
+                    all_steam_app_ids.append(eff)
 
         collect_ms = (time.perf_counter() - start_collect) * 1000
         self.logger.debug(f"[PERF] Collected {len(all_merged_games)} merged games, {len(all_game_ids)} game_ids: {collect_ms:.1f}ms")
@@ -615,6 +657,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 backup_groups=backup_groups,
                 is_ignored=is_ignored,
                 on_ignore_toggle=self._on_game_ignore_toggle,
+                on_resolve=self._on_game_resolve,
             )
             card.opacity = 0 if not is_ignored else 0.5
             card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
@@ -662,8 +705,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 initial_card_count += 1
 
                 # Pre-set cached image if available
-                if mg.primary_game.steam_app_id and mg.primary_game.steam_app_id in cached_image_paths:
-                    card.image_widget.src = cached_image_paths[mg.primary_game.steam_app_id]
+                eff_id = mg.primary_game.effective_steam_app_id
+                if eff_id and eff_id in cached_image_paths:
+                    card.image_widget.src = cached_image_paths[eff_id]
                     card.image_container.content = card.image_widget
                     card._image_loaded = True
 
@@ -706,7 +750,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         register_task(anim_task, "animate_all_cards")
 
         # Load uncached images in background
-        uncached_cards = [c for c in all_cards_for_animation if not c._image_loaded and c.game.steam_app_id]
+        uncached_cards = [c for c in all_cards_for_animation if not c._image_loaded and c.game.effective_steam_app_id]
         if uncached_cards:
             img_task = asyncio.create_task(self._load_uncached_images(uncached_cards))
             register_task(img_task, "load_uncached_images")
@@ -738,7 +782,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             # Collect unique app_ids to fetch (avoid duplicate requests)
             app_id_to_cards: dict[int, list[GameCard]] = {}
             for card in cards:
-                app_id = card.game.steam_app_id
+                app_id = card.game.effective_steam_app_id
                 if app_id:
                     if app_id not in app_id_to_cards:
                         app_id_to_cards[app_id] = []
@@ -823,12 +867,13 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 loaded += len(new_cards)
 
                 # Load images for new cards
-                steam_ids = [c.game.steam_app_id for c in new_cards if c.game.steam_app_id]
+                steam_ids = [c.game.effective_steam_app_id for c in new_cards if c.game.effective_steam_app_id]
                 if steam_ids:
                     cached_paths = await db_manager.batch_get_cached_image_paths(steam_ids)
                     for card in new_cards:
-                        if card.game.steam_app_id:
-                            path = cached_paths.get(card.game.steam_app_id)
+                        eff = card.game.effective_steam_app_id
+                        if eff:
+                            path = cached_paths.get(eff)
                             task = asyncio.create_task(card.load_image(path, coordinator=coordinator))
                             register_task(task, f"load_image_bg_{card.game.name[:15]}")
 
@@ -874,8 +919,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                     self.game_card_containers[mg.primary_game.id] = card
 
                     # Pre-set cached image if available
-                    if mg.primary_game.steam_app_id and mg.primary_game.steam_app_id in cached_image_paths:
-                        card.image_widget.src = cached_image_paths[mg.primary_game.steam_app_id]
+                    eff_id = mg.primary_game.effective_steam_app_id
+                    if eff_id and eff_id in cached_image_paths:
+                        card.image_widget.src = cached_image_paths[eff_id]
                         card.image_container.content = card.image_widget
                         card._image_loaded = True
 
@@ -905,7 +951,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                     c
                     for cards in new_cards_by_launcher.values()
                     for c in cards
-                    if not c._image_loaded and c.game.steam_app_id
+                    if not c._image_loaded and c.game.effective_steam_app_id
                 ]
                 if uncached_in_batch:
                     img_task = asyncio.create_task(self._load_uncached_images(uncached_in_batch))
@@ -1018,8 +1064,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
     def _on_ignore_filter_toggle(self, e):
         """Toggle visibility of ignored games."""
         self._show_ignored_games = not self._show_ignored_games
-        self.ignore_filter_button.icon = ft.Icons.VISIBILITY if self._show_ignored_games else ft.Icons.VISIBILITY_OFF
-        self.ignore_filter_button.tooltip = "Hide ignored games" if self._show_ignored_games else "Show ignored games"
+        if self.options_menu:
+            self.options_menu.items = self._build_options_menu_items()
+            try:
+                self.options_menu.update()
+            except Exception:
+                pass
         self._apply_visibility()
         self.update()
 
@@ -1054,6 +1104,20 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         action = "ignored" if ignored else "un-ignored"
         self.logger.info(f"Game '{game_name}' {action}")
+
+    def _on_game_resolve(self, game, override_steam_app_id: int, display_name_override: str):
+        """Handle Steam resolve callback from GameCard — fires after DB write succeeds."""
+        # The card already updated its own UI via apply_resolution().
+        # GamesView just needs to log; no additional DB work needed here since
+        # the dialog already called db_manager.set_game_override().
+        game_name = game.primary_game.name if isinstance(game, MergedGame) else game.name
+        if override_steam_app_id:
+            self.logger.info(
+                f"Game '{game_name}' linked to Steam App ID {override_steam_app_id} "
+                f"({display_name_override})"
+            )
+        else:
+            self.logger.info(f"Cleared Steam override for '{game_name}'")
 
     # ===== Search Methods =====
 

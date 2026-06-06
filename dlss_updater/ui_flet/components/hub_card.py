@@ -86,7 +86,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
             visible=False,
             padding=ft.Padding.symmetric(horizontal=8, vertical=2),
             border_radius=10,
-            bgcolor=f"{accent}15",
+            bgcolor=f"#1F{accent[1:]}",
         )
 
         card_content = ft.Column(
@@ -185,7 +185,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
         self._title_text.color = MD3Colors.get_on_surface(is_dark)
         self._subtitle_text.color = MD3Colors.get_on_surface_variant(is_dark)
         self._stats_text.color = accent
-        self._stats_badge.bgcolor = f"{accent}15"
+        self._stats_badge.bgcolor = f"#1F{accent[1:]}"
 
         try:
             self.update()

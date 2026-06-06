@@ -189,6 +189,27 @@ class Game(msgspec.Struct):
     last_scanned: datetime = msgspec.field(default_factory=datetime.now)
     created_at: datetime = msgspec.field(default_factory=datetime.now)
     resolution_source: str | None = None  # 'manifest', 'api', 'store_search', 'fts5'
+    # User-set manual resolution (issue #202). These are NEVER touched by the
+    # scanner/upsert, so they survive rescans and keep the folder-derived `name`
+    # intact as the merge/backup/history key. A non-NULL override_steam_app_id
+    # marks the game as manually resolved and excludes it from the GLOBAL updater.
+    override_steam_app_id: int | None = None
+    display_name_override: str | None = None
+
+    @property
+    def effective_steam_app_id(self) -> int | None:
+        """App ID used for image + identity: manual override wins over scanned."""
+        return self.override_steam_app_id or self.steam_app_id
+
+    @property
+    def display_name(self) -> str:
+        """Display title: manual override wins over folder-derived name."""
+        return self.display_name_override or self.name
+
+    @property
+    def is_manually_resolved(self) -> bool:
+        """True when the user has linked this game to a Steam entry."""
+        return self.override_steam_app_id is not None
 
 
 class MergedGame(msgspec.Struct):

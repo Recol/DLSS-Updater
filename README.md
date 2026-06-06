@@ -44,6 +44,10 @@ What if you could update all the DLSS/XeSS/FSR DLLs for the games detected on yo
   - Auto-detects your Steam ID from local installation
   - Four-tier app ID resolution: Manifest → Steam API → Store Search → FTS5 fuzzy match
   - One-click re-resolution to fix images from previous scans
+- **Custom Display (image & name):** Override any game's banner image and display name via the pencil icon on the game card
+  - Search the local Steam app list to find any game — no API key required (Steam API credentials improve results)
+  - Override survives rescans — stored separately from scanner data so a rescan cannot revert it
+  - Reset to default at any time from the same dialog
 - A built in backup system for restoring game binaries if needed.
 - Support for updating Ray Reconstruction/Frame Generation/Streamline (Reflex Low Latency etc) DLL's.
 - Support for updating XeSS/FSR/DirectStorage DLL's (DirectStorage is Windows-only).

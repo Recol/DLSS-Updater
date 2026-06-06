@@ -30,6 +30,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         on_open_dlss_overlay=None,
         on_open_dlss_sr_presets=None,
         on_toggle_theme=None,
+        on_check_updates=None,
     ):
         super().__init__()
         self._page_ref = page
@@ -44,6 +45,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         self._on_open_dlss_overlay = on_open_dlss_overlay
         self._on_open_dlss_sr_presets = on_open_dlss_sr_presets
         self._on_toggle_theme = on_toggle_theme
+        self._on_check_updates = on_check_updates
 
         is_dark = page.theme_mode == ft.ThemeMode.DARK
 
@@ -59,6 +61,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
             "dlss_overlay": ("#76B900", "#558B00"),     # NVIDIA green
             "dlss_linux_presets": ("#4FC3F7", "#0288D1"),  # Light blue (Linux DLSS)
             "theme":        ("#FF9800", "#E65100"),     # Amber (light/dark toggle)
+            "check_updates": ("#2196F3", "#0D47A1"),   # Blue (app updates)
         }
 
         def _tc(key: str) -> str:
@@ -106,6 +109,14 @@ class SettingsView(ThemeAwareMixin, ft.Column):
                 _tc("theme"),
                 is_dark,
                 on_click=lambda e: self._handle_click(self._on_toggle_theme, e),
+            ),
+            self._create_settings_tile(
+                "Check for Updates",
+                "Check if a newer version of DLSS Updater is available",
+                ft.Icons.SYSTEM_UPDATE,
+                _tc("check_updates"),
+                is_dark,
+                on_click=lambda e: self._handle_click(self._on_check_updates, e),
             ),
         ]
 

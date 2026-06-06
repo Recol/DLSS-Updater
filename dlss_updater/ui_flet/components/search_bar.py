@@ -5,6 +5,7 @@ A styled search input with:
 - Search icon and placeholder text
 - Clear button when text present
 - Search history popup menu (overlay, no layout shift)
+- Expandable/compact mode (collapses to icon, expands on click)
 - MD3 light/dark theme support via ThemeAwareMixin
 
 Thread-safe for free-threaded Python 3.14+.
@@ -32,6 +33,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             on_search=on_search_callback,
             on_clear=on_clear_callback,
             on_history_selected=on_history_selected_callback,
+            expandable=True,   # Optional: collapses to icon, expands on click
         )
     """
 
@@ -43,6 +45,8 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         on_focus_change: Callable[[bool], None] | None = None,
         placeholder: str = "Search games...",
         width: int | None = None,
+        expandable: bool = False,
+        expanded_width: int = 300,
     ):
         super().__init__()
         self.on_search_callback = on_search
@@ -51,6 +55,9 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         self.on_focus_change_callback = on_focus_change
         self.placeholder_text = placeholder
         self.search_width = width
+        self._expandable = expandable
+        self._expanded_width = expanded_width
+        self._is_expanded = False
 
         # Theme registry
         self._registry = get_theme_registry()
@@ -78,12 +85,13 @@ class SearchBar(ThemeAwareMixin, ft.Container):
     def _build_ui(self):
         """Build the search bar UI with PopupMenuButton for history."""
         is_dark = self._registry.is_dark
+        icon_default = MD3Colors.get_themed("icon_default", is_dark)
 
         # Search icon
         self.search_icon = ft.Icon(
             ft.Icons.SEARCH,
             size=20,
-            color=MD3Colors.get_themed("icon_default", is_dark),
+            color=icon_default,
         )
 
         # Clear button (hidden by default)
@@ -101,7 +109,6 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         # History popup menu button (hidden until history exists)
         self.history_button = ft.PopupMenuButton(
             icon=ft.Icons.HISTORY,
-            icon_color=MD3Colors.get_themed("icon_default", is_dark),
             icon_size=20,
             tooltip="Recent searches",
             items=[],
@@ -142,8 +149,8 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             ],
         )
 
-        # Row with search field + history button
-        search_row = ft.Row(
+        # Full search row (field + history button)
+        self._search_row_content = ft.Row(
             controls=[
                 ft.Container(
                     content=search_stack,
@@ -156,9 +163,38 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
-        # Set container properties
-        self.content = search_row
-        self.width = self.search_width
+        if self._expandable:
+            # Collapsed state: just a search icon button
+            self._collapse_content = ft.IconButton(
+                icon=ft.Icons.SEARCH,
+                icon_size=18,
+                tooltip="Search games",
+                on_click=self._on_expand_click,
+                width=40,
+                height=40,
+            )
+            self.content = self._collapse_content
+            self.width = 40
+            self.height = 40
+            self.animate = ft.Animation(250, ft.AnimationCurve.EASE_IN_OUT)
+            self.clip_behavior = ft.ClipBehavior.HARD_EDGE
+        else:
+            self.content = self._search_row_content
+            self.width = self.search_width
+
+    async def _on_expand_click(self, e):
+        """Expand from compact icon to full search bar."""
+        if self._is_expanded:
+            return
+        self._is_expanded = True
+        self.content = self._search_row_content
+        self.width = self._expanded_width
+        self.update()
+        await asyncio.sleep(0.05)
+        try:
+            self.search_field.focus()
+        except Exception:
+            pass
 
     async def _on_text_changed(self, e):
         """Handle text input changes with debouncing."""
@@ -219,6 +255,17 @@ class SearchBar(ThemeAwareMixin, ft.Container):
 
         if not self.search_field.value:
             self.search_field.border_color = MD3Colors.get_outline(is_dark)
+
+        # Collapse to icon if expandable and no active search text
+        if self._expandable and not self.search_field.value and self._is_expanded:
+            # Debounce to avoid premature collapse when clicking history popup
+            await asyncio.sleep(0.25)
+            if not self._is_focused and not self.search_field.value and self._is_expanded:
+                self._is_expanded = False
+                self.content = self._collapse_content
+                self.width = 40
+                if self.page:
+                    self.update()
 
         if self.on_focus_change_callback:
             result = self.on_focus_change_callback(False)
@@ -360,6 +407,12 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             MD3Colors.get_primary(is_dark) if value else MD3Colors.get_themed("icon_default", is_dark)
         )
 
+        # Auto-expand if setting a non-empty value in expandable mode
+        if self._expandable and value and not self._is_expanded:
+            self._is_expanded = True
+            self.content = self._search_row_content
+            self.width = self._expanded_width
+
         self._safe_update()
 
     def get_value(self) -> str:
@@ -385,7 +438,6 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             # Icons
             "search_icon.color": MD3Colors.get_themed_pair("icon_default"),
             "clear_button.icon_color": MD3Colors.get_themed_pair("text_secondary"),
-            "history_button.icon_color": MD3Colors.get_themed_pair("icon_default"),
         }
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:

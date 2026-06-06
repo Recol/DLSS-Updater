@@ -1,3 +1,26 @@
+Version 4.1.8:
+UI Polish:
+  - Fixed hub card stat badges ("3 configured", "14 games found") showing incorrect
+    yellowish background; they now correctly display a subtle accent-tinted background
+    in both light and dark modes.
+  - Games Library header decluttered: "Hide ignored games" and "Delete Database" moved
+    into a compact options menu (⊞ icon), keeping only search, options, and refresh
+    visible in the header bar.
+  - Search bar now collapses to an icon by default and expands to full width on click;
+    auto-collapses when cleared and focus is lost.
+  - Removed the "Application" button from the top bar; "Check for Updates" is now a
+    tile in the Settings view alongside other app settings.
+
+Edit Game (Issue #202):
+  - New "Edit game" button on every game card lets you update a game's name and image.
+  - Search uses the local FTS5 app-list database (no credentials required). Steam API
+    credentials (Settings) improve search result quality when configured.
+  - The override is cosmetic only — backups, merge keys, and the global updater are
+    unaffected; the original folder-derived name is preserved internally.
+  - Override survives rescans: stored in dedicated columns that the scanner never
+    touches, so a rescan cannot revert a manually set link.
+  - Existing overrides can be cleared from the same dialog with one click.
+
 Version 4.1.7:
 DLSS Settings - Global Preset Overrides for SR / RR / FG (Windows):
   - New "DLSS Settings" card on the home page lets you force global DLSS presets

@@ -64,6 +64,22 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.1.8" date="2026-06-06">
+      <description>
+        <p>Edit game, plus UI polish and header declutter</p>
+        <ul>
+          <li>New "Edit game" button on every game card lets you manually update or change a game's name or image via one that exists on Steam. (Issue #202)</li>
+          <li>Search uses the local FTS5 app-list database (no credentials required); Steam API credentials improve result quality when configured</li>
+          <li>The override is cosmetic only — backups, merge keys, and the global updater are unaffected; the original folder-derived name is preserved internally</li>
+          <li>Override survives rescans: stored in dedicated columns the scanner never touches, so a rescan cannot revert a manually set link</li>
+          <li>Existing overrides can be cleared from the same dialog with one click</li>
+          <li>Fixed hub card stat badges ("3 configured", "14 games found") showing an incorrect yellowish tint; they now display a proper subtle accent-tinted background in both light and dark modes</li>
+          <li>Games Library header decluttered: "Hide ignored games" and "Delete Database" moved into a compact options menu, keeping only search, options, and refresh visible</li>
+          <li>Search bar now collapses to an icon by default and expands to full width on click; auto-collapses when cleared and focus is lost</li>
+          <li>Removed the "Application" top-bar button; "Check for Updates" is now a tile in the Settings view</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.1.7" date="2026-05-30">
       <description>
         <p>New DLSS Settings: global DLSS preset overrides for SR / RR / FG (Windows)</p>

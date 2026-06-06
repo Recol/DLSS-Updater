@@ -86,7 +86,7 @@ from dlss_updater.ui_flet.views.settings_view import SettingsView
 from dlss_updater.ui_flet.navigation.navigation_controller import NavigationController
 from dlss_updater.ui_flet.components.dll_cache_snackbar import DLLCacheProgressSnackbar
 from dlss_updater.ui_flet.components.app_bar_menus import (
-    CommunityMenu, ApplicationMenu, create_app_bar_menus
+    CommunityMenu, create_app_bar_menus
 )
 from dlss_updater.version import __version__
 from dlss_updater.utils import find_game_root
@@ -136,7 +136,7 @@ class MainView(ft.Column):
 
         # Popup menu components (created in _create_app_bar)
         self.community_menu: CommunityMenu | None = None
-        self.application_menu: ApplicationMenu | None = None
+        self.application_menu = None  # Removed - Check for Updates moved to Settings
 
         # Discord banner
         self.discord_banner: ft.Banner | None = None
@@ -227,6 +227,7 @@ class MainView(ft.Column):
             on_open_dlss_overlay=self._on_dlss_overlay_clicked,
             on_open_dlss_sr_presets=self._on_dlss_sr_presets_clicked,
             on_toggle_theme=self._toggle_theme_from_menu,
+            on_check_updates=self._on_check_updates_clicked,
         )
 
         # Create hub view
@@ -489,19 +490,16 @@ class MainView(ft.Column):
 
         # Create callbacks dict for menu items
         menu_callbacks = {
-            # Community menu callbacks
             "support": lambda _: open_url("https://buymeacoffee.com/decouk"),
             "bug_report": lambda _: open_url("https://github.com/Recol/DLSS-Updater/issues"),
             "twitter": lambda _: open_url("https://x.com/iDeco_UK"),
             "discord": lambda _: open_url("https://discord.com/users/162568099839606784"),
             "discord_invite": self._on_show_discord_invite_clicked,
             "release_notes": self._on_release_notes_clicked,
-            # Application menu callbacks
-            "check_updates": self._on_check_updates_clicked,
         }
 
-        # Create the 2 popup menus using the factory function
-        self.community_menu, self.application_menu = create_app_bar_menus(
+        # Create community popup menu
+        self.community_menu, _ = create_app_bar_menus(
             page=self._page_ref,
             is_dark=is_dark,
             callbacks=menu_callbacks,
@@ -529,9 +527,8 @@ class MainView(ft.Column):
                     spacing=2,
                     expand=True,
                 ),
-                # Right side buttons: Community (Heart), Application (Grid)
+                # Right side: Community (Heart)
                 self.community_menu.button,
-                self.application_menu.button,
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
@@ -578,19 +575,16 @@ class MainView(ft.Column):
         if hasattr(self, 'app_bar_container') and self.app_bar_container:
             self.app_bar_container.bgcolor = MD3Colors.get_background(is_dark)
 
-        # Rebuild all popup menus with new theme colors
+        # Rebuild community popup menu with new theme colors
         if self.community_menu:
             self.community_menu.rebuild(is_dark)
-        if self.application_menu:
-            self.application_menu.rebuild(is_dark)
 
-        # Update the buttons in the app bar
+        # Update the button reference in the app bar
         if hasattr(self, 'app_bar_container') and self.app_bar_container:
             top_bar = self.app_bar_container.content  # Container -> Row
-            if hasattr(top_bar, 'controls') and len(top_bar.controls) >= 3:
-                # Update button references (controls: title_col, community, app)
+            if hasattr(top_bar, 'controls') and len(top_bar.controls) >= 2:
+                # controls: [title_col, community_button]
                 top_bar.controls[1] = self.community_menu.button
-                top_bar.controls[2] = self.application_menu.button
 
         # NOTE: No page.update() here - batched in _toggle_theme_from_menu()
 
@@ -968,20 +962,6 @@ class MainView(ft.Column):
         e.control.icon = self.theme_manager.get_icon()
         e.control.tooltip = self.theme_manager.get_tooltip()
         self._page_ref.update()
-
-    def show_update_badge(self, show: bool = True):
-        """
-        Show or hide update available badge on menu
-
-        Args:
-            show: True to display red badge indicator, False to hide it
-        """
-        # Use ApplicationMenu API for menu badge
-        if self.application_menu:
-            self.application_menu.set_badge_visible("check_updates", show)
-        if self._page_ref:
-            self._page_ref.update()
-            self.logger.info(f"Update badge {'shown' if show else 'hidden'}")
 
     async def _on_release_notes_clicked(self, e):
         """Handle release notes button click"""

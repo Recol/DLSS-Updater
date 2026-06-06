@@ -457,46 +457,11 @@ class PreferencesMenu(BasePopupMenu):
         return items
 
 
-class ApplicationMenu(BasePopupMenu):
-    """
-    Blue grid icon - Application items
-
-    Items:
-    - Check for Updates
-    """
-
-    def __init__(
-        self,
-        page: ft.Page,
-        is_dark: bool,
-        callbacks: dict[str, Callable],
-    ):
-        items = [
-            MenuItem(
-                id="check_updates",
-                title="Check for Updates",
-                description="Check for app updates",
-                icon=ft.Icons.SYSTEM_UPDATE,
-                on_click=callbacks.get("check_updates"),
-                show_badge=False,
-            ),
-        ]
-
-        super().__init__(
-            page=page,
-            icon=ft.Icons.APPS,
-            color="#2196F3",  # Blue
-            tooltip="Application",
-            items=items,
-            is_dark=is_dark,
-        )
-
-
 def create_app_bar_menus(
     page: ft.Page,
     is_dark: bool,
     callbacks: dict[str, Callable],
-) -> tuple[CommunityMenu, ApplicationMenu]:
+) -> tuple[CommunityMenu, None]:
     """
     Factory function to create app bar menu components.
 
@@ -506,9 +471,7 @@ def create_app_bar_menus(
         callbacks: Dict of callback functions for menu items
 
     Returns:
-        Tuple of (CommunityMenu, ApplicationMenu)
+        Tuple of (CommunityMenu, None) — second slot kept for API compatibility
     """
     community = CommunityMenu(page, is_dark, callbacks)
-    application = ApplicationMenu(page, is_dark, callbacks)
-
-    return community, application
+    return community, None

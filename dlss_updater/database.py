@@ -457,6 +457,22 @@ class DatabaseManager:
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
+            # Migration: Manual Steam resolution override columns (issue #202).
+            # These are never written by the scanner/upsert, so a manual link
+            # survives rescans. override_steam_app_id drives image + identity and
+            # excludes the game from the global updater; display_name_override is
+            # the user-facing title while the folder-derived `name` stays the key.
+            try:
+                cursor.execute("ALTER TABLE games ADD COLUMN override_steam_app_id INTEGER")
+                logger.info("Migration: Added override_steam_app_id column to games table")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                cursor.execute("ALTER TABLE games ADD COLUMN display_name_override TEXT")
+                logger.info("Migration: Added display_name_override column to games table")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
             # Migration: Rollback detection columns on dll_backups
             try:
                 cursor.execute("ALTER TABLE dll_backups ADD COLUMN restored_at TIMESTAMP")
@@ -554,7 +570,10 @@ class DatabaseManager:
                     steam_app_id=row[4],
                     last_scanned=datetime.fromisoformat(row[5]),
                     created_at=datetime.fromisoformat(row[6]),
-                    resolution_source=row[7] if len(row) > 7 else None
+                    resolution_source=row[7] if len(row) > 7 else None,
+                    # override columns are never set by upsert; default to None
+                    override_steam_app_id=row[8] if len(row) > 8 else None,
+                    display_name_override=row[9] if len(row) > 9 else None,
                 )
             return None
 
@@ -583,7 +602,9 @@ class DatabaseManager:
                     steam_app_id,
                     MAX(last_scanned) as last_scanned,
                     MIN(created_at) as created_at,
-                    resolution_source
+                    resolution_source,
+                    MAX(override_steam_app_id) as override_steam_app_id,
+                    MAX(display_name_override) as display_name_override
                 FROM games
                 GROUP BY name, launcher, steam_app_id
                 ORDER BY launcher, name
@@ -599,7 +620,9 @@ class DatabaseManager:
                     steam_app_id=row[4],
                     last_scanned=datetime.fromisoformat(row[5]),
                     created_at=datetime.fromisoformat(row[6]),
-                    resolution_source=row[7]
+                    resolution_source=row[7],
+                    override_steam_app_id=row[8],
+                    display_name_override=row[9]
                 )
 
                 if game.launcher not in games_by_launcher:
@@ -628,7 +651,8 @@ class DatabaseManager:
 
         try:
             cursor.execute("""
-                SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at, resolution_source
+                SELECT id, name, path, launcher, steam_app_id, last_scanned, created_at,
+                       resolution_source, override_steam_app_id, display_name_override
                 FROM games
                 ORDER BY launcher, name
             """)
@@ -643,7 +667,9 @@ class DatabaseManager:
                     steam_app_id=row[4],
                     last_scanned=datetime.fromisoformat(row[5]),
                     created_at=datetime.fromisoformat(row[6]),
-                    resolution_source=row[7]
+                    resolution_source=row[7],
+                    override_steam_app_id=row[8],
+                    display_name_override=row[9],
                 )
 
                 if game.launcher not in games_by_launcher:
@@ -725,7 +751,8 @@ class DatabaseManager:
         try:
             cursor.execute("""
                 SELECT g.id, g.name, g.path, g.launcher, g.steam_app_id,
-                       g.last_scanned, g.created_at, g.resolution_source
+                       g.last_scanned, g.created_at, g.resolution_source,
+                       g.override_steam_app_id, g.display_name_override
                 FROM games g
                 INNER JOIN ignored_games ig ON g.id = ig.game_id
                 ORDER BY g.name COLLATE NOCASE
@@ -736,13 +763,55 @@ class DatabaseManager:
                     steam_app_id=row[4],
                     last_scanned=datetime.fromisoformat(row[5]),
                     created_at=datetime.fromisoformat(row[6]),
-                    resolution_source=row[7]
+                    resolution_source=row[7],
+                    override_steam_app_id=row[8],
+                    display_name_override=row[9]
                 )
                 for row in cursor.fetchall()
             ]
         except Exception as e:
             logger.error(f"Error getting all ignored games: {e}")
             return []
+
+    async def set_game_override(
+        self,
+        game_id: int,
+        override_steam_app_id: int | None,
+        display_name_override: str | None,
+    ) -> bool:
+        """Persist manual Steam resolution override for a game (issue #202).
+
+        Pass None for both args to clear an existing override.
+        Returns True on success.
+        """
+        return await asyncio.to_thread(
+            self._set_game_override, game_id, override_steam_app_id, display_name_override
+        )
+
+    def _set_game_override(
+        self,
+        game_id: int,
+        override_steam_app_id: int | None,
+        display_name_override: str | None,
+    ) -> bool:
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                UPDATE games
+                SET override_steam_app_id = ?,
+                    display_name_override = ?
+                WHERE id = ?
+                """,
+                (override_steam_app_id, display_name_override, game_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error setting game override for id={game_id}: {e}", exc_info=True)
+            conn.rollback()
+            return False
 
     def batch_get_game_ids_for_dll_paths_sync(self, dll_paths: list[str]) -> dict[str, int]:
         """Map DLL file paths to their game_ids. SYNC for ThreadPoolExecutor."""
