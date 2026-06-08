@@ -30,7 +30,7 @@ dependencies = [
     "platformdirs>=4.10.0",  # Replaces unmaintained appdirs (abandoned 2020); near-identical API
     "rapidfuzz>=3.14.5",  # Fast fuzzy string matching for game search
     "nvidia-ml-py>=13.610.43",  # NVML GPU detection (architecture / DLSS preset hints); best-effort, returns False on non-NVIDIA systems
-    "flet==0.85.2; platform_system == 'Windows'",  # Core framework for Windows
+    "flet==0.85.3; platform_system == 'Windows'",  # Core framework for Windows
     "flet-desktop==0.85.3; platform_system == 'Windows'",  # Desktop runtime for Windows
     "flet==0.85.2; platform_system == 'Linux'",  # Core framework for Linux
     "flet-desktop==0.85.2; platform_system == 'Linux'",  # Desktop runtime for Linux (flet-desktop-light removed in 0.83.0; flet-desktop defaults to "light" flavor on Linux automatically)
