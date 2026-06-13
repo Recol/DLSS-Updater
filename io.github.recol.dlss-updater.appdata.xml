@@ -64,6 +64,22 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.1.9" date="2026-06-13">
+      <description>
+        <p>Desktop UX and UI improvements across the game library, launchers, and settings</p>
+        <ul>
+          <li>Light/dark theme switching is now live with a subtle cascade animation — no application restart required</li>
+          <li>Game cards now have a right-click context menu (Update all DLLs, Restore from backup, Open folder, Copy path, Launch via Steam, Ignore/Unignore, Edit display) that reflects each card's current state</li>
+          <li>Games Library search is now a native search field with live game-name suggestions and recent-search history, plus status filter chips (Needs update / Up to date / Has backups); it collapses to a search icon and expands on click</li>
+          <li>Settings view redesigned with a denser two-column responsive tile layout and an inline light/dark theme toggle on the Theme tile</li>
+          <li>Launchers tab uses a two-column responsive card layout and shows a "rescan recommended" prompt when the last scan is stale (7+ days) or missing</li>
+          <li>Home page Games card gained a stats strip showing DLL backup count and size plus time since the last scan</li>
+          <li>Undo support: removing a launcher path or toggling a game's ignored state now offers an "Undo" action in the snackbar, which auto-dismisses and is legible in both themes</li>
+          <li>Floating action pill moved to the bottom-left and no longer overlaps the launcher action bar or scrollable content</li>
+          <li>Slim, rounded, auto-hiding scrollbars across all scroll areas; log count badge caps at "99+"; window minimum size increased to 820x560 to prevent clipping at narrow widths</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.1.8" date="2026-06-06">
       <description>
         <p>Edit game, plus UI polish and header declutter</p>

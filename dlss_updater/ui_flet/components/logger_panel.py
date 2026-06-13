@@ -528,7 +528,8 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
     def update_log_count(self):
         """Update the log count badge (no page update - caller handles it)"""
         count = len(self.log_column.controls)
-        self.log_count_badge.content.value = str(count)
+        # Cap the displayed value so the badge stays compact (e.g. "99+")
+        self.log_count_badge.content.value = "99+" if count > 99 else str(count)
         self.log_count_badge.visible = count > 0
         # Note: No _safe_update() here - called from _flush_batch which does a single update
 

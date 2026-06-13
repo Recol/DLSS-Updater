@@ -404,9 +404,9 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         # Update UI
         await self._update_paths_display()
 
-        # Notify parent to show rescan prompt
+        # Notify parent to show rescan prompt (with undo context)
         if self.on_path_removed_callback:
-            await self.on_path_removed_callback(self.name_str)
+            await self.on_path_removed_callback(self.name_str, self.launcher_enum, path)
 
     async def _update_paths_display(self):
         """Update the paths display in subtitle area."""

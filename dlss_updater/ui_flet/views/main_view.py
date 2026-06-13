@@ -361,18 +361,24 @@ class MainView(ft.Column):
             on_click=on_click,
         )
 
-        # Add hover effect
+        # Add hover effect — read theme live so it stays correct after toggles
         def on_hover(e):
+            current_dark = self.theme_manager.is_dark
             if e.data == "true":
                 button_container.bgcolor = f"{color}15"
                 button_container.border = ft.Border.all(1, f"{color}30")
             else:
-                button_container.bgcolor = MD3Colors.get_surface_container(is_dark)
-                button_container.border = ft.Border.all(1, MD3Colors.get_outline(is_dark))
+                button_container.bgcolor = MD3Colors.get_surface_container(current_dark)
+                button_container.border = ft.Border.all(1, MD3Colors.get_outline(current_dark))
             if self._page_ref:
                 button_container.update()
 
         button_container.on_hover = on_hover
+
+        # Register the themeable parts so theme toggles recolor them live
+        if not hasattr(self, "_action_button_refs"):
+            self._action_button_refs = []
+        self._action_button_refs.append((button_container, label_text))
 
         return button_container
 
@@ -381,6 +387,9 @@ class MainView(ft.Column):
         from dlss_updater.ui_flet.theme.colors import MD3Colors
 
         is_dark = self.theme_manager.is_dark
+
+        # Reset action-button refs (rebuilt below) so theme toggles only touch live buttons
+        self._action_button_refs = []
 
         # Create launcher cards
         launcher_list = await self._create_launcher_list()
@@ -505,24 +514,28 @@ class MainView(ft.Column):
             callbacks=menu_callbacks,
         )
 
+        # App title + version — store refs so theme toggles recolor them live
+        self._app_title_text = ft.Text(
+            "DLSS Updater",
+            size=24,
+            weight=ft.FontWeight.BOLD,
+            color=MD3Colors.get_on_surface(is_dark),
+        )
+        self._app_version_text = ft.Text(
+            f"Version {__version__}",
+            size=12,
+            color=MD3Colors.get_on_surface_variant(is_dark),
+            weight=ft.FontWeight.W_400,
+            opacity=0.9,
+        )
+
         # Compact top bar with 3 popup menu buttons on the right
         top_bar = ft.Row(
             controls=[
                 ft.Column(
                     controls=[
-                        ft.Text(
-                            "DLSS Updater",
-                            size=24,
-                            weight=ft.FontWeight.BOLD,
-                            color=MD3Colors.get_on_surface(is_dark),
-                        ),
-                        ft.Text(
-                            f"Version {__version__}",
-                            size=12,
-                            color=MD3Colors.get_on_surface_variant(is_dark),
-                            weight=ft.FontWeight.W_400,
-                            opacity=0.9,
-                        ),
+                        self._app_title_text,
+                        self._app_version_text,
                     ],
                     spacing=2,
                     expand=True,
@@ -575,6 +588,12 @@ class MainView(ft.Column):
         if hasattr(self, 'app_bar_container') and self.app_bar_container:
             self.app_bar_container.bgcolor = MD3Colors.get_background(is_dark)
 
+        # Recolor app title + version text for the new theme
+        if hasattr(self, '_app_title_text') and self._app_title_text:
+            self._app_title_text.color = MD3Colors.get_on_surface(is_dark)
+        if hasattr(self, '_app_version_text') and self._app_version_text:
+            self._app_version_text.color = MD3Colors.get_on_surface_variant(is_dark)
+
         # Rebuild community popup menu with new theme colors
         if self.community_menu:
             self.community_menu.rebuild(is_dark)
@@ -605,9 +624,16 @@ class MainView(ft.Column):
                 top=ft.BorderSide(1, MD3Colors.get_outline(is_dark))
             )
 
-        # Update last scan info text color
+        # Recolor the Scan/Update action buttons (bg, border, label) for new theme
+        if hasattr(self, '_action_button_refs'):
+            for button_container, label_text in self._action_button_refs:
+                button_container.bgcolor = MD3Colors.get_surface_container(is_dark)
+                button_container.border = ft.Border.all(1, MD3Colors.get_outline(is_dark))
+                label_text.color = MD3Colors.get_on_surface(is_dark)
+
+        # Update last scan info text color (re-applies stale/normal styling)
         if hasattr(self, 'last_scan_info_text') and self.last_scan_info_text:
-            self.last_scan_info_text.color = MD3Colors.get_on_surface_variant(is_dark)
+            self._update_scan_info_text()
 
         # NOTE: No page.update() here - batched in _toggle_theme_from_menu()
 
@@ -695,10 +721,22 @@ class MainView(ft.Column):
             self.launcher_cards[config["enum"]] = card
             launcher_cards.append(card)
 
-        # Create scrollable column
-        launcher_column = ft.Column(
+        # Lay cards 2-up on large windows (single column when narrow) so wide
+        # displays aren't a narrow centered strip with dead margins
+        for card in launcher_cards:
+            card.col = {"xs": 12, "lg": 6}
+
+        launcher_grid = ft.ResponsiveRow(
             controls=launcher_cards,
             spacing=12,
+            run_spacing=12,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        )
+
+        # Scrollable wrapper around the responsive grid
+        launcher_column = ft.Column(
+            controls=[launcher_grid],
+            spacing=0,
             scroll=ft.ScrollMode.AUTO,
             expand=True,
         )
@@ -707,7 +745,7 @@ class MainView(ft.Column):
         # Using ResponsiveRow to handle different window sizes
         responsive_content = ft.Column(
             controls=[launcher_column],
-            col={"xs": 12, "sm": 12, "md": 10, "lg": 8, "xl": 7},
+            col={"xs": 12, "sm": 12, "md": 11, "lg": 11, "xl": 10},
             expand=True,
         )
 
@@ -1350,11 +1388,26 @@ class MainView(ft.Column):
             )
             self._page_ref.show_dialog(error_dialog)
 
+    # Scans older than this many days get a "rescan recommended" prompt
+    STALE_SCAN_DAYS = 7
+
     def _update_scan_info_text(self):
-        """Update the last scan info text displayed in UI"""
+        """Update the last scan info text displayed in UI.
+
+        Stale scans (older than STALE_SCAN_DAYS) and missing scans render in
+        the warning color with a rescan prompt, instead of passive grey text.
+        """
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+
+        if not hasattr(self, 'last_scan_info_text'):
+            return
+
+        is_dark = self.theme_manager.is_dark
+
         if not self.last_scan_results or not self.last_scan_timestamp:
-            if hasattr(self, 'last_scan_info_text'):
-                self.last_scan_info_text.value = "No scan performed yet"
+            self._scan_is_stale = True
+            self.last_scan_info_text.value = "No scan performed yet — run a scan to find games"
+            self.last_scan_info_text.color = MD3Colors.get_warning(is_dark)
             return
 
         try:
@@ -1369,12 +1422,18 @@ class MainView(ft.Column):
             else:
                 time_str = f"{int(hours_ago / 24)} days ago"
 
-            if hasattr(self, 'last_scan_info_text'):
+            self._scan_is_stale = hours_ago >= self.STALE_SCAN_DAYS * 24
+            if self._scan_is_stale:
+                self.last_scan_info_text.value = f"Last scan: {time_str} — rescan recommended"
+                self.last_scan_info_text.color = MD3Colors.get_warning(is_dark)
+            else:
                 self.last_scan_info_text.value = f"Last scan: {time_str}"
+                self.last_scan_info_text.color = MD3Colors.get_on_surface_variant(is_dark)
         except Exception as e:
             self.logger.warning(f"Failed to format scan info: {e}")
-            if hasattr(self, 'last_scan_info_text'):
-                self.last_scan_info_text.value = "Scan data available"
+            self._scan_is_stale = False
+            self.last_scan_info_text.value = "Scan data available"
+            self.last_scan_info_text.color = MD3Colors.get_on_surface_variant(is_dark)
 
     async def _load_scan_cache(self):
         """Load cached scan results from disk if available"""
@@ -1454,9 +1513,46 @@ class MainView(ft.Column):
             duration=4000,
         )
 
-    async def _on_launcher_path_removed(self, launcher_name: str):
-        """Callback when a path is removed from a launcher card."""
-        await self._show_rescan_snackbar(f"Path removed from {launcher_name}")
+    async def _on_launcher_path_removed(
+        self,
+        launcher_name: str,
+        launcher_enum: LauncherPathName | None = None,
+        path: str | None = None,
+    ):
+        """Callback when a path is removed from a launcher card.
+
+        Shows a snackbar with an Undo action that re-adds the removed path.
+        """
+        if launcher_enum is None or path is None:
+            await self._show_rescan_snackbar(f"Path removed from {launcher_name}")
+            return
+
+        async def on_undo(e):
+            config_manager.add_launcher_path(launcher_enum, path)
+            card = self.launcher_cards.get(launcher_enum)
+            if card:
+                await card.set_paths(config_manager.get_launcher_paths(launcher_enum))
+            await self._show_snackbar(f"Path restored for {launcher_name}")
+
+        from dlss_updater.ui_flet.theme.colors import MD3Colors
+        is_dark = self.theme_manager.is_dark
+        snackbar = ft.SnackBar(
+            content=ft.Text(
+                f"Path removed from {launcher_name} — rescan to update the game list",
+                color=ft.Colors.WHITE,
+            ),
+            bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
+            duration=6000,
+            persist=False,  # Auto-dismiss after the duration (default persists when action set)
+            action=ft.SnackBarAction(
+                label="Undo",
+                text_color=MD3Colors.get_themed("snackbar_action", is_dark),
+                on_click=on_undo,
+            ),
+        )
+        self._page_ref.overlay.append(snackbar)
+        snackbar.open = True
+        self._page_ref.update()
 
     async def _cleanup_games_view(self):
         """Release Games view resources based on user preference.

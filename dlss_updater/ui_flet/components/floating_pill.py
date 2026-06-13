@@ -8,6 +8,11 @@ import flet as ft
 from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors, Shadows
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin
 
+# Vertical space (px) views must reserve at the bottom of scrollable content so
+# the last item can scroll clear of the floating pill (pill ~44px + 16px offset
+# + breathing room).
+PILL_CLEARANCE = 88
+
 
 class FloatingPill(ThemeAwareMixin, ft.Container):
     """

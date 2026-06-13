@@ -153,6 +153,43 @@ class HubView(ThemeAwareMixin, ft.Column):
         if self._on_open_dlss_settings and self._page_ref:
             self._page_ref.run_task(self._on_open_dlss_settings)
 
+    @staticmethod
+    def _format_size(total_size: int) -> str:
+        """Format a byte count for the stats line."""
+        if total_size < 1024 * 1024:
+            return f"{total_size / 1024:.0f} KB"
+        if total_size < 1024 * 1024 * 1024:
+            return f"{total_size / (1024 * 1024):.1f} MB"
+        return f"{total_size / (1024 * 1024 * 1024):.1f} GB"
+
+    @staticmethod
+    def _read_scan_age_str() -> str | None:
+        """Read the scan cache timestamp and return a compact age string.
+
+        Runs inside the HyperParallelLoader thread pool (blocking file I/O).
+        """
+        try:
+            from datetime import datetime
+            from pathlib import Path
+            from dlss_updater.config import get_config_path
+            from dlss_updater.models import ScanCacheData, decode_json
+
+            cache_path = Path(get_config_path()).parent / "scan_cache.json"
+            if not cache_path.exists():
+                return None
+            cache = decode_json(cache_path.read_bytes(), type=ScanCacheData)
+            if not cache.timestamp:
+                return None
+            age = datetime.now() - datetime.fromisoformat(cache.timestamp)
+            hours = age.total_seconds() / 3600
+            if hours < 1:
+                return f"scanned {int(age.total_seconds() / 60)}m ago"
+            if hours < 24:
+                return f"scanned {int(hours)}h ago"
+            return f"scanned {int(hours / 24)}d ago"
+        except Exception:
+            return None
+
     async def load_stats(self):
         """Load hub card stats via HyperParallelLoader."""
         try:
@@ -162,22 +199,43 @@ class HubView(ThemeAwareMixin, ft.Column):
             results = loader.load_all([
                 LoadTask("game_count", lambda: db_manager.get_game_count_sync()),
                 LoadTask("launcher_count", lambda: db_manager.get_configured_launchers_count_sync()),
+                LoadTask("backup_stats", lambda: db_manager.get_backup_summary_stats_sync()),
+                LoadTask("scan_age", self._read_scan_age_str),
             ])
 
             game_count = results.get("game_count", 0)
             launcher_count = results.get("launcher_count", 0)
+            backup_stats = results.get("backup_stats", (0, 0))
+            scan_age = results.get("scan_age", None)
 
             # Handle exceptions from failed tasks
             if isinstance(game_count, Exception):
                 game_count = 0
             if isinstance(launcher_count, Exception):
                 launcher_count = 0
+            if isinstance(backup_stats, Exception) or not backup_stats:
+                backup_stats = (0, 0)
+            if isinstance(scan_age, Exception):
+                scan_age = None
 
             # Update card stats
             if game_count > 0:
                 self._games_card.set_stats(f"{game_count} games found")
             if launcher_count > 0:
                 self._launchers_card.set_stats(f"{launcher_count} configured")
+
+            # Secondary stats line on the Games card: backups + last scan age
+            detail_parts = []
+            backup_count, backup_size = backup_stats
+            if backup_count > 0:
+                detail_parts.append(
+                    f"{backup_count} DLL backup{'s' if backup_count != 1 else ''}"
+                    f" · {self._format_size(backup_size)}"
+                )
+            if scan_age:
+                detail_parts.append(scan_age)
+            if detail_parts:
+                self._games_card.set_stats_detail("  ·  ".join(detail_parts))
 
             if self._page_ref:
                 self._page_ref.update()

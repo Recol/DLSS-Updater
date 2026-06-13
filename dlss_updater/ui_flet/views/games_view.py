@@ -18,7 +18,8 @@ import flet as ft
 from dlss_updater.database import db_manager, Game, merge_games_by_name
 from dlss_updater.models import MergedGame, GameDLL, DLLBackup
 from dlss_updater.ui_flet.components.game_card import GameCard
-from dlss_updater.ui_flet.components.search_bar import SearchBar
+from dlss_updater.ui_flet.components.search_bar import GameSearchBar
+from dlss_updater.ui_flet.components.floating_pill import PILL_CLEARANCE
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator
@@ -199,7 +200,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Search state
         self.search_query: str = ""
         self._search_generation: int = 0
-        self.search_bar: SearchBar | None = None
+        self.search_bar: GameSearchBar | None = None
+
+        # Status filter chips state
+        self._filter_needs_update: bool = False
+        self._filter_up_to_date: bool = False
+        self._filter_has_backups: bool = False
 
         # Personal ignore list state
         self._ignored_game_ids: set[int] = set()
@@ -275,14 +281,14 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Get theme preference from registry
         is_dark = self._get_is_dark()
 
-        # Create expandable search bar (collapses to icon by default)
-        self.search_bar = SearchBar(
+        # Native Material search bar with live game-name suggestions + history
+        self.search_bar = GameSearchBar(
             on_search=self._on_search_changed,
             on_clear=self._on_search_cleared,
             on_history_selected=self._on_history_selected,
+            get_suggestions=self._get_search_suggestions,
             placeholder="Search games...",
-            expandable=True,
-            expanded_width=300,
+            width=260,
         )
 
         # Store themed element references
@@ -325,26 +331,64 @@ class GamesView(ThemeAwareMixin, ft.Column):
             items=self._build_options_menu_items(),
         )
 
+        # Status filter chips (visibility-toggle filtering — no grid rebuild)
+        self._needs_update_chip = ft.Chip(
+            label=ft.Text("Needs update", size=12),
+            leading=ft.Icon(ft.Icons.ARROW_UPWARD, size=14),
+            selected=False,
+            on_select=self._on_status_chip_select,
+            data="needs_update",
+        )
+        self._up_to_date_chip = ft.Chip(
+            label=ft.Text("Up to date", size=12),
+            leading=ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, size=14),
+            selected=False,
+            on_select=self._on_status_chip_select,
+            data="up_to_date",
+        )
+        self._has_backups_chip = ft.Chip(
+            label=ft.Text("Has backups", size=12),
+            leading=ft.Icon(ft.Icons.RESTORE, size=14),
+            selected=False,
+            on_select=self._on_status_chip_select,
+            data="has_backups",
+        )
+        self.filter_chips_row = ft.Row(
+            controls=[
+                self._needs_update_chip,
+                self._up_to_date_chip,
+                self._has_backups_chip,
+            ],
+            spacing=8,
+            wrap=True,
+        )
+
         # Header
         self.header = ft.Container(
-            content=ft.Row(
+            content=ft.Column(
                 controls=[
-                    self.header_title,
-                    self.backup_stats_text,
-                    ft.Container(expand=True),  # Spacer
-                    self.search_bar,
-                    self.options_menu,
-                    ft.IconButton(
-                        icon=ft.Icons.REFRESH,
-                        tooltip="Refresh Games",
-                        on_click=self._on_refresh_clicked,
-                        animate_rotation=ft.Animation(400, ft.AnimationCurve.EASE_IN_OUT),
-                        rotate=0,
-                        ref=self.refresh_button_ref,
+                    ft.Row(
+                        controls=[
+                            self.header_title,
+                            self.backup_stats_text,
+                            ft.Container(expand=True),  # Spacer
+                            self.search_bar,
+                            self.options_menu,
+                            ft.IconButton(
+                                icon=ft.Icons.REFRESH,
+                                tooltip="Refresh Games",
+                                on_click=self._on_refresh_clicked,
+                                animate_rotation=ft.Animation(400, ft.AnimationCurve.EASE_IN_OUT),
+                                rotate=0,
+                                ref=self.refresh_button_ref,
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.START,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
+                    self.filter_chips_row,
                 ],
-                alignment=ft.MainAxisAlignment.START,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
             ),
             padding=16,
             bgcolor=MD3Colors.get_surface_variant(is_dark),
@@ -685,7 +729,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 controls=[],
                 max_extent=max_extent,
                 child_aspect_ratio=aspect_ratio,
-                padding=16,
+                # Bottom padding lets the last row scroll clear of the floating pill
+                padding=ft.Padding.only(left=16, right=16, top=16, bottom=PILL_CLEARANCE),
                 spacing=12,
                 run_spacing=12,
                 expand=True,
@@ -1029,17 +1074,62 @@ class GamesView(ThemeAwareMixin, ft.Column):
     # ===== Filter Methods =====
 
     def _card_passes_filters(self, card: GameCard) -> bool:
-        """Check if a card passes all active filters (search, ignore)."""
+        """Check if a card passes all active filters (search, ignore, status chips)."""
         # Ignore filter
         if not self._show_ignored_games and card.is_ignored:
             return False
 
-        # Search query filter
+        # Search query filter (match display name, like the suggestions do)
         if self.search_query:
-            if self.search_query.lower() not in card.game.name.lower():
+            query = self.search_query.lower()
+            if query not in card.game.name.lower() and query not in card.game.display_name.lower():
                 return False
 
+        # Status chip filters
+        if self._filter_needs_update and not card._check_for_updates():
+            return False
+        if self._filter_up_to_date and card._check_for_updates():
+            return False
+        if self._filter_has_backups and not card.has_backups:
+            return False
+
         return True
+
+    def _on_status_chip_select(self, e):
+        """Handle a status filter chip toggle (visibility-only, no rebuild)."""
+        kind = e.control.data
+        selected = bool(e.control.selected)
+
+        if kind == "needs_update":
+            self._filter_needs_update = selected
+            # Mutually exclusive with "Up to date"
+            if selected and self._filter_up_to_date:
+                self._filter_up_to_date = False
+                self._up_to_date_chip.selected = False
+        elif kind == "up_to_date":
+            self._filter_up_to_date = selected
+            if selected and self._filter_needs_update:
+                self._filter_needs_update = False
+                self._needs_update_chip.selected = False
+        elif kind == "has_backups":
+            self._filter_has_backups = selected
+
+        self._apply_visibility()
+        self.update()
+
+    def _get_search_suggestions(self, query: str) -> list[str]:
+        """Return game display names matching the query (for search dropdown)."""
+        query = query.lower()
+        matches: list[str] = []
+        seen: set[str] = set()
+        for card in self.game_cards.values():
+            name = card.game.display_name
+            if query in name.lower() and name.lower() not in seen:
+                matches.append(name)
+                seen.add(name.lower())
+        # Prefix matches first, then alphabetical
+        matches.sort(key=lambda n: (not n.lower().startswith(query), n.lower()))
+        return matches
 
     def _apply_visibility(self) -> int:
         """Apply all filters to set card visibility. Returns matching count."""
@@ -1104,6 +1194,26 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         action = "ignored" if ignored else "un-ignored"
         self.logger.info(f"Game '{game_name}' {action}")
+
+        # Confirmation snackbar with Undo (reverts the ignore change)
+        async def on_undo(e):
+            await self._perform_ignore_toggle(game, not ignored)
+
+        is_dark = self._get_is_dark()
+        snackbar = ft.SnackBar(
+            content=ft.Text(f"'{game_name}' {action}", color=ft.Colors.WHITE),
+            bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
+            duration=5000,
+            persist=False,  # Auto-dismiss after the duration (default persists when action set)
+            action=ft.SnackBarAction(
+                label="Undo",
+                text_color=MD3Colors.get_themed("snackbar_action", is_dark),
+                on_click=on_undo,
+            ),
+        )
+        self._page_ref.overlay.append(snackbar)
+        snackbar.open = True
+        self._page_ref.update()
 
     def _on_game_resolve(self, game, override_steam_app_id: int, display_name_override: str):
         """Handle Steam resolve callback from GameCard — fires after DB write succeeds."""

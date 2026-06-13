@@ -144,6 +144,9 @@ class MD3Colors:
 
         # Specific UI elements
         "snackbar_bg": ("#2D6E88", "#1A5A70"),
+        # Snackbar action label — light cyan reads as actionable and stays
+        # legible on the dark-teal snackbar background in both themes.
+        "snackbar_action": ("#9EE6FF", "#BFEFFF"),
         "badge_default_bg": ("#3A3A3A", "#E0E0E0"),
         "badge_update_bg": ("#FF9800", "#FF9800"),
         "divider": ("#3C3C3C", "#E0E0E0"),
@@ -532,3 +535,33 @@ class TabColors:
     def register_tab(cls, tab_name: str, color: str):
         """Register a new tab color at runtime"""
         cls._TAB_COLORS[tab_name] = color
+
+
+def build_scrollbar_theme(is_dark: bool) -> ft.ScrollbarTheme:
+    """Slim, rounded, auto-hiding scrollbar matching the active theme."""
+    thumb = (
+        ft.Colors.with_opacity(0.35, ft.Colors.WHITE)
+        if is_dark
+        else ft.Colors.with_opacity(0.35, ft.Colors.BLACK)
+    )
+    return ft.ScrollbarTheme(
+        thumb_visibility=False,
+        track_visibility=False,
+        thickness=8,
+        radius=8,
+        interactive=True,
+        thumb_color=thumb,
+    )
+
+
+def build_page_theme(is_dark: bool) -> ft.Theme:
+    """Build the Material 3 page theme for a given mode.
+
+    Single source of truth for both startup (main.py) and live theme toggles
+    (ThemeManager) so the seed color and scrollbar styling stay in sync.
+    """
+    return ft.Theme(
+        color_scheme_seed=MD3Colors.PRIMARY if is_dark else MD3Colors.PRIMARY_LIGHT,
+        use_material3=True,
+        scrollbar_theme=build_scrollbar_theme(is_dark),
+    )

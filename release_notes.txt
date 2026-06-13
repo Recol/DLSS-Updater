@@ -1,3 +1,32 @@
+Version 4.1.9:
+Desktop UX & UI Improvements:
+  - Light/dark theme switching is now live — the whole UI re-themes instantly with a
+    subtle cascade animation, with no application restart required (the old "Restart
+    Required" dialog has been removed).
+  - Game cards now have a right-click context menu (Update all DLLs, Restore from
+    backup, Open folder, Copy path, Launch via Steam, Ignore/Unignore, Edit display) —
+    the menu reflects each card's current state (disabled actions, ignore status).
+  - Games Library: the search box is now a native search field with live game-name
+    suggestions and recent-search history, plus status filter chips (Needs update /
+    Up to date / Has backups) for quick filtering. It collapses to a search icon
+    (consistent with the options/refresh icons) and expands on click, auto-collapsing
+    when emptied.
+  - Settings view redesigned with a denser, two-column responsive tile layout and an
+    inline light/dark theme toggle switch right on the Theme tile.
+  - Launchers tab now uses a two-column responsive card layout and shows a clear
+    "rescan recommended" prompt when the last scan is stale (7+ days) or missing.
+  - Home page Games card gained a stats strip showing DLL backup count & size and the
+    time since your last scan.
+  - Undo support: removing a launcher path or toggling a game's ignored state now shows
+    an "Undo" action in the confirmation snackbar. The snackbar auto-dismisses after a
+    few seconds and the Undo button is now clearly legible in both light and dark themes.
+  - The floating action pill moved to the bottom-left and no longer overlaps the
+    launcher action bar or scrollable content (added bottom clearance to scroll areas).
+  - Slim, rounded, auto-hiding scrollbars across all scroll areas.
+  - Log count badge now caps at "99+" to stay compact.
+  - Increased the window minimum size (820x560) to prevent button-wrap clipping at
+    narrow widths.
+
 Version 4.1.8:
 UI Polish:
   - Fixed hub card stat badges ("3 configured", "14 games found") showing incorrect

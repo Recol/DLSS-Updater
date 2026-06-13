@@ -89,6 +89,15 @@ class HubCard(ThemeAwareMixin, ft.Container):
             bgcolor=f"#1F{accent[1:]}",
         )
 
+        # Optional secondary stats line (e.g. backups / last scan detail)
+        self._stats_detail_text = ft.Text(
+            "",
+            size=11,
+            color=MD3Colors.get_on_surface_variant(is_dark),
+            visible=False,
+            text_align=ft.TextAlign.CENTER,
+        )
+
         card_content = ft.Column(
             controls=[
                 self._icon_widget,
@@ -98,6 +107,8 @@ class HubCard(ThemeAwareMixin, ft.Container):
                 self._subtitle_text,
                 ft.Container(height=8),
                 self._stats_badge,
+                ft.Container(height=4),
+                self._stats_detail_text,
             ],
             spacing=0,
             expand=True,
@@ -110,12 +121,8 @@ class HubCard(ThemeAwareMixin, ft.Container):
             padding=ft.Padding.all(24),
             border_radius=border_radius_val,
             bgcolor=MD3Colors.get_surface(is_dark),
-            border=ft.Border.only(
-                left=ft.BorderSide(3, accent),
-                top=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
-                right=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
-                bottom=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
-            ),
+            # Left accent bar only — no gray outline around the card
+            border=ft.Border.only(left=ft.BorderSide(3, accent)),
             shadow=Shadows.LEVEL_2,
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
             animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
@@ -134,25 +141,16 @@ class HubCard(ThemeAwareMixin, ft.Container):
         accent = self._accent_dark if is_dark else self._accent_light
 
         if e.data == "true":
-            # Scale slightly (smaller for large cards)
+            # Scale slightly (smaller for large cards); shadow conveys hover,
+            # left accent bar kept (no full outline)
             max_scale = 1.01 if self._icon_size >= 64 else 1.02
             self.scale = max_scale
             self.shadow = Shadows.LEVEL_3
-            self.border = ft.Border.only(
-                left=ft.BorderSide(3, accent),
-                top=ft.BorderSide(1, accent),
-                right=ft.BorderSide(1, accent),
-                bottom=ft.BorderSide(1, accent),
-            )
+            self.border = ft.Border.only(left=ft.BorderSide(3, accent))
         else:
             self.scale = 1.0
             self.shadow = Shadows.LEVEL_2
-            self.border = ft.Border.only(
-                left=ft.BorderSide(3, accent),
-                top=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
-                right=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
-                bottom=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
-            )
+            self.border = ft.Border.only(left=ft.BorderSide(3, accent))
 
         if self._page_ref:
             self.update()
@@ -165,6 +163,14 @@ class HubCard(ThemeAwareMixin, ft.Container):
         else:
             self._stats_badge.visible = False
 
+    def set_stats_detail(self, text: str):
+        """Update the secondary stats line below the badge."""
+        if text:
+            self._stats_detail_text.value = text
+            self._stats_detail_text.visible = True
+        else:
+            self._stats_detail_text.visible = False
+
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme colors to all sub-elements."""
         if delay_ms > 0:
@@ -174,18 +180,14 @@ class HubCard(ThemeAwareMixin, ft.Container):
         accent = self._accent_dark if is_dark else self._accent_light
 
         self.bgcolor = MD3Colors.get_surface(is_dark)
-        self.border = ft.Border.only(
-            left=ft.BorderSide(3, accent),
-            top=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
-            right=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
-            bottom=ft.BorderSide(1, MD3Colors.get_outline(is_dark)),
-        )
+        self.border = ft.Border.only(left=ft.BorderSide(3, accent))
 
         self._icon_widget.color = accent
         self._title_text.color = MD3Colors.get_on_surface(is_dark)
         self._subtitle_text.color = MD3Colors.get_on_surface_variant(is_dark)
         self._stats_text.color = accent
         self._stats_badge.bgcolor = f"#1F{accent[1:]}"
+        self._stats_detail_text.color = MD3Colors.get_on_surface_variant(is_dark)
 
         try:
             self.update()

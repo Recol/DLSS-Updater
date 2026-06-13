@@ -377,8 +377,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
             height=140,
         )
 
-        # Card content layout
-        self.content = ft.Container(
+        # Inner card body (Row of image + right content)
+        card_body = ft.Container(
             content=ft.Row(
                 controls=[
                     self._image_stack,
@@ -391,6 +391,163 @@ class GameCard(ThemeAwareMixin, ft.Card):
             height=220,
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
         )
+
+        # Right-click context menu wrapping the whole card body.
+        # secondary_items = right mouse button; left-click children (badges,
+        # overlay buttons) keep their own on_tap/on_click behaviour.
+        self._context_menu = ft.ContextMenu(
+            content=card_body,
+            secondary_items=self._build_context_menu_items(),
+        )
+
+        # Card content layout
+        self.content = self._context_menu
+
+    def _build_context_menu_items(self) -> list[ft.PopupMenuItem]:
+        """Build right-click context menu items reflecting current card state.
+
+        Rebuilt whenever state changes (set_ignored / refresh_dlls /
+        refresh_restore_button) so disabled/enabled status stays accurate.
+        """
+        is_dark = self._registry.is_dark
+        primary = MD3Colors.get_primary(is_dark)
+        success = MD3Colors.get_success(is_dark)
+        warning = MD3Colors.get_warning(is_dark)
+
+        has_outdated = self._check_for_updates()
+        is_steam = self.game.launcher == "Steam" and self.game.effective_steam_app_id
+
+        items: list[ft.PopupMenuItem] = [
+            ft.PopupMenuItem(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.UPDATE, size=16, color=primary if has_outdated and not self.is_ignored else None),
+                        ft.Text("Update all DLLs", size=14),
+                    ],
+                    spacing=10,
+                    tight=True,
+                ),
+                on_click=lambda e: self._on_update_group_selected("all"),
+            ),
+            ft.PopupMenuItem(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.RESTORE, size=16, color=success if self.has_backups else None),
+                        ft.Text("Restore from backup", size=14),
+                    ],
+                    spacing=10,
+                    tight=True,
+                ),
+                on_click=lambda e: self._on_restore_group_selected("all"),
+            ),
+        ]
+
+        items.append(ft.PopupMenuItem())  # Divider
+
+        items.append(
+            ft.PopupMenuItem(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.FOLDER_OPEN, size=16),
+                        ft.Text("Open folder", size=14),
+                    ],
+                    spacing=10,
+                    tight=True,
+                ),
+                on_click=lambda e: self._on_open_folder(),
+            )
+        )
+        items.append(
+            ft.PopupMenuItem(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.CONTENT_COPY, size=16),
+                        ft.Text("Copy path(s)" if len(self.all_paths) > 1 else "Copy path", size=14),
+                    ],
+                    spacing=10,
+                    tight=True,
+                ),
+                on_click=lambda e: self._page_ref.run_task(self._on_copy_path_clicked, None),
+            )
+        )
+
+        if is_steam:
+            items.append(
+                ft.PopupMenuItem(
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.PLAY_ARROW_ROUNDED, size=16, color=primary),
+                            ft.Text("Launch via Steam", size=14),
+                        ],
+                        spacing=10,
+                        tight=True,
+                    ),
+                    on_click=lambda e: self._launch_game(),
+                )
+            )
+
+        items.append(ft.PopupMenuItem())  # Divider
+
+        items.append(
+            ft.PopupMenuItem(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(
+                            ft.Icons.VISIBILITY if self.is_ignored else ft.Icons.VISIBILITY_OFF,
+                            size=16,
+                            color=warning,
+                        ),
+                        ft.Text("Unignore game" if self.is_ignored else "Ignore game", size=14),
+                    ],
+                    spacing=10,
+                    tight=True,
+                ),
+                on_click=lambda e: self._on_ignore_clicked(None),
+            )
+        )
+        items.append(
+            ft.PopupMenuItem(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.EDIT, size=16),
+                        ft.Text("Edit display (image & name)", size=14),
+                    ],
+                    spacing=10,
+                    tight=True,
+                ),
+                on_click=lambda e: self._on_resolve_clicked(None),
+            )
+        )
+
+        return items
+
+    def _refresh_context_menu(self) -> None:
+        """Rebuild context menu items to reflect current card state."""
+        if getattr(self, "_context_menu", None):
+            self._context_menu.secondary_items = self._build_context_menu_items()
+
+    def _on_open_folder(self):
+        """Open the game's install folder in the OS file explorer."""
+        import os
+        import subprocess
+        import sys
+
+        if not self.all_paths:
+            return
+        path = self.all_paths[0]
+        try:
+            folder = path if os.path.isdir(path) else os.path.dirname(path)
+            if not folder or not os.path.isdir(folder):
+                self.logger.warning(f"Folder does not exist: {folder}")
+                return
+            if sys.platform == "win32":
+                os.startfile(folder)  # noqa: S606
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", folder])
+            else:
+                subprocess.Popen(["xdg-open", folder])
+        except Exception as ex:
+            self.logger.warning(f"Failed to open folder: {ex}")
 
     def _create_dll_badges(self) -> ft.Container:
         """Create condensed DLL badge that opens grouped dialog on click"""
@@ -938,6 +1095,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             )
         if self.update_button:
             self.update_button.disabled = ignored
+        self._refresh_context_menu()
 
     def _on_hover(self, e):
         """Handle hover effect with multi-layer shadow and border glow"""
@@ -1020,6 +1178,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 if self.update_button_arrow:
                     self.update_button_arrow.color = color
 
+            self._refresh_context_menu()
+
             if self.right_content:
                 self.right_content.update()
 
@@ -1041,6 +1201,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                     action_buttons_row.controls[1] = new_restore_button
                     self.restore_button = new_restore_button
                     action_buttons_row.update()
+            self._refresh_context_menu()
 
     def _build_path_display(self) -> ft.Row:
         """Build path display row, supporting multiple paths for merged games."""
@@ -1156,6 +1317,9 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self.update_button.items = self._build_update_menu_items()
         if self.restore_button and not self.restore_button.disabled:
             self.restore_button.items = self._build_restore_menu_items()
+
+        # Rebuild context menu items with new theme colors
+        self._refresh_context_menu()
 
         # Call parent implementation for standard themed property updates
         await super().apply_theme(is_dark, delay_ms)

@@ -218,38 +218,54 @@ class ThemeRegistry:
         page: "ft.Page | None" = None,
     ) -> None:
         """
-        Apply theme to all registered components.
+        Apply theme to all registered components (live, no restart).
 
-        Note: Cascade animation is DISABLED because theme toggle restarts the app
-        via os.execv(), so users never see the cascade effect. All components are
-        updated in a single pass with one page.update() for maximum efficiency.
+        Each component's own ``apply_theme()`` is invoked so that subclasses with
+        custom theming logic (menu rebuilds, in-place tile recoloring, TextField
+        styles, etc.) update correctly — not just their static
+        ``get_themed_properties()`` map.
+
+        When ``cascade`` is True, components are updated with a staggered delay
+        derived from their ``_theme_priority`` (lower priority animates first),
+        producing a sweep across the UI. Each component self-updates after its
+        delay; a final ``page.update()`` flushes any page-level changes.
 
         Args:
             is_dark: Whether to apply dark mode
-            cascade: (Deprecated) Ignored - always applies instantly
-            base_delay_ms: (Deprecated) Ignored - no delays used
-            page: Optional Flet page for final update
+            cascade: Stagger updates by priority for a sweep effect
+            base_delay_ms: Per-priority-tier delay when cascading (ms)
+            page: Optional Flet page for the final update
         """
         async with self._cascade_lock:
             self._is_dark = is_dark
 
-            # Get snapshot of components (WeakSet may change during iteration)
+            # Snapshot of components (WeakSet may change during iteration)
             components = list(self._components)
-
             if not components:
+                if page is not None:
+                    try:
+                        page.update()
+                    except Exception:
+                        pass
                 return
 
-            # Apply all components in single pass (no cascade - app restarts on theme change)
-            for comp in components:
+            async def _apply(comp: "ThemeAwareMixin") -> None:
+                # Delay is baked into apply_theme() so each component sleeps then
+                # applies + self-updates, giving the staggered cascade sweep.
+                if cascade:
+                    delay = (getattr(comp, "_theme_priority", 50) // 10) * base_delay_ms
+                else:
+                    delay = 0
                 try:
-                    properties = comp.get_themed_properties()
-                    for prop_path, (dark_val, light_val) in properties.items():
-                        value = dark_val if is_dark else light_val
-                        comp._set_nested_property(prop_path, value)
+                    await comp.apply_theme(is_dark, delay_ms=delay)
                 except Exception:
-                    pass  # Component may have been garbage collected
+                    pass  # Component may have been GC'd or detached
 
-            # Single page update at the end
+            # Run all component updates concurrently; each waits its own delay
+            await asyncio.gather(*[_apply(c) for c in components])
+
+            # Final page update flushes page-level (bgcolor/theme) changes and
+            # any components whose self.update() no-op'd while detached.
             if page is not None:
                 try:
                     page.update()

@@ -117,10 +117,13 @@ class NavigationController(ft.Column):
             page=page,
         )
 
-        # Pill wrapper (positioned at bottom center, hidden on hub)
+        # Pill wrapper (positioned at bottom left, hidden on hub).
+        # Bottom-left (not center) keeps it clear of the launchers view's
+        # centered Scan/Update action bar. Views add ~PILL_CLEARANCE bottom
+        # padding to their scroll areas so content can scroll clear of it.
         self._pill_wrapper = ft.Container(
             content=self._pill,
-            alignment=ft.Alignment.BOTTOM_CENTER,
+            left=16,
             bottom=16,
             visible=False,
             opacity=0.0,

@@ -104,16 +104,18 @@ async def main(page: ft.Page):
     """
     # Configure page
     page.title = "DLSS Updater"
-    page.window.min_width = 700
-    page.window.min_height = 500
+    # Minimum size keeps the launcher action bar, two-column responsive grids,
+    # and the floating pill from clipping/wrapping at narrow widths.
+    page.window.min_width = 820
+    page.window.min_height = 560
     page.padding = 0
     page.spacing = 0
 
     # Restore saved window state (position, size, maximized)
     from dlss_updater.config import config_manager
     _saved_window = config_manager.get_window_state()
-    page.window.width = max(_saved_window["width"], 700)
-    page.window.height = max(_saved_window["height"], 500)
+    page.window.width = max(_saved_window["width"], 820)
+    page.window.height = max(_saved_window["height"], 560)
     if _saved_window["top"] is not None and _saved_window["left"] is not None:
         page.window.top = _saved_window["top"]
         page.window.left = _saved_window["left"]
@@ -127,16 +129,11 @@ async def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK if is_dark else ft.ThemeMode.LIGHT
     page.bgcolor = "#2E2E2E" if is_dark else "#FAFBFC"
 
-    # Create Material 3 theme with custom colors
-    page.theme = ft.Theme(
-        color_scheme_seed="#2D6E88" if is_dark else "#1A5A70",
-        use_material3=True,
-    )
-
-    page.dark_theme = ft.Theme(
-        color_scheme_seed="#2D6E88",
-        use_material3=True,
-    )
+    # Material 3 themes (light + dark) built from the shared helper so the
+    # seed color and slim auto-hiding scrollbars stay in sync with live toggles.
+    from dlss_updater.ui_flet.theme.colors import build_page_theme
+    page.theme = build_page_theme(is_dark=False)
+    page.dark_theme = build_page_theme(is_dark=True)
 
     # Get logger instance
     logger = logging.getLogger("DLSSUpdater")
