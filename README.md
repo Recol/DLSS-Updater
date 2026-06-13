@@ -116,14 +116,6 @@ Download DLSS Updater from [Chocolatey](https://community.chocolatey.org/package
 
 Download `DLSS.Updater.X.Y.Z.msi` from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page and run it.
 
-#### Portable Executable
-
-If you prefer a standalone executable that doesn't require installation:
-
-1. Download `DLSS.Updater.X.Y.Z.zip` from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page.
-2. Extract the ZIP file.
-3. Run `DLSS_Updater.exe` as an administrator.
-
 ### Linux
 
 #### Flatpak (Recommended)
