@@ -64,7 +64,8 @@ The current supported XeSS DLLs include XeSS 2.0.2, XeSS Frame Generation 1.3.1,
 
 ## GUI
 
-<img width="1085" height="752" alt="games view" src="https://github.com/user-attachments/assets/b672869c-2619-4bcf-81a5-284bacd69d53" />
+<img width="1084" height="748" alt="games_view" src="https://github.com/user-attachments/assets/d9f0ed53-9b78-4433-9672-73fb087bd19e" />
+
 
 
 ## Star History
