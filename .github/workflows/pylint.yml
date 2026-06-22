@@ -12,7 +12,7 @@ jobs:
       matrix:
         python-version: ["3.14.3+freethreaded"]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Set up uv with Python ${{ matrix.python-version }}
       uses: astral-sh/setup-uv@v7
