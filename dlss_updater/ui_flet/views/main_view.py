@@ -790,26 +790,36 @@ class MainView(ft.Column):
         )
 
         async def on_submit(e):
-            path = path_input.value.strip()
-            if path:
-                # Validate the path exists
-                if Path(path).is_dir():
-                    self._page_ref.pop_dialog()
-                    # Add the path to the launcher
-                    added = config_manager.add_launcher_path(launcher, path)
-                    if added:
-                        all_paths = config_manager.get_launcher_paths(launcher)
-                        card = self.launcher_cards.get(launcher)
-                        if card:
-                            await card.set_paths(all_paths)
-                        await self._show_snackbar(f"Path added: {path}")
-                    else:
-                        await self._show_snackbar("Path already exists or limit reached")
-                else:
-                    path_input.error_text = "Directory does not exist"
-                    self._page_ref.update()
-            else:
+            raw = path_input.value.strip()
+            if not raw:
                 path_input.error_text = "Please enter a path"
+                self._page_ref.update()
+                return
+
+            # Expand ~ and environment variables so paths like ~/.steam work (Issue #228)
+            path = os.path.expanduser(os.path.expandvars(raw))
+
+            # Validate the path exists and is accessible
+            if Path(path).is_dir():
+                self._page_ref.pop_dialog()
+                # Add the path to the launcher (config also normalizes)
+                added = config_manager.add_launcher_path(launcher, path)
+                if added:
+                    all_paths = config_manager.get_launcher_paths(launcher)
+                    card = self.launcher_cards.get(launcher)
+                    if card:
+                        await card.set_paths(all_paths)
+                    await self._show_snackbar(f"Path added: {path}")
+                else:
+                    await self._show_snackbar("Path already exists or limit reached")
+            elif is_flatpak():
+                # Inside the Flatpak sandbox a real folder outside the granted
+                # filesystem looks like it "doesn't exist". Guide the user to
+                # grant access rather than showing a misleading error (Issue #228).
+                self._page_ref.pop_dialog()
+                await self._show_flatpak_permission_dialog(path)
+            else:
+                path_input.error_text = "Directory does not exist"
                 self._page_ref.update()
 
         dialog = ft.AlertDialog(

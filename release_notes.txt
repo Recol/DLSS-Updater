@@ -1,3 +1,15 @@
+Version 4.2.0:
+Linux / Flatpak Fixes (Issue #228):
+  - Custom and launcher folder paths now expand "~" and environment variables
+    (e.g. "~/.steam" or "$HOME/Games"), so home-relative paths resolve correctly
+    instead of being silently rejected as "Directory does not exist".
+  - Adding a folder by hand on Linux that lives outside the Flatpak sandbox now shows
+    the Flatpak permission instructions (the "flatpak override --filesystem" command)
+    instead of a misleading "Directory does not exist" error.
+  - Auto-Detect now works for Steam on Linux: it probes the common native and Flatpak
+    Steam install locations and reads libraryfolders.vdf, rather than relying on the
+    Windows-only registry (which always returned nothing on Linux).
+
 Version 4.1.9:
 Desktop UX & UI Improvements:
   - Light/dark theme switching is now live — the whole UI re-themes instantly with a

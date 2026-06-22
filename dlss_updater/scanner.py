@@ -589,14 +589,23 @@ def auto_detect_steam_library_paths() -> list[str]:
         List of steamapps/common paths for all discovered libraries.
         Empty list if Steam is not installed or detection fails.
     """
-    # First, get the Steam install root from registry
-    primary = auto_detect_launcher_path(LauncherPathName.STEAM)
-    if not primary:
-        return []
+    # Determine the Steam install root (cross-platform).
+    if IS_WINDOWS:
+        # Windows: derive root from the registry-detected install path.
+        primary = auto_detect_launcher_path(LauncherPathName.STEAM)
+        if not primary:
+            return []
+        # primary is e.g. "C:\Program Files (x86)\Steam\steamapps\common"
+        steam_root = primary.replace("\\steamapps\\common", "").replace("/steamapps/common", "")
+    else:
+        # Linux: registry detection is unavailable, so probe common install
+        # locations (native + Flatpak Steam) instead (Issue #228).
+        from dlss_updater.linux_paths import get_linux_steam_path_sync
 
-    # primary is e.g. "C:\Program Files (x86)\Steam\steamapps\common"
-    # We need the Steam root to find libraryfolders.vdf
-    steam_root = primary.replace("\\steamapps\\common", "").replace("/steamapps/common", "")
+        steam_path = get_linux_steam_path_sync()
+        if not steam_path:
+            return []
+        steam_root = str(steam_path)
 
     # Use existing get_steam_libraries to parse libraryfolders.vdf
     libraries = get_steam_libraries(steam_root)
@@ -612,8 +621,10 @@ def auto_detect_steam_library_paths() -> list[str]:
             logger.debug(f"Steam library path does not exist, skipping: {path_str}")
 
     if not paths:
-        # Fallback to just the primary path
-        paths = [primary]
+        # Fallback to the default steamapps/common under the Steam root
+        fallback = str(Path(steam_root) / "steamapps" / "common")
+        if Path(fallback).exists():
+            paths = [fallback]
 
     logger.info(f"Auto-detected {len(paths)} Steam library path(s)")
     return paths

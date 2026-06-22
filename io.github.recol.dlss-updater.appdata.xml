@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.2.0" date="2026-06-14">
+      <description>
+        <p>Linux and Flatpak fixes for game detection (Issue #228)</p>
+        <ul>
+          <li>Folder paths now expand "~" and environment variables (e.g. ~/.steam)</li>
+          <li>Adding a folder outside the Flatpak sandbox now shows the filesystem permission instructions instead of a misleading "does not exist" error</li>
+          <li>Auto-Detect now finds Steam libraries on Linux (native and Flatpak installs) instead of relying on the Windows-only registry</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.1.9" date="2026-06-13">
       <description>
         <p>Desktop UX and UI improvements across the game library, launchers, and settings</p>

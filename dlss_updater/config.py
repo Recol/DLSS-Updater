@@ -19,6 +19,27 @@ from .models import (
 
 logger = setup_logger()
 
+
+def normalize_user_path(path: str) -> str:
+    """
+    Expand ``~`` and environment variables in a user-supplied path.
+
+    Users often enter paths like ``~/.steam`` or ``$HOME/Games``; the raw
+    string would never match a real directory because neither ``~`` nor
+    ``$VAR`` are resolved by :class:`pathlib.Path`. This normalizes such
+    paths before they are validated or stored (Issue #228).
+
+    Args:
+        path: A user-entered path that may contain ``~`` or env vars.
+
+    Returns:
+        The expanded path, or the original value if empty/None.
+    """
+    if not path:
+        return path
+    return os.path.expanduser(os.path.expandvars(path))
+
+
 # =============================================================================
 # CONCURRENCY CONFIGURATION - Maximize hardware utilization
 # =============================================================================
@@ -362,8 +383,8 @@ class ConfigManager(configparser.ConfigParser):
             launcher: The launcher to set paths for
             paths: List of paths to set
         """
-        # Filter empty paths and enforce limit
-        filtered_paths = [p for p in paths if p][:MAX_PATHS_PER_LAUNCHER]
+        # Expand ~ and environment variables, filter empty paths, enforce limit (Issue #228)
+        filtered_paths = [normalize_user_path(p) for p in paths if p][:MAX_PATHS_PER_LAUNCHER]
 
         # Encode as JSON array
         json_value = msgspec.json.encode(filtered_paths).decode()
@@ -384,6 +405,9 @@ class ConfigManager(configparser.ConfigParser):
         """
         if not new_path:
             return False
+
+        # Expand ~ and environment variables before validation/storage (Issue #228)
+        new_path = normalize_user_path(new_path)
 
         paths = self.get_launcher_paths(launcher)
 
