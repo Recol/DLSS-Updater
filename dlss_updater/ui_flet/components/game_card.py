@@ -17,6 +17,49 @@ from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_re
 from dlss_updater.constants import DLL_GROUPS
 
 
+# Full-bleed "hero" card dimensions (Option C).
+# The card is a Column of [flexible banner Stack, fixed-height footer]. The banner
+# EXPANDS to fill whatever vertical space the GridView cell gives (minus the fixed
+# footer), so the footer can never be clipped regardless of column count / width —
+# the artwork (BoxFit.COVER) simply crops taller/shorter. HERO_HEIGHT is the banner's
+# *target* height at the typical cell width (used to derive the grid aspect ratio and
+# as the skeleton placeholder height); the banner flexes around it, it is not a hard cap.
+HERO_HEIGHT = 204  # Target banner height at the typical cell width (~320 px wide).
+BANNER_HEIGHT = HERO_HEIGHT  # Skeleton placeholder height (matches the hero target)
+
+# ---- Footer geometry (FIXED height, never wraps) ----
+# The footer holds the DLL badge + compact icon-only Update/Restore buttons that
+# expand to labelled buttons on hover via a WIDTH animation (height stays constant —
+# height animation is a documented anti-pattern here). Because the footer height is a
+# constant and the banner flexes, the total card height maps cleanly onto the grid cell.
+FOOTER_CONTENT_HEIGHT = 36  # Height of the footer Row (icon buttons drive this)
+FOOTER_V_PADDING = 8  # Top/bottom padding inside the footer container
+FOOTER_HEIGHT = FOOTER_CONTENT_HEIGHT + FOOTER_V_PADDING * 2  # 52 px — the fixed footer band
+
+# Compact (resting) vs expanded (hover) widths for the footer controls.
+BTN_COMPACT_WIDTH = 40  # Icon-only Update/Restore button (resting)
+UPDATE_EXPANDED_WIDTH = 108  # icon + "Update" + ▾ (hover)
+RESTORE_EXPANDED_WIDTH = 116  # icon + "Restore" + ▾ (hover)
+BADGE_FULL_WIDTH = 140  # DLL status badge with text (resting) — headroom for
+# double-digit counts like "14/14 outdated" (games bundling DLSS+Streamline+
+# XeSS+FSR+DirectStorage can realistically hit 10+ tracked DLLs).
+BADGE_COMPACT_WIDTH = 40  # DLL status badge shrunk to icon-only (hover, frees room for labels)
+FOOTER_ANIM_MS = 180  # Width/opacity animation duration for the hover expand/collapse
+
+# ---- Hero art zoom bias ----
+# Steam's library_hero.jpg banners are composed for their OWN native ~3.1:1 aspect
+# ratio, with a plain/gradient zone in the top third (designed to sit behind Steam's
+# own UI chrome) and the actual character art concentrated lower-center. Our card box
+# is far closer to square (~1.3-1.5:1), so BoxFit.COVER scales by height and shows the
+# ENTIRE source height uncropped — including that plain top zone, which reads as an
+# ugly "black bar" above the art. Applying a modest zoom (scale) + upward shift
+# (offset, fractional units of the image's own rendered size) crops that dead zone
+# away and biases the visible window toward the art-dense lower region, without
+# needing to know the actual box's pixel size (both are resolution-independent).
+HERO_ART_ZOOM = 1.3  # Post-cover zoom-in; overflow is clipped by image_container.
+HERO_ART_OFFSET_Y = -0.12  # Shift up 12% of rendered height (reveals more bottom art).
+
+
 class GameCard(ThemeAwareMixin, ft.Card):
     """Individual game card with image, DLL info, and actions
 
@@ -25,7 +68,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
     not be included in page.update() and would require individual card.update() calls.
     """
 
-    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None, on_resolve=None):
+    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None, on_resolve=None, db_manager=None):
         super().__init__()
 
         # Handle both Game and MergedGame
@@ -46,6 +89,13 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self.on_restore_callback = on_restore
         self.on_ignore_toggle_callback = on_ignore_toggle
         self.on_resolve_callback = on_resolve
+        # DB manager used by the per-game DLSS panel. Defaults to the shared
+        # module-level instance the card already uses elsewhere (see _show_dll_dialog,
+        # load_image). An explicit instance can be wired in from GamesView.
+        if db_manager is None:
+            from dlss_updater.database import db_manager as _shared_db_manager
+            db_manager = _shared_db_manager
+        self.db_manager = db_manager
         self.backup_groups = backup_groups or {}
         self.has_backups = bool(backup_groups)
         self.is_ignored = is_ignored
@@ -56,9 +106,17 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self.ignore_button: ft.IconButton | None = None
         self.is_updating = False
 
-        # Reference to dll_badges for refresh
+        # Hover-expand wrappers (Container with animated width) + notification dot.
+        # These let the footer controls grow from icon-only (resting) to labelled
+        # (hover) via a width animation — see _on_hover().
+        self.update_button_wrapper: ft.Container | None = None
+        self.restore_button_wrapper: ft.Container | None = None
+        self.dll_badge_wrapper: ft.Container | None = None
+        self.update_notification_dot: ft.Container | None = None
+
+        # Reference to dll_badges + footer row for in-place refresh
         self.dll_badges_container: ft.Container | None = None
-        self.right_content: ft.Column | None = None
+        self._footer_row: ft.Row | None = None
 
         # Async lock for UI updates to prevent race conditions
         self._ui_lock = asyncio.Lock()
@@ -99,12 +157,11 @@ class GameCard(ThemeAwareMixin, ft.Card):
         """
         is_dark = self._registry.is_dark
 
-        # Inner placeholder container with game icon
+        # Inner placeholder container with game icon — wide banner aspect.
         placeholder_content = ft.Container(
-            width=140,  # Match image container width
-            height=140,  # Match image height
+            expand=True,  # Fill the full-width banner
+            height=BANNER_HEIGHT,  # Min height while the card lays out
             bgcolor=MD3Colors.get_themed("skeleton_base", is_dark),
-            border_radius=8,
             content=ft.Icon(
                 ft.Icons.VIDEOGAME_ASSET,
                 size=48,
@@ -220,74 +277,144 @@ class GameCard(ThemeAwareMixin, ft.Card):
             ))
         return items
 
+    def _build_scrim_gradient(self, is_dark: bool) -> ft.LinearGradient:
+        """Bottom-weighted gradient scrim (legibility on ANY box art).
+
+        Fades toward the card's own surface color (not a hardcoded black) so the
+        scrim's opaque bottom edge matches the footer sitting directly below it —
+        in light theme this fades to white instead of black, avoiding a hard dark
+        seam between the scrim and the (correctly theme-aware) footer.
+        """
+        base = MD3Colors.get_surface(is_dark)
+        return ft.LinearGradient(
+            begin=ft.Alignment.TOP_CENTER,
+            end=ft.Alignment.BOTTOM_CENTER,
+            colors=[
+                ft.Colors.TRANSPARENT,
+                ft.Colors.with_opacity(0.15, base),
+                ft.Colors.with_opacity(0.60, base),
+                ft.Colors.with_opacity(0.85, base),
+            ],
+            stops=[0.0, 0.45, 0.75, 1.0],
+        )
+
     def _build_card_content(self):
-        """Build card content layout"""
+        """Build the full-bleed "hero" card layout (Option C).
+
+        The entire card is a single fixed-height ``ft.Stack``:
+
+          - Bottom layer: the artwork, positioned to FILL the whole stack
+            (left/top/right/bottom=0) so it covers the full card — no grey footer.
+          - Scrim layer: a bottom-weighted transparent→black gradient (also
+            filling the stack) so overlaid text/buttons are legible on any art.
+          - Bottom overlay (positioned bottom/left/right=0): a Column of the
+            Hidden chip, title, launcher·status row, then the action Row
+            (DLL badges + Update ▾ / Restore ▾).
+          - Top-right overlay cluster: eye (hide/unhide), pencil (edit), kebab (⋮).
+
+        The Play/Launch button is intentionally removed — "Launch via Steam"
+        lives in the kebab / right-click menu.
+        """
         is_dark = self._registry.is_dark
 
-        # Image container with skeleton loader (responsive for grid)
+        # ---- Hero artwork (bottom layer, fills the whole stack) ----
+        # expand=True + COVER crops the art to fill its positioned box. The box is
+        # made full-size by positioning image_container left/top/right/bottom=0 in
+        # the FIXED-height stack below, so the image reliably fills the card.
         self.image_widget = ft.Image(
             src="/assets/placeholder_game.png",
-            width=None,  # Full card width
-            height=140,  # Slightly taller for better aspect ratio in grid
+            expand=True,  # Fill the positioned fill-box; COVER crops to fit
             fit=ft.BoxFit.COVER,
-            border_radius=ft.BorderRadius.all(8),
+            # Zoom in + shift up post-cover to crop out the source art's plain top
+            # zone (see HERO_ART_ZOOM/HERO_ART_OFFSET_Y above). image_container's
+            # clip_behavior=ANTI_ALIAS clips the resulting overflow.
+            scale=HERO_ART_ZOOM,
+            offset=ft.Offset(0, HERO_ART_OFFSET_Y),
             error_content=ft.Icon(ft.Icons.VIDEOGAME_ASSET, size=48, color=ft.Colors.GREY),
         )
 
+        # image_container is the swappable host (skeleton -> image) used by
+        # load_image()/ImageLoadCoordinator. It expands to fill its positioned
+        # fill-box in the stack.
         self.image_container = ft.Container(
             content=self._create_skeleton_loader(),  # Start with skeleton
-            width=140,  # Constrain image width for proper layout
-            height=140,  # Match image height
-            border_radius=8,
+            expand=True,
             bgcolor=MD3Colors.get_surface(is_dark),
             alignment=ft.Alignment.CENTER,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
         )
 
+        # ---- Bottom-weighted gradient scrim (legibility on ANY box art) ----
+        # expand=True so it fills the flexible banner stack at any height. Themed
+        # (fades to the card's surface color, not hardcoded black) so it matches
+        # the footer below it in both themes — see _build_scrim_gradient().
+        self._scrim = ft.Container(
+            expand=True,
+            gradient=self._build_scrim_gradient(is_dark),
+        )
 
-        # Game name text - store reference for theming
+        # ---- Title + launcher/status overlay (on scrim, bottom-left) ----
+        # Themed: the scrim now fades to the card's own surface color (not a fixed
+        # black), so the text needs to flip dark/light with it to stay legible.
         self.game_name_text = ft.Text(
             self.game.display_name,
             size=16,
             weight=ft.FontWeight.BOLD,
             color=MD3Colors.get_text_primary(is_dark),
-            max_lines=1,
+            max_lines=2,
             overflow=ft.TextOverflow.ELLIPSIS,
-            no_wrap=True,  # Prevent wrapping to maintain consistent card height
-            tooltip=self.game.display_name,  # Show full name on hover
+            tooltip=self._title_tooltip(),  # Full name + path(s) on hover
         )
 
-        # Launcher text - store reference for theming
         self.launcher_text = ft.Text(
             self.game.launcher,
-            size=12,
-            color=MD3Colors.get_text_secondary(is_dark),
+            size=11,
+            color=MD3Colors.get_on_surface_variant(is_dark),
             no_wrap=True,
         )
 
-        # Game name, launcher, and path
-        game_info = ft.Column(
-            controls=[
-                self.game_name_text,
-                self.launcher_text,
-                # Path row with tooltip and copy button (supports multiple paths)
-                self._build_path_display(),
-            ],
-            spacing=4,
-            tight=True,
+        self.status_separator_text = ft.Text(
+            "·", size=11, color=MD3Colors.get_on_surface_variant(is_dark)
         )
 
-        # DLL badges
-        self.dll_badges_container = self._create_dll_badges()
+        # Status dot + label (e.g. "● Needs update" / "● Up to date").
+        self.status_row = self._build_status_row()
 
-        # Action buttons - store reference to update button for loading state
-        # Build popup menu items for selective DLL updates
-        self.update_button = self._create_update_popup_menu()
-        self.restore_button = self._create_restore_popup_menu()
+        # "Hidden" chip (only visible when ignored).
+        self.hidden_chip = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.VISIBILITY_OFF, size=12, color=ft.Colors.WHITE),
+                    ft.Text("Hidden", size=10, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE),
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            bgcolor=ft.Colors.with_opacity(0.85, "#FF9800"),
+            padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+            border_radius=10,
+            visible=self.is_ignored,
+        )
 
-        # Launch button (Steam games only)
-        self.launch_button = self._create_launch_button()
+        title_overlay = ft.Container(
+            content=ft.Column(
+                controls=[
+                    self.hidden_chip,
+                    self.game_name_text,
+                    ft.Row(
+                        controls=[self.launcher_text, self.status_separator_text, self.status_row],
+                        spacing=6,
+                        tight=True,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                ],
+                spacing=2,
+                tight=True,
+            ),
+            padding=ft.Padding.only(left=12, right=12, bottom=10),
+        )
 
-        # Ignore toggle button — positioned as overlay on image (top-right)
+        # ---- Top-right overlay cluster: eye + pencil + kebab ----
         self.ignore_button = ft.IconButton(
             icon=ft.Icons.VISIBILITY if self.is_ignored else ft.Icons.VISIBILITY_OFF,
             icon_size=16,
@@ -307,88 +434,140 @@ class GameCard(ThemeAwareMixin, ft.Card):
             ),
         )
 
-        # Apply ignored visual state
-        if self.is_ignored:
-            self.opacity = 0.5
-            if self.update_button:
-                self.update_button.disabled = True
-
-        # Resolve / link-to-Steam overlay button (bottom-right of image, like ignore button)
         self.resolve_button = ft.IconButton(
             icon=ft.Icons.EDIT,
             icon_size=14,
             tooltip="Edit display" if self.game.is_manually_resolved else "Edit display (image & name)",
             on_click=self._on_resolve_clicked,
-            width=26,
-            height=26,
+            width=28,
+            height=28,
             style=ft.ButtonStyle(
                 color={ft.ControlState.DEFAULT: ft.Colors.WHITE},
-                bgcolor={ft.ControlState.DEFAULT: ft.Colors.with_opacity(0.55, ft.Colors.BLACK)},
+                bgcolor={ft.ControlState.DEFAULT: ft.Colors.with_opacity(0.5, ft.Colors.BLACK)},
                 padding=ft.Padding.all(4),
-                shape=ft.RoundedRectangleBorder(radius=7),
+                shape=ft.RoundedRectangleBorder(radius=8),
             ),
         )
 
-        # PERFORMANCE: Flattened action buttons row (removed Container wrapper)
-        action_buttons_controls = [
-            self.update_button,
-            self.restore_button,
-        ]
-        if self.launch_button:
-            action_buttons_controls.append(self.launch_button)
-
-        action_buttons_row = ft.Row(
-            controls=action_buttons_controls,
-            spacing=8,
-            wrap=True,
-            run_spacing=4,
+        # Kebab (⋮) reuses the SAME item builder as right-click (single source).
+        self.kebab_button = ft.PopupMenuButton(
+            content=ft.Container(
+                content=ft.Icon(ft.Icons.MORE_VERT, size=18, color=ft.Colors.WHITE),
+                bgcolor=ft.Colors.with_opacity(0.5, ft.Colors.BLACK),
+                padding=ft.Padding.all(5),
+                border_radius=8,
+            ),
+            tooltip="More actions",
+            items=self._build_context_menu_items(),
         )
 
-        # Right side content - spacer pushes buttons to bottom consistently
-        # PERFORMANCE: Reduced nesting by removing unnecessary Container wrappers
-        self.right_content = ft.Column(
-            controls=[
-                game_info,
-                self.dll_badges_container,
-                ft.Container(expand=True),  # Spacer pushes buttons to bottom
-                action_buttons_row,  # Direct Row instead of Container > Row
-            ],
-            spacing=4,
-            expand=True,
-            alignment=ft.MainAxisAlignment.START,
+        overlay_cluster = ft.Container(
+            content=ft.Row(
+                controls=[self.ignore_button, self.resolve_button, self.kebab_button],
+                spacing=2,
+                tight=True,
+            ),
+            right=4,
+            top=4,
         )
 
-        # Image with overlays: ignore (top-right) + resolve/edit (bottom-right)
-        self._image_stack = ft.Stack(
+        # ---- Banner stack: image | scrim | title overlay | overlay cluster ----
+        # expand=True: the banner absorbs ALL of the card's height minus the fixed
+        # footer, so it grows/shrinks with the GridView cell. The image (COVER) and
+        # scrim fill the stack; the title overlay anchors to the bottom edge and the
+        # action cluster to the top-right, so both stay pinned as the banner flexes.
+        self._banner_stack = ft.Stack(
             controls=[
                 self.image_container,
-                ft.Container(
-                    content=self.ignore_button,
-                    right=2,
-                    top=2,
-                ),
-                ft.Container(
-                    content=self.resolve_button,
-                    right=2,
-                    bottom=2,
-                ),
+                self._scrim,
+                ft.Container(content=title_overlay, bottom=0, left=0, right=0),
+                overlay_cluster,
             ],
-            width=140,
-            height=140,
+            expand=True,
         )
 
-        # Inner card body (Row of image + right content)
+        # ---- Footer: DLL badge + compact Update / Restore (expand on hover) ----
+        self.dll_badges_container = self._create_dll_badges()
+        self.update_button = self._create_update_popup_menu()
+        self.restore_button = self._create_restore_popup_menu()
+
+        # Apply ignored visual state
+        if self.is_ignored:
+            self.opacity = 0.5
+            if self.update_button:
+                self.update_button.disabled = True
+            # Suppress the "needs update" dot while the game is ignored.
+            if self.update_notification_dot is not None:
+                self.update_notification_dot.visible = False
+
+        # Each footer control lives in a fixed-HEIGHT, animated-WIDTH Container so the
+        # footer band never changes height (no layout recalc / GridView reflow). On
+        # hover (_on_hover) the badge shrinks to icon-only and the buttons grow to
+        # reveal their labels; clip_behavior hides the overflow while collapsed.
+        _anim = ft.Animation(FOOTER_ANIM_MS, ft.AnimationCurve.EASE_OUT)
+        self.dll_badge_wrapper = ft.Container(
+            content=self.dll_badges_container,
+            width=BADGE_FULL_WIDTH,
+            height=FOOTER_CONTENT_HEIGHT,
+            alignment=ft.Alignment.CENTER_LEFT,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            border_radius=8,
+            animate=_anim,
+        )
+        self.update_button_wrapper = ft.Container(
+            content=self.update_button,
+            width=BTN_COMPACT_WIDTH,
+            height=FOOTER_CONTENT_HEIGHT,
+            alignment=ft.Alignment.CENTER_LEFT,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            border_radius=8,
+            animate=_anim,
+        )
+        self.restore_button_wrapper = ft.Container(
+            content=self.restore_button,
+            width=BTN_COMPACT_WIDTH,
+            height=FOOTER_CONTENT_HEIGHT,
+            alignment=ft.Alignment.CENTER_LEFT,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            border_radius=8,
+            animate=_anim,
+        )
+
+        # Footer row controls: [badge, spacer, update, restore]. wrap=False + fixed
+        # child heights guarantee a single-line, constant-height footer at any width.
+        self._footer_row = ft.Row(
+            controls=[
+                self.dll_badge_wrapper,
+                ft.Container(expand=True),  # Push the action buttons to the right
+                self.update_button_wrapper,
+                self.restore_button_wrapper,
+            ],
+            spacing=8,
+            wrap=False,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        footer = ft.Container(
+            content=self._footer_row,
+            height=FOOTER_HEIGHT,
+            padding=ft.Padding.symmetric(horizontal=12, vertical=FOOTER_V_PADDING),
+        )
+
+        # ---- Card body (vertical: flexible banner over fixed footer) ----
+        # The Column FILLS the card (no tight=True): the fixed-height footer takes its
+        # 52 px band and the expand=True banner absorbs everything else. GridView forces
+        # the card to the cell height, so this maps the cell exactly onto banner+footer
+        # with zero clipping and zero grey gap at ANY column count. expand chains through
+        # ContextMenu (a LayoutControl) so the cell's height reaches the Column.
         card_body = ft.Container(
-            content=ft.Row(
+            content=ft.Column(
                 controls=[
-                    self._image_stack,
-                    self.right_content,
+                    self._banner_stack,
+                    footer,
                 ],
-                spacing=16,
-                vertical_alignment=ft.CrossAxisAlignment.START,
+                spacing=0,
             ),
-            padding=12,
-            height=220,
+            expand=True,
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
         )
 
@@ -397,11 +576,66 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # overlay buttons) keep their own on_tap/on_click behaviour.
         self._context_menu = ft.ContextMenu(
             content=card_body,
+            expand=True,
             secondary_items=self._build_context_menu_items(),
         )
 
         # Card content layout
         self.content = self._context_menu
+
+    def _title_tooltip(self) -> str:
+        """Tooltip for the title: full name plus the install path(s)."""
+        name = self.game.display_name
+        if len(self.all_paths) == 1:
+            return f"{name}\n{self.all_paths[0]}"
+        paths = "\n".join(f"• {p}" for p in self.all_paths)
+        return f"{name}\nInstallations:\n{paths}"
+
+    def _build_status_row(self) -> ft.Row:
+        """Build the '● Needs update' / '● Up to date' status indicator (on scrim).
+
+        Amber/green are state colors (kept fixed - legible on both light and dark
+        scrim tones); the neutral "No DLLs" dot and the label text are themed since
+        they carry no state signal of their own.
+        """
+        is_dark = self._registry.is_dark
+        outdated, current, unknown = self._get_update_counts()
+        if not self.dlls:
+            dot_color = MD3Colors.get_on_surface_variant(is_dark)
+            label = "No DLLs"
+        elif outdated > 0:
+            dot_color = "#FFB300"  # Amber — needs update
+            label = "Needs update"
+        else:
+            dot_color = "#69F0AE"  # Green — up to date
+            label = "Up to date"
+
+        self.status_dot = ft.Container(width=8, height=8, bgcolor=dot_color, border_radius=4)
+        self.status_label = ft.Text(
+            label, size=11, color=MD3Colors.get_on_surface_variant(is_dark)
+        )
+        return ft.Row(
+            controls=[self.status_dot, self.status_label],
+            spacing=4,
+            tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    def _refresh_status_row(self) -> None:
+        """Update the scrim status dot/label after DLL versions change."""
+        if not getattr(self, "status_dot", None) or not getattr(self, "status_label", None):
+            return
+        is_dark = self._registry.is_dark
+        outdated, current, unknown = self._get_update_counts()
+        if not self.dlls:
+            self.status_dot.bgcolor = MD3Colors.get_on_surface_variant(is_dark)
+            self.status_label.value = "No DLLs"
+        elif outdated > 0:
+            self.status_dot.bgcolor = "#FFB300"
+            self.status_label.value = "Needs update"
+        else:
+            self.status_dot.bgcolor = "#69F0AE"
+            self.status_label.value = "Up to date"
 
     def _build_context_menu_items(self) -> list[ft.PopupMenuItem]:
         """Build right-click context menu items reflecting current card state.
@@ -519,12 +753,39 @@ class GameCard(ThemeAwareMixin, ft.Card):
             )
         )
 
+        # Per-game DLSS preset override (Windows + NVIDIA only).
+        try:
+            from dlss_updater import nvapi_drs
+            dlss_available = nvapi_drs.is_available()
+        except Exception:
+            dlss_available = False
+        if dlss_available:
+            items.append(
+                ft.PopupMenuItem(
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.AUTO_AWESOME, size=16, color=primary),
+                            ft.Text("DLSS Settings", size=14),
+                        ],
+                        spacing=10,
+                        tight=True,
+                    ),
+                    on_click=lambda e: self._on_dlss_settings_clicked(),
+                )
+            )
+
         return items
 
     def _refresh_context_menu(self) -> None:
-        """Rebuild context menu items to reflect current card state."""
+        """Rebuild context menu + kebab items to reflect current card state.
+
+        Both the right-click menu and the ⋮ kebab share the same item builder so
+        they stay a single source of truth.
+        """
         if getattr(self, "_context_menu", None):
             self._context_menu.secondary_items = self._build_context_menu_items()
+        if getattr(self, "kebab_button", None):
+            self.kebab_button.items = self._build_context_menu_items()
 
     def _on_open_folder(self):
         """Open the game's install folder in the OS file explorer."""
@@ -594,7 +855,15 @@ class GameCard(ThemeAwareMixin, ft.Card):
                             size=14,
                             color=ft.Colors.WHITE,
                         ),
-                        ft.Text(badge_text, size=11, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                        ft.Text(
+                            badge_text,
+                            size=11,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.WHITE,
+                            no_wrap=True,
+                            max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ),
                     ],
                     spacing=4,
                     tight=True,
@@ -649,19 +918,53 @@ class GameCard(ThemeAwareMixin, ft.Card):
         active_color = MD3Colors.get_primary(is_dark)
         color = active_color if has_outdated else disabled_color
 
-        # Store references for theming
-        self.update_button_icon = ft.Icon(ft.Icons.UPDATE, size=18, color=color)
-        self.update_button_text = ft.Text("Update", size=14, color=color)
+        # Store references for theming.
+        self.update_button_icon = ft.Icon(ft.Icons.UPDATE, size=20, color=color)
+        # Amber notification dot overlaid on the icon — carries the "needs update"
+        # signal in the compact/icon-only state where the "Update" label is hidden.
+        # Ringed with the surface colour so it reads clearly on the update icon.
+        self.update_notification_dot = ft.Container(
+            width=9,
+            height=9,
+            border_radius=5,
+            bgcolor="#FFB300",  # Matches the scrim "Needs update" dot
+            border=ft.Border.all(1.5, MD3Colors.get_surface(is_dark)),
+            visible=has_outdated,
+            right=0,
+            top=1,
+        )
+        icon_cell = ft.Stack(
+            controls=[
+                ft.Container(
+                    content=self.update_button_icon,
+                    width=24,
+                    height=24,
+                    alignment=ft.Alignment.CENTER,
+                ),
+                self.update_notification_dot,
+            ],
+            width=24,
+            height=24,
+        )
+        # opacity=0 while collapsed; _on_hover fades it in as the wrapper widens.
+        self.update_button_text = ft.Text(
+            "Update",
+            size=13,
+            color=color,
+            no_wrap=True,
+            opacity=0,
+            animate_opacity=ft.Animation(FOOTER_ANIM_MS, ft.AnimationCurve.EASE_OUT),
+        )
         self.update_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=color)
 
         return ft.PopupMenuButton(
             content=ft.Row(
                 controls=[
-                    self.update_button_icon,
+                    icon_cell,
                     self.update_button_text,
                     self.update_button_arrow,
                 ],
-                spacing=4,
+                spacing=2,
                 tight=True,
             ),
             tooltip="Select DLLs to update" if has_outdated else "All DLLs are up to date",
@@ -725,43 +1028,48 @@ class GameCard(ThemeAwareMixin, ft.Card):
         disabled_color = MD3Colors.get_themed("text_tertiary", is_dark)
         success_color = MD3Colors.get_success(is_dark)
 
-        if not self.backup_groups:
-            # Store references for disabled state theming
-            self.restore_button_icon = ft.Icon(ft.Icons.RESTORE, size=18, color=disabled_color)
-            self.restore_button_text = ft.Text("Restore", size=14, color=disabled_color)
-            self.restore_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=disabled_color)
+        # Colour of the restore icon is the at-a-glance state signal in the compact
+        # (icon-only) footer: success/green when backups exist, muted when they don't.
+        color = success_color if self.backup_groups else disabled_color
 
-            # Return disabled button if no backups
-            return ft.PopupMenuButton(
-                content=ft.Row(
-                    controls=[
-                        self.restore_button_icon,
-                        self.restore_button_text,
-                        self.restore_button_arrow,
-                    ],
-                    spacing=4,
-                    tight=True,
+        self.restore_button_icon = ft.Icon(ft.Icons.RESTORE, size=20, color=color)
+        # opacity=0 while collapsed; _on_hover fades it in as the wrapper widens.
+        self.restore_button_text = ft.Text(
+            "Restore",
+            size=13,
+            color=color,
+            no_wrap=True,
+            opacity=0,
+            animate_opacity=ft.Animation(FOOTER_ANIM_MS, ft.AnimationCurve.EASE_OUT),
+        )
+        self.restore_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=color)
+
+        restore_content = ft.Row(
+            controls=[
+                ft.Container(
+                    content=self.restore_button_icon,
+                    width=24,
+                    height=24,
+                    alignment=ft.Alignment.CENTER,
                 ),
+                self.restore_button_text,
+                self.restore_button_arrow,
+            ],
+            spacing=2,
+            tight=True,
+        )
+
+        if not self.backup_groups:
+            # Disabled button if no backups (icon stays muted).
+            return ft.PopupMenuButton(
+                content=restore_content,
                 tooltip="No backups available",
                 items=[],
                 disabled=True,
             )
 
-        # Store references for theming (enabled state)
-        self.restore_button_icon = ft.Icon(ft.Icons.RESTORE, size=18, color=success_color)
-        self.restore_button_text = ft.Text("Restore", size=14, color=success_color)
-        self.restore_button_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=success_color)
-
         return ft.PopupMenuButton(
-            content=ft.Row(
-                controls=[
-                    self.restore_button_icon,
-                    self.restore_button_text,
-                    self.restore_button_arrow,
-                ],
-                spacing=4,
-                tight=True,
-            ),
+            content=restore_content,
             tooltip="Restore DLLs from backup",
             items=self._build_restore_menu_items(),
         )
@@ -805,30 +1113,6 @@ class GameCard(ThemeAwareMixin, ft.Card):
         if self.on_restore_callback:
             self.on_restore_callback(self.game, group)
 
-    def _create_launch_button(self) -> ft.IconButton | None:
-        """Create a launch button for Steam games.
-
-        Returns an IconButton that opens the game via steam:// protocol,
-        or None for non-Steam games (button is not shown).
-        """
-        is_steam = self.game.launcher == "Steam" and self.game.effective_steam_app_id
-        if not is_steam:
-            return None
-
-        is_dark = self._registry.is_dark
-        return ft.IconButton(
-            icon=ft.Icons.PLAY_ARROW_ROUNDED,
-            icon_size=20,
-            icon_color=MD3Colors.get_primary(is_dark),
-            tooltip=f"Launch via Steam",
-            on_click=lambda e: self._launch_game(),
-            style=ft.ButtonStyle(
-                padding=ft.Padding.all(6),
-            ),
-            width=32,
-            height=32,
-        )
-
     def _launch_game(self):
         """Launch the game via Steam protocol."""
         import webbrowser
@@ -850,6 +1134,19 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 webbrowser.open(url)
         except Exception as ex:
             self.logger.warning(f"Failed to launch game: {ex}")
+
+    def _on_dlss_settings_clicked(self):
+        """Open the per-game DLSS preset override panel."""
+        if self._page_ref:
+            self._page_ref.run_task(self._show_dlss_settings_panel)
+
+    async def _show_dlss_settings_panel(self):
+        from dlss_updater.ui_flet.components.slide_panel import PanelManager
+        from dlss_updater.ui_flet.panels.per_game_dlss_panel import PerGameDLSSPanel
+
+        panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
+        panel = PerGameDLSSPanel(self._page_ref, self.logger, self.game, self.db_manager)
+        await panel_manager.show_content(panel)
 
     def _on_resolve_clicked(self, e):
         """Open the Steam resolve dialog."""
@@ -891,7 +1188,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             # Refresh title text
             new_name = self.game.display_name
             self.game_name_text.value = new_name
-            self.game_name_text.tooltip = new_name
+            self.game_name_text.tooltip = self._title_tooltip()
 
             # Refresh resolve button tooltip
             self.resolve_button.tooltip = "Edit display" if self.game.is_manually_resolved else "Edit display (image & name)"
@@ -1095,6 +1392,11 @@ class GameCard(ThemeAwareMixin, ft.Card):
             )
         if self.update_button:
             self.update_button.disabled = ignored
+        # Dot follows: shown only when there are updates AND the game isn't ignored.
+        if self.update_notification_dot is not None:
+            self.update_notification_dot.visible = self._check_for_updates() and not ignored
+        if getattr(self, "hidden_chip", None):
+            self.hidden_chip.visible = ignored
         self._refresh_context_menu()
 
     def _on_hover(self, e):
@@ -1104,7 +1406,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
         is_dark = self._registry.is_dark
         primary_color = MD3Colors.get_primary(is_dark)
-        if e.data == "true":
+        hovering = e.data == "true"
+        if hovering:
             self.elevation = 8
             self.shadow = Shadows.LEVEL_3
             self.scale = 1.015
@@ -1114,6 +1417,20 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self.shadow = Shadows.LEVEL_2
             self.scale = 1.0
             self.border = None
+
+        # Footer expand/collapse — WIDTH animation only (height stays constant, so no
+        # layout recalc and no GridView reflow). On hover: shrink the badge to icon-only
+        # and grow the buttons to reveal their labels + ▾; fade the labels in/out.
+        if self.update_button_wrapper is not None:
+            self.update_button_wrapper.width = UPDATE_EXPANDED_WIDTH if hovering else BTN_COMPACT_WIDTH
+        if self.restore_button_wrapper is not None:
+            self.restore_button_wrapper.width = RESTORE_EXPANDED_WIDTH if hovering else BTN_COMPACT_WIDTH
+        if self.dll_badge_wrapper is not None:
+            self.dll_badge_wrapper.width = BADGE_COMPACT_WIDTH if hovering else BADGE_FULL_WIDTH
+        if self.update_button_text is not None:
+            self.update_button_text.opacity = 1 if hovering else 0
+        if self.restore_button_text is not None:
+            self.restore_button_text.opacity = 1 if hovering else 0
 
         start_update = time.perf_counter()
         self.update()
@@ -1126,21 +1443,25 @@ class GameCard(ThemeAwareMixin, ft.Card):
             perf_logger.warning(f"[SLOW] card_hover: update={update_ms:.1f}ms, total={total_ms:.1f}ms")
 
     def set_updating(self, is_updating: bool):
-        """Set updating state - shows spinner and disables button"""
+        """Set updating state - shows spinner and disables button.
+
+        Uses the stored icon/text/arrow references (the button content is now an
+        icon-Stack + label + arrow, so positional row indexing no longer applies).
+        """
         is_dark = self._registry.is_dark
         self.is_updating = is_updating
-        if self.update_button and self.update_button.content:
-            row = self.update_button.content
-            color = MD3Colors.get_text_secondary(is_dark) if is_updating else MD3Colors.get_primary(is_dark)
-            # Update icon and colors in the content row
-            if row.controls and len(row.controls) >= 3:
-                # First control is the icon
-                row.controls[0].name = ft.Icons.HOURGLASS_TOP if is_updating else ft.Icons.UPDATE
-                row.controls[0].color = color
-                # Second control is the text
-                row.controls[1].color = color
-                # Third control is the dropdown arrow
-                row.controls[2].color = color
+        color = MD3Colors.get_text_secondary(is_dark) if is_updating else MD3Colors.get_primary(is_dark)
+        if self.update_button_icon is not None:
+            self.update_button_icon.name = ft.Icons.HOURGLASS_TOP if is_updating else ft.Icons.UPDATE
+            self.update_button_icon.color = color
+        if self.update_button_text is not None:
+            self.update_button_text.color = color
+        if self.update_button_arrow is not None:
+            self.update_button_arrow.color = color
+        # Hide the "needs update" dot while an update is in flight.
+        if self.update_notification_dot is not None and is_updating:
+            self.update_notification_dot.visible = False
+        if self.update_button:
             self.update_button.disabled = is_updating
             self.update_button.update()
 
@@ -1152,10 +1473,14 @@ class GameCard(ThemeAwareMixin, ft.Card):
             # Rebuild the DLL badges
             new_badges = self._create_dll_badges()
 
-            # Replace the old badges in right_content
-            if self.right_content and len(self.right_content.controls) >= 2:
-                self.right_content.controls[1] = new_badges
-                self.dll_badges_container = new_badges
+            # Swap the badge inside its animated wrapper (keeps the hover-collapse
+            # wrapper — and its current width state — intact).
+            if self.dll_badge_wrapper is not None:
+                self.dll_badge_wrapper.content = new_badges
+            self.dll_badges_container = new_badges
+
+            # Refresh the scrim status dot/label (Needs update / Up to date)
+            self._refresh_status_row()
 
             # Rebuild update button in-place so menu items and enabled state reflect
             # current DLL versions. Keep disabled if game is ignored.
@@ -1177,11 +1502,14 @@ class GameCard(ThemeAwareMixin, ft.Card):
                     self.update_button_text.color = color
                 if self.update_button_arrow:
                     self.update_button_arrow.color = color
+                # Show/hide the compact-state "needs update" dot.
+                if self.update_notification_dot is not None:
+                    self.update_notification_dot.visible = has_outdated and not self.is_ignored
 
             self._refresh_context_menu()
 
-            if self.right_content:
-                self.right_content.update()
+            if self._footer_row:
+                self._footer_row.update()
 
     async def refresh_restore_button(self, new_backup_groups: dict[str, list]):
         """Refresh restore button with new backup data after restore"""
@@ -1192,62 +1520,14 @@ class GameCard(ThemeAwareMixin, ft.Card):
             # Rebuild restore button
             new_restore_button = self._create_restore_popup_menu()
 
-            # Find and replace in action buttons row (index 3 due to spacer at index 2)
-            # Structure: right_content.controls = [name_row, dll_badges, spacer, action_buttons_row]
-            # action_buttons_row is a ft.Row with controls = [update_button, restore_button]
-            if self.right_content and len(self.right_content.controls) >= 4:
-                action_buttons_row = self.right_content.controls[3]
-                if hasattr(action_buttons_row, 'controls') and len(action_buttons_row.controls) >= 2:
-                    action_buttons_row.controls[1] = new_restore_button
-                    self.restore_button = new_restore_button
-                    action_buttons_row.update()
+            # Swap the button inside its animated wrapper (preserves the wrapper's
+            # current hover-width state). _create_restore_popup_menu resets the label
+            # opacity to 0 (collapsed) which is correct for the resting state.
+            if self.restore_button_wrapper is not None:
+                self.restore_button_wrapper.content = new_restore_button
+                self.restore_button = new_restore_button
+                self.restore_button_wrapper.update()
             self._refresh_context_menu()
-
-    def _build_path_display(self) -> ft.Row:
-        """Build path display row, supporting multiple paths for merged games."""
-        is_dark = self._registry.is_dark
-        tertiary_color = MD3Colors.get_themed("text_tertiary", is_dark)
-
-        if len(self.all_paths) == 1:
-            # Single path - current behavior
-            path_text = self.all_paths[0]
-            path_tooltip = self.all_paths[0]
-        else:
-            # Multiple paths - show count with expandable detail
-            path_text = f"{self.all_paths[0]}  (+{len(self.all_paths) - 1} more)"
-            path_tooltip = "Installations:\n" + "\n".join(f"• {p}" for p in self.all_paths)
-
-        # Store reference for theming
-        # PERF: tooltip on Text directly instead of Container wrapper (-1 control)
-        self.path_text = ft.Text(
-            path_text,
-            size=10,
-            color=tertiary_color,
-            no_wrap=True,
-            italic=True,
-            overflow=ft.TextOverflow.ELLIPSIS,
-            max_lines=1,
-            tooltip=path_tooltip,
-            expand=True,
-        )
-        self.copy_path_button = ft.IconButton(
-            icon=ft.Icons.CONTENT_COPY,
-            icon_size=12,
-            icon_color=tertiary_color,
-            tooltip="Copy path(s)" if len(self.all_paths) > 1 else "Copy path",
-            on_click=self._on_copy_path_clicked,
-            width=20,
-            height=20,
-        )
-
-        return ft.Row(
-            controls=[
-                self.path_text,
-                self.copy_path_button,
-            ],
-            spacing=4,
-            tight=True,
-        )
 
     async def _on_copy_path_clicked(self, e):
         """Copy game path(s) to clipboard with snackbar confirmation"""
@@ -1284,14 +1564,27 @@ class GameCard(ThemeAwareMixin, ft.Card):
         return {
             # Card surface tint
             "surface_tint_color": MD3Colors.get_themed_pair("primary"),
-            # Image container
+            # Image container (visible behind the banner image while loading)
             "image_container.bgcolor": MD3Colors.get_themed_pair("surface"),
-            # Text colors
-            "game_name_text.color": MD3Colors.get_themed_pair("text_primary"),
-            "launcher_text.color": MD3Colors.get_themed_pair("text_secondary"),
-            "path_text.color": MD3Colors.get_themed_pair("text_tertiary"),
-            # Copy button
-            "copy_path_button.icon_color": MD3Colors.get_themed_pair("text_tertiary"),
+            # Scrim fades to the card's surface color (not hardcoded black), so it
+            # blends into the footer below it in both themes.
+            "_scrim.gradient": (
+                self._build_scrim_gradient(True),
+                self._build_scrim_gradient(False),
+            ),
+            # Text overlaid on the scrim — flips with it to stay legible.
+            "game_name_text.color": (
+                MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)
+            ),
+            "launcher_text.color": (
+                MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)
+            ),
+            "status_separator_text.color": (
+                MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)
+            ),
+            "status_label.color": (
+                MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)
+            ),
             # Update button colors
             "update_button_icon.color": MD3Colors.get_themed_pair("primary"),
             "update_button_text.color": MD3Colors.get_themed_pair("primary"),
@@ -1320,6 +1613,14 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
         # Rebuild context menu items with new theme colors
         self._refresh_context_menu()
+
+        # status_dot is state-colored (amber/green are fixed regardless of theme) —
+        # only the neutral "No DLLs" case is themed, so it's handled here rather
+        # than via the declarative get_themed_properties() pair, which would
+        # otherwise clobber an amber/green dot with the neutral color on every
+        # theme toggle.
+        if getattr(self, "status_dot", None) is not None and not self.dlls:
+            self.status_dot.bgcolor = MD3Colors.get_on_surface_variant(is_dark)
 
         # Call parent implementation for standard themed property updates
         await super().apply_theme(is_dark, delay_ms)

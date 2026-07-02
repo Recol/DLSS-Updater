@@ -1,3 +1,48 @@
+Version 4.2.1:
+Per-Game DLSS Preset Overrides (Windows):
+  - New "DLSS Settings" action on every game (right-click a card, or use the new
+    overflow "⋮" menu on the card) opens a per-game preset panel that forces SR / RR / FG
+    presets for just that game via its NVIDIA per-application driver profile - the same
+    mechanism the NVIDIA App uses for per-game overrides:
+      - Super Resolution (SR): Default / Latest / Preset J / K / L / M
+      - Ray Reconstruction (RR): Default / Latest model
+      - Frame Generation (FG): Default / Latest / Preset A / B
+  - Per-game overrides take priority over the global "DLSS Settings" override for that
+    game and apply at the next game launch. The panel reads back the value the driver is
+    actually applying and distinguishes NVIDIA's predefined value from your own override.
+  - The game's executable is detected automatically (NVIDIA driver lookup -> folder
+    heuristic -> Steam manifest). When it can't be determined, a "Change executable" file
+    picker lets you point at the correct .exe. Your executable choice and preset
+    selections are remembered between sessions.
+  - "Reset to default" clears the per-game override (reverting to the game's predefined
+    value) in one click. Windows + NVIDIA only; the option is hidden on other systems.
+
+Games Library UI Redesign:
+  - Game cards redesigned around a full-bleed hero banner: artwork fills the entire
+    card behind a bottom gradient, with the title and an at-a-glance status line
+    ("Needs update" / "Up to date") legible over any art.
+  - Switched the fetched artwork from Steam's small "header" capsule image to its
+    "library_hero" banner - the same full-bleed asset Steam's own client uses - so cards
+    no longer show large black/empty backgrounds around a small logo. Existing cached
+    artwork is automatically refreshed once on upgrade. The art is also zoomed and
+    reframed toward its lower, art-dense region so the plain space some banners have
+    near the top no longer shows as a stray dark band.
+  - The DLL status badge and Update/Restore buttons are compact icons by default and
+    expand to labelled buttons on hover; they now have a fixed-height footer band so
+    they're never clipped or hidden, regardless of window width or how many DLLs a game
+    has (this fixes an issue where they could disappear when resizing the window).
+  - Per-game actions are consolidated into a single "⋮" menu on each card (mirroring the
+    right-click menu): Launch, DLSS Settings, Open folder, Copy path, Hide, and Edit
+    display. The separate "Play" button has been removed - Launch now lives in the menu.
+  - The Hide and Edit display icons remain directly accessible on each card.
+
+Database Integrity Fix:
+  - Fixed a long-standing issue where SQLite foreign-key enforcement was not enabled on
+    database connections, so "ON DELETE CASCADE" cleanups never ran - removing a game
+    could leave orphaned backup, ignore-list, DLL, and update-history rows behind.
+    Foreign keys are now enabled on every connection, so deleting a game correctly cleans
+    up its related rows.
+
 Version 4.2.0:
 Linux / Flatpak Fixes (Issue #228):
   - Custom and launcher folder paths now expand "~" and environment variables

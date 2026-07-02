@@ -88,7 +88,7 @@ understands games from every major launcher.
     </td>
     <td width="33%" valign="top">
       <h3>🎛️ DLSS Presets</h3>
-      Apply global SR / RR / FG preset overrides on Windows, or per-title SR overrides with GPU recommendations on Linux.
+      Apply global or per-game SR / RR / FG preset overrides on Windows (NVIDIA), or per-title SR overrides with GPU recommendations on Linux.
     </td>
   </tr>
   <tr>
@@ -151,6 +151,9 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
   - Ray Reconstruction (RR): Default / Latest model
   - Frame Generation (FG): Default / Latest / Preset A / B
   - ⚠️ Per-game overrides set in the NVIDIA App take priority — set its DLSS override to *Default/Off* to let this global setting apply.
+- **Per-game presets (Windows, NVIDIA only)** — the **DLSS Settings** action on any game (right-click a card, or its *⋮* menu) opens a per-game panel that overrides SR / RR / FG for just that title via its NVIDIA per-application driver profile — the same mechanism the NVIDIA App uses for per-game overrides. It takes priority over the global setting for that game and applies at the next launch. The action is hidden automatically on non-NVIDIA systems.
+  - The game's executable is detected automatically (NVIDIA driver lookup → folder heuristic → Steam manifest); when it can't be determined, a *Change executable* file picker lets you point at the correct `.exe`. Your executable and preset choices are remembered between sessions.
+  - The panel reads back the value the driver is actually applying and distinguishes NVIDIA's predefined value from your own override. *Reset to default* clears the override (reverting to the game's predefined value) in one click.
 - **DLSS SR Preset Override (Linux only)** — configure SR presets (K/L/M) with GPU-based recommendations, and generate Steam launch options with copy-to-clipboard. *Preset L is heavier and may reduce performance.*
 
 </details>

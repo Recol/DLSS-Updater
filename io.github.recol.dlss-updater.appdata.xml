@@ -64,6 +64,19 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.2.1" date="2026-07-02">
+      <description>
+        <p>Per-game DLSS preset overrides (Windows) and a Games Library redesign</p>
+        <ul>
+          <li>New per-game "DLSS Settings" panel forces SR/RR/FG presets for a single game via its NVIDIA per-application driver profile; it takes priority over the global override and applies at the next launch (Windows + NVIDIA only)</li>
+          <li>Automatic game-executable detection with a "Change executable" file-picker fallback; the executable and preset choices are remembered, and "Reset to default" reverts in one click</li>
+          <li>Redesigned game cards with a full-bleed hero banner using Steam's higher-quality "library_hero" artwork (replacing the old small capsule image), reframed to avoid the plain space some banners have near the top</li>
+          <li>The DLL status badge and Update/Restore buttons are now compact icons that expand on hover, with a fixed-height footer so they can no longer be clipped or hidden when resizing the window</li>
+          <li>Per-game actions are consolidated into a single "⋮" menu on each card (the Play button was removed and Launch moved into the menu; the Hide and Edit icons remain on the card)</li>
+          <li>Fixed SQLite foreign-key enforcement so removing a game correctly cleans up its related backup, ignore-list, DLL, and update-history rows</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.2.0" date="2026-06-14">
       <description>
         <p>Linux and Flatpak fixes for game detection (Issue #228)</p>

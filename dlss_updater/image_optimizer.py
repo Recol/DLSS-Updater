@@ -19,9 +19,15 @@ from .logger import setup_logger
 logger = setup_logger()
 
 # Configuration
-# Display is 140x140 with ImageFit.COVER - need minimum dimension >= 160 for quality
-# Steam headers are 460x215 (landscape), so we scale by HEIGHT to ensure cover works
-MIN_DIMENSION = 160  # Minimum size for the shorter dimension (height for landscape)
+# Thumbnails feed the full-bleed "hero card" in the game grid: the artwork fills
+# the whole card edge-to-edge via BoxFit.COVER (see game_card.py, HERO_HEIGHT=204).
+# A card renders up to ~320px CSS wide, i.e. ~640x408 physical px at 2x DPI. The
+# primary asset (Steam library_hero.jpg, 3840x1240 / ~3.1:1) is wider than the
+# card box, so COVER scales by HEIGHT and crops the sides — the shorter (vertical)
+# dimension is what must stay sharp. MIN_DIMENSION=420 covers the 408px card height
+# at 2x with a little headroom (for library_hero this yields ~1300x420). Never
+# upscales, so smaller header.jpg fallbacks (460x215) keep their native size.
+MIN_DIMENSION = 420  # Minimum size for the shorter dimension (height for landscape)
 WEBP_QUALITY = 80  # Good balance of quality and compression
 
 
@@ -32,14 +38,15 @@ async def create_thumbnail(image_data: bytes) -> bytes:
     Non-blocking: CPU-intensive Pillow work runs in thread pool via to_thread().
     The GIL is released during image operations in Pillow 12.0+.
 
-    For Steam headers (460x215), resizes to ~343x160 to ensure quality
-    when displayed at 140x140 with ImageFit.COVER.
+    Scales the source (Steam library_hero.jpg ~3840x1240, or header.jpg 460x215
+    fallback) so the shorter dimension is MIN_DIMENSION, sharp enough for the
+    full-bleed hero card's BoxFit.COVER crop. See MIN_DIMENSION for the rationale.
 
     Args:
         image_data: Raw image bytes (JPEG from Steam CDN)
 
     Returns:
-        WebP thumbnail bytes (scaled so min dimension = 160, quality 80)
+        WebP thumbnail bytes (scaled so min dimension = MIN_DIMENSION, quality 80)
     """
     return await asyncio.to_thread(_process_thumbnail_sync, image_data)
 
@@ -70,9 +77,9 @@ def _process_thumbnail_sync(image_data: bytes) -> bytes:
     blocking the event loop. Pillow 12.0+ releases the GIL during image
     operations, enabling true parallelism on free-threaded Python.
 
-    For Steam headers (460x215 landscape), we resize so the shorter dimension
-    (height) is at least MIN_DIMENSION pixels. This ensures the image looks
-    sharp when displayed at 140x140 with ImageFit.COVER.
+    For landscape Steam art (library_hero ~3840x1240, or header.jpg 460x215),
+    we resize so the shorter dimension (height) is at most MIN_DIMENSION pixels
+    (downscale only). This keeps the full-bleed hero card sharp under BoxFit.COVER.
 
     Args:
         image_data: Raw image bytes
@@ -102,7 +109,7 @@ def _process_thumbnail_sync(image_data: bytes) -> bytes:
         # This ensures ImageFit.COVER has enough pixels to work with
         width, height = img.size
         if width > height:
-            # Landscape image (like Steam headers 460x215)
+            # Landscape image (Steam library_hero ~3840x1240 or header 460x215)
             # Scale by height to ensure cover works
             scale = MIN_DIMENSION / height
         else:

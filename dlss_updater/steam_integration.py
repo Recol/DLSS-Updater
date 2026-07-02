@@ -64,9 +64,15 @@ class SteamIntegration:
 
     async def migrate_image_cache(self) -> bool:
         """
-        One-time migration to WebP thumbnail cache format.
+        One-time migration of the WebP thumbnail cache.
 
-        Purges old full-size JPEG images for all users upgrading.
+        Wipes the on-disk cache directory and the steam_images DB table whenever
+        the cache version is bumped, so every install refetches with the current
+        asset/sizing rules. v4 switches the primary asset to library_hero.jpg — a
+        full purge is required because the fast-path in fetch_steam_header_image
+        keys off the DB local_path (a stable {app_id}.webp), which would otherwise
+        keep serving the stale header.jpg-derived thumbnails.
+
         Non-blocking: file ops via asyncio.to_thread(), DB ops via aiosqlite.
 
         Returns True if migration was performed, False if already up-to-date.
@@ -74,7 +80,10 @@ class SteamIntegration:
         from .config import config_manager
         import shutil
 
-        CURRENT_CACHE_VERSION = 3  # WebP thumbnails with proper sizing (v2 had low-res bug)
+        CURRENT_CACHE_VERSION = 4  # v4: switched primary asset to library_hero.jpg
+        #                             (full-bleed banner art) + higher MIN_DIMENSION.
+        #                             Purges the header.jpg-derived v3 cache so every
+        #                             install refetches the hero art once.
 
         if config_manager.get_image_cache_version() >= CURRENT_CACHE_VERSION:
             return False  # Already migrated
@@ -366,7 +375,20 @@ class SteamIntegration:
 
     async def fetch_steam_header_image(self, app_id: int) -> Path | None:
         """
-        Fetch Steam game header image and save as optimized WebP thumbnail.
+        Fetch Steam game hero banner and save as optimized WebP thumbnail.
+
+        Prefers Steam's ``library_hero.jpg`` (3840x1240, ~3.1:1) — the same
+        full-bleed banner asset Steam's own client renders in the library grid /
+        Big Picture. Falls back to the legacy ``header.jpg`` (460x215) and finally
+        the appdetails ``header_image`` field, since older/smaller titles do not
+        ship a library_hero asset.
+
+        Fetch order (each URL 404s through to the next, never fatal):
+        1. library_hero.jpg on CDN_PRIMARY
+        2. library_hero.jpg on CDN_FALLBACK
+        3. header.jpg on CDN_PRIMARY
+        4. header.jpg on CDN_FALLBACK
+        5. appdetails API ``header_image`` (hash-based URL, header-sized art)
 
         Fully async/non-blocking:
         - Network requests via aiohttp
@@ -397,13 +419,27 @@ class SteamIntegration:
 
             # Use semaphore to limit concurrent downloads
             async with self.semaphore:
-                # Save as .webp instead of .jpg for optimized thumbnails
+                # Stable WebP cache filename. The switch to library_hero art ships
+                # as a one-time regen via the migrate_image_cache() version bump
+                # (which purges the whole dir + DB table), so a single filename
+                # scheme is kept — no parallel/legacy naming to maintain.
                 cache_file = self.image_cache_dir / f"{app_id}.webp"
 
-                # Try primary CDN first, then fallback (legacy URL format)
+                async def _persist(raw_data: bytes) -> Path:
+                    """Save WebP thumbnail to disk and record it in the DB."""
+                    from .image_optimizer import save_thumbnail
+                    await save_thumbnail(raw_data, cache_file)
+                    await db_manager.cache_steam_image(app_id, str(cache_file))
+                    return cache_file
+
+                # Prefer library_hero (full-bleed banner), then fall back to the
+                # legacy header asset. Both CDN mirrors are tried for each asset;
+                # a 404 simply falls through to the next URL.
                 urls = [
+                    f"{self.CDN_PRIMARY}/{app_id}/library_hero.jpg",
+                    f"{self.CDN_FALLBACK}/{app_id}/library_hero.jpg",
                     f"{self.CDN_PRIMARY}/{app_id}/header.jpg",
-                    f"{self.CDN_FALLBACK}/{app_id}/header.jpg"
+                    f"{self.CDN_FALLBACK}/{app_id}/header.jpg",
                 ]
 
                 async with aiohttp.ClientSession() as session:
@@ -412,13 +448,8 @@ class SteamIntegration:
                             async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                                 if response.status == 200:
                                     raw_data = await response.read()
-
-                                    from .image_optimizer import save_thumbnail
-                                    await save_thumbnail(raw_data, cache_file)
-
-                                    await db_manager.cache_steam_image(app_id, str(cache_file))
-
-                                    logger.info(f"Fetched and cached thumbnail for Steam app {app_id}")
+                                    await _persist(raw_data)
+                                    logger.info(f"Fetched and cached hero thumbnail for Steam app {app_id} from {url}")
                                     return cache_file
 
                                 elif response.status == 404:
@@ -433,7 +464,8 @@ class SteamIntegration:
                             continue
 
                     # CDN URLs failed — newer games use hash-based URLs that
-                    # can only be discovered via the appdetails API.
+                    # can only be discovered via the appdetails API. This field is
+                    # header-sized art (no hero variant), acceptable as last resort.
                     try:
                         api_url = f"https://store.steampowered.com/api/appdetails?appids={app_id}"
                         async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
@@ -446,12 +478,7 @@ class SteamIntegration:
                                         async with session.get(header_url, timeout=aiohttp.ClientTimeout(total=10)) as img_resp:
                                             if img_resp.status == 200:
                                                 raw_data = await img_resp.read()
-
-                                                from .image_optimizer import save_thumbnail
-                                                await save_thumbnail(raw_data, cache_file)
-
-                                                await db_manager.cache_steam_image(app_id, str(cache_file))
-
+                                                await _persist(raw_data)
                                                 logger.info(f"Fetched thumbnail for Steam app {app_id} via appdetails API")
                                                 return cache_file
                     except Exception as e:

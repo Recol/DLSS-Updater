@@ -34,7 +34,13 @@ GAMES_INITIAL_BATCH_SIZE = 16  # Visible cards on typical screen
 GAMES_BACKGROUND_BATCH_SIZE = 24  # Cards per background batch
 
 # Grid density: (max_extent, child_aspect_ratio, image_size)
-GRID_DENSITY_DEFAULT = (320, 1.45, 140)
+# Card layout is a flexible banner + a FIXED 52 px footer (see game_card.py:
+# HERO_HEIGHT=204 target banner + FOOTER_HEIGHT=52 → 256 px total at the dominant cell
+# width). child_aspect_ratio = max_extent / total_card_height = 320 / 256 = 1.25 makes a
+# maximised-window cell (~320 px wide) exactly 256 px tall, so the banner sits at its 204
+# px target. At other widths the banner flexes (BoxFit.COVER crops) — the fixed footer is
+# never clipped and there is never a grey gap, because it always fills the cell exactly.
+GRID_DENSITY_DEFAULT = (320, 1.25, 140)
 
 if TYPE_CHECKING:
     from dlss_updater.ui_flet.components.game_card import GameCard

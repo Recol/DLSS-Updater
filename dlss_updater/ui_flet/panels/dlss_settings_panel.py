@@ -9,13 +9,17 @@ same global override the NVIDIA App uses - for all three DLSS components:
     FG  Frame Generation     (Default / Latest model)
 
 Applies to every DLSS title on the system at next launch.
+
+The shared Material 3 panel chrome (info banner, per-feature section blocks,
+dividers, caution banner, footnote, themed properties) lives in
+:class:`_DLSSPresetPanelBase`; this panel only supplies the global dropdowns and
+the global save/cancel behaviour.
 """
 
 import logging
 
 import flet as ft
 
-from dlss_updater.ui_flet.components.slide_panel import PanelContentBase
 from dlss_updater.config import config_manager
 from dlss_updater.models import (
     WindowsDLSSConfig,
@@ -24,11 +28,11 @@ from dlss_updater.models import (
     WindowsDLSSFGPreset,
 )
 from dlss_updater import nvapi_drs
-from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.panels.dlss_preset_panel_base import _DLSSPresetPanelBase
 
 
-class WindowsDLSSPresetsPanel(ThemeAwareMixin, PanelContentBase):
+class WindowsDLSSPresetsPanel(_DLSSPresetPanelBase):
     """
     Panel for configuring the global Windows DLSS preset overrides (SR/RR/FG).
 
@@ -40,22 +44,11 @@ class WindowsDLSSPresetsPanel(ThemeAwareMixin, PanelContentBase):
     def __init__(self, page: ft.Page, logger: logging.Logger):
         super().__init__(page, logger)
 
-        self._registry = get_theme_registry()
-        self._theme_priority = 60
-
-        # Themed element references
-        self._info_container: ft.Container | None = None
-        self._info_text: ft.Text | None = None
-        self._note_text: ft.Text | None = None
-        self._dividers: list[ft.Divider] = []
-        self._section_labels: list[ft.Text] = []
-
-        # Per-feature controls
+        # Per-feature dropdowns + SR description
         self._sr_dropdown: ft.Dropdown | None = None
         self._rr_dropdown: ft.Dropdown | None = None
         self._fg_dropdown: ft.Dropdown | None = None
         self._sr_desc: ft.Text | None = None
-        self._status: dict[str, ft.Text] = {}
 
         self._load_config()
         self._build_controls()
@@ -152,74 +145,15 @@ class WindowsDLSSPresetsPanel(ThemeAwareMixin, PanelContentBase):
             desc = nvapi_drs.describe_preset_value(values.get(feat))
             self._set_status(feat, f"Currently applied: {desc}")
 
-    def _set_status(self, feature: str, text: str, warning: bool = False):
-        label = self._status.get(feature)
-        if not label:
-            return
-        is_dark = self._registry.is_dark
-        label.value = text
-        label.color = (
-            MD3Colors.get_warning(is_dark) if warning else MD3Colors.get_success(is_dark)
-        )
-        try:
-            label.update()
-        except Exception:
-            pass
-
-    def _feature_block(self, feature: str, dropdown: ft.Dropdown, is_dark: bool,
-                       extra: ft.Control | None = None) -> list[ft.Control]:
-        status = ft.Text(
-            "Reading current state…",
-            size=12,
-            color=MD3Colors.get_text_secondary(is_dark),
-        )
-        self._status[feature] = status
-        controls: list[ft.Control] = [dropdown]
-        if extra is not None:
-            controls.append(extra)
-        controls.append(status)
-        return controls
-
     def build(self) -> ft.Control:
         is_dark = self._registry.is_dark
-        primary = MD3Colors.get_primary(is_dark)
 
-        # Info banner
-        self._info_text = ft.Text(
+        # Info banner (shared chrome)
+        info_container = self._info_banner(
             "Force global DLSS presets for every game on this system. These write "
             "to the NVIDIA driver profile (the same settings the NVIDIA App uses) "
-            "and apply the next time each game launches.",
-            size=13,
-            color=MD3Colors.get_on_surface_variant(is_dark),
+            "and apply the next time each game launches."
         )
-        self._info_container = ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(ft.Icons.INFO_OUTLINE, size=20, color=primary),
-                    ft.Container(content=self._info_text, expand=True),
-                ],
-                spacing=12,
-                vertical_alignment=ft.CrossAxisAlignment.START,
-            ),
-            padding=ft.Padding.all(16),
-            border_radius=12,
-            bgcolor=MD3Colors.get_surface_container(is_dark),
-        )
-
-        def section_label(text: str) -> ft.Text:
-            lbl = ft.Text(
-                text,
-                weight=ft.FontWeight.BOLD,
-                size=15,
-                color=MD3Colors.get_text_primary(is_dark),
-            )
-            self._section_labels.append(lbl)
-            return lbl
-
-        def divider() -> ft.Divider:
-            d = ft.Divider(height=20, color=MD3Colors.get_divider(is_dark))
-            self._dividers.append(d)
-            return d
 
         # SR section (with live description)
         self._sr_desc = ft.Text(
@@ -230,75 +164,47 @@ class WindowsDLSSPresetsPanel(ThemeAwareMixin, PanelContentBase):
         )
 
         controls: list[ft.Control] = [
-            self._info_container,
+            info_container,
             ft.Container(height=8),
-            section_label("Super Resolution (Upscaling)"),
+            self.section_label("Super Resolution (Upscaling)"),
             *self._feature_block("sr", self._sr_dropdown, is_dark, extra=self._sr_desc),
-            divider(),
-            section_label("Ray Reconstruction (Denoising)"),
+            self.divider(),
+            self.section_label("Ray Reconstruction (Denoising)"),
             *self._feature_block("rr", self._rr_dropdown, is_dark),
-            divider(),
-            section_label("Frame Generation"),
+            self.divider(),
+            self.section_label("Frame Generation"),
             *self._feature_block("fg", self._fg_dropdown, is_dark),
-            divider(),
+            self.divider(),
         ]
 
         # NVIDIA App interaction caution - the App writes PER-GAME overrides that
         # win over this global setting. Verified live: the NVIDIA App stamps its
         # DLSS override into hundreds of individual game profiles, not just the
         # global base profile this panel writes.
-        self._nvapi_caution = ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(ft.Icons.WARNING_AMBER, size=18, color=MD3Colors.get_warning(is_dark)),
-                    ft.Container(
-                        content=ft.Text(
-                            "Using the NVIDIA App's DLSS override? It writes per-game "
-                            "overrides that take priority over this global setting for "
-                            "those games. To let this control them, set the DLSS override "
-                            "to Default/Off in the NVIDIA App.",
-                            size=11,
-                            color=MD3Colors.get_text_secondary(is_dark),
-                        ),
-                        expand=True,
-                    ),
-                ],
-                spacing=10,
-                vertical_alignment=ft.CrossAxisAlignment.START,
-            ),
-            padding=ft.Padding.all(12),
-            border_radius=8,
-            bgcolor=MD3Colors.get_surface_container(is_dark),
+        controls.append(
+            self._caution_banner(
+                "Using the NVIDIA App's DLSS override? It writes per-game "
+                "overrides that take priority over this global setting for "
+                "those games. To let this control them, set the DLSS override "
+                "to Default/Off in the NVIDIA App."
+            )
         )
-        controls.append(self._nvapi_caution)
 
-        self._note_text = ft.Text(
-            "'Default' clears that global override. RR exposes Default/Latest and FG "
-            "adds Presets A/B (higher lettered model variants are undocumented and "
-            "hidden); the status line shows whatever is currently applied. Restart "
-            "games to apply changes.",
-            size=11,
-            color=MD3Colors.get_warning(is_dark),
-            italic=True,
+        controls.append(
+            self._footnote(
+                "'Default' clears that global override. RR exposes Default/Latest and FG "
+                "adds Presets A/B (higher lettered model variants are undocumented and "
+                "hidden); the status line shows whatever is currently applied. Restart "
+                "games to apply changes."
+            )
         )
-        controls.append(self._note_text)
 
         return ft.Column(controls=controls, spacing=8, scroll=ft.ScrollMode.AUTO)
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
-        props = {}
-        for i, lbl in enumerate(self._section_labels):
-            props[f"_section_labels[{i}].color"] = MD3Colors.get_themed_pair("text_primary")
-        if self._info_text:
-            props["_info_text.color"] = MD3Colors.get_themed_pair("on_surface_variant")
+        props = super().get_themed_properties()
         if self._sr_desc:
             props["_sr_desc.color"] = MD3Colors.get_themed_pair("on_surface_variant")
-        if self._info_container:
-            props["_info_container.bgcolor"] = MD3Colors.get_themed_pair("surface_container")
-        if getattr(self, "_nvapi_caution", None):
-            props["_nvapi_caution.bgcolor"] = MD3Colors.get_themed_pair("surface_container")
-        for i, d in enumerate(self._dividers):
-            props[f"_dividers[{i}].color"] = MD3Colors.get_themed_pair("divider")
         return props
 
     def validate(self) -> tuple[bool, str | None]:

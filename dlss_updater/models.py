@@ -675,3 +675,57 @@ class WindowsDLSSConfig(msgspec.Struct, frozen=True):
     selected_preset: str = "default"  # SR (name kept for back-compat)
     rr_preset: str = "default"
     fg_preset: str = "default"
+
+
+# =============================================================================
+# Per-Game DLSS Preset Overrides (NvAPI per-application profiles)
+# =============================================================================
+
+class GameDLSSPresets(msgspec.Struct):
+    """
+    Persisted per-game DLSS preset selections (SR/RR/FG) for a single game.
+
+    Maps a game (by ``game_id``) to its resolved executable and the SR/RR/FG
+    preset keys applied to the NVIDIA driver's per-application profile via
+    ``dlss_updater.nvapi_drs.apply_presets_for_app``. The preset keys mirror the
+    feature value maps in ``nvapi_drs`` ("default", "latest", "preset_k", ...).
+
+    ``exe_path``/``exe_name`` are cached here so the resolver can short-circuit on
+    subsequent loads (see ``exe_resolver.resolve_game_exe``). ``profile_name`` is
+    the driver profile that governed the exe when the override was applied
+    (NVIDIA's predefined profile name for known games, otherwise the friendly
+    name we created the profile under).
+    """
+    game_id: int
+    exe_name: str
+    exe_path: str
+    sr: str = "default"
+    rr: str = "default"
+    fg: str = "default"
+    profile_name: str | None = None
+    updated_at: datetime = msgspec.field(default_factory=datetime.now)
+
+
+class ExeResolution(msgspec.Struct):
+    """
+    Result of resolving a game's primary executable for per-game DLSS overrides.
+
+    ``exe_path is None`` is the SOLE signal to the UI that no executable could be
+    determined automatically and a file picker should be offered - the resolver
+    never raises for a not-found / I/O error, it downgrades to ``source="none"``.
+
+    Fields:
+        exe_path:    Fully-qualified path to the resolved exe (None when unresolved).
+        exe_name:    Basename of the resolved exe (None when unresolved).
+        source:      How the exe was resolved - one of
+                     "cache" | "heuristic" | "driver" | "steam_manifest" | "user" | "none".
+        confidence:  "high" | "medium" | "low".
+        candidates:  Ranked list of candidate exe paths discovered by the
+                     heuristic step (largest/most-likely first), useful for a UI
+                     "pick the right exe" prompt when confidence is not high.
+    """
+    exe_path: str | None
+    exe_name: str | None
+    source: str       # "cache"|"heuristic"|"driver"|"steam_manifest"|"user"|"none"
+    confidence: str   # "high"|"medium"|"low"
+    candidates: list[str] = []

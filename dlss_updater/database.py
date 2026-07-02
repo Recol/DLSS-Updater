@@ -23,7 +23,8 @@ from dlss_updater.logger import setup_logger
 from dlss_updater.platform_utils import APP_CONFIG_DIR
 from dlss_updater.models import (
     Game, GameDLL, DLLBackup, UpdateHistory, SteamImage,
-    GameDLLBackup, GameBackupSummary, GameWithBackupCount, MergedGame
+    GameDLLBackup, GameBackupSummary, GameWithBackupCount, MergedGame,
+    GameDLSSPresets
 )
 
 logger = setup_logger()
@@ -139,6 +140,8 @@ class DatabaseManager:
                 for _ in range(self._pool_size):
                     conn = await aiosqlite.connect(str(self.db_path))
                     conn.row_factory = aiosqlite.Row
+                    # Enforce ON DELETE CASCADE foreign keys (off by default in SQLite).
+                    await conn.execute("PRAGMA foreign_keys=ON")
                     self._async_pool.append(conn)
 
                 self._pool_active = True
@@ -172,6 +175,8 @@ class DatabaseManager:
                 for _ in range(self._pool_size):
                     conn = await aiosqlite.connect(str(self.db_path))
                     conn.row_factory = aiosqlite.Row
+                    # Enforce ON DELETE CASCADE foreign keys (off by default in SQLite).
+                    await conn.execute("PRAGMA foreign_keys=ON")
                     self._async_pool.append(conn)
 
                 self._pool_active = True
@@ -215,11 +220,13 @@ class DatabaseManager:
                         pass
                     conn = await aiosqlite.connect(str(self.db_path))
                     conn.row_factory = aiosqlite.Row
+                    await conn.execute("PRAGMA foreign_keys=ON")
                     conn_valid = True
             else:
                 # Pool exhausted, create new connection
                 conn = await aiosqlite.connect(str(self.db_path))
                 conn.row_factory = aiosqlite.Row
+                await conn.execute("PRAGMA foreign_keys=ON")
 
             yield conn
 
@@ -249,6 +256,8 @@ class DatabaseManager:
         if not hasattr(self._thread_local, 'connection') or self._thread_local.connection is None:
             self._thread_local.connection = sqlite3.connect(str(self.db_path))
             self._thread_local.connection.row_factory = sqlite3.Row
+            # Enforce ON DELETE CASCADE foreign keys (off by default in SQLite).
+            self._thread_local.connection.execute("PRAGMA foreign_keys=ON")
         return self._thread_local.connection
 
     def _close_thread_connection(self):
@@ -309,6 +318,8 @@ class DatabaseManager:
             # Enable WAL mode for better write performance
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.execute("PRAGMA synchronous=NORMAL")
+            # Enforce ON DELETE CASCADE foreign keys (off by default in SQLite).
+            cursor.execute("PRAGMA foreign_keys=ON")
 
             # Games table
             cursor.execute("""
@@ -450,6 +461,23 @@ class DatabaseManager:
                 )
             """)
 
+            # Per-game DLSS preset overrides (SR/RR/FG) applied via NvAPI
+            # per-application profiles. One row per game; the resolved exe is
+            # cached here so the resolver can short-circuit on subsequent loads.
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS game_dlss_presets (
+                    game_id INTEGER PRIMARY KEY,
+                    exe_name TEXT NOT NULL,
+                    exe_path TEXT NOT NULL,
+                    sr TEXT NOT NULL DEFAULT 'default',
+                    rr TEXT NOT NULL DEFAULT 'default',
+                    fg TEXT NOT NULL DEFAULT 'default',
+                    profile_name TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+                )
+            """)
+
             # Migration: Add resolution_source column if missing
             try:
                 cursor.execute("ALTER TABLE games ADD COLUMN resolution_source TEXT")
@@ -515,6 +543,11 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_games_name ON games(name COLLATE NOCASE)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_games_name_launcher ON games(name COLLATE NOCASE, launcher)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_search_history_timestamp ON search_history(timestamp DESC)")
+
+            # Index for per-game DLSS preset lookups (PRIMARY KEY already covers
+            # game_id, but the explicit index matches the spec and the existing
+            # convention of declaring per-game-id indexes).
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_game_dlss_presets_game ON game_dlss_presets(game_id)")
 
             conn.commit()
             logger.info("Database schema created successfully")
@@ -844,6 +877,8 @@ class DatabaseManager:
         """Delete all games (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
+        # Enforce ON DELETE CASCADE (off by default in SQLite, per-connection).
+        cursor.execute("PRAGMA foreign_keys=ON")
 
         try:
             # Count games before deletion
@@ -977,6 +1012,8 @@ class DatabaseManager:
 
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
+        # Enforce ON DELETE CASCADE (off by default in SQLite, per-connection).
+        cursor.execute("PRAGMA foreign_keys=ON")
 
         try:
             # Get all game paths from database
@@ -1140,6 +1177,191 @@ class DatabaseManager:
             logger.debug("Post-scan cleanup: no stale data found")
 
         return results
+
+    # ===== Per-Game DLSS Preset Operations =====
+
+    @staticmethod
+    def _row_to_game_dlss_presets(row) -> GameDLSSPresets:
+        """Build a GameDLSSPresets from a (game_id, exe_name, exe_path, sr, rr,
+        fg, profile_name, updated_at) row tuple. Tolerates NULL/odd timestamps."""
+        updated_raw = row[7]
+        if isinstance(updated_raw, str):
+            try:
+                updated_at = datetime.fromisoformat(updated_raw)
+            except ValueError:
+                updated_at = datetime.now()
+        elif isinstance(updated_raw, datetime):
+            updated_at = updated_raw
+        else:
+            updated_at = datetime.now()
+        return GameDLSSPresets(
+            game_id=row[0],
+            exe_name=row[1],
+            exe_path=row[2],
+            sr=row[3],
+            rr=row[4],
+            fg=row[5],
+            profile_name=row[6],
+            updated_at=updated_at,
+        )
+
+    async def get_game_dlss_presets(self, game_id: int) -> GameDLSSPresets | None:
+        """Get persisted per-game DLSS preset selections for a game (or None)."""
+        return await asyncio.to_thread(self._get_game_dlss_presets, game_id)
+
+    def _get_game_dlss_presets(self, game_id: int) -> GameDLSSPresets | None:
+        """Get per-game DLSS presets (runs in thread)."""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT game_id, exe_name, exe_path, sr, rr, fg, profile_name, updated_at
+                FROM game_dlss_presets
+                WHERE game_id = ?
+            """, (game_id,))
+            row = cursor.fetchone()
+            if row:
+                return self._row_to_game_dlss_presets(row)
+            return None
+        except Exception as e:
+            logger.error(f"Error getting per-game DLSS presets: {e}", exc_info=True)
+            return None
+        finally:
+            conn.close()
+
+    def get_game_exe_sync(self, game_id: int) -> str | None:
+        """Return the cached resolved exe path for a game (None if unknown).
+
+        SYNC method used as the first (cache) step of exe_resolver. Uses the
+        thread-local connection for reuse under ThreadPoolExecutor.
+        """
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                "SELECT exe_path FROM game_dlss_presets WHERE game_id = ?",
+                (game_id,),
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                return row[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting cached game exe: {e}", exc_info=True)
+            return None
+
+    async def save_game_dlss_presets(
+        self,
+        game_id: int,
+        exe_name: str,
+        exe_path: str,
+        sr: str,
+        rr: str,
+        fg: str,
+        profile_name: str | None = None,
+    ) -> None:
+        """Insert or update (UPSERT on game_id) per-game DLSS preset selections."""
+        return await asyncio.to_thread(
+            self._save_game_dlss_presets,
+            game_id, exe_name, exe_path, sr, rr, fg, profile_name,
+        )
+
+    def _save_game_dlss_presets(
+        self,
+        game_id: int,
+        exe_name: str,
+        exe_path: str,
+        sr: str,
+        rr: str,
+        fg: str,
+        profile_name: str | None,
+    ) -> None:
+        """Upsert per-game DLSS presets (runs in thread)."""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                INSERT INTO game_dlss_presets
+                    (game_id, exe_name, exe_path, sr, rr, fg, profile_name, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(game_id) DO UPDATE SET
+                    exe_name = excluded.exe_name,
+                    exe_path = excluded.exe_path,
+                    sr = excluded.sr,
+                    rr = excluded.rr,
+                    fg = excluded.fg,
+                    profile_name = excluded.profile_name,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (game_id, exe_name, exe_path, sr, rr, fg, profile_name))
+            conn.commit()
+            logger.debug(
+                f"Saved per-game DLSS presets for game {game_id}: "
+                f"SR={sr} RR={rr} FG={fg} ({exe_name})"
+            )
+        except Exception as e:
+            logger.error(f"Error saving per-game DLSS presets: {e}", exc_info=True)
+            conn.rollback()
+        finally:
+            conn.close()
+
+    async def delete_game_dlss_presets(self, game_id: int) -> None:
+        """Delete persisted per-game DLSS preset selections for a game."""
+        return await asyncio.to_thread(self._delete_game_dlss_presets, game_id)
+
+    def _delete_game_dlss_presets(self, game_id: int) -> None:
+        """Delete per-game DLSS presets (runs in thread)."""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                "DELETE FROM game_dlss_presets WHERE game_id = ?",
+                (game_id,),
+            )
+            conn.commit()
+            logger.debug(f"Deleted per-game DLSS presets for game {game_id}")
+        except Exception as e:
+            logger.error(f"Error deleting per-game DLSS presets: {e}", exc_info=True)
+            conn.rollback()
+        finally:
+            conn.close()
+
+    def batch_get_game_dlss_presets_sync(
+        self, game_ids: list[int]
+    ) -> dict[int, GameDLSSPresets]:
+        """Get per-game DLSS presets for multiple games in a single query.
+
+        SYNC method designed for ThreadPoolExecutor / HyperParallelLoader use.
+        Uses the thread-local connection for connection reuse.
+
+        Returns a dict mapping game_id -> GameDLSSPresets (only games that have a
+        saved row are present).
+        """
+        if not game_ids:
+            return {}
+
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            placeholders = ','.join('?' * len(game_ids))
+            cursor.execute(f"""
+                SELECT game_id, exe_name, exe_path, sr, rr, fg, profile_name, updated_at
+                FROM game_dlss_presets
+                WHERE game_id IN ({placeholders})
+            """, game_ids)
+
+            result: dict[int, GameDLSSPresets] = {}
+            for row in cursor.fetchall():
+                presets = self._row_to_game_dlss_presets(row)
+                result[presets.game_id] = presets
+            return result
+        except Exception as e:
+            logger.error(f"Error batch getting per-game DLSS presets: {e}", exc_info=True)
+            return {}
 
     # ===== GameDLL Operations =====
 
@@ -2451,7 +2673,10 @@ class DatabaseManager:
                     fetch_failed = 0
             """, (
                 app_id,
-                f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/header.jpg",
+                # Informational only (never read back to decide freshness). Reflects
+                # the new primary asset; the actual cached art may be a header.jpg or
+                # appdetails fallback — the on-disk local_path is the source of truth.
+                f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_hero.jpg",
                 local_path
             ))
 
@@ -2540,7 +2765,9 @@ class DatabaseManager:
                     fetch_failed = 1
             """, (
                 app_id,
-                f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/header.jpg"
+                # Informational only (image_url is never read back). Reflects the
+                # new primary asset for consistency with _cache_steam_image.
+                f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_hero.jpg"
             ))
 
             conn.commit()
