@@ -48,9 +48,7 @@
 ## Overview
 
 DLSS Updater scans the games installed on your system, detects the upscaling and
-frame-generation DLLs they ship with, and replaces them with newer versions — with![Uploading 616464076-cbc88e69-cf05-40f0-9398-863bf7f7d93d.png…]()
-
-automatic backups so you can always roll back. It runs on **Windows and Linux** and
+frame-generation DLLs they ship with, and replaces them with newer versions — with automatic backups so you can always roll back. It runs on **Windows and Linux** and
 understands games from every major launcher.
 
 <div align="center">
