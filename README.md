@@ -15,11 +15,10 @@
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-555?logo=windows&logoColor=white)
 [![License](https://img.shields.io/badge/License-AGPL_v3-orange.svg)](LICENSE)
 
+<a href="https://trendshift.io/repositories/11650?utm_source=repository-badge&utm_medium=badge&utm_campaign=badge-repository-11650" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/11650" alt="Recol%2FDLSS-Updater | Trendshift" width="250" height="55"/></a>&nbsp;<a href="https://trendshift.io/repositories/11650?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-11650" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/11650/daily?language=Python" alt="Recol%2FDLSS-Updater | Trendshift" width="250" height="55"/></a>
+
 ![dlss_updater](https://github.com/user-attachments/assets/b7d7fb4d-e204-412d-8e92-61a7173abfaf)
 
-<a href="https://trendshift.io/repositories/11650?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-11650" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/11650" alt="Recol%2FDLSS-Updater | Trendshift" width="250" height="55"/></a>
-
-<a href="https://trendshift.io/repositories/11650?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-11650" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/11650/daily?language=Python" alt="Recol%2FDLSS-Updater | Trendshift" width="250" height="55"/></a>
 
 </div>
 
