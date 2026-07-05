@@ -1,3 +1,22 @@
+Version 4.2.2:
+Linux Update Reliability Fix (Issue #240):
+  - Fixed: The high-performance updater's memory-mapped source-DLL cache used
+    os.O_BINARY, a Windows-only flag that doesn't exist on Linux/macOS. This made
+    caching fail for every DLL on every scan on Linux (falling back to slower
+    plain file-copy updates every time) and is now guarded with getattr() so it's
+    a no-op on POSIX platforms.
+  - Fixed: Steam libraries whose default install path is a symlink (e.g. Linux's
+    ~/.steam/steam pointing at ~/.local/share/Steam) were scanned twice - once via
+    fast appmanifest-based auto-detection and once via a redundant "manual path"
+    fallback - because the two paths were compared as literal strings instead of
+    their resolved real paths. This caused every installed Steam game's DLLs to be
+    processed twice per scan, and could make one of the duplicate update attempts
+    fail with a spurious "file is in use"/FileNotFoundError once the first attempt
+    had already replaced the file.
+  - Hardened is_file_in_use()/is_file_in_use_async() to treat a file that
+    disappears between the existence check and the open as "not in use" instead
+    of letting the FileNotFoundError surface as an update failure.
+
 Version 4.2.1:
 Per-Game DLSS Preset Overrides (Windows):
   - New "DLSS Settings" action on every game (right-click a card, or use the new

@@ -394,7 +394,9 @@ class SourceDLLMemoryCache:
 
                 # Open file and create memory map
                 # On Windows, use ACCESS_READ for read-only memory mapping
-                fd = os.open(dll_path, os.O_RDONLY | os.O_BINARY)
+                # O_BINARY only exists on Windows; POSIX has no text/binary
+                # distinction so it's safe to fall back to 0 there.
+                fd = os.open(dll_path, os.O_RDONLY | getattr(os, "O_BINARY", 0))
                 try:
                     mm = mmap.mmap(fd, 0, access=mmap.ACCESS_READ)
 

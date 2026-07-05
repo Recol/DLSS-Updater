@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.2.2" date="2026-07-05">
+      <description>
+        <p>Linux update reliability fix (Issue #240)</p>
+        <ul>
+          <li>Fixed the source-DLL memory cache using a Windows-only os.O_BINARY flag, which made caching fail for every DLL on Linux and forced a slower file-copy fallback on every scan</li>
+          <li>Fixed Steam games being scanned and updated twice when Steam's default install path is a symlink (e.g. Linux's ~/.steam/steam -> ~/.local/share/Steam), which could also cause a spurious update failure for one of the duplicate attempts</li>
+          <li>is_file_in_use() no longer surfaces a raw error if the target file disappears between the existence check and the check itself</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.2.1" date="2026-07-02">
       <description>
         <p>Per-game DLSS preset overrides (Windows) and a Games Library redesign</p>

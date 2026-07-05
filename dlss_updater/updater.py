@@ -280,6 +280,11 @@ def is_file_in_use(file_path, timeout=5):
         try:
             with open(file_path, "rb"):
                 return False
+        except FileNotFoundError:
+            # File vanished between the caller's existence check and this open
+            # (e.g. a duplicate scan entry already moved/replaced it). It can't
+            # be "in use" if it no longer exists.
+            return False
         except PermissionError:
             for proc in psutil.process_iter(["pid", "name", "open_files"]):
                 try:
@@ -323,6 +328,11 @@ async def is_file_in_use_async(file_path, timeout=5):
             # Quick test - try to open for reading
             with open(file_path, "rb"):
                 return False
+        except FileNotFoundError:
+            # File vanished between the caller's existence check and this open
+            # (e.g. a duplicate scan entry already moved/replaced it). It can't
+            # be "in use" if it no longer exists.
+            return False
         except PermissionError:
             # File is in use, check which process (in thread pool)
             if await asyncio.to_thread(_check_process_using_file, str(file_path)):

@@ -887,15 +887,25 @@ async def scan_steam_fast(steam_path: str, dll_names: list[str]) -> list[str]:
     # This handles cases where users have additional game directories
     manual_paths = get_steam_manual_paths()
 
-    # De-duplicate: remove paths that are already covered by auto-detected libraries
+    # De-duplicate: remove paths that are already covered by auto-detected libraries.
+    # Resolve symlinks/case before comparing - on Linux, Steam's default install
+    # (~/.steam/steam) is commonly a symlink to ~/.local/share/Steam, and comparing
+    # the raw literal strings would treat them as two different libraries even
+    # though they point at the same physical directory (Issue #240).
+    def _resolved_lower(path: Path) -> str:
+        try:
+            return str(path.resolve()).lower()
+        except OSError:
+            return str(path).lower()
+
     auto_detected_libs = set()
     if steam_path:
         for lib in get_steam_libraries(steam_path):
-            auto_detected_libs.add(str(lib).lower())
+            auto_detected_libs.add(_resolved_lower(lib))
 
     unique_manual_paths = []
     for manual_path in manual_paths:
-        manual_str = str(manual_path).lower()
+        manual_str = _resolved_lower(manual_path)
         # Check if this path is not already covered
         is_duplicate = False
         for auto_lib in auto_detected_libs:
