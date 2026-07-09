@@ -1,4 +1,3 @@
-import configparser
 import os
 import sys
 import threading
@@ -6,14 +5,20 @@ from enum import StrEnum
 from pathlib import Path
 
 import msgspec
+import msgspec.toml
 
 from .logger import setup_logger
 from .models import (
     MAX_PATHS_PER_LAUNCHER,
+    DiscordBannerConfig,
+    ImageCacheConfig,
     LauncherPathsConfig,
     LinuxDLSSConfig,
     PerformanceConfig,
+    SteamAPIConfig,
+    UIPreferencesConfig,
     UpdatePreferencesConfig,
+    WindowStateConfig,
     WindowsDLSSConfig,
 )
 
@@ -117,14 +122,24 @@ class Concurrency:
         logger.info(f"  THREADPOOL_CPU={cls.THREADPOOL_CPU}, THREADPOOL_IO={cls.THREADPOOL_IO}")
 
 # Thread-safety locks for free-threading (Python 3.14+)
-_config_lock = threading.Lock()
+#
+# _config_lock is a *reentrant* lock: several public setters mutate the config
+# and then call save() while still holding the lock. With a plain Lock that
+# re-acquisition would self-deadlock; RLock keeps cross-thread mutual exclusion
+# (the property those setters rely on) while allowing same-thread re-entry.
+_config_lock = threading.RLock()
 _dll_paths_lock = threading.Lock()
 
 
 def get_config_path():
-    """Get the path for storing configuration files using centralized config dir."""
+    """Get the path for storing configuration files using centralized config dir.
+
+    Returns the path to the active config file (``config.toml``). The legacy
+    ``config.ini`` (if present) is only read once during migration; see
+    :meth:`ConfigManager._load_config`.
+    """
     from dlss_updater.platform_utils import APP_CONFIG_DIR
-    return str(APP_CONFIG_DIR / "config.ini")
+    return str(APP_CONFIG_DIR / "config.toml")
 
 
 def resource_path(relative_path):
@@ -200,8 +215,87 @@ class LauncherPathName(StrEnum):
     CUSTOM4 = "CustomPath4"
 
 
-class ConfigManager(configparser.ConfigParser):
+# Maps the public ``get/set_update_preference`` technology tokens to the
+# corresponding UpdatePreferencesConfig field. Kept here so both the getter and
+# setter agree on the mapping.
+_UPDATE_PREF_FIELDS = {
+    "DLSS": "update_dlss",
+    "DirectStorage": "update_direct_storage",
+    "XeSS": "update_xess",
+    "FSR": "update_fsr",
+    "Streamline": "update_streamline",
+}
+
+
+def _default_launcher_paths() -> dict[str, str]:
+    """All known launcher slots, empty by default (mirrors the old INI init)."""
+    return {p.value: "" for p in LauncherPathName}
+
+
+def _default_update_preferences() -> UpdatePreferencesConfig:
+    """Fresh-install update prefs. Streamline defaults OFF to match the legacy INI."""
+    return UpdatePreferencesConfig(update_streamline=False)
+
+
+def _default_performance() -> PerformanceConfig:
+    """Historical default was 16 worker threads (INI wrote "16" on first run)."""
+    return PerformanceConfig(max_worker_threads=16)
+
+
+class AppConfig(msgspec.Struct):
+    """
+    Root persistence schema for the application, serialized to ``config.toml``
+    via ``msgspec.toml``.
+
+    Every field is a TOML-native container/scalar (struct, dict, bool, int, str)
+    so encoding is total and lossless - crucially there are **no ``None`` values**
+    anywhere in the tree, because TOML has no null type. Optionality is modelled
+    with empty strings (``SteamAPIConfig``), a presence flag
+    (``WindowStateConfig.has_position``) or simple absence from a dict.
+
+    Sub-structs are reused from ``dlss_updater.models`` where they already
+    existed (update prefs, launcher-path helper struct, Linux/Windows DLSS
+    presets, performance) and added there for the remaining sections.
+
+    ``launcher_paths`` values are raw strings that may hold either a single path
+    or a JSON array (multi-path support), matching the historical INI encoding.
+    ``appearance``/``extra`` back the generic configparser-style accessors
+    (``get``/``set``/``has_section``/``add_section``) still used by the theme
+    manager.
+    """
+    launcher_paths: dict[str, str] = msgspec.field(default_factory=_default_launcher_paths)
+    update_preferences: UpdatePreferencesConfig = msgspec.field(default_factory=_default_update_preferences)
+    ui_preferences: UIPreferencesConfig = msgspec.field(default_factory=UIPreferencesConfig)
+    discord_banner: DiscordBannerConfig = msgspec.field(default_factory=DiscordBannerConfig)
+    image_cache: ImageCacheConfig = msgspec.field(default_factory=ImageCacheConfig)
+    linux_dlss: LinuxDLSSConfig = msgspec.field(default_factory=LinuxDLSSConfig)
+    windows_dlss: WindowsDLSSConfig = msgspec.field(default_factory=WindowsDLSSConfig)
+    steam_api: SteamAPIConfig = msgspec.field(default_factory=SteamAPIConfig)
+    performance: PerformanceConfig = msgspec.field(default_factory=_default_performance)
+    blacklist_skips: dict[str, bool] = msgspec.field(default_factory=dict)
+    window_state: WindowStateConfig = msgspec.field(default_factory=WindowStateConfig)
+    appearance: dict[str, str] = msgspec.field(default_factory=dict)
+    extra: dict[str, dict[str, str]] = msgspec.field(default_factory=dict)
+
+
+class ConfigManager:
+    """
+    Thread-safe application configuration backed by a msgspec ``AppConfig`` and
+    persisted to ``config.toml`` (``msgspec.toml``).
+
+    The public API is unchanged from the previous ``configparser``-based
+    implementation: every ``get_*``/``set_*`` accessor, the ``*_struct`` helpers,
+    ``save()`` and the small configparser-compatible surface
+    (``get``/``set``/``has_section``/``add_section``) behave identically. Only the
+    on-disk format and internal storage changed.
+    """
+
     _instance = None
+
+    # External INI-style section name -> AppConfig attribute holding a dict[str,str].
+    # Only "Appearance" is accessed generically today; anything else falls through
+    # to the `extra` catch-all so unknown sections still behave like configparser.
+    _GENERIC_DICT_SECTIONS = {"Appearance": "appearance"}
 
     def __new__(cls, *args, **kwargs):
         # Thread-safe singleton for free-threaded Python 3.14+
@@ -215,133 +309,325 @@ class ConfigManager(configparser.ConfigParser):
         # Thread-safe initialization for free-threaded Python 3.14+
         # Lock ensures hasattr check and initialization are atomic
         with _config_lock:
-            if hasattr(self, "initialized") and self.initialized:
+            if getattr(self, "initialized", False):
                 return
 
-            super().__init__()
             self.logger = setup_logger()
             self.config_path = get_config_path()
-            self.read(self.config_path)
-
-            # Detect fresh install BEFORE adding any sections
-            # Fresh install = config file was empty/non-existent
-            is_fresh_install = len(self.sections()) == 0
-
-            # Initialize launcher paths section
-            if not self.has_section("LauncherPaths"):
-                self.add_section("LauncherPaths")
-                self["LauncherPaths"].update(
-                    {
-                        LauncherPathName.STEAM: "",
-                        LauncherPathName.EA: "",
-                        LauncherPathName.EPIC: "",
-                        LauncherPathName.GOG: "",
-                        LauncherPathName.UBISOFT: "",
-                        LauncherPathName.BATTLENET: "",
-                        LauncherPathName.XBOX: "",
-                        LauncherPathName.CUSTOM1: "",
-                        LauncherPathName.CUSTOM2: "",
-                        LauncherPathName.CUSTOM3: "",
-                        LauncherPathName.CUSTOM4: "",
-                    }
-                )
-                self._save_unlocked()
-
-            # Initialize update preferences section
-            if not self.has_section("UpdatePreferences"):
-                self.add_section("UpdatePreferences")
-                self["UpdatePreferences"].update(
-                    {
-                        "UpdateDLSS": "true",
-                        "UpdateDirectStorage": "true",
-                        "UpdateXeSS": "true",
-                        "UpdateFSR": "true",
-                        "UpdateStreamline": "false",  # Default to false
-                        "CreateBackups": "true",  # Default to true for safety
-                    }
-                )
-                self._save_unlocked()
-            else:
-                # Add Streamline preference if it doesn't exist (for existing configs)
-                if "UpdateStreamline" not in self["UpdatePreferences"]:
-                    self["UpdatePreferences"]["UpdateStreamline"] = "false"
-                    self._save_unlocked()
-                # Add CreateBackups preference if it doesn't exist (for existing configs)
-                if "CreateBackups" not in self["UpdatePreferences"]:
-                    self["UpdatePreferences"]["CreateBackups"] = "true"
-                    self._save_unlocked()
-                # Add HighPerformanceMode preference if it doesn't exist (for existing configs)
-                if "HighPerformanceMode" not in self["UpdatePreferences"]:
-                    self["UpdatePreferences"]["HighPerformanceMode"] = "false"
-                    self._save_unlocked()
-
-            # Initialize DiscordBanner section
-            if not self.has_section("DiscordBanner"):
-                self.add_section("DiscordBanner")
-                # Fresh install: show banner to new users (dismissed=false)
-                # Upgrade: don't re-show banner (dismissed=true)
-                self["DiscordBanner"]["dismissed"] = "false" if is_fresh_install else "true"
-                self._save_unlocked()
-
-            # Initialize ImageCache section (for migration tracking)
-            if not self.has_section("ImageCache"):
-                self.add_section("ImageCache")
-                self["ImageCache"]["Version"] = "0"  # Pre-WebP thumbnails
-                self._save_unlocked()
-
-            # Initialize UIPreferences section with defaults if missing
-            if not self.has_section("UIPreferences"):
-                self.add_section("UIPreferences")
-                self["UIPreferences"]["SmoothScrolling"] = "true"  # Enabled by default
-                self._save_unlocked()
-
-            # Initialize LinuxDLSSPresets section with defaults if missing
-            if not self.has_section("LinuxDLSSPresets"):
-                self.add_section("LinuxDLSSPresets")
-                self["LinuxDLSSPresets"]["SelectedPreset"] = "default"
-                self["LinuxDLSSPresets"]["OverlayEnabled"] = "false"
-                self["LinuxDLSSPresets"]["WaylandEnabled"] = "false"
-                self["LinuxDLSSPresets"]["HDREnabled"] = "false"
-                self._save_unlocked()
-
-            # Initialize WindowsDLSSPresets section with defaults if missing
-            if not self.has_section("WindowsDLSSPresets"):
-                self.add_section("WindowsDLSSPresets")
-                self["WindowsDLSSPresets"]["SelectedPreset"] = "default"
-                self["WindowsDLSSPresets"]["RRPreset"] = "default"
-                self["WindowsDLSSPresets"]["FGPreset"] = "default"
-                self._save_unlocked()
-
-            # Initialize SteamAPI section for Steam Web API authentication
-            if not self.has_section("SteamAPI"):
-                self.add_section("SteamAPI")
-                self["SteamAPI"]["ApiKey"] = ""
-                self["SteamAPI"]["SteamId"] = ""
-                self["SteamAPI"]["AutoDetectedSteamId"] = ""
-                self._save_unlocked()
-
+            self._config: AppConfig = self._load_config()
             self.initialized = True
+
+    # =========================================================================
+    # Loading / migration / persistence
+    # =========================================================================
+
+    def _load_config(self) -> AppConfig:
+        """
+        Load ``config.toml`` if present, otherwise perform the one-time
+        ``config.ini`` -> ``config.toml`` migration, otherwise create a fresh
+        config. Always leaves a valid ``config.toml`` on disk afterwards.
+        """
+        toml_path = Path(self.config_path)
+        legacy_ini = toml_path.with_name("config.ini")
+
+        # 1) Primary path: an existing TOML config.
+        if toml_path.exists():
+            try:
+                return msgspec.toml.decode(toml_path.read_bytes(), type=AppConfig)
+            except Exception as e:
+                # Corrupt/unreadable TOML: rebuild from defaults rather than crash.
+                self.logger.error(
+                    f"Failed to parse {toml_path.name}; recreating from defaults: {e}"
+                )
+                cfg = AppConfig()
+                self._write_config(cfg)
+                return cfg
+
+        # 2) One-time, non-destructive migration from the legacy INI file.
+        if legacy_ini.exists():
+            self.logger.info(
+                f"Legacy {legacy_ini.name} found and no {toml_path.name}; "
+                f"running one-time migration to TOML."
+            )
+            try:
+                cfg = self._migrate_from_ini(legacy_ini)
+                self._write_config(cfg)
+                self.logger.info(
+                    f"Config migration complete: wrote {toml_path.name}; "
+                    f"original {legacy_ini.name} left untouched."
+                )
+                return cfg
+            except Exception as e:
+                self.logger.error(
+                    f"{legacy_ini.name} -> {toml_path.name} migration failed ({e}); "
+                    f"starting from defaults. Original {legacy_ini.name} left untouched."
+                )
+                cfg = AppConfig()
+                self._write_config(cfg)
+                return cfg
+
+        # 3) Fresh install (no TOML, no INI). New users should see the Discord
+        #    banner, which is the AppConfig default (dismissed=False).
+        self.logger.info(f"No existing configuration found; creating fresh {toml_path.name}.")
+        cfg = AppConfig()
+        self._write_config(cfg)
+        return cfg
+
+    def _migrate_from_ini(self, ini_path: Path) -> AppConfig:
+        """
+        Parse the legacy ``config.ini`` one last time and convert it into an
+        :class:`AppConfig`. This is the *only* place ``configparser`` is used, and
+        it is scoped to this function. The original INI file is never modified.
+        """
+        import configparser  # migration-only; intentionally not a module import
+
+        parser = configparser.ConfigParser()
+        parser.read(str(ini_path))
+
+        cfg = AppConfig()
+        known: set[str] = set()
+
+        # -- LauncherPaths (read via canonical names; configparser is case-insensitive)
+        if parser.has_section("LauncherPaths"):
+            known.add("LauncherPaths")
+            for slot in LauncherPathName:
+                cfg.launcher_paths[slot.value] = parser.get(
+                    "LauncherPaths", slot.value, fallback=""
+                )
+
+        # -- UpdatePreferences
+        if parser.has_section("UpdatePreferences"):
+            known.add("UpdatePreferences")
+            up = cfg.update_preferences
+            up.update_dlss = parser.getboolean("UpdatePreferences", "UpdateDLSS", fallback=True)
+            up.update_direct_storage = parser.getboolean("UpdatePreferences", "UpdateDirectStorage", fallback=True)
+            up.update_xess = parser.getboolean("UpdatePreferences", "UpdateXeSS", fallback=True)
+            up.update_fsr = parser.getboolean("UpdatePreferences", "UpdateFSR", fallback=True)
+            up.update_streamline = parser.getboolean("UpdatePreferences", "UpdateStreamline", fallback=False)
+            up.create_backups = parser.getboolean("UpdatePreferences", "CreateBackups", fallback=True)
+            up.high_performance_mode = parser.getboolean("UpdatePreferences", "HighPerformanceMode", fallback=False)
+
+        # -- DiscordBanner: preserve dismissed; an existing user upgrading should
+        #    NOT be re-shown the banner, so absence -> dismissed=True.
+        if parser.has_section("DiscordBanner"):
+            known.add("DiscordBanner")
+            cfg.discord_banner.dismissed = parser.getboolean("DiscordBanner", "dismissed", fallback=True)
+        else:
+            cfg.discord_banner.dismissed = True
+
+        # -- ImageCache
+        if parser.has_section("ImageCache"):
+            known.add("ImageCache")
+            try:
+                cfg.image_cache.version = int(parser.get("ImageCache", "Version", fallback="0"))
+            except (ValueError, TypeError):
+                cfg.image_cache.version = 0
+
+        # -- UIPreferences
+        if parser.has_section("UIPreferences"):
+            known.add("UIPreferences")
+            ui = cfg.ui_preferences
+            ui.smooth_scrolling = parser.getboolean("UIPreferences", "SmoothScrolling", fallback=True)
+            ui.grid_density = parser.get("UIPreferences", "GridDensity", fallback="comfortable")
+            ui.keep_games_in_memory = parser.getboolean("UIPreferences", "KeepGamesInMemory", fallback=True)
+            ui.sort_preference = parser.get("UIPreferences", "SortPreference", fallback="name_asc")
+
+        # -- LinuxDLSSPresets (frozen struct -> rebuild)
+        if parser.has_section("LinuxDLSSPresets"):
+            known.add("LinuxDLSSPresets")
+            cfg.linux_dlss = LinuxDLSSConfig(
+                selected_preset=parser.get("LinuxDLSSPresets", "SelectedPreset", fallback="default"),
+                overlay_enabled=parser.getboolean("LinuxDLSSPresets", "OverlayEnabled", fallback=False),
+                wayland_enabled=parser.getboolean("LinuxDLSSPresets", "WaylandEnabled", fallback=False),
+                hdr_enabled=parser.getboolean("LinuxDLSSPresets", "HDREnabled", fallback=False),
+            )
+
+        # -- WindowsDLSSPresets (frozen struct -> rebuild)
+        if parser.has_section("WindowsDLSSPresets"):
+            known.add("WindowsDLSSPresets")
+            cfg.windows_dlss = WindowsDLSSConfig(
+                selected_preset=parser.get("WindowsDLSSPresets", "SelectedPreset", fallback="default"),
+                rr_preset=parser.get("WindowsDLSSPresets", "RRPreset", fallback="default"),
+                fg_preset=parser.get("WindowsDLSSPresets", "FGPreset", fallback="default"),
+            )
+
+        # -- SteamAPI
+        if parser.has_section("SteamAPI"):
+            known.add("SteamAPI")
+            sa = cfg.steam_api
+            sa.api_key = parser.get("SteamAPI", "ApiKey", fallback="")
+            sa.steam_id = parser.get("SteamAPI", "SteamId", fallback="")
+            sa.auto_detected_steam_id = parser.get("SteamAPI", "AutoDetectedSteamId", fallback="")
+
+        # -- Performance
+        if parser.has_section("Performance"):
+            known.add("Performance")
+            try:
+                cfg.performance.max_worker_threads = int(
+                    parser.get("Performance", "MaxWorkerThreads", fallback="16")
+                )
+            except (ValueError, TypeError):
+                cfg.performance.max_worker_threads = 16
+
+        # -- BlacklistSkips (configparser already lower-cased the game keys)
+        if parser.has_section("BlacklistSkips"):
+            known.add("BlacklistSkips")
+            for game in parser["BlacklistSkips"]:
+                cfg.blacklist_skips[game] = parser.getboolean("BlacklistSkips", game, fallback=False)
+
+        # -- WindowState
+        if parser.has_section("WindowState"):
+            known.add("WindowState")
+            ws = cfg.window_state
+
+            def _int_or_none(key: str) -> int | None:
+                raw = parser.get("WindowState", key, fallback="")
+                if not raw:
+                    return None
+                try:
+                    return int(float(raw))
+                except (ValueError, TypeError):
+                    return None
+
+            width = _int_or_none("Width")
+            height = _int_or_none("Height")
+            top = _int_or_none("Top")
+            left = _int_or_none("Left")
+            ws.width = width if width is not None else 900
+            ws.height = height if height is not None else 700
+            ws.has_position = top is not None and left is not None
+            ws.top = top if top is not None else 0
+            ws.left = left if left is not None else 0
+            ws.maximized = parser.getboolean("WindowState", "Maximized", fallback=False)
+
+        # -- Appearance (generic section: theme, user_override)
+        if parser.has_section("Appearance"):
+            known.add("Appearance")
+            for key in parser["Appearance"]:
+                cfg.appearance[key] = parser.get("Appearance", key)
+
+        # -- Any other/unrecognised sections: preserve verbatim under `extra`.
+        for section in parser.sections():
+            if section in known:
+                continue
+            cfg.extra[section] = {k: v for k, v in parser[section].items()}
+
+        return cfg
+
+    def _write_config(self, cfg: AppConfig) -> None:
+        """
+        Encode ``cfg`` to TOML and write it to ``self.config_path``.
+
+        The write goes through a temp file + ``os.replace`` so a crash mid-write
+        can't leave a half-written (corrupt) config. Callers must hold
+        ``_config_lock`` (or be in single-threaded ``__init__``).
+        """
+        data = msgspec.toml.encode(cfg)
+        target = Path(self.config_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_name(target.name + ".tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, target)
+
+    def _save_unlocked(self):
+        """
+        Persist the current config to disk (internal, assumes ``_config_lock``
+        is already held). External callers should use :meth:`save`.
+        """
+        self._write_config(self._config)
+
+    def save(self):
+        """
+        Save configuration to disk (thread-safe).
+
+        Thread-safe for free-threaded Python 3.14+: uses ``_config_lock`` to
+        prevent concurrent writes from corrupting the config file.
+        """
+        with _config_lock:
+            self._write_config(self._config)
+
+    # =========================================================================
+    # configparser-compatible generic accessors (used by the theme manager)
+    # =========================================================================
+
+    def _generic_section(self, section: str, create: bool) -> dict[str, str] | None:
+        """Return the dict backing a generically-accessed section, or None."""
+        attr = self._GENERIC_DICT_SECTIONS.get(section)
+        if attr is not None:
+            return getattr(self._config, attr)
+        if section in self._config.extra:
+            return self._config.extra[section]
+        if create:
+            new: dict[str, str] = {}
+            self._config.extra[section] = new
+            return new
+        return None
+
+    @staticmethod
+    def _optionxform(option: str) -> str:
+        """Mirror configparser's default lower-casing of option keys."""
+        return option.lower()
+
+    def has_section(self, section: str) -> bool:
+        """configparser-compatible: does the section exist?"""
+        if section in self._GENERIC_DICT_SECTIONS:
+            return True  # backing dict field always exists
+        with _config_lock:
+            return section in self._config.extra
+
+    def add_section(self, section: str) -> None:
+        """configparser-compatible: ensure a generic section exists."""
+        if section in self._GENERIC_DICT_SECTIONS:
+            return
+        with _config_lock:
+            self._config.extra.setdefault(section, {})
+
+    def get(self, section, option, fallback=None):
+        """configparser-compatible ``get(section, option, fallback=...)``."""
+        with _config_lock:
+            data = self._generic_section(section, create=False)
+            if data is None:
+                return fallback
+            return data.get(self._optionxform(option), fallback)
+
+    def set(self, section, option, value):
+        """
+        configparser-compatible ``set(section, option, value)``.
+
+        Like configparser, this only mutates in memory; callers persist with a
+        subsequent :meth:`save`.
+        """
+        with _config_lock:
+            data = self._generic_section(section, create=True)
+            data[self._optionxform(option)] = value
+
+    # =========================================================================
+    # Launcher paths
+    # =========================================================================
 
     def update_launcher_path(
         self, path_to_update: LauncherPathName, new_launcher_path: str
     ):
         self.logger.debug(f"Attempting to update path for {path_to_update}.")
-        self["LauncherPaths"][path_to_update] = new_launcher_path
-        self.save()
+        with _config_lock:
+            self._config.launcher_paths[str(path_to_update)] = new_launcher_path
+            self._save_unlocked()
         self.logger.debug(f"Updated path for {path_to_update}.")
 
     def check_path_value(self, path_to_check: LauncherPathName) -> str:
-        return self["LauncherPaths"].get(path_to_check, "")
+        with _config_lock:
+            return self._config.launcher_paths.get(str(path_to_check), "")
 
     def reset_launcher_path(self, path_to_reset: LauncherPathName):
         self.logger.debug(f"Resetting path for {path_to_reset}.")
-        self["LauncherPaths"][path_to_reset] = ""
-        self.save()
+        with _config_lock:
+            self._config.launcher_paths[str(path_to_reset)] = ""
+            self._save_unlocked()
         self.logger.debug(f"Reset path for {path_to_reset}.")
 
-    # =========================================================================
+    # -------------------------------------------------------------------------
     # Multi-Path Methods (Sub-Folder Support)
-    # =========================================================================
+    # -------------------------------------------------------------------------
 
     def get_launcher_paths(self, launcher: LauncherPathName) -> list[str]:
         """
@@ -355,7 +641,8 @@ class ConfigManager(configparser.ConfigParser):
         Returns:
             List of paths, or empty list if none configured
         """
-        raw_value = self["LauncherPaths"].get(launcher, "")
+        with _config_lock:
+            raw_value = self._config.launcher_paths.get(str(launcher), "")
         if not raw_value:
             return []
 
@@ -388,8 +675,9 @@ class ConfigManager(configparser.ConfigParser):
 
         # Encode as JSON array
         json_value = msgspec.json.encode(filtered_paths).decode()
-        self["LauncherPaths"][launcher] = json_value
-        self.save()
+        with _config_lock:
+            self._config.launcher_paths[str(launcher)] = json_value
+            self._save_unlocked()
         self.logger.debug(f"Set {len(filtered_paths)} paths for {launcher}")
 
     def add_launcher_path(self, launcher: LauncherPathName, new_path: str) -> bool:
@@ -458,64 +746,82 @@ class ConfigManager(configparser.ConfigParser):
 
         return removed
 
+    # =========================================================================
+    # Update preferences
+    # =========================================================================
+
     def get_update_preference(self, technology):
         """Get update preference for a specific technology"""
-        return self["UpdatePreferences"].getboolean(f"Update{technology}", True)
+        field_name = _UPDATE_PREF_FIELDS.get(technology)
+        if field_name is None:
+            return True  # Unknown technology -> default enabled (matches old fallback)
+        with _config_lock:
+            return getattr(self._config.update_preferences, field_name)
 
     def set_update_preference(self, technology, enabled):
         """Set update preference for a specific technology"""
-        self["UpdatePreferences"][f"Update{technology}"] = str(enabled).lower()
-        self.save()
+        field_name = _UPDATE_PREF_FIELDS.get(technology)
+        if field_name is None:
+            return
+        with _config_lock:
+            setattr(self._config.update_preferences, field_name, bool(enabled))
+            self._save_unlocked()
 
     def get_backup_preference(self):
         """Get backup creation preference"""
-        return self["UpdatePreferences"].getboolean("CreateBackups", True)
+        with _config_lock:
+            return self._config.update_preferences.create_backups
 
     def set_backup_preference(self, enabled):
         """Set backup creation preference"""
-        self["UpdatePreferences"]["CreateBackups"] = str(enabled).lower()
-        self.save()
+        with _config_lock:
+            self._config.update_preferences.create_backups = bool(enabled)
+            self._save_unlocked()
+
+    # =========================================================================
+    # Discord banner
+    # =========================================================================
 
     def get_discord_banner_dismissed(self) -> bool:
         """Get whether the Discord invite banner has been dismissed"""
-        if not self.has_section("DiscordBanner"):
-            return False
-        return self["DiscordBanner"].getboolean("dismissed", False)
+        with _config_lock:
+            return self._config.discord_banner.dismissed
 
     def set_discord_banner_dismissed(self, dismissed: bool):
         """Set the Discord invite banner dismissed state"""
-        if not self.has_section("DiscordBanner"):
-            self.add_section("DiscordBanner")
-        self["DiscordBanner"]["dismissed"] = str(dismissed).lower()
-        self.save()
+        with _config_lock:
+            self._config.discord_banner.dismissed = bool(dismissed)
+            self._save_unlocked()
+
+    # =========================================================================
+    # Image cache
+    # =========================================================================
 
     def get_image_cache_version(self) -> int:
         """Get the image cache version for migration tracking."""
-        if not self.has_section("ImageCache"):
-            return 0
-        return int(self["ImageCache"].get("Version", "0"))
+        with _config_lock:
+            return self._config.image_cache.version
 
     def set_image_cache_version(self, version: int):
         """Set the image cache version after migration."""
-        if not self.has_section("ImageCache"):
-            self.add_section("ImageCache")
-        self["ImageCache"]["Version"] = str(version)
-        self.save()
+        with _config_lock:
+            self._config.image_cache.version = int(version)
+            self._save_unlocked()
+
+    # =========================================================================
+    # UI preferences
+    # =========================================================================
 
     def get_smooth_scrolling_enabled(self) -> bool:
         """Get smooth scrolling preference (default: enabled)"""
         with _config_lock:
-            if not self.has_section("UIPreferences"):
-                return True  # Default enabled
-            return self["UIPreferences"].getboolean("SmoothScrolling", True)
+            return self._config.ui_preferences.smooth_scrolling
 
     def set_smooth_scrolling_enabled(self, enabled: bool):
         """Set smooth scrolling preference and persist to config file"""
         with _config_lock:
-            if not self.has_section("UIPreferences"):
-                self.add_section("UIPreferences")
-            self["UIPreferences"]["SmoothScrolling"] = str(enabled).lower()
-            self.save()  # Persist to disk immediately
+            self._config.ui_preferences.smooth_scrolling = bool(enabled)
+            self._save_unlocked()
 
     def get_grid_density(self) -> str:
         """Get grid density preference (default: comfortable)
@@ -524,12 +830,10 @@ class ConfigManager(configparser.ConfigParser):
             One of 'compact', 'comfortable', or 'large'
         """
         with _config_lock:
-            if not self.has_section("UIPreferences"):
-                return "comfortable"
-            value = self["UIPreferences"].get("GridDensity", "comfortable")
-            if value not in ("compact", "comfortable", "large"):
-                return "comfortable"
-            return value
+            value = self._config.ui_preferences.grid_density
+        if value not in ("compact", "comfortable", "large"):
+            return "comfortable"
+        return value
 
     def set_grid_density(self, density: str):
         """Set grid density preference and persist to config file
@@ -540,32 +844,24 @@ class ConfigManager(configparser.ConfigParser):
         if density not in ("compact", "comfortable", "large"):
             density = "comfortable"
         with _config_lock:
-            if not self.has_section("UIPreferences"):
-                self.add_section("UIPreferences")
-            self["UIPreferences"]["GridDensity"] = density
+            self._config.ui_preferences.grid_density = density
             self._save_unlocked()
 
     def get_keep_games_in_memory(self) -> bool:
         """Get keep games in memory preference (default: enabled)"""
         with _config_lock:
-            if not self.has_section("UIPreferences"):
-                return True  # Default enabled
-            return self["UIPreferences"].getboolean("KeepGamesInMemory", True)
+            return self._config.ui_preferences.keep_games_in_memory
 
     def set_keep_games_in_memory(self, enabled: bool):
         """Set keep games in memory preference and persist to config file"""
         with _config_lock:
-            if not self.has_section("UIPreferences"):
-                self.add_section("UIPreferences")
-            self["UIPreferences"]["KeepGamesInMemory"] = str(enabled).lower()
-            self.save()
+            self._config.ui_preferences.keep_games_in_memory = bool(enabled)
+            self._save_unlocked()
 
     def get_sort_preference(self) -> str:
         """Get game sort preference (default: 'name_asc')"""
         with _config_lock:
-            if not self.has_section("UIPreferences"):
-                return "name_asc"
-            return self["UIPreferences"].get("SortPreference", "name_asc")
+            return self._config.ui_preferences.sort_preference
 
     def set_sort_preference(self, sort: str):
         """Set game sort preference"""
@@ -573,41 +869,41 @@ class ConfigManager(configparser.ConfigParser):
         if sort not in valid:
             return
         with _config_lock:
-            if not self.has_section("UIPreferences"):
-                self.add_section("UIPreferences")
-            self["UIPreferences"]["SortPreference"] = sort
-            self.save()
+            self._config.ui_preferences.sort_preference = sort
+            self._save_unlocked()
+
+    # =========================================================================
+    # Blacklist skips
+    # =========================================================================
+    # Keys are lower-cased to preserve the case-insensitive behaviour the old
+    # configparser backend had (option keys were normalised via optionxform).
 
     def get_all_blacklist_skips(self):
         """Get all games to skip in the blacklist"""
-        if not self.has_section("BlacklistSkips"):
-            self.add_section("BlacklistSkips")
-            self.save()
-        return [
-            game
-            for game, value in self["BlacklistSkips"].items()
-            if value.lower() == "true"
-        ]
+        with _config_lock:
+            return [game for game, value in self._config.blacklist_skips.items() if value]
 
     def add_blacklist_skip(self, game_name):
         """Add a game to skip in the blacklist"""
-        if not self.has_section("BlacklistSkips"):
-            self.add_section("BlacklistSkips")
-        self["BlacklistSkips"][game_name] = "true"
-        self.save()
+        with _config_lock:
+            self._config.blacklist_skips[self._optionxform(game_name)] = True
+            self._save_unlocked()
 
     def clear_all_blacklist_skips(self):
         """Clear all blacklist skips"""
-        if self.has_section("BlacklistSkips"):
-            self.remove_section("BlacklistSkips")
-            self.add_section("BlacklistSkips")
-            self.save()
+        with _config_lock:
+            if self._config.blacklist_skips:
+                self._config.blacklist_skips.clear()
+                self._save_unlocked()
 
     def is_blacklist_skipped(self, game_name):
         """Check if a game is in the blacklist skip list"""
-        if not self.has_section("BlacklistSkips"):
-            return False
-        return self["BlacklistSkips"].getboolean(game_name, False)
+        with _config_lock:
+            return self._config.blacklist_skips.get(self._optionxform(game_name), False)
+
+    # =========================================================================
+    # Struct-based accessors
+    # =========================================================================
 
     def get_update_preferences_struct(self) -> UpdatePreferencesConfig:
         """Get update preferences as validated msgspec struct"""
@@ -622,18 +918,17 @@ class ConfigManager(configparser.ConfigParser):
         )
 
     def save_update_preferences_struct(self, prefs: UpdatePreferencesConfig):
-        """Save update preferences from msgspec struct to INI"""
-        if not self.has_section("UpdatePreferences"):
-            self.add_section("UpdatePreferences")
-
-        self["UpdatePreferences"]["UpdateDLSS"] = str(prefs.update_dlss).lower()
-        self["UpdatePreferences"]["UpdateDirectStorage"] = str(prefs.update_direct_storage).lower()
-        self["UpdatePreferences"]["UpdateXeSS"] = str(prefs.update_xess).lower()
-        self["UpdatePreferences"]["UpdateFSR"] = str(prefs.update_fsr).lower()
-        self["UpdatePreferences"]["UpdateStreamline"] = str(prefs.update_streamline).lower()
-        self["UpdatePreferences"]["CreateBackups"] = str(prefs.create_backups).lower()
-        self["UpdatePreferences"]["HighPerformanceMode"] = str(prefs.high_performance_mode).lower()
-        self.save()
+        """Save update preferences from msgspec struct"""
+        with _config_lock:
+            up = self._config.update_preferences
+            up.update_dlss = prefs.update_dlss
+            up.update_direct_storage = prefs.update_direct_storage
+            up.update_xess = prefs.update_xess
+            up.update_fsr = prefs.update_fsr
+            up.update_streamline = prefs.update_streamline
+            up.create_backups = prefs.create_backups
+            up.high_performance_mode = prefs.high_performance_mode
+            self._save_unlocked()
 
     def get_launcher_paths_struct(self) -> LauncherPathsConfig:
         """Get launcher paths as validated msgspec struct"""
@@ -652,22 +947,21 @@ class ConfigManager(configparser.ConfigParser):
         )
 
     def save_launcher_paths_struct(self, paths: LauncherPathsConfig):
-        """Save launcher paths from msgspec struct to INI"""
-        if not self.has_section("LauncherPaths"):
-            self.add_section("LauncherPaths")
-
-        self["LauncherPaths"][LauncherPathName.STEAM] = paths.steam_path or ""
-        self["LauncherPaths"][LauncherPathName.EA] = paths.ea_path or ""
-        self["LauncherPaths"][LauncherPathName.EPIC] = paths.epic_path or ""
-        self["LauncherPaths"][LauncherPathName.GOG] = paths.gog_path or ""
-        self["LauncherPaths"][LauncherPathName.UBISOFT] = paths.ubisoft_path or ""
-        self["LauncherPaths"][LauncherPathName.BATTLENET] = paths.battle_net_path or ""
-        self["LauncherPaths"][LauncherPathName.XBOX] = paths.xbox_path or ""
-        self["LauncherPaths"][LauncherPathName.CUSTOM1] = paths.custom_path_1 or ""
-        self["LauncherPaths"][LauncherPathName.CUSTOM2] = paths.custom_path_2 or ""
-        self["LauncherPaths"][LauncherPathName.CUSTOM3] = paths.custom_path_3 or ""
-        self["LauncherPaths"][LauncherPathName.CUSTOM4] = paths.custom_path_4 or ""
-        self.save()
+        """Save launcher paths from msgspec struct"""
+        with _config_lock:
+            lp = self._config.launcher_paths
+            lp[str(LauncherPathName.STEAM)] = paths.steam_path or ""
+            lp[str(LauncherPathName.EA)] = paths.ea_path or ""
+            lp[str(LauncherPathName.EPIC)] = paths.epic_path or ""
+            lp[str(LauncherPathName.GOG)] = paths.gog_path or ""
+            lp[str(LauncherPathName.UBISOFT)] = paths.ubisoft_path or ""
+            lp[str(LauncherPathName.BATTLENET)] = paths.battle_net_path or ""
+            lp[str(LauncherPathName.XBOX)] = paths.xbox_path or ""
+            lp[str(LauncherPathName.CUSTOM1)] = paths.custom_path_1 or ""
+            lp[str(LauncherPathName.CUSTOM2)] = paths.custom_path_2 or ""
+            lp[str(LauncherPathName.CUSTOM3)] = paths.custom_path_3 or ""
+            lp[str(LauncherPathName.CUSTOM4)] = paths.custom_path_4 or ""
+            self._save_unlocked()
 
     def get_performance_config_struct(self) -> PerformanceConfig:
         """Get performance config as validated msgspec struct"""
@@ -676,44 +970,25 @@ class ConfigManager(configparser.ConfigParser):
         )
 
     def save_performance_config_struct(self, perf: PerformanceConfig):
-        """Save performance config from msgspec struct to INI"""
+        """Save performance config from msgspec struct"""
         self.set_max_worker_threads(perf.max_worker_threads)
 
-    def _save_unlocked(self):
-        """
-        Save configuration to disk (internal, no lock).
-
-        Used during initialization when lock is already held.
-        External callers should use save() instead.
-        """
-        with open(self.config_path, "w") as configfile:
-            self.write(configfile)
-
-    def save(self):
-        """
-        Save configuration to disk (thread-safe).
-
-        Thread-safe for free-threaded Python 3.14+: Uses _config_lock
-        to prevent concurrent writes from corrupting the config file.
-        """
-        with _config_lock:
-            with open(self.config_path, "w") as configfile:
-                self.write(configfile)
+    # =========================================================================
+    # Performance
+    # =========================================================================
 
     def get_max_worker_threads(self):
         """Get the maximum number of worker threads for parallel processing"""
-        if not self.has_section("Performance"):
-            self.add_section("Performance")
-            self["Performance"]["MaxWorkerThreads"] = "16"
-            self.save()
-        return int(self["Performance"].get("MaxWorkerThreads", "16"))
+        with _config_lock:
+            return int(self._config.performance.max_worker_threads)
 
     def set_max_worker_threads(self, count):
         """Set the maximum number of worker threads"""
-        if not self.has_section("Performance"):
-            self.add_section("Performance")
-        self["Performance"]["MaxWorkerThreads"] = str(count)
-        self.save()
+        with _config_lock:
+            # Direct field assignment intentionally skips PerformanceConfig's
+            # range validation to preserve the old setter's permissive behaviour.
+            self._config.performance.max_worker_threads = int(count)
+            self._save_unlocked()
 
     def get_high_performance_mode(self) -> bool:
         """
@@ -746,16 +1021,7 @@ class ConfigManager(configparser.ConfigParser):
             LinuxDLSSConfig with current settings
         """
         with _config_lock:
-            if not self.has_section("LinuxDLSSPresets"):
-                return LinuxDLSSConfig()
-
-            section = self["LinuxDLSSPresets"]
-            return LinuxDLSSConfig(
-                selected_preset=section.get("SelectedPreset", "default"),
-                overlay_enabled=section.getboolean("OverlayEnabled", False),
-                wayland_enabled=section.getboolean("WaylandEnabled", False),
-                hdr_enabled=section.getboolean("HDREnabled", False),
-            )
+            return self._config.linux_dlss
 
     def save_linux_dlss_config(self, config: LinuxDLSSConfig) -> None:
         """
@@ -765,13 +1031,7 @@ class ConfigManager(configparser.ConfigParser):
             config: LinuxDLSSConfig to save
         """
         with _config_lock:
-            if not self.has_section("LinuxDLSSPresets"):
-                self.add_section("LinuxDLSSPresets")
-
-            self["LinuxDLSSPresets"]["SelectedPreset"] = config.selected_preset
-            self["LinuxDLSSPresets"]["OverlayEnabled"] = str(config.overlay_enabled).lower()
-            self["LinuxDLSSPresets"]["WaylandEnabled"] = str(config.wayland_enabled).lower()
-            self["LinuxDLSSPresets"]["HDREnabled"] = str(config.hdr_enabled).lower()
+            self._config.linux_dlss = config
             self._save_unlocked()
 
     # =========================================================================
@@ -786,15 +1046,7 @@ class ConfigManager(configparser.ConfigParser):
             WindowsDLSSConfig with the persisted global preset selections.
         """
         with _config_lock:
-            if not self.has_section("WindowsDLSSPresets"):
-                return WindowsDLSSConfig()
-
-            section = self["WindowsDLSSPresets"]
-            return WindowsDLSSConfig(
-                selected_preset=section.get("SelectedPreset", "default"),
-                rr_preset=section.get("RRPreset", "default"),
-                fg_preset=section.get("FGPreset", "default"),
-            )
+            return self._config.windows_dlss
 
     def save_windows_dlss_config(self, config: WindowsDLSSConfig) -> None:
         """
@@ -807,12 +1059,7 @@ class ConfigManager(configparser.ConfigParser):
             config: WindowsDLSSConfig to save.
         """
         with _config_lock:
-            if not self.has_section("WindowsDLSSPresets"):
-                self.add_section("WindowsDLSSPresets")
-
-            self["WindowsDLSSPresets"]["SelectedPreset"] = config.selected_preset
-            self["WindowsDLSSPresets"]["RRPreset"] = config.rr_preset
-            self["WindowsDLSSPresets"]["FGPreset"] = config.fg_preset
+            self._config.windows_dlss = config
             self._save_unlocked()
 
     # =========================================================================
@@ -822,40 +1069,30 @@ class ConfigManager(configparser.ConfigParser):
     def get_steam_api_key(self) -> str:
         """Get the user's Steam Web API key."""
         with _config_lock:
-            if not self.has_section("SteamAPI"):
-                return ""
-            return self["SteamAPI"].get("ApiKey", "")
+            return self._config.steam_api.api_key
 
     def set_steam_api_key(self, key: str):
         """Store the user's Steam Web API key."""
         with _config_lock:
-            if not self.has_section("SteamAPI"):
-                self.add_section("SteamAPI")
-            self["SteamAPI"]["ApiKey"] = key
+            self._config.steam_api.api_key = key
             self._save_unlocked()
 
     def get_steam_id(self) -> str:
         """Get the Steam 64-bit ID. Prefers user-set ID, falls back to auto-detected."""
         with _config_lock:
-            if not self.has_section("SteamAPI"):
-                return ""
-            user_id = self["SteamAPI"].get("SteamId", "")
-            return user_id or self["SteamAPI"].get("AutoDetectedSteamId", "")
+            sa = self._config.steam_api
+            return sa.steam_id or sa.auto_detected_steam_id
 
     def set_steam_id(self, steam_id: str):
         """Set the Steam 64-bit ID explicitly."""
         with _config_lock:
-            if not self.has_section("SteamAPI"):
-                self.add_section("SteamAPI")
-            self["SteamAPI"]["SteamId"] = steam_id
+            self._config.steam_api.steam_id = steam_id
             self._save_unlocked()
 
     def set_auto_detected_steam_id(self, steam_id: str):
         """Store an auto-detected Steam 64-bit ID (from loginusers.vdf)."""
         with _config_lock:
-            if not self.has_section("SteamAPI"):
-                self.add_section("SteamAPI")
-            self["SteamAPI"]["AutoDetectedSteamId"] = steam_id
+            self._config.steam_api.auto_detected_steam_id = steam_id
             self._save_unlocked()
 
     def has_steam_api_credentials(self) -> bool:
@@ -865,24 +1102,15 @@ class ConfigManager(configparser.ConfigParser):
     def clear_steam_api_credentials(self):
         """Remove all Steam API credentials."""
         with _config_lock:
-            if self.has_section("SteamAPI"):
-                self["SteamAPI"]["ApiKey"] = ""
-                self["SteamAPI"]["SteamId"] = ""
-                self["SteamAPI"]["AutoDetectedSteamId"] = ""
-                self._save_unlocked()
+            sa = self._config.steam_api
+            sa.api_key = ""
+            sa.steam_id = ""
+            sa.auto_detected_steam_id = ""
+            self._save_unlocked()
 
     # =========================================================================
     # Window State Persistence
     # =========================================================================
-
-    # Default window dimensions (used on first launch or if saved state is invalid)
-    _WINDOW_DEFAULTS = {
-        "Width": "900",
-        "Height": "700",
-        "Top": "",
-        "Left": "",
-        "Maximized": "false",
-    }
 
     def get_window_state(self) -> dict[str, float | bool | None]:
         """Get saved window state (position, size, maximized).
@@ -892,32 +1120,21 @@ class ConfigManager(configparser.ConfigParser):
             top/left may be None if never saved (let OS position the window).
         """
         with _config_lock:
-            if not self.has_section("WindowState"):
-                return {
-                    "width": 900.0,
-                    "height": 700.0,
-                    "top": None,
-                    "left": None,
-                    "maximized": False,
-                }
-
-            section = self["WindowState"]
-
-            def _float_or_none(key: str) -> float | None:
-                val = section.get(key, "")
-                if not val:
-                    return None
-                try:
-                    return float(val)
-                except (ValueError, TypeError):
-                    return None
-
+            ws = self._config.window_state
+            width = float(ws.width) or 900.0
+            height = float(ws.height) or 700.0
+            if ws.has_position:
+                top: float | None = float(ws.top)
+                left: float | None = float(ws.left)
+            else:
+                top = None
+                left = None
             return {
-                "width": _float_or_none("Width") or 900.0,
-                "height": _float_or_none("Height") or 700.0,
-                "top": _float_or_none("Top"),
-                "left": _float_or_none("Left"),
-                "maximized": section.getboolean("Maximized", False),
+                "width": width,
+                "height": height,
+                "top": top,
+                "left": left,
+                "maximized": ws.maximized,
             }
 
     def save_window_state(
@@ -930,14 +1147,13 @@ class ConfigManager(configparser.ConfigParser):
     ) -> None:
         """Save window state to config (thread-safe)."""
         with _config_lock:
-            if not self.has_section("WindowState"):
-                self.add_section("WindowState")
-
-            self["WindowState"]["Width"] = str(int(width))
-            self["WindowState"]["Height"] = str(int(height))
-            self["WindowState"]["Top"] = str(int(top)) if top is not None else ""
-            self["WindowState"]["Left"] = str(int(left)) if left is not None else ""
-            self["WindowState"]["Maximized"] = str(maximized).lower()
+            ws = self._config.window_state
+            ws.width = int(width)
+            ws.height = int(height)
+            ws.has_position = top is not None and left is not None
+            ws.top = int(top) if top is not None else 0
+            ws.left = int(left) if left is not None else 0
+            ws.maximized = bool(maximized)
             self._save_unlocked()
 
 

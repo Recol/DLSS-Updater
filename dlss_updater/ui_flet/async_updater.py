@@ -8,6 +8,9 @@ import logging
 from pathlib import Path
 from typing import Callable, Any
 
+import anyio
+
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.scanner import find_all_dlls
 from dlss_updater.utils import update_dlss_versions, process_single_dll, extract_game_name
 from dlss_updater.config import config_manager, get_current_settings
@@ -216,7 +219,15 @@ class AsyncUpdateCoordinator:
 
             # Await any remaining pending progress tasks to ensure completion
             if _pending_progress_tasks:
-                await asyncio.gather(*_pending_progress_tasks, return_exceptions=True)
+                async def _drain(t: asyncio.Task) -> None:
+                    try:
+                        await t
+                    except Exception:
+                        pass
+
+                async with anyio.create_task_group() as tg:
+                    for t in _pending_progress_tasks:
+                        tg.start_soon(_drain, t)
 
             # Parse result (update_dlss_versions returns dict with results)
             # updated_games: list of (dll_path, launcher, dll_type) tuples
@@ -262,7 +273,9 @@ class AsyncUpdateCoordinator:
 
     async def _filter_ignored_games(self, dll_dict: dict[str, list]) -> dict[str, list]:
         """Remove DLL paths belonging to personally-ignored games from the update set."""
-        ignored_ids = await asyncio.to_thread(db_manager.batch_get_ignored_game_ids_sync)
+        ignored_ids = await anyio.to_thread.run_sync(
+            db_manager.batch_get_ignored_game_ids_sync, limiter=thread_io
+        )
         if not ignored_ids:
             return dll_dict
 
@@ -270,8 +283,8 @@ class AsyncUpdateCoordinator:
         for paths in dll_dict.values():
             all_paths.extend(str(p) for p in paths)
 
-        path_to_game_id = await asyncio.to_thread(
-            db_manager.batch_get_game_ids_for_dll_paths_sync, all_paths
+        path_to_game_id = await anyio.to_thread.run_sync(
+            db_manager.batch_get_game_ids_for_dll_paths_sync, all_paths, limiter=thread_io
         )
 
         filtered = {}
@@ -483,7 +496,9 @@ class AsyncUpdateCoordinator:
                         })
                         # Update version in database
                         from dlss_updater.updater import get_dll_version
-                        new_version = await asyncio.to_thread(get_dll_version, dll_path)
+                        new_version = await anyio.to_thread.run_sync(
+                            get_dll_version, dll_path, limiter=thread_io
+                        )
                         if new_version:
                             await db_manager.update_game_dll_version(game_dll.id, new_version)
                     elif result is None:

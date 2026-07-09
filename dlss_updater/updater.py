@@ -2,7 +2,9 @@ import os
 import shutil
 import threading
 import sys
+import anyio
 from .config import LATEST_DLL_VERSIONS, LATEST_DLL_PATHS, Concurrency
+from .concurrency_limiters import thread_cpu, thread_io
 from pathlib import Path
 import concurrent.futures
 import stat
@@ -248,10 +250,10 @@ def get_dll_version(dll_path):
 async def get_dll_version_async(dll_path):
     """
     Async wrapper for get_dll_version.
-    Runs PE parsing in thread pool to avoid blocking the event loop.
+    Runs PE parsing in a bounded worker thread (thread_cpu, CPU-bound PE parse)
+    to avoid blocking the event loop.
     """
-    import asyncio
-    return await asyncio.to_thread(get_dll_version, dll_path)
+    return await anyio.to_thread.run_sync(get_dll_version, dll_path, limiter=thread_cpu)
 
 
 def remove_read_only(file_path):
@@ -334,8 +336,8 @@ async def is_file_in_use_async(file_path, timeout=5):
             # be "in use" if it no longer exists.
             return False
         except PermissionError:
-            # File is in use, check which process (in thread pool)
-            if await asyncio.to_thread(_check_process_using_file, str(file_path)):
+            # File is in use, check which process (in bounded I/O worker thread)
+            if await anyio.to_thread.run_sync(_check_process_using_file, str(file_path), limiter=thread_io):
                 return True
         await asyncio.sleep(0.1)  # Non-blocking sleep
 
@@ -348,24 +350,33 @@ def normalize_path(path):
 
 
 def record_update_history_sync(dll_path, from_version, to_version, success):
-    """Record update history in database (synchronous wrapper for async operation)"""
+    """Record update history in database.
+
+    Calls the database's private sync methods directly rather than going
+    through the async wrappers. This function runs on a worker thread already
+    dispatched via anyio.to_thread.run_sync(..., limiter=thread_io) (see
+    high_performance_updater.py's _apply_single_update); the async wrappers
+    (get_game_dll_by_path/record_update_history) internally do another
+    `await anyio.to_thread.run_sync(..., limiter=thread_io)` against the SAME
+    shared limiter. Previously this function wrapped those async calls in a
+    nested asyncio.run(), which deadlocked: the nested loop's attempt to
+    acquire thread_io never completes (CapacityLimiter isn't safe to reuse
+    across independent event loop instances), permanently holding the outer
+    worker's slot and starving every other queued update once the limiter's
+    capacity was exhausted this way.
+    """
     try:
-        import asyncio
         from dlss_updater.database import db_manager
 
-        # Use asyncio.run() for thread-safe async execution
-        async def _record():
-            game_dll = await db_manager.get_game_dll_by_path(str(dll_path))
-            if game_dll:
-                await db_manager.record_update_history({
-                    'game_dll_id': game_dll.id,
-                    'from_version': from_version,
-                    'to_version': to_version,
-                    'success': success
-                })
-                logger.debug(f"Recorded update history for {dll_path.name}")
-
-        asyncio.run(_record())
+        game_dll = db_manager._get_game_dll_by_path(str(dll_path))
+        if game_dll:
+            db_manager._record_update_history({
+                'game_dll_id': game_dll.id,
+                'from_version': from_version,
+                'to_version': to_version,
+                'success': success
+            })
+            logger.debug(f"Recorded update history for {dll_path.name}")
     except Exception as e:
         logger.warning(f"Failed to record update history: {e}")
         # Don't fail update if history recording fails

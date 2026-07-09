@@ -4,9 +4,10 @@ Panel for excluding specific games from automatic DLL updates
 """
 
 import logging
-import asyncio
+import anyio
 import flet as ft
 from dlss_updater.ui_flet.components.slide_panel import PanelContentBase
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.database import db_manager
 from dlss_updater.models import Game
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
@@ -70,8 +71,8 @@ class IgnoreListPanel(ThemeAwareMixin, PanelContentBase):
                 [g for games in all_games_by_launcher.values() for g in games],
                 key=lambda g: g.name.lower()
             )
-            self._ignored_ids = await asyncio.to_thread(
-                db_manager.batch_get_ignored_game_ids_sync
+            self._ignored_ids = await anyio.to_thread.run_sync(
+                db_manager.batch_get_ignored_game_ids_sync, limiter=thread_io
             )
             self._filtered_games = self._all_games.copy()
             self.logger.info(

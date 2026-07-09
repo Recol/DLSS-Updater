@@ -4,9 +4,11 @@ Provides async-safe Windows registry operations for NVIDIA DLSS settings.
 On non-Windows platforms, returns appropriate fallback values.
 """
 
-import asyncio
 import logging
 
+import anyio
+
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.platform_utils import IS_WINDOWS
 
 logger = logging.getLogger("DLSSUpdater")
@@ -55,7 +57,7 @@ async def get_dlss_overlay_state() -> tuple[bool, str | None]:
         except OSError as e:
             return (False, f"Registry access error: {e}")
 
-    return await asyncio.to_thread(_read_registry)
+    return await anyio.to_thread.run_sync(_read_registry, limiter=thread_io)
 
 
 async def set_dlss_overlay_state(enabled: bool) -> tuple[bool, str | None]:
@@ -125,4 +127,4 @@ async def set_dlss_overlay_state(enabled: bool) -> tuple[bool, str | None]:
             logger.error(f"Registry write error: {e}", exc_info=True)
             return (False, error_msg)
 
-    return await asyncio.to_thread(_write_registry)
+    return await anyio.to_thread.run_sync(_write_registry, limiter=thread_io)

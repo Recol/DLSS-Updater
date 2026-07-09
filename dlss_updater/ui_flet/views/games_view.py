@@ -4,7 +4,7 @@ Games View - Display all games organized by launcher with Steam images
 PERFORMANCE NOTES:
 - Uses GridView with virtualization (only visible cards are rendered)
 - Progressive loading: first batch shown immediately, rest created in background
-- Parallel data loading with asyncio.gather() for DLLs and backups
+- Parallel data loading via HyperParallelLoader (anyio worker threads) for DLLs and backups
 - ImageLoadCoordinator batches page.update() calls for images (~5x faster)
 - Search filtering via visibility toggles (no grid rebuild)
 """
@@ -13,7 +13,10 @@ import asyncio
 import math
 import time
 from typing import Callable, Any, TYPE_CHECKING
+import anyio
 import flet as ft
+
+from dlss_updater.concurrency_limiters import thread_io, io_heavy
 
 from dlss_updater.database import db_manager, Game, merge_games_by_name
 from dlss_updater.models import MergedGame, GameDLL, DLLBackup
@@ -226,6 +229,13 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # PERFORMANCE: Track if games are already loaded to prevent redundant rebuilds
         # on tab switching. Only reload on explicit refresh or when forced=True
         self._games_loaded = False
+
+        # Set when a global/batch update completes while this view hasn't been
+        # loaded yet (high_performance_updater.py writes new DLL files without
+        # updating GameDLL.version in the DB). Consumed on the next load_games()
+        # to reconcile badges from the filesystem instead of showing stale
+        # "needs update" state from a session where Games was never visited.
+        self._pending_dll_reconcile = False
 
         # Debug: track reentrant updates
         self._update_in_progress = False
@@ -497,6 +507,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
             except Exception:
                 pass
 
+    def mark_pending_dll_reconcile(self) -> None:
+        """Flag that a global update wrote new DLL files while this view wasn't
+        loaded, so the next load_games() reconciles versions from disk instead
+        of displaying stale DB-cached badges."""
+        self._pending_dll_reconcile = True
+
     async def load_games(self, force: bool = False):
         """Load games from database and display.
 
@@ -572,6 +588,15 @@ class GamesView(ThemeAwareMixin, ft.Column):
             # Mark as loaded for fast tab switching
             self._games_loaded = True
 
+            # A global update may have completed while this view wasn't loaded
+            # (see mark_pending_dll_reconcile) -- reconcile badges from the
+            # filesystem now instead of showing the stale DB-cached versions
+            # we just loaded.
+            if self._pending_dll_reconcile:
+                self._pending_dll_reconcile = False
+                self.logger.info("Reconciling DLL versions from filesystem after a batch update that ran before this view loaded")
+                await self.refresh_all_badges()
+
             # Initialize Steam API card (check improvement count, auto-detect ID)
             if hasattr(self, 'steam_api_card') and self.steam_api_card:
                 init_task = asyncio.create_task(self.steam_api_card.initialize())
@@ -594,7 +619,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         """Build tabs for each launcher with games (Flet 0.80.4 TabBar/TabBarView pattern)
 
         PERFORMANCE OPTIMIZATION (Flet 0.80.4):
-        - Uses HyperParallelLoader with ThreadPoolExecutor for true parallel I/O
+        - Uses HyperParallelLoader (anyio task group + thread_io limiter) for true parallel I/O
         - Batch queries reduce N+1 problem from 200+ queries to 2-3 queries
         - Single page.update() call after all cards created
         - Staggered animation runs after initial render
@@ -646,12 +671,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self.logger.debug(f"[PERF] Collected {len(all_merged_games)} merged games, {len(all_game_ids)} game_ids: {collect_ms:.1f}ms")
 
         # ========== PHASE 2: Hyper-parallel batch database queries ==========
-        # Uses ThreadPoolExecutor for true parallelism (not asyncio.to_thread serialization)
+        # Uses anyio worker threads (shared thread_io limiter) for true parallelism
         start_data = time.perf_counter()
         loader = HyperParallelLoader()
 
-        # Run all database queries in parallel using ThreadPoolExecutor
-        results = loader.load_all([
+        # Run all database queries in parallel on worker threads (anyio task group)
+        results = await loader.load_all([
             LoadTask("dlls", lambda: db_manager.batch_get_dlls_for_games_sync(all_game_ids)),
             LoadTask("backups", lambda: db_manager.batch_get_backups_grouped_sync(all_game_ids)),
             LoadTask("images", lambda: db_manager._batch_get_cached_image_paths(all_steam_app_ids)),
@@ -822,7 +847,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
     async def _load_uncached_images(self, cards: list['GameCard']):
         """Load images for cards without cached paths using concurrent async I/O.
 
-        Uses asyncio.gather() for parallel HTTP requests (I/O-bound).
+        Uses an anyio task group (gated by io_heavy) for parallel HTTP requests (I/O-bound).
         Single page.update() after all images are fetched and applied.
         """
         from dlss_updater.steam_integration import fetch_steam_image
@@ -842,27 +867,29 @@ class GamesView(ThemeAwareMixin, ft.Column):
             if not app_id_to_cards:
                 return
 
-            # Create fetch tasks for each unique app_id
-            async def fetch_with_id(app_id: int) -> tuple[int, str | None]:
-                """Fetch image and return (app_id, path) tuple."""
+            # Fetch each unique app_id concurrently via an anyio task group.
+            # HTTP concurrency is gated app-wide by io_heavy; the binding ceiling
+            # remains steam_integration's internal per-download semaphore
+            # (IMAGE_SEMAPHORE), which io_heavy sits above.
+            app_ids = list(app_id_to_cards.keys())
+            fetched_paths: dict[int, str | None] = {}
+
+            async def fetch_with_id(app_id: int) -> None:
+                """Fetch one image and record its path (or None on failure)."""
                 try:
-                    path = await fetch_steam_image(app_id)
-                    return (app_id, path)
+                    async with io_heavy:
+                        path = await fetch_steam_image(app_id)
+                    fetched_paths[app_id] = path
                 except Exception as e:
                     self.logger.debug(f"Failed to fetch image for app {app_id}: {e}")
-                    return (app_id, None)
 
-            # Run all fetches concurrently (asyncio handles I/O parallelism well)
-            app_ids = list(app_id_to_cards.keys())
-            fetch_tasks = [fetch_with_id(app_id) for app_id in app_ids]
-            results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+            async with anyio.create_task_group() as tg:
+                for app_id in app_ids:
+                    tg.start_soon(fetch_with_id, app_id)
 
             # Apply fetched images to cards
             cards_updated = 0
-            for result in results:
-                if isinstance(result, Exception):
-                    continue
-                app_id, path = result
+            for app_id, path in fetched_paths.items():
                 if path:
                     for card in app_id_to_cards.get(app_id, []):
                         card.image_widget.src = str(path)
@@ -1477,15 +1504,23 @@ class GamesView(ThemeAwareMixin, ft.Column):
         game_ids = list(self.game_cards.keys())
 
         # Refresh versions from filesystem -> DB for all games in parallel
-        refresh_tasks = [
-            db_manager.refresh_dll_versions_for_game(gid) for gid in game_ids
-        ]
-        results = await asyncio.gather(*refresh_tasks, return_exceptions=True)
+        # (anyio task group; results kept index-aligned with game_ids).
+        results: list[Any] = [None] * len(game_ids)
+
+        async def _refresh(i: int, gid: int) -> None:
+            try:
+                results[i] = await db_manager.refresh_dll_versions_for_game(gid)
+            except Exception as e:
+                results[i] = e
+
+        async with anyio.create_task_group() as tg:
+            for i, gid in enumerate(game_ids):
+                tg.start_soon(_refresh, i, gid)
 
         # Batch-fetch fresh backup groups so restore menus also re-sync after bulk update
         try:
-            all_backup_groups = await asyncio.to_thread(
-                db_manager.batch_get_backups_grouped_sync, game_ids
+            all_backup_groups = await anyio.to_thread.run_sync(
+                db_manager.batch_get_backups_grouped_sync, game_ids, limiter=thread_io
             )
         except Exception as ex:
             self.logger.warning(f"Failed to batch-fetch backup groups: {ex}")
@@ -1939,13 +1974,14 @@ class GamesView(ThemeAwareMixin, ft.Column):
         search index are preserved for instant tab switching. This avoids the
         ~1.5s rebuild cost on every tab switch.
         """
-        import asyncio
         from dlss_updater.config import config_manager
         from dlss_updater.search_service import search_service
 
         # Read config off the event loop to avoid deadlock with _config_lock
         # (filter handlers may have fire-and-forget config writes in flight)
-        keep_in_memory = await asyncio.to_thread(config_manager.get_keep_games_in_memory)
+        keep_in_memory = await anyio.to_thread.run_sync(
+            config_manager.get_keep_games_in_memory, limiter=thread_io
+        )
 
         if not keep_in_memory:
             search_service.clear_index()

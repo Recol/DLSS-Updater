@@ -1,3 +1,32 @@
+Version 4.2.3:
+Modernized async/dependency stack:
+  - Replaced the DLL-download fallback library (requests, now in upstream
+    feature-freeze) with niquests, a maintained drop-in replacement with
+    HTTP/2 and HTTP/3 support.
+  - Settings storage migrated from config.ini to config.toml (via msgspec).
+    Migration is automatic and non-destructive - the old config.ini is left
+    untouched on disk.
+  - Adopted anyio for structured concurrency across the update/scan/database
+    pipeline: several separate, independently-sized thread pools were
+    consolidated into shared, properly-bounded worker limiters, and manual
+    task-cancellation logic was replaced with correct-by-construction cancel
+    scopes.
+  - Logging now runs through a background queue instead of blocking the
+    calling thread/task on every log call.
+
+Bug Fixes:
+  - Fixed a deadlock in the high-performance batch DLL updater that could
+    freeze the update progress dialog partway through a large batch (a
+    nested event loop was re-acquiring a shared concurrency limiter that
+    belonged to a different loop instance, permanently blocking a worker
+    thread). Discovered via live testing of the above migration.
+  - Fixed the Games Library not reflecting newly-updated DLL versions after
+    a batch update if the Games tab hadn't been opened yet that session -
+    it now reconciles versions from disk automatically the next time it
+    loads instead of requiring a manual refresh.
+  - Fixed HyperParallelLoader (used for batched game/backup loading) briefly
+    blocking the UI event loop while dispatching thread-pool work.
+
 Version 4.2.2:
 Linux Update Reliability Fix (Issue #240):
   - Fixed: The high-performance updater's memory-mapped source-DLL cache used

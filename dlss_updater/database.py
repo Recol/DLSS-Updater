@@ -18,7 +18,9 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 import aiosqlite
+import anyio
 
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.logger import setup_logger
 from dlss_updater.platform_utils import APP_CONFIG_DIR
 from dlss_updater.models import (
@@ -114,7 +116,7 @@ class DatabaseManager:
         if self.initialized:
             return
 
-        await asyncio.to_thread(self._create_schema)
+        await anyio.to_thread.run_sync(self._create_schema, limiter=thread_io)
 
         self.initialized = True
         logger.info("Database schema initialized successfully")
@@ -563,7 +565,7 @@ class DatabaseManager:
 
     async def upsert_game(self, game_data: dict[str, Any]) -> Game | None:
         """Insert or update game record"""
-        return await asyncio.to_thread(self._upsert_game, game_data)
+        return await anyio.to_thread.run_sync(self._upsert_game, game_data, limiter=thread_io)
 
     def _upsert_game(self, game_data: dict[str, Any]) -> Game | None:
         """Upsert game (runs in thread) - uses thread-local connection"""
@@ -618,7 +620,7 @@ class DatabaseManager:
 
     async def get_games_grouped_by_launcher(self) -> dict[str, list[Game]]:
         """Get all games grouped by launcher"""
-        return await asyncio.to_thread(self._get_games_grouped_by_launcher)
+        return await anyio.to_thread.run_sync(self._get_games_grouped_by_launcher, limiter=thread_io)
 
     def _get_games_grouped_by_launcher(self) -> dict[str, list[Game]]:
         """Get games grouped by launcher (runs in thread) - uses thread-local connection"""
@@ -675,7 +677,7 @@ class DatabaseManager:
         even if they have the same name. Use merge_games_by_name() in UI layer
         to properly merge while preserving all paths.
         """
-        return await asyncio.to_thread(self._get_all_games_by_launcher)
+        return await anyio.to_thread.run_sync(self._get_all_games_by_launcher, limiter=thread_io)
 
     def _get_all_games_by_launcher(self) -> dict[str, list[Game]]:
         """Get all games by launcher (no GROUP BY) - uses thread-local connection"""
@@ -720,7 +722,7 @@ class DatabaseManager:
 
     async def set_game_ignored(self, game_id: int, ignored: bool) -> bool:
         """Add or remove a game from the personal ignore list."""
-        return await asyncio.to_thread(self._set_game_ignored, game_id, ignored)
+        return await anyio.to_thread.run_sync(self._set_game_ignored, game_id, ignored, limiter=thread_io)
 
     def _set_game_ignored(self, game_id: int, ignored: bool) -> bool:
         """Set game ignored status (runs in thread) - uses thread-local connection"""
@@ -746,7 +748,7 @@ class DatabaseManager:
 
     async def is_game_ignored(self, game_id: int) -> bool:
         """Check if a single game is in the personal ignore list."""
-        return await asyncio.to_thread(self._is_game_ignored, game_id)
+        return await anyio.to_thread.run_sync(self._is_game_ignored, game_id, limiter=thread_io)
 
     def _is_game_ignored(self, game_id: int) -> bool:
         """Check game ignored status (runs in thread) - uses thread-local connection"""
@@ -775,7 +777,7 @@ class DatabaseManager:
 
     async def get_all_ignored_games(self) -> list[Game]:
         """Get full Game objects for all ignored games, ordered by name."""
-        return await asyncio.to_thread(self._get_all_ignored_games)
+        return await anyio.to_thread.run_sync(self._get_all_ignored_games, limiter=thread_io)
 
     def _get_all_ignored_games(self) -> list[Game]:
         """Get all ignored games with details (runs in thread)"""
@@ -817,9 +819,8 @@ class DatabaseManager:
         Pass None for both args to clear an existing override.
         Returns True on success.
         """
-        return await asyncio.to_thread(
-            self._set_game_override, game_id, override_steam_app_id, display_name_override
-        )
+        return await anyio.to_thread.run_sync(
+            self._set_game_override, game_id, override_steam_app_id, display_name_override, limiter=thread_io)
 
     def _set_game_override(
         self,
@@ -871,7 +872,7 @@ class DatabaseManager:
         Returns:
             Number of games deleted
         """
-        return await asyncio.to_thread(self._delete_all_games)
+        return await anyio.to_thread.run_sync(self._delete_all_games, limiter=thread_io)
 
     def _delete_all_games(self):
         """Delete all games (runs in thread)"""
@@ -907,7 +908,7 @@ class DatabaseManager:
         Returns:
             Number of duplicate entries removed
         """
-        return await asyncio.to_thread(self._cleanup_duplicate_games)
+        return await anyio.to_thread.run_sync(self._cleanup_duplicate_games, limiter=thread_io)
 
     def _cleanup_duplicate_games(self):
         """Cleanup duplicate games (runs in thread) - optimized with batched SQL"""
@@ -1004,7 +1005,7 @@ class DatabaseManager:
             CASCADE delete will automatically remove associated game_dlls,
             dll_backups, and update_history records.
         """
-        return await asyncio.to_thread(self._cleanup_missing_games, valid_game_paths)
+        return await anyio.to_thread.run_sync(self._cleanup_missing_games, valid_game_paths, limiter=thread_io)
 
     def _cleanup_missing_games(self, valid_game_paths: set[str]) -> int:
         """Remove games not in valid_game_paths and not on filesystem (runs in thread)"""
@@ -1076,7 +1077,7 @@ class DatabaseManager:
         Returns:
             Number of DLL records removed from database
         """
-        return await asyncio.to_thread(self._cleanup_orphan_dlls, valid_dll_paths)
+        return await anyio.to_thread.run_sync(self._cleanup_orphan_dlls, valid_dll_paths, limiter=thread_io)
 
     def _cleanup_orphan_dlls(self, valid_dll_paths: set[str]) -> int:
         """Remove DLL records not in valid_dll_paths and not on filesystem (runs in thread)"""
@@ -1165,10 +1166,10 @@ class DatabaseManager:
         results['orphan_dlls'] = await self.cleanup_orphan_dlls(valid_dll_paths)
 
         # Cleanup duplicate game entries (same name + launcher)
-        results['duplicate_games'] = await asyncio.to_thread(self._cleanup_duplicate_games)
+        results['duplicate_games'] = await anyio.to_thread.run_sync(self._cleanup_duplicate_games, limiter=thread_io)
 
         # Cleanup duplicate backup entries (keep most recent per DLL)
-        results['duplicate_backups'] = await asyncio.to_thread(self._cleanup_duplicate_backups)
+        results['duplicate_backups'] = await anyio.to_thread.run_sync(self._cleanup_duplicate_backups, limiter=thread_io)
 
         total_cleaned = sum(results.values())
         if total_cleaned > 0:
@@ -1207,7 +1208,7 @@ class DatabaseManager:
 
     async def get_game_dlss_presets(self, game_id: int) -> GameDLSSPresets | None:
         """Get persisted per-game DLSS preset selections for a game (or None)."""
-        return await asyncio.to_thread(self._get_game_dlss_presets, game_id)
+        return await anyio.to_thread.run_sync(self._get_game_dlss_presets, game_id, limiter=thread_io)
 
     def _get_game_dlss_presets(self, game_id: int) -> GameDLSSPresets | None:
         """Get per-game DLSS presets (runs in thread)."""
@@ -1263,10 +1264,9 @@ class DatabaseManager:
         profile_name: str | None = None,
     ) -> None:
         """Insert or update (UPSERT on game_id) per-game DLSS preset selections."""
-        return await asyncio.to_thread(
+        return await anyio.to_thread.run_sync(
             self._save_game_dlss_presets,
-            game_id, exe_name, exe_path, sr, rr, fg, profile_name,
-        )
+            game_id, exe_name, exe_path, sr, rr, fg, profile_name, limiter=thread_io)
 
     def _save_game_dlss_presets(
         self,
@@ -1309,7 +1309,7 @@ class DatabaseManager:
 
     async def delete_game_dlss_presets(self, game_id: int) -> None:
         """Delete persisted per-game DLSS preset selections for a game."""
-        return await asyncio.to_thread(self._delete_game_dlss_presets, game_id)
+        return await anyio.to_thread.run_sync(self._delete_game_dlss_presets, game_id, limiter=thread_io)
 
     def _delete_game_dlss_presets(self, game_id: int) -> None:
         """Delete per-game DLSS presets (runs in thread)."""
@@ -1367,7 +1367,7 @@ class DatabaseManager:
 
     async def upsert_game_dll(self, dll_data: dict[str, Any]) -> GameDLL | None:
         """Insert or update game DLL record"""
-        return await asyncio.to_thread(self._upsert_game_dll, dll_data)
+        return await anyio.to_thread.run_sync(self._upsert_game_dll, dll_data, limiter=thread_io)
 
     def _upsert_game_dll(self, dll_data: dict[str, Any]) -> GameDLL | None:
         """Upsert game DLL (runs in thread)"""
@@ -1417,7 +1417,7 @@ class DatabaseManager:
 
     async def get_game_dll_by_path(self, dll_path: str) -> GameDLL | None:
         """Get game DLL by path"""
-        return await asyncio.to_thread(self._get_game_dll_by_path, dll_path)
+        return await anyio.to_thread.run_sync(self._get_game_dll_by_path, dll_path, limiter=thread_io)
 
     def _get_game_dll_by_path(self, dll_path: str) -> GameDLL | None:
         """Get game DLL by path (runs in thread)"""
@@ -1452,7 +1452,7 @@ class DatabaseManager:
 
     async def get_dlls_for_game(self, game_id: int) -> list[GameDLL]:
         """Get all DLLs for a specific game"""
-        return await asyncio.to_thread(self._get_dlls_for_game, game_id)
+        return await anyio.to_thread.run_sync(self._get_dlls_for_game, game_id, limiter=thread_io)
 
     def _get_dlls_for_game(self, game_id: int) -> list[GameDLL]:
         """Get DLLs for game (runs in thread)"""
@@ -1488,7 +1488,7 @@ class DatabaseManager:
 
     async def update_game_dll_version(self, dll_id: int, new_version: str):
         """Update DLL version"""
-        return await asyncio.to_thread(self._update_game_dll_version, dll_id, new_version)
+        return await anyio.to_thread.run_sync(self._update_game_dll_version, dll_id, new_version, limiter=thread_io)
 
     def _update_game_dll_version(self, dll_id: int, new_version: str):
         """Update DLL version (runs in thread)"""
@@ -1527,7 +1527,7 @@ class DatabaseManager:
         Returns:
             List of GameDLL objects with current versions from filesystem
         """
-        return await asyncio.to_thread(self._refresh_dll_versions_for_game, game_id)
+        return await anyio.to_thread.run_sync(self._refresh_dll_versions_for_game, game_id, limiter=thread_io)
 
     def _refresh_dll_versions_for_game(self, game_id: int) -> list[GameDLL]:
         """Re-read DLL versions from filesystem (runs in thread)"""
@@ -1613,7 +1613,7 @@ class DatabaseManager:
         if not games:
             return {}
 
-        return await asyncio.to_thread(self._batch_upsert_games, games)
+        return await anyio.to_thread.run_sync(self._batch_upsert_games, games, limiter=thread_io)
 
     def _batch_upsert_games(self, games: list[dict[str, Any]]) -> dict[str, Game]:
         """Batch upsert games (runs in thread) - uses thread-local connection"""
@@ -1689,7 +1689,7 @@ class DatabaseManager:
         if not dlls:
             return 0
 
-        return await asyncio.to_thread(self._batch_upsert_dlls, dlls)
+        return await anyio.to_thread.run_sync(self._batch_upsert_dlls, dlls, limiter=thread_io)
 
     def _batch_upsert_dlls(self, dlls: list[dict[str, Any]]) -> int:
         """Batch upsert DLLs (runs in thread) - uses thread-local connection"""
@@ -2123,7 +2123,7 @@ class DatabaseManager:
 
     async def insert_backup(self, backup_data: dict[str, Any]) -> int | None:
         """Insert backup record"""
-        return await asyncio.to_thread(self._insert_backup, backup_data)
+        return await anyio.to_thread.run_sync(self._insert_backup, backup_data, limiter=thread_io)
 
     def _insert_backup(self, backup_data: dict[str, Any]) -> int | None:
         """Insert backup (runs in thread)"""
@@ -2155,7 +2155,7 @@ class DatabaseManager:
 
     async def get_all_backups(self) -> list[DLLBackup]:
         """Get all active backups"""
-        return await asyncio.to_thread(self._get_all_backups)
+        return await anyio.to_thread.run_sync(self._get_all_backups, limiter=thread_io)
 
     def _get_all_backups(self) -> list[DLLBackup]:
         """Get all backups (runs in thread)"""
@@ -2199,7 +2199,7 @@ class DatabaseManager:
 
     async def get_backup_by_id(self, backup_id: int) -> DLLBackup | None:
         """Get backup by ID"""
-        return await asyncio.to_thread(self._get_backup_by_id, backup_id)
+        return await anyio.to_thread.run_sync(self._get_backup_by_id, backup_id, limiter=thread_io)
 
     def _get_backup_by_id(self, backup_id: int) -> DLLBackup | None:
         """Get backup by ID (runs in thread)"""
@@ -2241,7 +2241,7 @@ class DatabaseManager:
 
     async def mark_backup_inactive(self, backup_id: int):
         """Mark backup as inactive"""
-        return await asyncio.to_thread(self._mark_backup_inactive, backup_id)
+        return await anyio.to_thread.run_sync(self._mark_backup_inactive, backup_id, limiter=thread_io)
 
     def _mark_backup_inactive(self, backup_id: int):
         """Mark backup inactive (runs in thread)"""
@@ -2265,7 +2265,7 @@ class DatabaseManager:
 
     async def mark_old_backups_inactive(self, game_dll_id: int):
         """Mark all existing backups for a game DLL as inactive"""
-        return await asyncio.to_thread(self._mark_old_backups_inactive, game_dll_id)
+        return await anyio.to_thread.run_sync(self._mark_old_backups_inactive, game_dll_id, limiter=thread_io)
 
     def _mark_old_backups_inactive(self, game_dll_id: int):
         """Mark old backups inactive (runs in thread)"""
@@ -2297,7 +2297,7 @@ class DatabaseManager:
         This is the canonical way to indicate a user performed a rollback.
         Distinguishes user-initiated rollbacks from administrative deactivations.
         """
-        return await asyncio.to_thread(self._mark_backup_restored, backup_id)
+        return await anyio.to_thread.run_sync(self._mark_backup_restored, backup_id, limiter=thread_io)
 
     def _mark_backup_restored(self, backup_id: int):
         """Mark backup restored (runs in thread)."""
@@ -2326,7 +2326,7 @@ class DatabaseManager:
         Used by rollback detection: pairs `original_version` (what the user rolled back TO)
         with `post_update_version` (what they rolled back FROM).
         """
-        return await asyncio.to_thread(self._record_post_update_version, dll_path, post_update_version)
+        return await anyio.to_thread.run_sync(self._record_post_update_version, dll_path, post_update_version, limiter=thread_io)
 
     def _record_post_update_version(self, dll_path: str, post_update_version: str):
         """Record post-update version (runs in thread).
@@ -2380,7 +2380,7 @@ class DatabaseManager:
                 'from_versions': list[str],  # Versions user rolled back TO
             }
         """
-        return await asyncio.to_thread(self._get_flagged_dll_versions, threshold, window_days)
+        return await anyio.to_thread.run_sync(self._get_flagged_dll_versions, threshold, window_days, limiter=thread_io)
 
     def _get_flagged_dll_versions(
         self,
@@ -2452,7 +2452,7 @@ class DatabaseManager:
         Clean up duplicate backup entries by keeping only the most recent backup for each DLL
         This is a one-time cleanup for existing databases with duplicates
         """
-        return await asyncio.to_thread(self._cleanup_duplicate_backups)
+        return await anyio.to_thread.run_sync(self._cleanup_duplicate_backups, limiter=thread_io)
 
     def _cleanup_duplicate_backups(self):
         """Cleanup duplicate backups (runs in thread)"""
@@ -2500,7 +2500,7 @@ class DatabaseManager:
 
     async def delete_all_backups(self):
         """Mark all active backups as inactive"""
-        return await asyncio.to_thread(self._delete_all_backups)
+        return await anyio.to_thread.run_sync(self._delete_all_backups, limiter=thread_io)
 
     def _delete_all_backups(self):
         """Delete all backups (runs in thread)"""
@@ -2532,7 +2532,7 @@ class DatabaseManager:
 
     async def record_update_history(self, history_data: dict[str, Any]):
         """Record update history"""
-        return await asyncio.to_thread(self._record_update_history, history_data)
+        return await anyio.to_thread.run_sync(self._record_update_history, history_data, limiter=thread_io)
 
     def _record_update_history(self, history_data: dict[str, Any]):
         """Record update history (runs in thread)"""
@@ -2562,7 +2562,7 @@ class DatabaseManager:
 
     async def upsert_steam_app(self, app_id: int, name: str):
         """Insert or update Steam app list entry"""
-        return await asyncio.to_thread(self._upsert_steam_app, app_id, name)
+        return await anyio.to_thread.run_sync(self._upsert_steam_app, app_id, name, limiter=thread_io)
 
     def _upsert_steam_app(self, app_id: int, name: str):
         """Upsert Steam app (runs in thread)"""
@@ -2588,7 +2588,7 @@ class DatabaseManager:
 
     async def find_steam_app_by_name(self, game_name: str) -> int | None:
         """Find Steam app ID by game name"""
-        return await asyncio.to_thread(self._find_steam_app_by_name, game_name)
+        return await anyio.to_thread.run_sync(self._find_steam_app_by_name, game_name, limiter=thread_io)
 
     def _find_steam_app_by_name(self, game_name: str) -> int | None:
         """Find Steam app by name (runs in thread)"""
@@ -2631,7 +2631,7 @@ class DatabaseManager:
 
     async def get_steam_app_list_timestamp(self) -> datetime | None:
         """Get timestamp of last Steam app list update"""
-        return await asyncio.to_thread(self._get_steam_app_list_timestamp)
+        return await anyio.to_thread.run_sync(self._get_steam_app_list_timestamp, limiter=thread_io)
 
     def _get_steam_app_list_timestamp(self) -> datetime | None:
         """Get Steam app list timestamp (runs in thread)"""
@@ -2656,7 +2656,7 @@ class DatabaseManager:
 
     async def cache_steam_image(self, app_id: int, local_path: str):
         """Cache Steam image metadata"""
-        return await asyncio.to_thread(self._cache_steam_image, app_id, local_path)
+        return await anyio.to_thread.run_sync(self._cache_steam_image, app_id, local_path, limiter=thread_io)
 
     def _cache_steam_image(self, app_id: int, local_path: str):
         """Cache Steam image (runs in thread)"""
@@ -2690,7 +2690,7 @@ class DatabaseManager:
 
     async def get_cached_image_path(self, app_id: int) -> str | None:
         """Get cached image path for Steam app"""
-        return await asyncio.to_thread(self._get_cached_image_path, app_id)
+        return await anyio.to_thread.run_sync(self._get_cached_image_path, app_id, limiter=thread_io)
 
     def _get_cached_image_path(self, app_id: int) -> str | None:
         """Get cached image path (runs in thread) - uses thread-local connection"""
@@ -2725,7 +2725,7 @@ class DatabaseManager:
         """
         if not app_ids:
             return {}
-        return await asyncio.to_thread(self._batch_get_cached_image_paths, app_ids)
+        return await anyio.to_thread.run_sync(self._batch_get_cached_image_paths, app_ids, limiter=thread_io)
 
     def _batch_get_cached_image_paths(self, app_ids: list[int]) -> dict[int, str]:
         """Batch get cached image paths (runs in thread) - uses thread-local connection"""
@@ -2750,7 +2750,7 @@ class DatabaseManager:
 
     async def mark_image_fetch_failed(self, app_id: int):
         """Mark image fetch as failed"""
-        return await asyncio.to_thread(self._mark_image_fetch_failed, app_id)
+        return await anyio.to_thread.run_sync(self._mark_image_fetch_failed, app_id, limiter=thread_io)
 
     def _mark_image_fetch_failed(self, app_id: int):
         """Mark image fetch failed (runs in thread) - uses thread-local connection"""
@@ -2778,7 +2778,7 @@ class DatabaseManager:
 
     async def is_image_fetch_failed(self, app_id: int) -> bool:
         """Check if image fetch has already failed for this app"""
-        return await asyncio.to_thread(self._is_image_fetch_failed, app_id)
+        return await anyio.to_thread.run_sync(self._is_image_fetch_failed, app_id, limiter=thread_io)
 
     def _is_image_fetch_failed(self, app_id: int) -> bool:
         """Check if image fetch failed (runs in thread) - uses thread-local connection"""
@@ -2804,7 +2804,7 @@ class DatabaseManager:
 
         Non-blocking: runs in thread pool via asyncio.to_thread().
         """
-        return await asyncio.to_thread(self._clear_steam_images_cache)
+        return await anyio.to_thread.run_sync(self._clear_steam_images_cache, limiter=thread_io)
 
     def _clear_steam_images_cache(self):
         """Clear all steam image cache entries (runs in thread) - uses thread-local connection."""
@@ -2839,7 +2839,7 @@ class DatabaseManager:
         if not apps:
             return 0
 
-        return await asyncio.to_thread(self._upsert_steam_apps, apps)
+        return await anyio.to_thread.run_sync(self._upsert_steam_apps, apps, limiter=thread_io)
 
     def _upsert_steam_apps(self, apps: list[tuple[int, str, str]]) -> int:
         """Bulk upsert Steam apps (runs in thread)"""
@@ -2891,7 +2891,7 @@ class DatabaseManager:
         Returns:
             List of tuples (appid, name) matching the query
         """
-        return await asyncio.to_thread(self._search_steam_app, query, limit)
+        return await anyio.to_thread.run_sync(self._search_steam_app, query, limit, limiter=thread_io)
 
     def _search_steam_app(self, query: str, limit: int) -> list[tuple[int, str]]:
         """FTS5 search for Steam app (runs in thread)"""
@@ -2965,7 +2965,7 @@ class DatabaseManager:
         Returns:
             Steam app ID if found, None otherwise
         """
-        return await asyncio.to_thread(self._get_steam_app_by_name, name_normalized)
+        return await anyio.to_thread.run_sync(self._get_steam_app_by_name, name_normalized, limiter=thread_io)
 
     def _get_steam_app_by_name(self, name_normalized: str) -> int | None:
         """Get Steam app by normalized name (runs in thread)"""
@@ -2997,7 +2997,7 @@ class DatabaseManager:
         Returns:
             Number of Steam apps in the database
         """
-        return await asyncio.to_thread(self._get_steam_apps_count)
+        return await anyio.to_thread.run_sync(self._get_steam_apps_count, limiter=thread_io)
 
     def _get_steam_apps_count(self) -> int:
         """Get Steam apps count (runs in thread)"""
@@ -3021,7 +3021,7 @@ class DatabaseManager:
 
         This also clears the FTS5 index via the DELETE trigger.
         """
-        return await asyncio.to_thread(self._clear_steam_apps)
+        return await anyio.to_thread.run_sync(self._clear_steam_apps, limiter=thread_io)
 
     def _clear_steam_apps(self):
         """Clear all Steam apps (runs in thread)"""
@@ -3050,7 +3050,7 @@ class DatabaseManager:
         Returns:
             List of GameDLLBackup objects for the game, ordered by creation date (newest first)
         """
-        return await asyncio.to_thread(self._get_backups_for_game, game_id)
+        return await anyio.to_thread.run_sync(self._get_backups_for_game, game_id, limiter=thread_io)
 
     def _get_backups_for_game(self, game_id: int) -> list[GameDLLBackup]:
         """Get backups for game (runs in thread)"""
@@ -3106,7 +3106,7 @@ class DatabaseManager:
         Returns:
             True if game has at least one active backup, False otherwise
         """
-        return await asyncio.to_thread(self._game_has_backups, game_id)
+        return await anyio.to_thread.run_sync(self._game_has_backups, game_id, limiter=thread_io)
 
     def _game_has_backups(self, game_id: int) -> bool:
         """Check if game has backups (runs in thread)"""
@@ -3145,7 +3145,7 @@ class DatabaseManager:
         Returns:
             GameBackupSummary if game has backups, None otherwise
         """
-        return await asyncio.to_thread(self._get_game_backup_summary, game_id)
+        return await anyio.to_thread.run_sync(self._get_game_backup_summary, game_id, limiter=thread_io)
 
     def _get_game_backup_summary(self, game_id: int) -> GameBackupSummary | None:
         """Get game backup summary (runs in thread)"""
@@ -3212,7 +3212,7 @@ class DatabaseManager:
         Returns:
             Dict mapping dll_type (e.g., "DLSS", "FSR") to list of DLLBackup objects
         """
-        return await asyncio.to_thread(self._get_backups_grouped_by_dll_type, game_id)
+        return await anyio.to_thread.run_sync(self._get_backups_grouped_by_dll_type, game_id, limiter=thread_io)
 
     def _get_backups_grouped_by_dll_type(self, game_id: int) -> dict[str, list[DLLBackup]]:
         """Get backups grouped by DLL type (runs in thread)"""
@@ -3268,7 +3268,7 @@ class DatabaseManager:
         Returns:
             List of GameWithBackupCount objects, ordered by game name
         """
-        return await asyncio.to_thread(self._get_games_with_backups)
+        return await anyio.to_thread.run_sync(self._get_games_with_backups, limiter=thread_io)
 
     def _get_games_with_backups(self) -> list[GameWithBackupCount]:
         """Get games with backups (runs in thread)"""
@@ -3321,7 +3321,7 @@ class DatabaseManager:
         Returns:
             List of GameDLLBackup objects, ordered by creation date (newest first)
         """
-        return await asyncio.to_thread(self._get_all_backups_filtered, game_id)
+        return await anyio.to_thread.run_sync(self._get_all_backups_filtered, game_id, limiter=thread_io)
 
     def _get_all_backups_filtered(
         self,
@@ -3399,7 +3399,7 @@ class DatabaseManager:
         """
         if not game_ids:
             return {}
-        return await asyncio.to_thread(self._batch_check_games_have_backups, game_ids)
+        return await anyio.to_thread.run_sync(self._batch_check_games_have_backups, game_ids, limiter=thread_io)
 
     def _batch_check_games_have_backups(
         self,
@@ -3456,7 +3456,7 @@ class DatabaseManager:
         Returns:
             List of Game objects matching the query
         """
-        return await asyncio.to_thread(self._search_games, query, launcher, limit)
+        return await anyio.to_thread.run_sync(self._search_games, query, launcher, limit, limiter=thread_io)
 
     def _search_games(
         self,
@@ -3522,7 +3522,7 @@ class DatabaseManager:
 
     async def get_game_count(self) -> int:
         """Get total number of games in database."""
-        return await asyncio.to_thread(self._get_game_count)
+        return await anyio.to_thread.run_sync(self._get_game_count, limiter=thread_io)
 
     def _get_game_count(self) -> int:
         """Get game count (runs in thread)"""
@@ -3573,9 +3573,8 @@ class DatabaseManager:
             launcher: Optional launcher filter used
             result_count: Number of results returned
         """
-        return await asyncio.to_thread(
-            self._add_search_history, query, launcher, result_count
-        )
+        return await anyio.to_thread.run_sync(
+            self._add_search_history, query, launcher, result_count, limiter=thread_io)
 
     def _add_search_history(
         self,
@@ -3628,7 +3627,7 @@ class DatabaseManager:
         Returns:
             List of dicts with query, launcher, result_count, timestamp
         """
-        return await asyncio.to_thread(self._get_search_history, limit)
+        return await anyio.to_thread.run_sync(self._get_search_history, limit, limiter=thread_io)
 
     def _get_search_history(self, limit: int) -> list[dict[str, Any]]:
         """Get search history (runs in thread)"""
@@ -3662,7 +3661,7 @@ class DatabaseManager:
 
     async def clear_search_history(self):
         """Clear all search history."""
-        return await asyncio.to_thread(self._clear_search_history)
+        return await anyio.to_thread.run_sync(self._clear_search_history, limiter=thread_io)
 
     def _clear_search_history(self):
         """Clear search history (runs in thread)"""
@@ -3692,7 +3691,7 @@ class DatabaseManager:
         Returns:
             List of Game objects needing re-resolution
         """
-        return await asyncio.to_thread(self._get_games_needing_reresolution)
+        return await anyio.to_thread.run_sync(self._get_games_needing_reresolution, limiter=thread_io)
 
     def _get_games_needing_reresolution(self) -> list[Game]:
         """Get games needing re-resolution (runs in thread) - uses thread-local connection"""
@@ -3727,7 +3726,7 @@ class DatabaseManager:
 
     async def get_all_games_for_reresolution(self) -> list[Game]:
         """Get ALL games for forced re-resolution (ignores resolution_source)."""
-        return await asyncio.to_thread(self._get_all_games_for_reresolution)
+        return await anyio.to_thread.run_sync(self._get_all_games_for_reresolution, limiter=thread_io)
 
     def _get_all_games_for_reresolution(self) -> list[Game]:
         """Get all games for forced re-resolution (runs in thread)."""
@@ -3768,7 +3767,7 @@ class DatabaseManager:
         """
         if not updates:
             return 0
-        return await asyncio.to_thread(self._batch_update_game_app_ids, updates)
+        return await anyio.to_thread.run_sync(self._batch_update_game_app_ids, updates, limiter=thread_io)
 
     def _batch_update_game_app_ids(self, updates: list[dict]) -> int:
         """Batch update game app IDs (runs in thread) - uses thread-local connection"""
@@ -3808,7 +3807,7 @@ class DatabaseManager:
         """
         if not app_ids:
             return 0
-        return await asyncio.to_thread(self._clear_fetch_failed_for_app_ids, app_ids)
+        return await anyio.to_thread.run_sync(self._clear_fetch_failed_for_app_ids, app_ids, limiter=thread_io)
 
     def _clear_fetch_failed_for_app_ids(self, app_ids: list[int]) -> int:
         """Clear fetch_failed for app IDs (runs in thread) - uses thread-local connection"""
@@ -3850,7 +3849,7 @@ class DatabaseManager:
         """
         if not app_ids:
             return 0
-        return await asyncio.to_thread(self._delete_cached_images_for_app_ids, app_ids)
+        return await anyio.to_thread.run_sync(self._delete_cached_images_for_app_ids, app_ids, limiter=thread_io)
 
     def _delete_cached_images_for_app_ids(self, app_ids: list[int]) -> int:
         """Delete cached images for app IDs (runs in thread) - uses thread-local connection"""

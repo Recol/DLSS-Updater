@@ -31,6 +31,7 @@ a = Analysis(
         'uvloop',            # Conditionally imported in main.py with try/except
         'importlib.metadata',  # Imported inside function in utils.py
         'flet_desktop',      # Internal runtime used by flet (never directly imported)
+        'tomli_w',           # Imported lazily by msgspec.toml.encode() for config.toml persistence
     ] + dlss_updater_imports,
     hookspath=['pyinstaller_hooks'],  # Custom hooks directory for msgspec
     hooksconfig={},

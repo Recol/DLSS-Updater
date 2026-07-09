@@ -1,17 +1,25 @@
 """
 Hyper-Parallel Data Loading for UI Views
 
-Uses ThreadPoolExecutor with as_completed() for truly parallel I/O operations.
-Designed for loading multiple database queries and image fetches concurrently.
+Runs multiple blocking (sync) I/O operations — database queries, image fetches,
+file stats — truly in parallel on separate OS worker threads, then collects the
+results keyed by task id.
 
-Key differences from asyncio.to_thread():
-- asyncio.to_thread() serializes calls through the event loop
-- ThreadPoolExecutor.submit() with as_completed() allows true parallelism
-- Multiple queries run simultaneously on different threads
+Implementation (anyio structured concurrency)
+---------------------------------------------
+Historically this module maintained its own ``ThreadPoolExecutor`` +
+``as_completed()`` because a naive ``asyncio.to_thread()`` fan-out serialised
+work through the event loop's single default executor. That workaround is no
+longer needed: the whole codebase now dispatches thread work through
+``anyio.to_thread.run_sync(func, limiter=thread_io)``. Several such calls awaited
+concurrently inside an ``anyio.create_task_group()`` genuinely run on distinct
+OS worker threads, up to the shared ``thread_io`` capacity limiter's cap — the
+same true parallelism the old ThreadPoolExecutor provided, but consolidated onto
+the one shared limiter instead of a second competing thread pool.
 
 Usage:
     loader = HyperParallelLoader()
-    results = loader.load_all([
+    results = await loader.load_all([
         LoadTask("dlls", lambda: db.batch_get_dlls_for_games_sync(game_ids)),
         LoadTask("backups", lambda: db.batch_get_backups_grouped_sync(game_ids)),
         LoadTask("images", lambda: db.batch_get_cached_image_paths(app_ids)),
@@ -22,13 +30,14 @@ Usage:
     images = results.get("images", {})
 """
 
-from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 from dataclasses import dataclass
 from typing import Callable, Any
 import threading
 import time
 
-from dlss_updater.config import Concurrency
+import anyio
+
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.logger import setup_logger
 
 logger = setup_logger()
@@ -43,109 +52,75 @@ class LoadTask:
 
 class HyperParallelLoader:
     """
-    Context manager for hyper-parallel data loading.
+    Coordinator for hyper-parallel data loading.
 
-    Uses a shared ThreadPoolExecutor to avoid thread creation overhead.
-    Supports cancellation via threading.Event for responsive UI shutdown.
+    Dispatches each LoadTask's blocking ``work_fn`` onto a real OS worker thread
+    via ``anyio.to_thread.run_sync(..., limiter=thread_io)`` inside a single
+    ``anyio.create_task_group()``, so all tasks run concurrently on separate
+    threads (bounded by the shared ``thread_io`` capacity limiter).
+
+    Supports cooperative cancellation via ``threading.Event`` for responsive UI
+    shutdown: tasks that have not yet started are skipped, and an in-progress
+    fan-out that hits its timeout is abandoned (the underlying thread runs to
+    completion in the background, exactly as the previous implementation did).
 
     Performance characteristics:
-    - First call creates shared executor (~5-10ms overhead)
-    - Subsequent calls reuse executor (near-zero overhead)
-    - as_completed() returns results as they finish (no waiting for slowest)
-    - Cancellation stops pending work immediately
+    - Threads are reused from anyio's worker-thread pool (no per-call spawn).
+    - Concurrency is bounded by ``thread_io`` (shared app-wide), not a private pool.
+    - The slowest task bounds total time; faster tasks do not wait for others to
+      *start*, only for the group to finish.
     """
-
-    _shared_executor: ThreadPoolExecutor | None = None
-    _executor_lock = threading.Lock()
-
-    @classmethod
-    def get_shared_executor(cls) -> ThreadPoolExecutor:
-        """
-        Get the shared ThreadPoolExecutor instance.
-
-        Thread-safe singleton pattern using double-checked locking.
-        The executor is created lazily on first use.
-        """
-        if cls._shared_executor is None:
-            with cls._executor_lock:
-                if cls._shared_executor is None:
-                    cls._shared_executor = ThreadPoolExecutor(
-                        max_workers=Concurrency.THREADPOOL_IO,
-                        thread_name_prefix="hyper_load"
-                    )
-                    logger.debug(
-                        f"Created shared HyperParallelLoader executor "
-                        f"(max_workers={Concurrency.THREADPOOL_IO})"
-                    )
-        return cls._shared_executor
-
-    @classmethod
-    def shutdown_shared_executor(cls):
-        """
-        Shutdown the shared executor during application cleanup.
-
-        Call this from your application's shutdown handler to ensure
-        clean thread termination.
-        """
-        with cls._executor_lock:
-            if cls._shared_executor is not None:
-                cls._shared_executor.shutdown(wait=False, cancel_futures=True)
-                cls._shared_executor = None
-                logger.debug("Shutdown shared HyperParallelLoader executor")
 
     def __init__(self):
         """Initialize the loader with a cancellation token."""
         self._cancel_event = threading.Event()
-        self._executor = self.get_shared_executor()
 
-    def load_all(self, tasks: list[LoadTask], timeout: float | None = 30.0) -> dict[str, Any]:
+    async def load_all(
+        self, tasks: list[LoadTask], timeout: float | None = 30.0
+    ) -> dict[str, Any]:
         """
-        Execute all tasks in parallel, return results dict.
+        Execute all tasks in parallel on worker threads, return results dict.
 
         Args:
             tasks: List of LoadTask objects to execute
-            timeout: Maximum time to wait for all tasks (default 30s)
+            timeout: Maximum time to wait for all tasks (default 30s). When the
+                deadline is hit, whatever has completed is returned and the
+                remaining thread work is abandoned (runs to completion in the
+                background — threads cannot be force-cancelled).
 
         Returns:
-            Dict mapping task.id to result (or Exception if task failed)
+            Dict mapping task.id to result (or the Exception if that task failed).
         """
         if not tasks:
             return {}
 
         start_time = time.perf_counter()
-        futures: dict[Future, LoadTask] = {}
-
-        # Submit all tasks
-        for task in tasks:
-            if self._cancel_event.is_set():
-                break
-            future = self._executor.submit(task.work_fn)
-            futures[future] = task
-
-        # Collect results as they complete
         results: dict[str, Any] = {}
-        try:
-            for future in as_completed(futures, timeout=timeout):
-                if self._cancel_event.is_set():
-                    # Cancel remaining futures
-                    for f in futures:
-                        if not f.done():
-                            f.cancel()
-                    break
 
-                task = futures[future]
-                try:
-                    results[task.id] = future.result()
-                except Exception as e:
-                    logger.warning(f"HyperParallelLoader task '{task.id}' failed: {e}")
-                    results[task.id] = e
+        async def _run(task: LoadTask) -> None:
+            if self._cancel_event.is_set():
+                return
+            try:
+                # abandon_on_cancel=True so a timeout can free the event loop
+                # without waiting for an in-flight thread (matches the old
+                # as_completed(timeout=...) behaviour, which also left running
+                # threads to finish in the background).
+                results[task.id] = await anyio.to_thread.run_sync(
+                    task.work_fn, limiter=thread_io, abandon_on_cancel=True
+                )
+            except Exception as e:
+                logger.warning(f"HyperParallelLoader task '{task.id}' failed: {e}")
+                results[task.id] = e
 
-        except TimeoutError:
+        with anyio.move_on_after(timeout) as scope:
+            async with anyio.create_task_group() as tg:
+                for task in tasks:
+                    if self._cancel_event.is_set():
+                        break
+                    tg.start_soon(_run, task)
+
+        if scope.cancelled_caught:
             logger.warning(f"HyperParallelLoader timed out after {timeout}s")
-            # Cancel remaining futures
-            for f in futures:
-                if not f.done():
-                    f.cancel()
 
         elapsed = time.perf_counter() - start_time
         logger.debug(
@@ -181,28 +156,23 @@ class BatchedImageLoader:
     N individual page.update() calls.
     """
 
-    def __init__(self, executor: ThreadPoolExecutor | None = None):
-        """
-        Initialize the image loader.
-
-        Args:
-            executor: Optional custom executor. Uses shared executor if None.
-        """
-        self._executor = executor or HyperParallelLoader.get_shared_executor()
+    def __init__(self):
+        """Initialize the image loader with a cancellation token."""
         self._cancel_event = threading.Event()
 
-    def load_images_batch(
+    async def load_images_batch(
         self,
         steam_app_ids: list[int],
         fetch_fn: Callable[[int], str | None],
-        timeout: float = 30.0
+        timeout: float = 30.0,
     ) -> dict[int, str]:
         """
-        Load images for multiple Steam apps in parallel.
+        Load images for multiple Steam apps in parallel on worker threads.
 
         Args:
             steam_app_ids: List of Steam app IDs to fetch images for
-            fetch_fn: Function that takes app_id and returns local path or None
+            fetch_fn: Blocking function that takes app_id and returns a local
+                path or None
             timeout: Maximum time to wait for all fetches
 
         Returns:
@@ -212,31 +182,28 @@ class BatchedImageLoader:
             return {}
 
         start_time = time.perf_counter()
-        futures: dict[Future, int] = {}
-
-        # Submit all fetch tasks
-        for app_id in steam_app_ids:
-            if self._cancel_event.is_set():
-                break
-            future = self._executor.submit(fetch_fn, app_id)
-            futures[future] = app_id
-
-        # Collect results
         results: dict[int, str] = {}
-        try:
-            for future in as_completed(futures, timeout=timeout):
-                if self._cancel_event.is_set():
-                    break
 
-                app_id = futures[future]
-                try:
-                    path = future.result()
-                    if path:
-                        results[app_id] = path
-                except Exception as e:
-                    logger.debug(f"Image fetch for app {app_id} failed: {e}")
+        async def _fetch(app_id: int) -> None:
+            if self._cancel_event.is_set():
+                return
+            try:
+                path = await anyio.to_thread.run_sync(
+                    fetch_fn, app_id, limiter=thread_io, abandon_on_cancel=True
+                )
+                if path:
+                    results[app_id] = path
+            except Exception as e:
+                logger.debug(f"Image fetch for app {app_id} failed: {e}")
 
-        except TimeoutError:
+        with anyio.move_on_after(timeout) as scope:
+            async with anyio.create_task_group() as tg:
+                for app_id in steam_app_ids:
+                    if self._cancel_event.is_set():
+                        break
+                    tg.start_soon(_fetch, app_id)
+
+        if scope.cancelled_caught:
             logger.warning(f"BatchedImageLoader timed out after {timeout}s")
 
         elapsed = time.perf_counter() - start_time

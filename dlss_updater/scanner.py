@@ -9,7 +9,8 @@ from .utils import find_game_root
 from .vdf_parser import VDFParser
 from .platform_utils import IS_WINDOWS, IS_LINUX
 import asyncio
-import concurrent.futures
+import anyio
+from dlss_updater.concurrency_limiters import thread_cpu, thread_io, io_heavy
 from dlss_updater.logger import setup_logger
 from dlss_updater.task_registry import register_task
 import sys
@@ -332,7 +333,7 @@ async def find_dlls(library_paths, launcher_name, dll_names):
                 # Fallback to parallel scandir (faster than os.walk, especially with GIL disabled)
                 return _parallel_scandir_walk(str(library_path), dll_names_lower)
 
-            lib_dlls = await asyncio.to_thread(_scan_library)
+            lib_dlls = await anyio.to_thread.run_sync(_scan_library, limiter=thread_io)
             potential_dlls.extend(lib_dlls)
         except Exception as e:
             logger.error(f"Error scanning {library_path}: {e}")
@@ -658,16 +659,25 @@ async def auto_detect_all_launcher_paths() -> dict[LauncherPathName, str | None]
         return results
 
     # Run detection in parallel using thread pool (registry I/O is blocking)
-    async def detect_single(launcher: LauncherPathName) -> tuple[LauncherPathName, str | None]:
-        path = await asyncio.to_thread(auto_detect_launcher_path, launcher)
-        return launcher, path
+    detect_results: list[tuple[LauncherPathName, str | None] | None] = [None] * len(detectable_launchers)
+    detect_errors: list[Exception | None] = [None] * len(detectable_launchers)
 
-    tasks = [detect_single(launcher) for launcher in detectable_launchers]
-    completed = await asyncio.gather(*tasks, return_exceptions=True)
+    async def detect_single(i: int, launcher: LauncherPathName) -> None:
+        try:
+            path = await anyio.to_thread.run_sync(
+                auto_detect_launcher_path, launcher, limiter=thread_io
+            )
+            detect_results[i] = (launcher, path)
+        except Exception as e:
+            detect_errors[i] = e
 
-    for result in completed:
-        if isinstance(result, Exception):
-            logger.error(f"Error in parallel launcher detection: {result}")
+    async with anyio.create_task_group() as tg:
+        for i, launcher in enumerate(detectable_launchers):
+            tg.start_soon(detect_single, i, launcher)
+
+    for i, result in enumerate(detect_results):
+        if detect_errors[i] is not None:
+            logger.error(f"Error in parallel launcher detection: {detect_errors[i]}")
             continue
         launcher, path = result
         results[launcher] = path
@@ -773,7 +783,7 @@ async def scan_game_for_dlls(game_path: Path, dll_names_lower: frozenset) -> lis
 
         return results
 
-    return await asyncio.to_thread(_scan_sync)
+    return await anyio.to_thread.run_sync(_scan_sync, limiter=thread_io)
 
 
 async def scan_games_for_dlls_parallel(
@@ -792,23 +802,31 @@ async def scan_games_for_dlls_parallel(
     Returns:
         Dict mapping game path string to list of found DLLs
     """
-    if max_concurrent is None:
-        max_concurrent = Concurrency.IO_HEAVY
+    # max_concurrent retained for API compatibility; concurrency is now bounded
+    # by the shared io_heavy limiter (sized from Concurrency.IO_HEAVY).
     results = {}
-    semaphore = asyncio.Semaphore(max_concurrent)
+    games = list(games)
+    scan_results: list[tuple[str, list[str], dict[str, Any]] | None] = [None] * len(games)
+    scan_errors: list[Exception | None] = [None] * len(games)
 
-    async def scan_with_limit(game: dict[str, Any]):
-        async with semaphore:
-            game_path = game['path']
-            dlls = await scan_game_for_dlls(game_path, dll_names_lower)
-            return str(game_path), dlls, game
+    async def scan_with_limit(i: int, game: dict[str, Any]) -> None:
+        async with io_heavy:
+            try:
+                game_path = game['path']
+                dlls = await scan_game_for_dlls(game_path, dll_names_lower)
+                scan_results[i] = (str(game_path), dlls, game)
+            except Exception as e:
+                scan_errors[i] = e
 
-    tasks = [scan_with_limit(g) for g in games]
-    completed = await asyncio.gather(*tasks, return_exceptions=True)
+    async with anyio.create_task_group() as tg:
+        for i, g in enumerate(games):
+            tg.start_soon(scan_with_limit, i, g)
 
-    for result in completed:
-        if isinstance(result, Exception):
-            logger.error(f"Error in parallel scan: {result}")
+    for i, result in enumerate(scan_results):
+        if scan_errors[i] is not None:
+            logger.error(f"Error in parallel scan: {scan_errors[i]}")
+            continue
+        if result is None:
             continue
         path_str, dlls, game = result
         if dlls:
@@ -881,7 +899,7 @@ async def scan_steam_fast(steam_path: str, dll_names: list[str]) -> list[str]:
         logger.warning("No Steam games found via appmanifest, using library scan")
         # Fallback to legacy scanning
         steam_libraries = get_steam_libraries(steam_path)
-        all_dlls = scan_steam_libraries_parallel(steam_libraries, dll_names)
+        all_dlls = await scan_steam_libraries_parallel(steam_libraries, dll_names)
 
     # Step 3: Also scan manually configured Steam paths (sub-folders)
     # This handles cases where users have additional game directories
@@ -1261,19 +1279,30 @@ async def find_all_dlls(progress_callback=None):
                 'dlls': game_dlls,
             }
 
-        # Gather all game preparation tasks
-        prepare_tasks = []
+        # Gather all game preparation specs
+        prepare_specs = []
         for launcher, games_dict in all_games_dict.items():
             for game_dir_str, game_dlls in games_dict.items():
-                prepare_tasks.append(prepare_game_data(launcher, game_dir_str, game_dlls))
+                prepare_specs.append((launcher, game_dir_str, game_dlls))
+
+        prepared_games: list = [None] * len(prepare_specs)
+        prepare_errors: list = [None] * len(prepare_specs)
+
+        async def _run_prepare(i, launcher, game_dir_str, game_dlls):
+            try:
+                prepared_games[i] = await prepare_game_data(launcher, game_dir_str, game_dlls)
+            except Exception as e:
+                prepare_errors[i] = e
 
         # Execute all Steam ID lookups in parallel
-        prepared_games = await asyncio.gather(*prepare_tasks, return_exceptions=True)
+        async with anyio.create_task_group() as tg:
+            for i, (launcher, game_dir_str, game_dlls) in enumerate(prepare_specs):
+                tg.start_soon(_run_prepare, i, launcher, game_dir_str, game_dlls)
 
         # Filter out exceptions and extract game data
-        for result in prepared_games:
-            if isinstance(result, Exception):
-                logger.error(f"Error preparing game data: {result}")
+        for i, result in enumerate(prepared_games):
+            if prepare_errors[i] is not None:
+                logger.error(f"Error preparing game data: {prepare_errors[i]}")
                 continue
             game_dll_mapping[result['path']] = result.pop('dlls')
             games_to_insert.append(result)
@@ -1296,8 +1325,10 @@ async def find_all_dlls(progress_callback=None):
             dll_filename = Path(dll_path).name
             dll_type = DLL_TYPE_MAP.get(dll_filename.lower(), "Unknown")
 
-            # Run version extraction in thread pool
-            dll_version = await asyncio.to_thread(get_dll_version, dll_path)
+            # Run version extraction in thread pool (CPU-bound PE parsing)
+            dll_version = await anyio.to_thread.run_sync(
+                get_dll_version, dll_path, limiter=thread_cpu
+            )
 
             return {
                 'game_id': game_id,
@@ -1307,29 +1338,35 @@ async def find_all_dlls(progress_callback=None):
                 'current_version': dll_version,
             }
 
-        # Gather all DLL extraction tasks
-        dll_tasks = []
+        # Gather all DLL extraction specs
+        extract_specs = []
         for game_path, game in games_result.items():
             if game_path in game_dll_mapping:
                 for dll_path in game_dll_mapping[game_path]:
-                    dll_tasks.append(extract_dll_info(game_path, dll_path, game.id))
+                    extract_specs.append((game_path, dll_path, game.id))
 
-        # Execute all DLL version extractions in parallel - CPU-bound PE parsing
-        semaphore = asyncio.Semaphore(Concurrency.IO_HEAVY)  # Scale with CPU for PE parsing
+        dll_results: list = [None] * len(extract_specs)
+        dll_errors: list = [None] * len(extract_specs)
 
-        async def extract_with_limit(task):
-            async with semaphore:
-                return await task
+        # Execute all DLL version extractions in parallel. The io_heavy gate
+        # (sized from Concurrency.IO_HEAVY) bounds how many extractions are in
+        # flight; each one dispatches the CPU-bound PE parse to a worker thread
+        # via the thread_cpu limiter inside extract_dll_info().
+        async def extract_with_limit(i, game_path, dll_path, game_id):
+            async with io_heavy:
+                try:
+                    dll_results[i] = await extract_dll_info(game_path, dll_path, game_id)
+                except Exception as e:
+                    dll_errors[i] = e
 
-        dll_results = await asyncio.gather(
-            *[extract_with_limit(t) for t in dll_tasks],
-            return_exceptions=True
-        )
+        async with anyio.create_task_group() as tg:
+            for i, (game_path, dll_path, game_id) in enumerate(extract_specs):
+                tg.start_soon(extract_with_limit, i, game_path, dll_path, game_id)
 
         # Collect DLL data
-        for result in dll_results:
-            if isinstance(result, Exception):
-                logger.error(f"Error extracting DLL info: {result}")
+        for i, result in enumerate(dll_results):
+            if dll_errors[i] is not None:
+                logger.error(f"Error extracting DLL info: {dll_errors[i]}")
                 continue
             dlls_to_insert.append(result)
             if result.get('current_version'):
@@ -1433,26 +1470,37 @@ def scan_directory_for_dlls(directory, dll_names):
     return _parallel_scandir_walk(str(directory), dll_names_lower)
 
 
-def scan_steam_libraries_parallel(library_paths, dll_names, max_workers=None):
-    """Scan multiple Steam libraries in parallel with maximum concurrency"""
-    if max_workers is None:
-        max_workers = Concurrency.THREADPOOL_IO
-    logger.info(f"Scanning {len(library_paths)} Steam libraries in parallel (workers={max_workers})")
+async def scan_steam_libraries_parallel(library_paths, dll_names):
+    """Scan multiple Steam libraries in parallel with maximum concurrency.
+
+    Each library's synchronous directory scan is dispatched to a worker thread
+    via the shared thread_io limiter and awaited concurrently from a single
+    anyio task group. This gives the same true OS-thread parallelism as the
+    previous hand-rolled ThreadPoolExecutor without a separate executor
+    instance. Per-library results are logged incrementally from inside each
+    worker as it completes, preserving the old as_completed progress logging.
+    """
+    library_paths = list(library_paths)
+    logger.info(f"Scanning {len(library_paths)} Steam libraries in parallel")
     all_dlls = []
+    lib_results: list[list[str] | None] = [None] * len(library_paths)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_library = {
-            executor.submit(scan_directory_for_dlls, lib_path, dll_names): lib_path
-            for lib_path in library_paths
-        }
+    async def _worker(i: int, lib_path) -> None:
+        try:
+            dlls = await anyio.to_thread.run_sync(
+                scan_directory_for_dlls, lib_path, dll_names, limiter=thread_io
+            )
+            lib_results[i] = dlls
+            logger.info(f"Found {len(dlls)} DLLs in {lib_path}")
+        except Exception as e:
+            logger.error(f"Error scanning library {lib_path}: {e}")
 
-        for future in concurrent.futures.as_completed(future_to_library):
-            lib_path = future_to_library[future]
-            try:
-                dlls = future.result()
-                all_dlls.extend(dlls)
-                logger.info(f"Found {len(dlls)} DLLs in {lib_path}")
-            except Exception as e:
-                logger.error(f"Error scanning library {lib_path}: {e}")
+    async with anyio.create_task_group() as tg:
+        for i, lib_path in enumerate(library_paths):
+            tg.start_soon(_worker, i, lib_path)
+
+    for dlls in lib_results:
+        if dlls:
+            all_dlls.extend(dlls)
 
     return all_dlls

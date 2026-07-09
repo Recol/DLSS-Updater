@@ -1,6 +1,12 @@
 import logging
+import logging.handlers
+import queue
 import sys
 from pathlib import Path
+
+# Module-level reference to the QueueListener so shutdown_logging() can stop the
+# background thread it owns. Kept private; the public API is unchanged.
+_queue_listener: logging.handlers.QueueListener | None = None
 
 
 def _get_log_directory() -> Path:
@@ -40,26 +46,50 @@ def setup_logger(log_file_name="dlss_updater.log"):
     param: log_file_name: filename to be used for the logfile.
     return: logger instance created.
     """
+    global _queue_listener
+
     logger = logging.getLogger("DLSSUpdater")
 
-    # Check if the logger has already been configured
+    # Check if the logger has already been configured. Since the only handler
+    # attached to the logger itself is now the QueueHandler, the presence of any
+    # handler means we're already set up (guards against double-configuration).
     if not logger.handlers:
         logger.setLevel(logging.DEBUG)
 
         log_file_path = _get_log_directory() / log_file_name
 
-        # Create handlers
+        # Create the *real* handlers. These perform the actual I/O (stdout write
+        # and file write) but are NOT attached to the logger directly. Instead
+        # they are owned by a QueueListener that drains them on a dedicated
+        # background thread, so log calls from asyncio tasks / ThreadPoolExecutor
+        # workers never block on the handler lock or synchronous file I/O.
         console_handler = logging.StreamHandler(sys.stdout)
         file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
 
-        # Create formatter and add it to handlers
+        # Create formatter and add it to the real handlers
         log_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         console_handler.setFormatter(log_format)
         file_handler.setFormatter(log_format)
 
-        # Add handlers to the logger
-        logger.addHandler(console_handler)
-        logger.addHandler(file_handler)
+        # Unbounded queue is fine here: log volume is low, and an unbounded
+        # queue guarantees a non-blocking put() from producer threads.
+        log_queue: queue.Queue = queue.Queue()
+
+        # The logger itself only gets a lightweight QueueHandler, which just
+        # enqueues records (a near-instant, non-blocking operation).
+        queue_handler = logging.handlers.QueueHandler(log_queue)
+        logger.addHandler(queue_handler)
+
+        # The QueueListener owns the real handlers and drains the queue on its
+        # own background thread. respect_handler_level lets each handler apply
+        # its own level filtering (parity with attaching them directly).
+        _queue_listener = logging.handlers.QueueListener(
+            log_queue,
+            console_handler,
+            file_handler,
+            respect_handler_level=True,
+        )
+        _queue_listener.start()
 
         # Prevent propagation to avoid duplicate logs
         logger.propagate = False
@@ -79,17 +109,42 @@ def shutdown_logging():
     Should be called LAST in the shutdown sequence (after all other cleanup
     that might log messages).
     """
+    global _queue_listener
+
     logger = logging.getLogger("DLSSUpdater")
 
-    # Remove and close all handlers
-    handlers = logger.handlers[:]
-    for handler in handlers:
+    # Stop the QueueListener first: this drains any remaining queued records
+    # into the real handlers and joins its background thread, ensuring no
+    # orphan thread lingers at process exit (critical for a clean PyInstaller
+    # onedir shutdown).
+    if _queue_listener is not None:
+        try:
+            _queue_listener.stop()
+        except Exception:
+            pass  # Best effort cleanup
+
+    # Flush and close the real handlers owned by the listener, then the
+    # QueueHandler on the logger. Best-effort per-handler cleanup.
+    handlers_to_close = []
+    if _queue_listener is not None:
+        handlers_to_close.extend(_queue_listener.handlers)
+    handlers_to_close.extend(logger.handlers[:])
+
+    for handler in handlers_to_close:
         try:
             handler.flush()
             handler.close()
+        except Exception:
+            pass  # Best effort cleanup
+
+    # Remove the QueueHandler(s) from the logger.
+    for handler in logger.handlers[:]:
+        try:
             logger.removeHandler(handler)
         except Exception:
             pass  # Best effort cleanup
+
+    _queue_listener = None
 
     # Final logging shutdown (flushes all handlers across all loggers)
     logging.shutdown()

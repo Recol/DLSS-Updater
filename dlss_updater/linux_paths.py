@@ -4,11 +4,14 @@ Handles Steam, Proton, and Wine path detection on Linux for game DLL scanning.
 Also provides Flatpak sandbox detection for permission handling.
 """
 
-import asyncio
 import logging
 import os
 from pathlib import Path
 from typing import Any
+
+import anyio
+
+from dlss_updater.concurrency_limiters import thread_io
 
 logger = logging.getLogger("DLSSUpdater")
 
@@ -111,7 +114,7 @@ def can_write_path(path: Path) -> bool:
 
 async def can_write_path_async(path: Path) -> bool:
     """Async version of can_write_path."""
-    return await asyncio.to_thread(can_write_path, path)
+    return await anyio.to_thread.run_sync(can_write_path, path, limiter=thread_io)
 
 
 async def filter_accessible_paths(
@@ -168,7 +171,7 @@ async def get_linux_steam_path() -> Path | None:
     Returns:
         Path to Steam installation or None if not found.
     """
-    return await asyncio.to_thread(get_linux_steam_path_sync)
+    return await anyio.to_thread.run_sync(get_linux_steam_path_sync, limiter=thread_io)
 
 
 async def get_linux_steam_libraries(steam_path: Path) -> list[Path]:
@@ -211,7 +214,7 @@ async def get_linux_steam_libraries(steam_path: Path) -> list[Path]:
 
         return result
 
-    libraries = await asyncio.to_thread(_parse_libraries)
+    libraries = await anyio.to_thread.run_sync(_parse_libraries, limiter=thread_io)
 
     # Always include default library
     default_lib = steam_path / "steamapps" / "common"
@@ -260,7 +263,7 @@ async def get_proton_prefixes(steam_path: Path) -> list[Path]:
             logger.warning(f"Error scanning Proton prefixes: {e}")
         return result
 
-    prefixes = await asyncio.to_thread(_find_prefixes)
+    prefixes = await anyio.to_thread.run_sync(_find_prefixes, limiter=thread_io)
     logger.info(f"Found {len(prefixes)} Proton prefixes")
     return prefixes
 
@@ -311,7 +314,7 @@ async def get_wine_prefixes() -> list[Path]:
 
         return result
 
-    prefixes = await asyncio.to_thread(_find_wine_prefixes)
+    prefixes = await anyio.to_thread.run_sync(_find_wine_prefixes, limiter=thread_io)
     logger.info(f"Found {len(prefixes)} Wine prefixes")
     return prefixes
 
@@ -356,7 +359,7 @@ async def scan_proton_games(prefix: Path) -> list[Path]:
 
         return result
 
-    return await asyncio.to_thread(_find_games)
+    return await anyio.to_thread.run_sync(_find_games, limiter=thread_io)
 
 
 async def get_all_linux_game_paths() -> dict[str, Any]:

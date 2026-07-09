@@ -1,20 +1,22 @@
 """
 Image optimization utilities for thumbnail generation.
 
-All operations are async/non-blocking using asyncio.to_thread() for CPU-bound
-Pillow operations and aiofiles for file I/O.
+All operations are async/non-blocking using anyio.to_thread.run_sync() (bounded
+by the shared thread_cpu CapacityLimiter) for CPU-bound Pillow operations and
+aiofiles for file I/O.
 
 This module is optimized for Python 3.14 free-threaded builds where the GIL
 is disabled, allowing true parallel execution of thumbnail processing.
 """
-import asyncio
 import io
 from pathlib import Path
 
+import anyio
 import aiofiles
 from PIL import Image
 
 from .logger import setup_logger
+from .concurrency_limiters import thread_cpu
 
 logger = setup_logger()
 
@@ -48,7 +50,7 @@ async def create_thumbnail(image_data: bytes) -> bytes:
     Returns:
         WebP thumbnail bytes (scaled so min dimension = MIN_DIMENSION, quality 80)
     """
-    return await asyncio.to_thread(_process_thumbnail_sync, image_data)
+    return await anyio.to_thread.run_sync(_process_thumbnail_sync, image_data, limiter=thread_cpu)
 
 
 async def save_thumbnail(image_data: bytes, output_path: Path) -> None:

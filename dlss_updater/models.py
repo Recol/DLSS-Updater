@@ -384,6 +384,58 @@ class PerformanceConfig(msgspec.Struct):
             raise ValueError(f"max_worker_threads must be between 1 and 32, got {self.max_worker_threads}")
 
 
+class UIPreferencesConfig(msgspec.Struct):
+    """
+    UI/UX preference configuration (persisted to config.toml [ui_preferences]).
+
+    All fields use TOML-native scalar types so they survive a
+    ``msgspec.toml`` round-trip without any None handling.
+    """
+    smooth_scrolling: bool = True
+    grid_density: str = "comfortable"          # 'compact' | 'comfortable' | 'large'
+    keep_games_in_memory: bool = True
+    sort_preference: str = "name_asc"          # name_asc|name_desc|dll_count|outdated_first
+
+
+class DiscordBannerConfig(msgspec.Struct):
+    """Discord invite banner dismissal state ([discord_banner])."""
+    dismissed: bool = False
+
+
+class ImageCacheConfig(msgspec.Struct):
+    """Image cache migration tracking ([image_cache])."""
+    version: int = 0
+
+
+class SteamAPIConfig(msgspec.Struct):
+    """
+    Steam Web API credentials ([steam_api]).
+
+    Empty strings represent "unset" - TOML has no null type, so we deliberately
+    avoid ``None`` here to keep encoding trivial and lossless.
+    """
+    api_key: str = ""
+    steam_id: str = ""
+    auto_detected_steam_id: str = ""
+
+
+class WindowStateConfig(msgspec.Struct):
+    """
+    Persisted window geometry ([window_state]).
+
+    ``top``/``left`` are plain ints (window coordinates may legitimately be
+    negative on multi-monitor setups), so a sentinel value can't distinguish
+    "unset" from a real coordinate. ``has_position`` carries that presence bit
+    instead, replacing the old empty-string encoding used by the INI backend.
+    """
+    width: int = 900
+    height: int = 700
+    top: int = 0
+    left: int = 0
+    has_position: bool = False
+    maximized: bool = False
+
+
 # =============================================================================
 # Scanner/Updater Structures (Phase 5)
 # =============================================================================

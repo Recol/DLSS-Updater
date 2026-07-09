@@ -39,6 +39,8 @@ elif sys.platform == 'linux':
 
 import asyncio
 import logging
+
+import anyio
 import flet as ft
 
 # Core imports
@@ -181,18 +183,25 @@ async def main(page: ft.Page):
             logger.info("Database initialized successfully")
 
             # Run cleanup operations in parallel
-            cleanup_tasks = []
-            cleanup_tasks.append(db_manager.cleanup_duplicate_backups())
-            cleanup_tasks.append(db_manager.cleanup_duplicate_games())
+            results: list[int | None] = [None, None]
+            errors: list[Exception | None] = [None, None]
 
-            results = await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+            async def _run(i, coro):
+                try:
+                    results[i] = await coro
+                except Exception as e:
+                    errors[i] = e
 
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    logger.warning(f"Cleanup task {i} failed: {result}")
-                elif result and result > 0:
-                    task_name = "backup" if i == 0 else "game"
-                    logger.info(f"Cleaned up {result} duplicate {task_name} entries on startup")
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(_run, 0, db_manager.cleanup_duplicate_backups())
+                tg.start_soon(_run, 1, db_manager.cleanup_duplicate_games())
+
+            for i in range(2):
+                task_name = "backup" if i == 0 else "game"
+                if errors[i] is not None:
+                    logger.warning(f"Cleanup task {i} failed: {errors[i]}")
+                elif results[i] and results[i] > 0:
+                    logger.info(f"Cleaned up {results[i]} duplicate {task_name} entries on startup")
 
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}", exc_info=True)

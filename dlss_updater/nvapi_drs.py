@@ -43,9 +43,11 @@ Notes
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
+import anyio
+
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.platform_utils import IS_WINDOWS
 
 logger = logging.getLogger("DLSSUpdater")
@@ -641,7 +643,7 @@ async def get_current_presets() -> tuple[dict[str, int | None], str | None]:
     """
     if not IS_WINDOWS:
         return ({}, "DLSS preset control is only available on Windows")
-    return await asyncio.to_thread(_read_all_blocking)
+    return await anyio.to_thread.run_sync(_read_all_blocking, limiter=thread_io)
 
 
 async def apply_presets(selections: dict[str, str]) -> tuple[bool, str | None]:
@@ -661,7 +663,7 @@ async def apply_presets(selections: dict[str, str]) -> tuple[bool, str | None]:
         return (False, "DLSS preset control is only available on Windows")
     if not selections:
         return (True, None)
-    return await asyncio.to_thread(_apply_blocking, selections)
+    return await anyio.to_thread.run_sync(_apply_blocking, selections, limiter=thread_io)
 
 
 async def get_presets_for_app(
@@ -678,7 +680,7 @@ async def get_presets_for_app(
     """
     if not IS_WINDOWS:
         return ({}, {}, "DLSS preset control is only available on Windows")
-    return await asyncio.to_thread(_read_app_blocking, exe_path)
+    return await anyio.to_thread.run_sync(_read_app_blocking, exe_path, limiter=thread_io)
 
 
 async def apply_presets_for_app(
@@ -706,7 +708,7 @@ async def apply_presets_for_app(
         return (False, "DLSS preset control is only available on Windows")
     if not selections:
         return (True, None)
-    return await asyncio.to_thread(_apply_app_blocking, exe_path, selections, friendly_name)
+    return await anyio.to_thread.run_sync(_apply_app_blocking, exe_path, selections, friendly_name, limiter=thread_io)
 
 
 async def reset_app_presets(exe_path: str) -> tuple[bool, str | None]:

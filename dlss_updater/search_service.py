@@ -23,16 +23,18 @@ Library Versions (December 2025):
 - rapidfuzz 3.12.0+ (optional, fuzzy matching)
 """
 
-import asyncio
 import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Callable, Any
 from datetime import datetime
 
+import anyio
 import msgspec
 
+from dlss_updater.concurrency_limiters import thread_cpu
 from dlss_updater.logger import setup_logger
 from dlss_updater.models import Game
 from dlss_updater.config import Concurrency
@@ -470,7 +472,7 @@ class GameSearchService:
             games_by_launcher = await db.get_games_grouped_by_launcher()
 
         # Build index in thread pool (CPU-bound operation)
-        await asyncio.to_thread(self._index.build, games_by_launcher)
+        await anyio.to_thread.run_sync(self._index.build, games_by_launcher, limiter=thread_cpu)
 
         # Invalidate cache since data changed
         self._cache.invalidate()
@@ -542,8 +544,8 @@ class GameSearchService:
         # 2. In-memory index search
         results = []
         if self._index.is_built():
-            results = await asyncio.to_thread(
-                self._index.search, query, launcher, limit * 2
+            results = await anyio.to_thread.run_sync(
+                self._index.search, query, launcher, limit * 2, limiter=thread_cpu
             )
 
             # 3. Add fuzzy matches if enabled and requested
@@ -596,14 +598,19 @@ class GameSearchService:
         # Create choices dict: name -> game
         choices = {g.name: g for g in games}
 
-        # Use rapidfuzz's process.extract for batch matching
-        matches = await asyncio.to_thread(
-            process.extract,
-            query,
-            list(choices.keys()),
-            scorer=self._fuzzy_scorer,
-            limit=limit,
-            score_cutoff=threshold
+        # Use rapidfuzz's process.extract for batch matching.
+        # partial() binds the kwargs since anyio.to_thread.run_sync only
+        # forwards positional args to the target callable.
+        matches = await anyio.to_thread.run_sync(
+            partial(
+                process.extract,
+                query,
+                list(choices.keys()),
+                scorer=self._fuzzy_scorer,
+                limit=limit,
+                score_cutoff=threshold,
+            ),
+            limiter=thread_cpu,
         )
 
         results = []

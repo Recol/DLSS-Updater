@@ -8,11 +8,13 @@ Gracefully falls back when NVML is unavailable (no NVIDIA GPU, driver issues).
 Thread-safe for Python 3.14 free-threading.
 """
 
-import asyncio
 import logging
 import threading
 from typing import TYPE_CHECKING
 
+import anyio
+
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
 
 if TYPE_CHECKING:
@@ -76,7 +78,7 @@ async def detect_nvidia_gpu() -> "GPUInfo | None":
     Uses asyncio.to_thread() to avoid blocking the event loop.
     Thread-safe for concurrent calls.
     """
-    return await asyncio.to_thread(_detect_nvidia_gpu_sync)
+    return await anyio.to_thread.run_sync(_detect_nvidia_gpu_sync, limiter=thread_io)
 
 
 def _detect_nvidia_gpu_sync() -> "GPUInfo | None":
@@ -166,7 +168,7 @@ async def is_nvidia_gpu_present() -> bool:
 
     Faster than full detection - use for feature flag checks.
     """
-    return await asyncio.to_thread(_is_nvidia_gpu_present_sync)
+    return await anyio.to_thread.run_sync(_is_nvidia_gpu_present_sync, limiter=thread_io)
 
 
 def _is_nvidia_gpu_present_sync() -> bool:
@@ -211,4 +213,4 @@ async def cleanup_nvml() -> None:
                 except Exception as e:
                     logger.warning(f"NVML shutdown error: {e}")
 
-    await asyncio.to_thread(_shutdown)
+    await anyio.to_thread.run_sync(_shutdown, limiter=thread_io)

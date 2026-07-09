@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import aiofiles
+import anyio
 
 from dlss_updater.logger import setup_logger
 
@@ -236,19 +237,27 @@ class VDFParser:
             # Parse manifests concurrently with semaphore limit
             semaphore = asyncio.Semaphore(20)  # Limit concurrent file reads
 
-            async def parse_with_limit(manifest_path: Path):
-                async with semaphore:
-                    return manifest_path, await cls.parse_appmanifest(manifest_path)
+            manifest_results: list = [None] * len(manifest_files)
+            manifest_errors: list = [None] * len(manifest_files)
 
-            results = await asyncio.gather(
-                *[parse_with_limit(m) for m in manifest_files],
-                return_exceptions=True
-            )
+            async def parse_with_limit(i: int, manifest_path: Path) -> None:
+                async with semaphore:
+                    try:
+                        manifest_results[i] = (
+                            manifest_path,
+                            await cls.parse_appmanifest(manifest_path),
+                        )
+                    except Exception as e:
+                        manifest_errors[i] = e
+
+            async with anyio.create_task_group() as tg:
+                for i, m in enumerate(manifest_files):
+                    tg.start_soon(parse_with_limit, i, m)
 
             common_dir = steamapps_dir / 'common'
 
-            for result in results:
-                if isinstance(result, Exception):
+            for i, result in enumerate(manifest_results):
+                if manifest_errors[i] is not None or result is None:
                     continue
 
                 manifest_path, game_data = result
@@ -267,12 +276,22 @@ class VDFParser:
             return library_games
 
         # Process all libraries concurrently
-        library_results = await asyncio.gather(
-            *[process_library(lib) for lib in steamapps_dirs],
-            return_exceptions=True
-        )
+        library_results: list = [None] * len(steamapps_dirs)
+        library_errors: list = [None] * len(steamapps_dirs)
 
-        for result in library_results:
+        async def _run_library(i: int, lib: Path) -> None:
+            try:
+                library_results[i] = await process_library(lib)
+            except Exception as e:
+                library_errors[i] = e
+
+        async with anyio.create_task_group() as tg:
+            for i, lib in enumerate(steamapps_dirs):
+                tg.start_soon(_run_library, i, lib)
+
+        for i, result in enumerate(library_results):
+            if library_errors[i] is not None:
+                continue
             if isinstance(result, list):
                 games.extend(result)
 

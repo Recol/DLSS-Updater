@@ -4,8 +4,10 @@ from io import StringIO
 from pathlib import Path
 import asyncio
 import aiohttp
+import anyio
 from dlss_updater.logger import setup_logger
-from dlss_updater.config import config_manager, Concurrency
+from dlss_updater.config import config_manager
+from dlss_updater.concurrency_limiters import io_extreme
 
 logger = setup_logger()
 
@@ -235,21 +237,23 @@ async def check_whitelist_batch(game_paths, max_concurrent: int = None):
     Returns:
         Dict mapping path to whitelist status (True = whitelisted/blacklisted)
     """
-    if max_concurrent is None:
-        max_concurrent = Concurrency.IO_EXTREME
-    # Maximum concurrency for whitelist checks (mostly in-memory string operations)
-    semaphore = asyncio.Semaphore(max_concurrent)
+    # max_concurrent retained for API compatibility; concurrency is now bounded
+    # by the shared io_extreme limiter (sized from Concurrency.IO_EXTREME) - these
+    # checks are mostly in-memory string operations.
+    game_paths = list(game_paths)
+    check_results: list = [None] * len(game_paths)
 
-    async def bounded_check(path):
-        async with semaphore:
+    async def bounded_check(i, path):
+        async with io_extreme:
             try:
-                return path, await is_whitelisted(path)
+                check_results[i] = (path, await is_whitelisted(path))
             except Exception as e:
                 logger.error(f"Error checking whitelist for {path}: {e}")
-                return path, False
+                check_results[i] = (path, False)
 
     # Run all checks with bounded concurrency
-    check_tasks = [bounded_check(path) for path in game_paths]
-    check_results = await asyncio.gather(*check_tasks)
+    async with anyio.create_task_group() as tg:
+        for i, path in enumerate(game_paths):
+            tg.start_soon(bounded_check, i, path)
 
-    return dict(check_results)
+    return dict(r for r in check_results if r is not None)

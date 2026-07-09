@@ -1,11 +1,13 @@
 import os
 import asyncio
+import anyio
 import concurrent.futures
 import threading
 import sys
 from pathlib import Path
 from dlss_updater.logger import setup_logger
 from dlss_updater.config import config_manager, Concurrency
+from dlss_updater.concurrency_limiters import io_heavy, thread_io
 from dlss_updater.models import ProcessedDLLResult
 from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
 
@@ -55,10 +57,11 @@ async def process_single_dll_with_backup(dll_path, launcher, backup_path, progre
             # Pass the backup path to update_dll
             from dlss_updater.updater import update_dll_with_backup
 
-            # Run file I/O in thread pool to avoid blocking
-            result = await asyncio.to_thread(
+            # Run file I/O in a bounded I/O worker thread to avoid blocking
+            result = await anyio.to_thread.run_sync(
                 update_dll_with_backup,
-                str(dll_path), latest_dll_path, backup_path
+                str(dll_path), latest_dll_path, backup_path,
+                limiter=thread_io
             )
 
             progress_tracker.increment(f"{dll_path.name} from {launcher}")
@@ -71,10 +74,10 @@ async def process_single_dll_with_backup(dll_path, launcher, backup_path, progre
 
 
 async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=None):
-    """Process DLLs using asyncio with progress tracking (maximum hardware utilization)"""
-    if max_workers is None:
-        max_workers = Concurrency.IO_HEAVY
-    import asyncio
+    """Process DLLs using anyio with progress tracking (maximum hardware utilization)"""
+    # Bound concurrency with the shared io_heavy limiter by default; honour an
+    # explicit max_workers override with a one-off CapacityLimiter.
+    limiter = io_heavy if max_workers is None else anyio.CapacityLimiter(max_workers)
 
     results = {
         "updated_games": [],
@@ -110,31 +113,30 @@ async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=N
             await update_progress()
             return ProcessedDLLResult(success=False, dll_type=str(e)), dll_path, launcher
 
-    # Process all DLLs concurrently using asyncio.gather
-    # Use semaphore to limit concurrency (similar to max_workers in ThreadPoolExecutor)
-    semaphore = asyncio.Semaphore(max_workers)
+    # Process all DLLs concurrently with an anyio task group, bounded by `limiter`.
+    # Results/errors are stored by index into pre-sized lists to preserve ordering.
+    task_results = [None] * len(dll_tasks)
+    task_errors = [None] * len(dll_tasks)
 
-    async def process_with_semaphore(dll_path, launcher):
-        async with semaphore:
-            return await process_with_progress(dll_path, launcher)
+    async def process_with_limiter(index, dll_path, launcher):
+        async with limiter:
+            try:
+                task_results[index] = await process_with_progress(dll_path, launcher)
+            except Exception as e:
+                task_errors[index] = e
 
-    # Create tasks for all DLLs
-    tasks = [
-        process_with_semaphore(dll_path, launcher)
-        for dll_path, launcher in dll_tasks
-    ]
-
-    # Wait for all tasks to complete
-    task_results = await asyncio.gather(*tasks, return_exceptions=True)
+    async with anyio.create_task_group() as tg:
+        for index, (dll_path, launcher) in enumerate(dll_tasks):
+            tg.start_soon(process_with_limiter, index, dll_path, launcher)
 
     # Process results
-    for task_result in task_results:
-        if isinstance(task_result, Exception):
-            logger.error(f"Task error: {task_result}")
-            results["errors"].append(("Unknown", "Unknown", str(task_result)))
+    for index in range(len(dll_tasks)):
+        if task_errors[index] is not None:
+            logger.error(f"Task error: {task_errors[index]}")
+            results["errors"].append(("Unknown", "Unknown", str(task_errors[index])))
             continue
 
-        result, dll_path, launcher = task_result
+        result, dll_path, launcher = task_results[index]
         if result:
             # result is now a ProcessedDLLResult object
             if result.success:
@@ -726,8 +728,8 @@ async def process_single_dll(dll_path, launcher):
         if dll_name in config.LATEST_DLL_PATHS:
             latest_dll_path = config.LATEST_DLL_PATHS[dll_name]
             logger.debug(f"Found {dll_name} in LATEST_DLL_PATHS, latest_dll_path: {latest_dll_path}")
-            # Run file I/O in thread pool to avoid blocking
-            return await asyncio.to_thread(update_dll, str(dll_path), latest_dll_path)
+            # Run file I/O in a bounded I/O worker thread to avoid blocking
+            return await anyio.to_thread.run_sync(update_dll, str(dll_path), latest_dll_path, limiter=thread_io)
 
         logger.debug(f"DLL {dll_name} not in LATEST_DLL_PATHS (available: {list(config.LATEST_DLL_PATHS.keys())[:5]}...)")
         return ProcessedDLLResult(success=False, dll_type=dll_type)

@@ -64,6 +64,20 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.2.3" date="2026-07-09">
+      <description>
+        <p>Modernized async/dependency stack, plus fixes found through it</p>
+        <ul>
+          <li>Replaced the DLL-download fallback library (requests, now in upstream feature-freeze) with niquests, a maintained drop-in replacement with HTTP/2 and HTTP/3 support</li>
+          <li>Settings storage migrated from config.ini to config.toml (via msgspec) with an automatic, non-destructive one-time migration - the old config.ini is left untouched</li>
+          <li>Adopted anyio for structured concurrency across the update/scan/database pipeline, consolidating several separate thread pools into shared, properly-bounded worker limiters</li>
+          <li>Logging now runs through a background queue instead of blocking on every log call</li>
+          <li>Fixed a deadlock in the high-performance batch DLL updater that could freeze the update progress dialog partway through a large batch</li>
+          <li>Fixed the Games Library not reflecting updated DLL versions after a batch update if the Games tab hadn't been opened yet that session</li>
+          <li>Fixed HyperParallelLoader briefly blocking the UI event loop while dispatching thread-pool work</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.2.2" date="2026-07-05">
       <description>
         <p>Linux update reliability fix (Issue #240)</p>

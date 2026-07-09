@@ -7,13 +7,13 @@ import shutil
 import os
 import stat
 import tempfile
-import asyncio
+import anyio
 import aiofiles
 from pathlib import Path
 
 from dlss_updater.logger import setup_logger
 from dlss_updater.database import db_manager
-from dlss_updater.config import Concurrency
+from dlss_updater.concurrency_limiters import io_heavy, thread_io
 
 logger = setup_logger()
 
@@ -35,7 +35,7 @@ async def async_copy2(src: Path, dst: Path, chunk_size: int = 65536) -> None:
                 await fdst.write(chunk)
 
     # Copy metadata (stat info) - run in thread pool since it's sync
-    await asyncio.to_thread(shutil.copystat, src, dst)
+    await anyio.to_thread.run_sync(shutil.copystat, src, dst, limiter=thread_io)
 
 
 def record_backup_metadata_sync(dll_path: Path, backup_path: Path) -> int | None:
@@ -135,7 +135,7 @@ async def record_backup_metadata(dll_path: Path, backup_path: Path) -> int | Non
 
         # Get backup file size (run in thread pool to avoid blocking)
         if backup_path.exists():
-            stat_result = await asyncio.to_thread(backup_path.stat)
+            stat_result = await anyio.to_thread.run_sync(backup_path.stat, limiter=thread_io)
             backup_size = stat_result.st_size
         else:
             backup_size = 0
@@ -220,7 +220,7 @@ async def restore_dll_from_backup(backup_id: int) -> tuple[bool, str]:
         try:
             # Remove read-only attribute if present (run in thread pool)
             if dll_path.exists():
-                await asyncio.to_thread(os.chmod, dll_path, stat.S_IWRITE | stat.S_IREAD)
+                await anyio.to_thread.run_sync(os.chmod, dll_path, stat.S_IWRITE | stat.S_IREAD, limiter=thread_io)
 
             # Copy backup to DLL location (async to avoid blocking event loop)
             await async_copy2(backup_path, dll_path)
@@ -293,8 +293,8 @@ async def delete_backup(backup_id: int) -> tuple[bool, str]:
         if backup_path.exists():
             try:
                 # Remove read-only attribute if present (run in thread pool)
-                await asyncio.to_thread(os.chmod, backup_path, stat.S_IWRITE)
-                await asyncio.to_thread(backup_path.unlink)
+                await anyio.to_thread.run_sync(os.chmod, backup_path, stat.S_IWRITE, limiter=thread_io)
+                await anyio.to_thread.run_sync(backup_path.unlink, limiter=thread_io)
                 logger.info(f"Deleted backup file: {backup_path}")
             except Exception as e:
                 logger.error(f"Failed to delete backup file: {e}")
@@ -335,12 +335,12 @@ async def validate_backup(backup_id: int) -> tuple[bool, str]:
             return False, "Backup file not found"
 
         # Check if file is readable (run in thread pool to avoid blocking)
-        is_readable = await asyncio.to_thread(os.access, backup_path, os.R_OK)
+        is_readable = await anyio.to_thread.run_sync(os.access, backup_path, os.R_OK, limiter=thread_io)
         if not is_readable:
             return False, "Backup file is not readable"
 
         # Check file size matches (run in thread pool to avoid blocking)
-        stat_result = await asyncio.to_thread(backup_path.stat)
+        stat_result = await anyio.to_thread.run_sync(backup_path.stat, limiter=thread_io)
         actual_size = stat_result.st_size
         if actual_size != backup.backup_size:
             logger.warning(f"Backup file size mismatch: expected {backup.backup_size}, got {actual_size}")
@@ -370,21 +370,23 @@ async def validate_backups_batch(
     if not backup_ids:
         return {}
 
-    if max_concurrent is None:
-        max_concurrent = Concurrency.IO_HEAVY
-    # Maximum concurrency for backup validation (async file I/O scales extremely well)
-    semaphore = asyncio.Semaphore(max_concurrent)
+    # Maximum concurrency for backup validation (async file I/O scales extremely well).
+    # Use the shared io_heavy limiter for the default bound; honour an explicit
+    # override by creating a one-off CapacityLimiter sized to the caller's request.
+    limiter = io_heavy if max_concurrent is None else anyio.CapacityLimiter(max_concurrent)
 
-    async def bounded_validate(backup_id: int) -> tuple[int, tuple[bool, str]]:
-        async with semaphore:
-            result = await validate_backup(backup_id)
-            return backup_id, result
+    results: dict[int, tuple[bool, str]] = {}
+
+    async def bounded_validate(backup_id: int) -> None:
+        async with limiter:
+            results[backup_id] = await validate_backup(backup_id)
 
     # Run all validations with bounded concurrency
-    tasks = [bounded_validate(bid) for bid in backup_ids]
-    results = await asyncio.gather(*tasks)
+    async with anyio.create_task_group() as tg:
+        for bid in backup_ids:
+            tg.start_soon(bounded_validate, bid)
 
-    return dict(results)
+    return results
 
 
 async def restore_group_for_game(
@@ -428,23 +430,25 @@ async def restore_group_for_game(
         if not backups_to_restore:
             return False, "No backups to restore", []
 
-        # Restore with bounded concurrency using Concurrency.IO_HEAVY
-        # This prevents overwhelming the filesystem while still achieving parallelism
-        semaphore = asyncio.Semaphore(Concurrency.IO_HEAVY)
+        # Restore with bounded concurrency using the shared io_heavy limiter.
+        # This prevents overwhelming the filesystem while still achieving parallelism.
+        # Results are stored by index into a pre-sized list to preserve ordering.
+        results: list[dict[str, str]] = [None] * len(backups_to_restore)
 
-        async def bounded_restore(backup) -> dict[str, str]:
-            """Perform a single restore operation with semaphore-bounded concurrency."""
-            async with semaphore:
+        async def bounded_restore(index: int, backup) -> None:
+            """Perform a single restore operation with limiter-bounded concurrency."""
+            async with io_heavy:
                 success, message = await restore_dll_from_backup(backup.id)
-                return {
+                results[index] = {
                     'dll_filename': backup.dll_filename,
                     'success': str(success),  # Convert to string for consistent Dict[str, str]
                     'message': message
                 }
 
         # Execute all restore operations concurrently
-        tasks = [bounded_restore(backup) for backup in backups_to_restore]
-        results = await asyncio.gather(*tasks)
+        async with anyio.create_task_group() as tg:
+            for index, backup in enumerate(backups_to_restore):
+                tg.start_soon(bounded_restore, index, backup)
 
         # Calculate success metrics
         success_count = sum(1 for r in results if r['success'] == 'True')

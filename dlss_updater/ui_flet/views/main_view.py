@@ -12,7 +12,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Any
 
+import anyio
 import flet as ft
+
+from dlss_updater.concurrency_limiters import thread_io
 
 
 def open_url(url: str) -> bool:
@@ -1372,9 +1375,16 @@ class MainView(ft.Column):
             summary_dialog = UpdateSummaryDialog(self._page_ref, self.logger, result)
             await summary_dialog.show()
 
-            # Refresh game card DLL badges if games view is loaded
-            if self.games_view and self.games_view._games_loaded:
-                await self.games_view.refresh_all_badges()
+            # Refresh game card DLL badges if games view is loaded; otherwise
+            # flag it to reconcile from disk the next time it loads. The
+            # high-performance update path writes new DLL files without
+            # updating GameDLL.version in the DB, so a not-yet-loaded Games
+            # view would otherwise show stale badges until manually refreshed.
+            if self.games_view:
+                if self.games_view._games_loaded:
+                    await self.games_view.refresh_all_badges()
+                else:
+                    self.games_view.mark_pending_dll_reconcile()
 
         except Exception as ex:
             self.logger.error(f"Update failed: {ex}", exc_info=True)
@@ -1456,7 +1466,7 @@ class MainView(ft.Column):
 
         try:
             # Use thread pool for blocking file I/O
-            cache_data = await asyncio.to_thread(_read_cache_file)
+            cache_data = await anyio.to_thread.run_sync(_read_cache_file, limiter=thread_io)
             if cache_data:
                 cache = decode_json(cache_data, type=ScanCacheData)
                 self.last_scan_results = cache.scan_results
@@ -1497,7 +1507,9 @@ class MainView(ft.Column):
             )
             cache_data = format_json(encode_json(cache))
             # Use thread pool for blocking file I/O
-            await asyncio.to_thread(_write_cache_file, self.scan_cache_path, cache_data)
+            await anyio.to_thread.run_sync(
+                _write_cache_file, self.scan_cache_path, cache_data, limiter=thread_io
+            )
             self.last_scan_timestamp = timestamp
             self.logger.info(f"Saved scan cache to {self.scan_cache_path}")
         except Exception as e:
@@ -1655,8 +1667,7 @@ class MainView(ft.Column):
                 await report_progress(7)
                 try:
                     from dlss_updater.updater import shutdown_version_executor
-                    import asyncio
-                    await asyncio.to_thread(shutdown_version_executor)
+                    await anyio.to_thread.run_sync(shutdown_version_executor, limiter=thread_io)
                     self.logger.info("Thread pool executors shutdown")
                 except Exception as e:
                     self.logger.warning(f"Error shutting down executors: {e}")

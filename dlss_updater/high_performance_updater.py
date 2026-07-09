@@ -26,7 +26,6 @@ Performance characteristics:
 """
 
 import asyncio
-import concurrent.futures
 import mmap
 import os
 import shutil
@@ -39,9 +38,11 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Callable, Any
 
+import anyio
 import psutil
 
-from .config import LATEST_DLL_PATHS, Concurrency, config_manager
+from .config import LATEST_DLL_PATHS, config_manager
+from .concurrency_limiters import thread_cpu, thread_io
 from .constants import DLL_TYPE_MAP
 from .logger import setup_logger
 from .models import (
@@ -917,7 +918,6 @@ class HighPerformanceUpdateManager:
         self._backup_manifest: BackupManifest | None = None
         self._start_time: float = 0.0
         self._peak_memory_mb: float = 0.0
-        self._executor: concurrent.futures.ThreadPoolExecutor | None = None
 
     async def execute(
         self,
@@ -1008,11 +1008,11 @@ class HighPerformanceUpdateManager:
         self._source_cache = SourceDLLMemoryCache(self._memory_monitor)
         self._backup_manifest = BackupManifest()
 
-        # Create thread pool executor
-        self._executor = concurrent.futures.ThreadPoolExecutor(
-            max_workers=Concurrency.THREADPOOL_IO,
-            thread_name_prefix="hp_update"
-        )
+        # Parallelism is provided by anyio's shared worker-thread pool, bounded by
+        # the module-level thread_cpu / thread_io CapacityLimiters. Each phase
+        # dispatches its sync work via anyio.to_thread.run_sync inside an
+        # anyio.create_task_group, which awaits all workers before returning - so
+        # there is no long-lived executor object to create or shut down here.
 
         backups_created = 0
         updates_succeeded = 0
@@ -1167,14 +1167,8 @@ class HighPerformanceUpdateManager:
             if self._source_cache:
                 self._source_cache.release_all()
 
-            if self._executor:
-                # CRITICAL: Must wait for thread pool workers to finish to prevent:
-                # 1. Data corruption from workers still writing files
-                # 2. Orphaned coroutines from call_soon_threadsafe callbacks
-                # 3. Race conditions with resource cleanup
-                # Using cancel_futures=True allows pending (not-yet-started) futures
-                # to be cancelled while waiting for running futures to complete.
-                self._executor.shutdown(wait=True, cancel_futures=True)
+            # Worker threads are awaited by each phase's anyio.create_task_group
+            # before that phase returns, so no thread pool needs draining here.
 
             # Update peak memory
             self._update_peak_memory()
@@ -1221,10 +1215,11 @@ class HighPerformanceUpdateManager:
 
         logger.info(f"[PHASE 0] Loading {len(unique_sources)} unique source DLLs")
 
-        # Load sources (run in thread pool to avoid blocking)
-        loaded = await asyncio.to_thread(
+        # Load sources (run in a bounded I/O worker thread to avoid blocking)
+        loaded = await anyio.to_thread.run_sync(
             self._source_cache.load_all_sources,
-            unique_sources
+            unique_sources,
+            limiter=thread_io
         )
 
         # Check memory after loading
@@ -1289,31 +1284,38 @@ class HighPerformanceUpdateManager:
         tasks_needing_update: list[DLLTask] = []
         skipped_count = 0
 
-        # Submit version checks in parallel
-        futures: dict[concurrent.futures.Future, DLLTask] = {}
+        # Run version checks in parallel via bounded CPU worker threads (PE parsing).
+        # Results/errors stored by index so ordering is deterministic.
+        results: list[tuple[bool, str] | None] = [None] * len(dll_tasks)
+        errors: list[Exception | None] = [None] * len(dll_tasks)
 
-        for task in dll_tasks:
-            future = self._executor.submit(
-                self._check_needs_update,
-                task
-            )
-            futures[future] = task
+        async def _run_check(i: int, task: DLLTask) -> None:
+            try:
+                results[i] = await anyio.to_thread.run_sync(
+                    self._check_needs_update, task, limiter=thread_cpu
+                )
+            except Exception as e:
+                errors[i] = e
+
+        async with anyio.create_task_group() as tg:
+            for i, task in enumerate(dll_tasks):
+                tg.start_soon(_run_check, i, task)
 
         # Collect results
-        for future in concurrent.futures.as_completed(futures):
-            task = futures[future]
-            try:
-                needs_update, reason = future.result()
-                if needs_update:
-                    tasks_needing_update.append(task)
-                    logger.debug(f"[PRE-FILTER] {Path(task.target_path).name}: {reason}")
-                else:
-                    skipped_count += 1
-                    logger.debug(f"[PRE-FILTER] Skipped {Path(task.target_path).name}: {reason}")
-            except Exception as e:
-                logger.warning(f"[PRE-FILTER] Error checking {task.target_path}: {e}")
+        for i, task in enumerate(dll_tasks):
+            if errors[i] is not None:
+                logger.warning(f"[PRE-FILTER] Error checking {task.target_path}: {errors[i]}")
                 # Include in update list on error (let Phase 2 handle it)
                 tasks_needing_update.append(task)
+                continue
+
+            needs_update, reason = results[i]
+            if needs_update:
+                tasks_needing_update.append(task)
+                logger.debug(f"[PRE-FILTER] {Path(task.target_path).name}: {reason}")
+            else:
+                skipped_count += 1
+                logger.debug(f"[PRE-FILTER] Skipped {Path(task.target_path).name}: {reason}")
 
         logger.info(
             f"[PRE-FILTER] {len(tasks_needing_update)} need updates, "
@@ -1344,56 +1346,61 @@ class HighPerformanceUpdateManager:
         """
         logger.info(f"[PHASE 1] Creating backups for {len(dll_tasks)} DLLs")
 
-        # Submit all backup tasks
-        futures: dict[concurrent.futures.Future, DLLTask] = {}
-
+        # Only back up targets that actually exist
+        targets: list[DLLTask] = []
         for task in dll_tasks:
-            target_path = Path(task.target_path)
-            if not target_path.exists():
-                logger.warning(f"[PHASE 1] Target not found, skipping: {target_path}")
+            if not Path(task.target_path).exists():
+                logger.warning(f"[PHASE 1] Target not found, skipping: {Path(task.target_path)}")
                 continue
+            targets.append(task)
 
-            future = self._executor.submit(
-                self._create_single_backup,
-                str(target_path)
-            )
-            futures[future] = task
+        # Run all backup copies in parallel via bounded I/O worker threads.
+        # _create_single_backup never raises (it captures errors into its result
+        # dict); wrap defensively so an unexpected raise still becomes a failure.
+        results: list[dict[str, Any] | None] = [None] * len(targets)
 
-        # Wait for all backups to complete
+        async def _run_backup(i: int, task: DLLTask) -> None:
+            try:
+                results[i] = await anyio.to_thread.run_sync(
+                    self._create_single_backup, str(Path(task.target_path)), limiter=thread_io
+                )
+            except Exception as e:
+                results[i] = {
+                    "success": False,
+                    "backup_path": None,
+                    "original_path": task.target_path,
+                    "size": 0,
+                    "error": str(e),
+                }
+
+        async with anyio.create_task_group() as tg:
+            for i, task in enumerate(targets):
+                tg.start_soon(_run_backup, i, task)
+
+        # Process results in order; abort on the first failure (matches prior
+        # fail-fast semantics, but after all workers have already completed).
         backups_created = 0
         partial_backups: list[str] = []
 
-        for future in concurrent.futures.as_completed(futures):
-            task = futures[future]
+        for i, task in enumerate(targets):
+            result = results[i]
 
-            try:
-                result = future.result()
+            if result["success"]:
+                # Add to manifest
+                self._backup_manifest.add_backup(
+                    result["original_path"],
+                    result["backup_path"],
+                    result["size"]
+                )
+                partial_backups.append(result["backup_path"])
+                backups_created += 1
 
-                if result["success"]:
-                    # Add to manifest
-                    self._backup_manifest.add_backup(
-                        result["original_path"],
-                        result["backup_path"],
-                        result["size"]
-                    )
-                    partial_backups.append(result["backup_path"])
-                    backups_created += 1
-
-                    if progress_callback:
-                        progress_callback(f"Backed up {Path(task.target_path).name}")
-                else:
-                    # Backup failed - abort entire operation
-                    raise BackupFailedError(
-                        f"Failed to create backup for {task.target_path}: {result.get('error')}",
-                        task.target_path,
-                        partial_backups
-                    )
-
-            except BackupFailedError:
-                raise
-            except Exception as e:
+                if progress_callback:
+                    progress_callback(f"Backed up {Path(task.target_path).name}")
+            else:
+                # Backup failed - abort entire operation
                 raise BackupFailedError(
-                    f"Backup error for {task.target_path}: {e}",
+                    f"Failed to create backup for {task.target_path}: {result.get('error')}",
                     task.target_path,
                     partial_backups
                 )
@@ -1470,25 +1477,17 @@ class HighPerformanceUpdateManager:
         """
         logger.info(f"[PHASE 2] Applying {len(dll_tasks)} updates from cache")
 
-        results: list[dict[str, Any]] = []
+        # Apply all updates in parallel via bounded I/O worker threads, storing
+        # results by index to preserve ordering. Continues past individual
+        # failures (each is captured into its own result dict).
+        results: list[dict[str, Any] | None] = [None] * len(dll_tasks)
 
-        # Submit all update tasks
-        futures: dict[concurrent.futures.Future, DLLTask] = {}
-
-        for task in dll_tasks:
-            future = self._executor.submit(
-                self._apply_single_update,
-                task
-            )
-            futures[future] = task
-
-        # Collect results as they complete
-        for future in concurrent.futures.as_completed(futures):
-            task = futures[future]
-
+        async def _run_update(i: int, task: DLLTask) -> None:
             try:
-                result = future.result()
-                results.append(result)
+                result = await anyio.to_thread.run_sync(
+                    self._apply_single_update, task, limiter=thread_io
+                )
+                results[i] = result
 
                 if progress_callback:
                     status = "Updated" if result["success"] else (
@@ -1498,12 +1497,16 @@ class HighPerformanceUpdateManager:
 
             except Exception as e:
                 logger.error(f"[PHASE 2] Update error for {task.target_path}: {e}")
-                results.append({
+                results[i] = {
                     "success": False,
                     "path": task.target_path,
                     "error": str(e),
                     "skipped": False
-                })
+                }
+
+        async with anyio.create_task_group() as tg:
+            for i, task in enumerate(dll_tasks):
+                tg.start_soon(_run_update, i, task)
 
         self._update_peak_memory()
         return results

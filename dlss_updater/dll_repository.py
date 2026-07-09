@@ -1,14 +1,15 @@
 import os
-import asyncio
 import inspect
 import threading
 from pathlib import Path
+import anyio
 import msgspec
 import aiohttp
 import aiofiles
 import concurrent.futures
 from .logger import setup_logger
 from .config import initialize_dll_paths, update_latest_dll_versions_from_cache, Concurrency
+from .concurrency_limiters import io_heavy, io_extreme, thread_cpu
 
 logger = setup_logger()
 
@@ -130,7 +131,7 @@ async def get_remote_manifest_async() -> dict | None:
 
 def get_remote_manifest():
     """Fetch the remote DLL manifest (sync version - for backward compatibility)"""
-    import requests
+    import niquests as requests
     try:
         response = requests.get(DLL_MANIFEST_URL, timeout=10)
         response.raise_for_status()
@@ -199,8 +200,8 @@ async def check_for_dll_update_async(dll_name: str, manifest: dict | None = None
         logger.info(f"No local copy of {dll_name} exists, download needed")
         return True
 
-    # get_dll_version is CPU-bound (reads PE headers), run in thread
-    local_version = await asyncio.to_thread(get_dll_version, str(local_path))
+    # get_dll_version is CPU-bound (reads PE headers), run in a bounded CPU worker thread
+    local_version = await anyio.to_thread.run_sync(get_dll_version, str(local_path), limiter=thread_cpu)
     if not local_version:
         logger.info(f"Could not determine version of local {dll_name}, assuming update needed")
         return True
@@ -367,7 +368,7 @@ def download_latest_dll(dll_name, progress_callback=None):
         dll_name: Name of the DLL to download
         progress_callback: Optional callback(bytes_downloaded, total_bytes, dll_name) for progress
     """
-    import requests
+    import niquests as requests
 
     manifest = get_remote_manifest()
     if not manifest:
@@ -452,24 +453,28 @@ async def initialize_dll_cache_async(progress_callback=None):
         dll_names = list(manifest.keys())
         total_dlls = len(dll_names)
 
-        # CPU-bound PE parsing - scale with CPU threads
-        check_semaphore = asyncio.Semaphore(Concurrency.IO_HEAVY)
+        # Each check_for_dll_update_async offloads its PE parse to a worker thread;
+        # bound the in-flight async checks with the shared io_heavy limiter.
+        check_results: list[bool | None] = [None] * total_dlls
+        check_errors: list[Exception | None] = [None] * total_dlls
 
-        async def bounded_check(name):
-            async with check_semaphore:
-                return await check_for_dll_update_async(name, manifest)
+        async def bounded_check(index, name):
+            async with io_heavy:
+                try:
+                    check_results[index] = await check_for_dll_update_async(name, manifest)
+                except Exception as e:
+                    check_errors[index] = e
 
-        # Create bounded check tasks
-        check_tasks = [bounded_check(name) for name in dll_names]
+        async with anyio.create_task_group() as tg:
+            for i, name in enumerate(dll_names):
+                tg.start_soon(bounded_check, i, name)
 
-        # Run checks with progress reporting
+        # Report progress after all checks complete (mirrors prior gather semantics)
         dlls_to_update = []
-        results = await asyncio.gather(*check_tasks, return_exceptions=True)
-
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.error(f"Error checking {dll_names[i]}: {result}")
-            elif result:
+        for i in range(total_dlls):
+            if check_errors[i] is not None:
+                logger.error(f"Error checking {dll_names[i]}: {check_errors[i]}")
+            elif check_results[i]:
                 dlls_to_update.append(dll_names[i])
 
             progress_pct = int(10 + ((i + 1) / total_dlls) * 30)
@@ -480,24 +485,29 @@ async def initialize_dll_cache_async(progress_callback=None):
             await report_progress(40, 100, f"Downloading {len(dlls_to_update)} DLL updates...")
 
             # Network I/O - use extreme concurrency to saturate bandwidth
-            download_semaphore = asyncio.Semaphore(Concurrency.IO_EXTREME)
+            total_downloads = len(dlls_to_update)
+            download_results: list[bool | None] = [None] * total_downloads
+            download_errors: list[Exception | None] = [None] * total_downloads
 
-            async def bounded_download(name):
-                async with download_semaphore:
-                    return await download_latest_dll_async(name, manifest)
+            async def bounded_download(index, name):
+                async with io_extreme:
+                    try:
+                        download_results[index] = await download_latest_dll_async(name, manifest)
+                    except Exception as e:
+                        download_errors[index] = e
 
-            download_tasks = [bounded_download(name) for name in dlls_to_update]
+            async with anyio.create_task_group() as tg:
+                for i, name in enumerate(dlls_to_update):
+                    tg.start_soon(bounded_download, i, name)
 
-            download_results = await asyncio.gather(*download_tasks, return_exceptions=True)
-
-            for i, result in enumerate(download_results):
-                if isinstance(result, Exception):
-                    logger.error(f"Error downloading {dlls_to_update[i]}: {result}")
-                elif not result:
+            for i in range(total_downloads):
+                if download_errors[i] is not None:
+                    logger.error(f"Error downloading {dlls_to_update[i]}: {download_errors[i]}")
+                elif not download_results[i]:
                     logger.error(f"Failed to download {dlls_to_update[i]}")
 
-                progress_pct = int(40 + ((i + 1) / len(dlls_to_update)) * 60)
-                await report_progress(progress_pct, 100, f"Downloaded {i + 1}/{len(dlls_to_update)} DLLs")
+                progress_pct = int(40 + ((i + 1) / total_downloads) * 60)
+                await report_progress(progress_pct, 100, f"Downloaded {i + 1}/{total_downloads} DLLs")
         else:
             await report_progress(100, 100, "All DLLs up to date")
     else:

@@ -41,11 +41,13 @@ This module is pure backend: it imports NO Flet symbols.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 
+import anyio
+
 from dlss_updater import nvapi_drs
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.scanner import _SKIP_DIRECTORIES
 
 logger = logging.getLogger("DLSSUpdater")
@@ -272,13 +274,13 @@ async def resolve_game_exe(game, db_manager) -> "object":
     # --- 1. cache ---------------------------------------------------------
     if gid is not None:
         try:
-            cached = await asyncio.to_thread(db_manager.get_game_exe_sync, gid)
+            cached = await anyio.to_thread.run_sync(db_manager.get_game_exe_sync, gid, limiter=thread_io)
         except Exception as e:
             logger.debug(f"Cache lookup failed for game {gid}: {e}")
             cached = None
         if cached:
             try:
-                exists = await asyncio.to_thread(os.path.isfile, cached)
+                exists = await anyio.to_thread.run_sync(os.path.isfile, cached, limiter=thread_io)
             except Exception:
                 exists = False
             if exists:
@@ -287,7 +289,7 @@ async def resolve_game_exe(game, db_manager) -> "object":
 
     # --- 2. heuristic (ranked candidates) --------------------------------
     try:
-        candidates = await asyncio.to_thread(_scan_candidate_exes, game_path)
+        candidates = await anyio.to_thread.run_sync(_scan_candidate_exes, game_path, limiter=thread_io)
     except Exception as e:
         logger.debug(f"Heuristic exe scan failed for {game_path}: {e}")
         candidates = []
@@ -313,7 +315,7 @@ async def resolve_game_exe(game, db_manager) -> "object":
 
     # --- 4. steam_manifest ------------------------------------------------
     try:
-        manifest_exe = await asyncio.to_thread(_resolve_steam_manifest_exe, game, candidates)
+        manifest_exe = await anyio.to_thread.run_sync(_resolve_steam_manifest_exe, game, candidates, limiter=thread_io)
     except Exception as e:
         logger.debug(f"Steam manifest assist failed: {e}")
         manifest_exe = None

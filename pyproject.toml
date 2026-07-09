@@ -1,6 +1,6 @@
 [project]
 name = "dlss-updater"
-version = "4.2.2"
+version = "4.2.3"
 description = "DLSS, XeSS, DirectStorage, FSR, and Streamline DLL updater for games"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -35,9 +35,11 @@ dependencies = [
     "flet==0.85.2; platform_system == 'Linux'",  # Core framework for Linux
     "flet-desktop==0.85.2; platform_system == 'Linux'",  # Desktop runtime for Linux (flet-desktop-light removed in 0.83.0; flet-desktop defaults to "light" flavor on Linux automatically)
     "msgspec>=0.21.1",
+    "tomli-w>=1.2.0",  # TOML writer required by msgspec.toml.encode (config.toml persistence); msgspec bundles no writer. Pure-Python, free-threaded + PyInstaller safe. Decode uses stdlib tomllib.
     "msgpack>=1.2.1",  # Free-threading compatible (has Py_mod_gil declaration)
+    "anyio>=4.14.1",  # Structured concurrency: cancel scopes, CapacityLimiter-based worker threads, async Path
     "aiohttp>=3.14.1",
-    "requests>=2.34.2",  # Fallback for DLL downloads when aiohttp fails; 2.32.5 fixes CVE-2024-47081
+    "niquests>=3.20.1",  # Fallback for DLL downloads when aiohttp fails; drop-in requests replacement, actively maintained (requests is in upstream feature-freeze), thread-safe, HTTP/2+HTTP/3 support
     "pyinstaller>=6.20.0",
     "aiosqlite>=0.22.1",
     "aiofiles>=25.1.0",
@@ -112,7 +114,7 @@ module_name = "main"
 # Build flow: pyinstaller DLSS_Updater_MSI.spec → briefcase package windows
 project_name = "DLSS Updater"
 bundle = "io.github.recol"
-version = "4.2.2"
+version = "4.2.3"
 url = "https://github.com/Recol/DLSS-Updater"
 license = "AGPL-3.0-only"
 license-files = ["LICENSE"]

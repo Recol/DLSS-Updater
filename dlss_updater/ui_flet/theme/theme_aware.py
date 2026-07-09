@@ -10,6 +10,8 @@ import asyncio
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from weakref import WeakSet
 
+import anyio
+
 if TYPE_CHECKING:
     import flet as ft
 
@@ -261,8 +263,11 @@ class ThemeRegistry:
                 except Exception:
                     pass  # Component may have been GC'd or detached
 
-            # Run all component updates concurrently; each waits its own delay
-            await asyncio.gather(*[_apply(c) for c in components])
+            # Run all component updates concurrently; each waits its own delay.
+            # _apply() swallows its own exceptions, so no error aggregation needed.
+            async with anyio.create_task_group() as tg:
+                for c in components:
+                    tg.start_soon(_apply, c)
 
             # Final page update flushes page-level (bgcolor/theme) changes and
             # any components whose self.update() no-op'd while detached.

@@ -9,8 +9,10 @@ import subprocess
 from pathlib import Path
 from typing import Callable, Any
 
+import anyio
 import flet as ft
 
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.config import LauncherPathName, config_manager
 from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
 from dlss_updater.models import GameCardData, DLLInfo, MAX_PATHS_PER_LAUNCHER
@@ -581,7 +583,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         """Check if all paths exist (async version - offloads blocking I/O to thread pool)"""
         if not self.current_paths:
             return True
-        return await asyncio.to_thread(self._validate_paths_sync)
+        return await anyio.to_thread.run_sync(self._validate_paths_sync, limiter=thread_io)
 
     async def _on_copy_paths(self, e):
         """Copy all configured paths to clipboard"""
@@ -609,7 +611,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                 if IS_WINDOWS:
                     import os
                     # Wrap blocking os.startfile in thread pool
-                    await asyncio.to_thread(os.startfile, path)
+                    await anyio.to_thread.run_sync(os.startfile, path, limiter=thread_io)
                 elif IS_LINUX:
                     # Use async subprocess for non-blocking execution
                     await asyncio.create_subprocess_exec(
@@ -629,7 +631,9 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
 
         if self.launcher_enum == LauncherPathName.STEAM:
             # Steam: detect all library folders via libraryfolders.vdf
-            detected_paths = await asyncio.to_thread(auto_detect_steam_library_paths)
+            detected_paths = await anyio.to_thread.run_sync(
+                auto_detect_steam_library_paths, limiter=thread_io
+            )
             if detected_paths:
                 added_count = 0
                 for path in detected_paths:
@@ -646,7 +650,9 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                 self._page_ref.snack_bar = ft.SnackBar(ft.Text("Could not auto-detect Steam paths"))
         else:
             # Other launchers: single registry-based detection
-            detected = await asyncio.to_thread(auto_detect_launcher_path, self.launcher_enum)
+            detected = await anyio.to_thread.run_sync(
+                auto_detect_launcher_path, self.launcher_enum, limiter=thread_io
+            )
             if detected:
                 added = config_manager.add_launcher_path(self.launcher_enum, detected)
                 if added:

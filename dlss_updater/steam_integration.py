@@ -10,8 +10,10 @@ import msgspec
 from pathlib import Path
 from datetime import datetime, timedelta
 import aiohttp
+import anyio
 
 from dlss_updater.logger import setup_logger
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.database import db_manager
 
 logger = setup_logger()
@@ -92,8 +94,10 @@ class SteamIntegration:
 
         # 1. Clear the steam_images directory (async via thread pool)
         if self.image_cache_dir.exists():
-            await asyncio.to_thread(shutil.rmtree, self.image_cache_dir)
-        await asyncio.to_thread(self.image_cache_dir.mkdir, parents=True, exist_ok=True)
+            await anyio.to_thread.run_sync(shutil.rmtree, self.image_cache_dir, limiter=thread_io)
+        await anyio.to_thread.run_sync(
+            lambda: self.image_cache_dir.mkdir(parents=True, exist_ok=True), limiter=thread_io
+        )
 
         # 2. Clear the database table (async via aiosqlite)
         await db_manager.clear_steam_images_cache()
@@ -206,7 +210,9 @@ class SteamIntegration:
 
             # Save to local cache file for timestamp tracking (smaller subset)
             cache_data = msgspec.json.encode(all_apps)
-            await asyncio.to_thread(self.app_list_cache_file.write_bytes, cache_data)
+            await anyio.to_thread.run_sync(
+                self.app_list_cache_file.write_bytes, cache_data, limiter=thread_io
+            )
 
             self._db_populated = True
             logger.info(f"Steam app list saved to database ({count} apps with FTS5 index)")
@@ -502,8 +508,18 @@ class SteamIntegration:
         """
         logger.info(f"Queueing {len(app_ids)} image downloads...")
 
-        tasks = [self.fetch_steam_header_image(app_id) for app_id in app_ids]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        app_ids = list(app_ids)
+        results: list = [None] * len(app_ids)
+
+        async def _fetch(i, app_id):
+            try:
+                results[i] = await self.fetch_steam_header_image(app_id)
+            except Exception as e:
+                results[i] = e
+
+        async with anyio.create_task_group() as tg:
+            for i, app_id in enumerate(app_ids):
+                tg.start_soon(_fetch, i, app_id)
 
         successful = sum(1 for r in results if isinstance(r, Path))
         logger.info(f"Image download complete: {successful}/{len(app_ids)} successful")
@@ -679,7 +695,9 @@ class SteamIntegration:
                 return None
 
             # Parse the VDF file (simple key-value format)
-            content = await asyncio.to_thread(vdf_path.read_text, encoding='utf-8', errors='ignore')
+            content = await anyio.to_thread.run_sync(
+                lambda: vdf_path.read_text(encoding='utf-8', errors='ignore'), limiter=thread_io
+            )
 
             # Parse users block - keys are Steam64 IDs
             # Format: "76561198084417777" { "PersonaName" "User" "MostRecent" "1" }

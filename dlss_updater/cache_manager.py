@@ -26,7 +26,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import aiofiles
+import anyio
 
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.logger import setup_logger
 from dlss_updater.task_registry import register_task
 
@@ -235,7 +237,7 @@ class UnifiedCacheManager:
             # Ensure directory exists
             cache_dir = Path(cache_dir)
             if not cache_dir.exists():
-                await asyncio.to_thread(cache_dir.mkdir, parents=True, exist_ok=True)
+                await anyio.Path(cache_dir).mkdir(parents=True, exist_ok=True)
 
             registered = _RegisteredCache(
                 name=name,
@@ -284,7 +286,7 @@ class UnifiedCacheManager:
                             logger.warning(f"Failed to stat {item}: {e}")
                 return entries
 
-            cache.entries = await asyncio.to_thread(scan_dir)
+            cache.entries = await anyio.to_thread.run_sync(scan_dir, limiter=thread_io)
             logger.debug(
                 f"Scanned cache '{cache.name}': "
                 f"{len(cache.entries)} entries, "
@@ -408,7 +410,7 @@ class UnifiedCacheManager:
                     path.relative_to(cache.cache_dir)
                     # Path is under this cache but not in entries - add it
                     if path.exists():
-                        stat_result = await asyncio.to_thread(path.stat)
+                        stat_result = await anyio.Path(path).stat()
                         cache.entries[path_str] = CacheEntry(
                             path=path,
                             size_bytes=stat_result.st_size,
@@ -498,7 +500,7 @@ class UnifiedCacheManager:
                         raise
 
                 try:
-                    file_handle, mmap_obj = await asyncio.to_thread(create_mmap)
+                    file_handle, mmap_obj = await anyio.to_thread.run_sync(create_mmap, limiter=thread_io)
 
                     handle = MmapHandle(
                         path=path,
@@ -594,7 +596,7 @@ class UnifiedCacheManager:
             except Exception as e:
                 logger.warning(f"Error closing file handle: {e}")
 
-        await asyncio.to_thread(close_resources)
+        await anyio.to_thread.run_sync(close_resources, limiter=thread_io)
 
     async def _release_all_mmaps(self) -> None:
         """Release all memory-mapped files."""
@@ -717,7 +719,7 @@ class UnifiedCacheManager:
                 try:
                     path = Path(path_str)
                     if path.exists():
-                        await asyncio.to_thread(path.unlink)
+                        await anyio.Path(path).unlink()
                     del entries[path_str]
                     evicted_count += 1
                 except Exception as e:
@@ -830,7 +832,7 @@ class UnifiedCacheManager:
                 try:
                     path = Path(path_str)
                     if path.exists():
-                        await asyncio.to_thread(path.unlink)
+                        await anyio.Path(path).unlink()
                     del entries[path_str]
                     cleared += 1
                 except Exception as e:

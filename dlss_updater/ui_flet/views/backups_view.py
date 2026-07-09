@@ -14,8 +14,10 @@ import asyncio
 import itertools
 import math
 import time
+import anyio
 import flet as ft
 
+from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.database import db_manager, DLLBackup
 from dlss_updater.models import GameWithBackupCount, GameDLLBackup
 from dlss_updater.backup_manager import restore_dll_from_backup, delete_backup
@@ -372,13 +374,13 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
             self.logger.info("Loading backups from database (grouped by game)...")
 
-            # PERFORMANCE: Run both database queries in parallel using ThreadPoolExecutor
-            # HyperParallelLoader uses true parallelism (not asyncio.to_thread serialization)
+            # PERFORMANCE: Run all database queries in parallel via HyperParallelLoader
+            # (anyio task group + shared thread_io limiter for true parallelism)
             start_db = time.perf_counter()
             loader = HyperParallelLoader()
             game_id = self.selected_game_id  # Capture for lambda
 
-            results = loader.load_all([
+            results = await loader.load_all([
                 LoadTask("games", lambda: db_manager.get_games_with_backups_sync()),
                 LoadTask("grouped", lambda gid=game_id: db_manager.get_backups_grouped_by_game_sync(gid)),
                 LoadTask("stats", lambda: db_manager.get_backup_summary_stats_sync()),
@@ -986,8 +988,8 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
         try:
             # Get all backups for this game using sync method in thread
-            grouped = await asyncio.to_thread(
-                db_manager.get_backups_grouped_by_game_sync, game_id
+            grouped = await anyio.to_thread.run_sync(
+                db_manager.get_backups_grouped_by_game_sync, game_id, limiter=thread_io
             )
             backups = grouped.get(game_id, [])
 

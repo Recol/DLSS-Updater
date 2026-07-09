@@ -196,7 +196,7 @@ class HubView(ThemeAwareMixin, ft.Column):
             from dlss_updater.database import db_manager
 
             loader = HyperParallelLoader()
-            results = loader.load_all([
+            results = await loader.load_all([
                 LoadTask("game_count", lambda: db_manager.get_game_count_sync()),
                 LoadTask("launcher_count", lambda: db_manager.get_configured_launchers_count_sync()),
                 LoadTask("backup_stats", lambda: db_manager.get_backup_summary_stats_sync()),
