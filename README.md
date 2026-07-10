@@ -86,7 +86,7 @@ understands games from every major launcher.
     </td>
     <td width="33%" valign="top">
       <h3>🎛️ DLSS Presets</h3>
-      Apply global or per-game SR / RR / FG preset overrides on Windows (NVIDIA), or per-title SR overrides with GPU recommendations on Linux.
+      Apply global or per-game SR / RR / FG preset overrides on Windows (NVIDIA), or per-title Proton launch options on Linux — DLSS SR/RR/FG overrides plus FSR&nbsp;4 &amp; XeSS DLL upgrades.
     </td>
   </tr>
   <tr>
@@ -142,7 +142,7 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 </details>
 
 <details>
-<summary><h3>🎛️ DLSS Preset Configuration</h3></summary>
+<summary><h3>🎛️ DLSS Presets &amp; Proton Upscalers</h3></summary>
 
 - **Global presets (Windows, experimental)** — the *DLSS Settings* card on the home page applies preset overrides to every game via the NVIDIA driver base profile (the same mechanism as the NVIDIA App's global override). Shows the currently applied preset; takes effect at the next game launch.
   - Super Resolution (SR): Default / Latest / Preset J / K / L / M
@@ -152,7 +152,10 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 - **Per-game presets (Windows, NVIDIA only)** — the **DLSS Settings** action on any game (right-click a card, or its *⋮* menu) opens a per-game panel that overrides SR / RR / FG for just that title via its NVIDIA per-application driver profile — the same mechanism the NVIDIA App uses for per-game overrides. It takes priority over the global setting for that game and applies at the next launch. The action is hidden automatically on non-NVIDIA systems.
   - The game's executable is detected automatically (NVIDIA driver lookup → folder heuristic → Steam manifest); when it can't be determined, a *Change executable* file picker lets you point at the correct `.exe`. Your executable and preset choices are remembered between sessions.
   - The panel reads back the value the driver is actually applying and distinguishes NVIDIA's predefined value from your own override. *Reset to default* clears the override (reverting to the game's predefined value) in one click.
-- **DLSS SR Preset Override (Linux only)** — configure SR presets (K/L/M) with GPU-based recommendations, and generate Steam launch options with copy-to-clipboard. *Preset L is heavier and may reduce performance.*
+- **Proton Upscalers (Linux only)** — the **Proton Upscalers** panel generates per-title Steam launch options (copy-to-clipboard; the same variables work in Heroic/Lutris environment settings):
+  - **DLSS (NVIDIA)** — SR presets (Latest / J / K / L / M) and RR presets (Latest) plus a Frame Generation override via DXVK-NVAPI, matching the Windows per-game dialog. Works on any Proton, including Valve's.
+  - **DLL upgrades (GE-Proton / Proton-CachyOS / Proton-EM)** — one-toggle `PROTON_DLSS_UPGRADE`, `PROTON_FSR4_UPGRADE` (RDNA3/RDNA4 aware) and `PROTON_XESS_UPGRADE` launch options with optional on-screen indicators. The panel reads each game's Proton build from Steam's compat-tool mapping and disables toggles that build doesn't support.
+  - GPU vendor is auto-detected (NVIDIA / AMD / Intel) to show the relevant sections, with RDNA3 mode recommended automatically on RX&nbsp;7000 GPUs.
 
 </details>
 

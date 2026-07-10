@@ -77,7 +77,7 @@ from dlss_updater.ui_flet.components.theme_manager import ThemeManager
 from dlss_updater.ui_flet.theme.colors import Shadows
 from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDialog
 from dlss_updater.ui_flet.components.slide_panel import PanelManager
-from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel, LinuxDLSSPresetsPanel, WindowsDLSSPresetsPanel, IgnoreListPanel
+from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel, ProtonUpscalerPanel, WindowsDLSSPresetsPanel, IgnoreListPanel
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
@@ -1076,9 +1076,9 @@ class MainView(ft.Column):
         await dialog.show()
 
     async def _on_dlss_sr_presets_clicked(self, e):
-        """Handle Linux DLSS SR presets settings button click"""
+        """Handle Proton upscalers settings button click (Linux)"""
         panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
-        panel = LinuxDLSSPresetsPanel(self._page_ref, self.logger)
+        panel = ProtonUpscalerPanel(self._page_ref, self.logger)
         await panel_manager.show_content(panel)
 
     async def _on_dlss_settings_clicked(self, e=None):

@@ -9,8 +9,10 @@ Thread-safe for Python 3.14 free-threading.
 """
 
 import logging
+import re
 import threading
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, NamedTuple
 
 import anyio
 
@@ -191,6 +193,108 @@ def _is_nvidia_gpu_present_sync() -> bool:
 
         except Exception:
             return False
+
+
+# =============================================================================
+# Linux GPU vendor detection (sysfs PCI ids) — used by the Proton upscaler
+# panel to gate NVIDIA/AMD/Intel sections and pick FSR4 RDNA3 vs RDNA4 mode.
+# =============================================================================
+
+# PCI vendor ids
+_PCI_VENDOR_NVIDIA = 0x10DE
+_PCI_VENDOR_AMD = 0x1002
+_PCI_VENDOR_INTEL = 0x8086
+
+# Known AMD RDNA3 iGPU device ids (fall outside the discrete Navi3x range).
+# Best-effort: misclassification is recoverable via the panel's manual
+# GPU-generation override.
+_AMD_RDNA3_IGPU_IDS = {0x15BF, 0x15C8, 0x150E, 0x1586}
+
+
+class LinuxGPU(NamedTuple):
+    """A GPU found via /sys/class/drm PCI ids."""
+    vendor: str          # "nvidia" | "amd" | "intel" | "unknown"
+    vendor_id: int
+    device_id: int
+    amd_generation: str | None  # "rdna4" | "rdna3" | "other" (AMD only)
+
+
+def classify_pci_gpu(vendor_id: int, device_id: int) -> LinuxGPU:
+    """
+    Classify a PCI (vendor, device) id pair into vendor + AMD generation.
+
+    AMD generation uses device-id ranges: Navi 4x (RDNA4, FSR4 FP8-capable)
+    sits in 0x7500-0x75FF, Navi 3x (RDNA3, FSR4 via FP16 path) in
+    0x7400-0x74FF, plus the known RDNA3 iGPU ids above.
+    """
+    if vendor_id == _PCI_VENDOR_NVIDIA:
+        return LinuxGPU("nvidia", vendor_id, device_id, None)
+    if vendor_id == _PCI_VENDOR_AMD:
+        if 0x7500 <= device_id <= 0x75FF:
+            gen = "rdna4"
+        elif 0x7400 <= device_id <= 0x74FF or device_id in _AMD_RDNA3_IGPU_IDS:
+            gen = "rdna3"
+        else:
+            gen = "other"
+        return LinuxGPU("amd", vendor_id, device_id, gen)
+    if vendor_id == _PCI_VENDOR_INTEL:
+        return LinuxGPU("intel", vendor_id, device_id, None)
+    return LinuxGPU("unknown", vendor_id, device_id, None)
+
+
+def _detect_linux_gpus_sync() -> list[LinuxGPU]:
+    """Enumerate GPUs from /sys/class/drm/card*/device/{vendor,device}."""
+    if not IS_LINUX:
+        return []
+
+    gpus: list[LinuxGPU] = []
+    seen: set[tuple[int, int]] = set()
+    drm_root = Path("/sys/class/drm")
+
+    try:
+        cards = sorted(
+            p for p in drm_root.iterdir()
+            if re.fullmatch(r"card\d+", p.name)
+        )
+    except OSError:
+        return []
+
+    for card in cards:
+        try:
+            vendor_id = int((card / "device" / "vendor").read_text().strip(), 16)
+            device_id = int((card / "device" / "device").read_text().strip(), 16)
+        except (OSError, ValueError):
+            continue
+        if (vendor_id, device_id) in seen:
+            continue
+        seen.add((vendor_id, device_id))
+        gpus.append(classify_pci_gpu(vendor_id, device_id))
+
+    logger.debug(f"Linux sysfs GPUs: {gpus}")
+    return gpus
+
+
+async def detect_linux_gpus() -> list[LinuxGPU]:
+    """Async wrapper for sysfs GPU enumeration (empty list off-Linux)."""
+    return await anyio.to_thread.run_sync(_detect_linux_gpus_sync, limiter=thread_io)
+
+
+def pick_primary_gpu(gpus: list[LinuxGPU]) -> LinuxGPU | None:
+    """
+    Pick the GPU most relevant for upscaler configuration: a discrete
+    NVIDIA/AMD card over an iGPU, Intel last (hybrid laptops usually render
+    games on the dGPU).
+    """
+    def rank(gpu: LinuxGPU) -> int:
+        if gpu.vendor == "nvidia":
+            return 0
+        if gpu.vendor == "amd":
+            return {"rdna4": 1, "rdna3": 2}.get(gpu.amd_generation or "", 3)
+        if gpu.vendor == "intel":
+            return 4
+        return 5
+
+    return min(gpus, key=rank) if gpus else None
 
 
 async def cleanup_nvml() -> None:

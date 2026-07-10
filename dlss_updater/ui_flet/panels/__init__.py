@@ -6,7 +6,7 @@ from .preferences_panel import PreferencesPanel
 from .release_notes_panel import ReleaseNotesPanel
 from .blacklist_panel import BlacklistPanel
 from .ui_preferences_panel import UIPreferencesPanel
-from .linux_dlss_panel import LinuxDLSSPresetsPanel
+from .proton_upscaler_panel import ProtonUpscalerPanel
 from .dlss_settings_panel import WindowsDLSSPresetsPanel
 from .ignore_list_panel import IgnoreListPanel
 
@@ -15,7 +15,7 @@ __all__ = [
     "ReleaseNotesPanel",
     "BlacklistPanel",
     "UIPreferencesPanel",
-    "LinuxDLSSPresetsPanel",
+    "ProtonUpscalerPanel",
     "WindowsDLSSPresetsPanel",
     "IgnoreListPanel",
 ]

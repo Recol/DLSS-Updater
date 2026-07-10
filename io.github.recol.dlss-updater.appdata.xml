@@ -64,6 +64,19 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.3.0" date="2026-07-10">
+      <description>
+        <p>New Proton Upscalers panel for Linux</p>
+        <ul>
+          <li>The "Linux DLSS SR Presets" panel is now a per-title Proton upscaler configurator covering all three GPU vendors</li>
+          <li>DLSS Ray Reconstruction preset override and Frame Generation override via DXVK-NVAPI (parity with the Windows per-game dialog), plus new "Latest" and "Preset J" SR preset choices</li>
+          <li>DLSS / FSR 4 / XeSS DLL upgrade toggles and on-screen indicators via the community Proton forks' launch options (GE-Proton, Proton-CachyOS, Proton-EM), with an RDNA3/RDNA4 mode switch for FSR 4</li>
+          <li>Per-game validation: the panel reads Steam's compat-tool mapping to show which Proton build a selected game runs under and disables upgrade toggles that build doesn't ship</li>
+          <li>GPU vendor auto-detection (NVIDIA/AMD/Intel) gates the vendor sections and recommends RDNA3 mode on RX 7000 GPUs</li>
+          <li>Backwards compatible: configs saved by older versions generate identical launch options, and the generated string still works as environment variables in Heroic/Lutris</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.2.3" date="2026-07-09">
       <description>
         <p>Modernized async/dependency stack, plus fixes found through it</p>

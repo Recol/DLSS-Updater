@@ -1,3 +1,23 @@
+Version 4.3.0:
+New Features:
+  - Proton Upscalers panel (Linux): the "Linux DLSS SR Presets" panel is now
+    a per-title Proton upscaler configurator covering all three GPU vendors:
+    - DLSS Ray Reconstruction preset override and Frame Generation override
+      via DXVK-NVAPI (parity with the Windows per-game dialog), plus new
+      "Latest" and "Preset J" SR preset choices.
+    - DLSS / FSR 4 / XeSS DLL upgrade toggles and on-screen indicators via
+      the community Proton forks' launch options (GE-Proton, Proton-CachyOS,
+      Proton-EM), with an RDNA3/RDNA4 mode switch for FSR 4.
+    - Per-game validation: the panel reads Steam's compat-tool mapping
+      (config.vdf CompatToolMapping) to show which Proton build a selected
+      game runs under and disables upgrade toggles that build doesn't ship
+      (Valve's upstream Proton has none of the upgrade downloaders).
+    - GPU vendor auto-detection (NVIDIA/AMD/Intel via sysfs PCI ids) gates
+      the vendor sections and recommends RDNA3 mode on RX 7000 GPUs.
+    - Backwards compatible: configs saved by older versions generate
+      byte-identical launch options, and the generated string still works as
+      environment variables in Heroic/Lutris.
+
 Version 4.2.3:
 Modernized async/dependency stack:
   - Replaced the DLL-download fallback library (requests, now in upstream

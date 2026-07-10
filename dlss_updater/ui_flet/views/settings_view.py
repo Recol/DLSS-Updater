@@ -142,11 +142,11 @@ class SettingsView(ThemeAwareMixin, ft.Column):
                 on_click=lambda e: self._handle_click(self._on_open_dlss_overlay, e),
             ))
 
-        # Add Linux DLSS SR Presets if available (Linux only with NVIDIA GPU)
+        # Add Proton upscaler options if available (Linux only)
         if FEATURES.dlss_linux_presets:
             tiles.insert(4, self._create_settings_tile(
-                "Linux DLSS SR Presets",
-                "Configure Super Resolution presets for Proton/Wine",
+                "Proton Upscalers",
+                "DLSS, FSR 4 & XeSS launch options for Proton/Wine",
                 ft.Icons.TUNE,
                 "dlss_linux_presets",
                 is_dark,

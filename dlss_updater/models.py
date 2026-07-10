@@ -574,12 +574,15 @@ class GPUInfo(msgspec.Struct):
 
 class DLSSPreset(StrEnum):
     """
-    DLSS Super Resolution render presets for Linux/DXVK-NVAPI.
+    DLSS render presets for Linux/DXVK-NVAPI (SR and RR).
 
     These presets control the internal rendering quality/performance balance
-    when using DLSS SR through Proton/Wine with DXVK-NVAPI.
+    when using DLSS through Proton/Wine with DXVK-NVAPI. The same value space
+    is used for Super Resolution and Ray Reconstruction preset overrides.
     """
     DEFAULT = "default"
+    LATEST = "latest"      # Always use the newest available preset
+    PRESET_J = "preset_j"  # Transformer model (slightly less ghosting than K)
     PRESET_K = "preset_k"  # Lighter preset (RTX 20/30 recommended)
     PRESET_L = "preset_l"  # Balanced preset
     PRESET_M = "preset_m"  # Heavier preset (RTX 40/50 recommended)
@@ -589,6 +592,8 @@ class DLSSPreset(StrEnum):
         """Get DXVK-NVAPI environment variable value."""
         mapping = {
             "default": "",
+            "latest": "render_preset_latest",
+            "preset_j": "render_preset_j",
             "preset_k": "render_preset_k",
             "preset_l": "render_preset_l",
             "preset_m": "render_preset_m",
@@ -600,6 +605,8 @@ class DLSSPreset(StrEnum):
         """Get human-readable display name."""
         names = {
             "default": "Default (No Override)",
+            "latest": "Latest (Always Newest)",
+            "preset_j": "Preset J (Transformer)",
             "preset_k": "Preset K (Lighter)",
             "preset_l": "Preset L (Balanced)",
             "preset_m": "Preset M (Heavier)",
@@ -609,14 +616,32 @@ class DLSSPreset(StrEnum):
 
 class LinuxDLSSConfig(msgspec.Struct, frozen=True):
     """
-    Configuration for Linux DLSS SR presets.
+    Configuration for Linux Proton upscaler launch options.
 
-    Used to generate Steam launch options for DXVK-NVAPI environment variables.
+    Used to generate Steam launch options covering DXVK-NVAPI DLSS overrides
+    (SR/RR presets, FG override, debug overlay) and the community Proton
+    forks' upscaler DLL upgrade variables (PROTON_DLSS_UPGRADE etc.). The
+    generated `ENV=value ... %command%` string also works as environment
+    settings in Heroic/Lutris.
+
+    All new fields default to "off" so configs saved by older versions keep
+    producing byte-identical launch options.
     """
-    selected_preset: str = "default"
-    overlay_enabled: bool = False
+    selected_preset: str = "default"      # DLSS SR render preset (DXVK-NVAPI)
+    overlay_enabled: bool = False          # DXVK-NVAPI debug overlay (DLSSIndicator)
     wayland_enabled: bool = False
     hdr_enabled: bool = False
+    # DLSS (NVIDIA) — DXVK-NVAPI DRS overrides + fork upgrade vars
+    rr_preset: str = "default"             # Ray Reconstruction render preset
+    fg_override: bool = False              # NGX_DLSS_FG_OVERRIDE=on
+    dlss_upgrade: bool = False             # PROTON_DLSS_UPGRADE=1 (GE/CachyOS)
+    dlss_indicator: bool = False           # PROTON_DLSS_INDICATOR=1 (GE/CachyOS)
+    # FSR 4 (AMD) — fork upgrade vars
+    fsr4_upgrade: bool = False             # PROTON_FSR4_UPGRADE=1
+    fsr4_rdna3_mode: bool = False          # use PROTON_FSR4_RDNA3_UPGRADE instead
+    fsr4_indicator: bool = False           # PROTON_FSR4_INDICATOR=1
+    # XeSS (Intel) — fork upgrade var
+    xess_upgrade: bool = False             # PROTON_XESS_UPGRADE=1
 
 
 # =============================================================================
