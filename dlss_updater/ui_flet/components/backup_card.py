@@ -3,6 +3,7 @@ Backup Card Component
 Individual backup entry card with restore and delete actions
 """
 
+import anyio
 from datetime import datetime
 import flet as ft
 
@@ -258,9 +259,8 @@ class BackupCard(ThemeAwareMixin, ft.Card):
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme with optional cascade delay - extended for complex updates"""
-        import asyncio
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             # Apply base properties

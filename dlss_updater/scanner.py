@@ -1232,7 +1232,7 @@ async def find_all_dlls(progress_callback=None):
                 _has_api_credentials = False
 
         # Store search rate limiter (shared across all prepare_game_data calls)
-        _store_search_semaphore = asyncio.Semaphore(3)
+        _store_search_semaphore = anyio.Semaphore(3)
 
         games_to_insert = []
         game_dll_mapping = {}  # Maps game path to list of DLL paths
@@ -1262,7 +1262,7 @@ async def find_all_dlls(progress_callback=None):
                     app_id = await find_app_id_via_store_search(game_name)
                     if app_id:
                         resolution_source = 'store_search'
-                        await asyncio.sleep(1.5)  # Rate limit only on actual API hits
+                        await anyio.sleep(1.5)  # Rate limit only on actual API hits
 
             # Tier 4: FTS5 fuzzy match (last resort)
             if app_id is None:
@@ -1434,12 +1434,14 @@ async def find_all_dlls(progress_callback=None):
 def find_all_dlls_sync():
     """Synchronous wrapper for find_all_dlls to use in non-async contexts.
 
-    Uses asyncio.run() which is the recommended way to run async code from
-    sync contexts in Python 3.14+. This handles event loop creation and cleanup
-    automatically.
+    Uses anyio.run() to run async code from sync contexts. This handles event
+    loop creation and cleanup automatically. Must NOT be called from a thread
+    while an event loop is already running elsewhere in the process (spin up
+    per-thread loops races the free-threaded _asyncio module; see the 4.2.x
+    "all_tasks returned a result with an exception set" bug).
     """
     try:
-        return asyncio.run(find_all_dlls())
+        return anyio.run(find_all_dlls)
     except Exception as e:
         logger.error(f"Error in find_all_dlls_sync: {e}")
         import traceback

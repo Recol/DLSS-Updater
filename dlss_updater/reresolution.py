@@ -13,7 +13,8 @@ The re-resolution process:
 3. Batch updates DB, clears old images, resets fetch_failed flags
 """
 
-import asyncio
+import anyio
+import inspect
 from typing import Any
 
 from dlss_updater.logger import setup_logger
@@ -127,7 +128,7 @@ async def run_reresolution(
             if new_app_id:
                 new_source = "store_search"
             # Rate limit every store search request (hit or miss)
-            await asyncio.sleep(1.5)
+            await anyio.sleep(1.5)
 
         if new_app_id and new_app_id != game.steam_app_id:
             # App ID changed or newly resolved
@@ -198,7 +199,7 @@ async def _safe_callback(callback: Any, *args: Any) -> None:
     """Safely invoke a progress callback, handling both sync and async."""
     try:
         result = callback(*args)
-        if asyncio.iscoroutine(result):
+        if inspect.iscoroutine(result):
             await result
     except Exception as e:
         logger.debug(f"Progress callback error: {e}")

@@ -66,7 +66,7 @@ class ImageLoadCoordinator:
         self._logger = logger
         self._pending_cards: list[tuple['GameCard', str]] = []
         self._batch_task: asyncio.Task | None = None
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
         self._debounce_ms = 50  # Wait 50ms for more cards to complete
         self._max_batch_size = 20  # Cap batch size to prevent memory issues
 
@@ -88,7 +88,7 @@ class ImageLoadCoordinator:
     async def _flush_batch(self):
         """Flush all pending image updates with minimal page.update() calls after debounce."""
         # Debounce: wait for more cards to complete
-        await asyncio.sleep(self._debounce_ms / 1000)
+        await anyio.sleep(self._debounce_ms / 1000)
         await self._flush_batch_immediate()
 
     async def _flush_batch_immediate(self):
@@ -144,7 +144,7 @@ class ImageLoadCoordinator:
             update1_ms = (time.perf_counter() - start_update1) * 1000
 
             # Brief delay for render tree attachment (30ms)
-            await asyncio.sleep(0.03)
+            await anyio.sleep(0.03)
 
             # Phase 2: Trigger all fade-in animations simultaneously
             start_anim = time.perf_counter()
@@ -963,7 +963,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 self.update()
 
                 # Yield to event loop
-                await asyncio.sleep(0.02)
+                await anyio.sleep(0.02)
 
             self.logger.debug(f"[PERF] Background loaded {loaded} additional {launcher} cards")
 
@@ -1036,7 +1036,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                     register_task(img_task, "load_uncached_bg_images")
 
                 # Yield to event loop to keep UI responsive
-                await asyncio.sleep(0.02)
+                await anyio.sleep(0.02)
 
             except Exception as e:
                 self.logger.error(f"Error in progressive batch {i}: {e}", exc_info=True)
@@ -1047,7 +1047,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
     async def _animate_cards_in(self, game_cards: list[GameCard]):
         """Animate game cards with staggered fade-in for grid layout (optimized)"""
         # Small initial delay
-        await asyncio.sleep(0.1)
+        await anyio.sleep(0.1)
 
         # For grid layout, animate first 12 cards in batches of 4 to reduce update calls
         cards_to_animate = game_cards[:12]
@@ -1060,7 +1060,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 card.opacity = 0.5 if card.is_ignored else 1
             # Single update per batch instead of per card (isolated view)
             self.update()
-            await asyncio.sleep(0.08)  # 80ms delay per batch (smoother than 40ms per card)
+            await anyio.sleep(0.08)  # 80ms delay per batch (smoother than 40ms per card)
 
         # Set remaining cards to visible immediately
         for card in game_cards[12:]:
@@ -1842,7 +1842,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
     async def _show_restore_confirmation_dialog(self, game, dll_group: str) -> bool:
         """Show confirmation dialog before restore, returns True if confirmed"""
-        confirmed = asyncio.Event()
+        confirmed = anyio.Event()
         result = [False]  # Use list to capture result in closure
 
         title = f"Restore {game.name}?"

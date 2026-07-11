@@ -4,6 +4,7 @@ Individual game card with Steam image, DLL badges, and action buttons
 """
 
 import asyncio
+import anyio
 from pathlib import Path
 from typing import Callable, Any
 import flet as ft
@@ -119,7 +120,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self._footer_row: ft.Row | None = None
 
         # Async lock for UI updates to prevent race conditions
-        self._ui_lock = asyncio.Lock()
+        self._ui_lock = anyio.Lock()
         self._image_loaded = False  # Prevent duplicate image loads
 
         # Get theme state and register
@@ -1350,7 +1351,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self.image_container.content = self.image_widget
 
         # Single wait for control to be added to page (Flet 0.80.4 is faster)
-        await asyncio.sleep(0.1)
+        await anyio.sleep(0.1)
 
         # Phase 2: Trigger fade-in with single card update
         async with self._ui_lock:

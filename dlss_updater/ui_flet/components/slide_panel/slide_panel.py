@@ -4,6 +4,7 @@ Provides a sliding panel from the right side with scrim overlay, animations, and
 """
 
 import asyncio
+import anyio
 import flet as ft
 import logging
 from typing import Optional
@@ -372,7 +373,7 @@ class SlidePanel(ThemeAwareMixin):
             register_task(asyncio.create_task(initialize_content()), "panel_content_init")
 
             # Wait for animation to complete
-            await asyncio.sleep(self.OPEN_DURATION / 1000)
+            await anyio.sleep(self.OPEN_DURATION / 1000)
 
             self._is_open = True
             self.logger.info("Slide panel opened")
@@ -413,7 +414,7 @@ class SlidePanel(ThemeAwareMixin):
             self._page_ref.update()
 
             # Wait for animation to complete
-            await asyncio.sleep(self.CLOSE_DURATION / 1000)
+            await anyio.sleep(self.CLOSE_DURATION / 1000)
 
             # Call content on_close
             await self.content.on_close()

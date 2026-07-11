@@ -166,7 +166,7 @@ async def main(page: ft.Page):
         try:
             from dlss_updater.whitelist import initialize_whitelist
             await initialize_whitelist()
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             logger.info("Whitelist initialization cancelled")
             raise
         except Exception as e:
@@ -225,7 +225,7 @@ async def main(page: ft.Page):
             logger.info("DLL cache initialized successfully")
             await snackbar.show_complete()
 
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             logger.info("DLL cache initialization cancelled")
             raise
         except Exception as e:
@@ -237,7 +237,7 @@ async def main(page: ft.Page):
         try:
             from dlss_updater.steam_integration import update_steam_app_list_if_needed
             await update_steam_app_list_if_needed()
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             logger.info("Steam list update cancelled")
             raise
         except Exception as e:
@@ -307,7 +307,7 @@ async def main(page: ft.Page):
 
     async def _debounced_window_save():
         """Save window state after 300ms of no further changes."""
-        await asyncio.sleep(0.3)
+        await anyio.sleep(0.3)
         _save_window_state_now()
 
     def _schedule_window_save():
@@ -385,7 +385,7 @@ async def main(page: ft.Page):
 
     async def _debounced_resize_update():
         """Perform actual resize update after debounce delay."""
-        await asyncio.sleep(_resize_debounce_ms / 1000)
+        await anyio.sleep(_resize_debounce_ms / 1000)
         # ResponsiveRow handles layout automatically, just trigger update
         if page and hasattr(page, 'update'):
             try:

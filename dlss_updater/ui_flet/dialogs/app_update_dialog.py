@@ -10,6 +10,7 @@ import webbrowser
 import flet as ft
 
 from dlss_updater.auto_updater import check_for_updates_async, get_platform_name
+from dlss_updater.linux_paths import is_flathub
 from dlss_updater.version import __version__
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.theme.colors import MD3Colors
@@ -79,6 +80,32 @@ class AppUpdateDialog(ThemeAwareMixin):
     async def check_and_show(self):
         """Check for updates and show appropriate dialog"""
         is_dark = self._registry.is_dark
+
+        # Flathub builds must not offer out-of-band downloads (store policy);
+        # updates arrive through Flathub itself. The GitHub-bundle Flatpak
+        # (different app ID) keeps the normal update check.
+        if is_flathub():
+            flathub_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Updates via Flathub", color=MD3Colors.get_text_primary(is_dark)),
+                content=ft.Container(
+                    content=ft.Text(
+                        "This copy of DLSS Updater is managed by Flathub. "
+                        "Updates are delivered through your software center "
+                        "or with: flatpak update",
+                        size=14,
+                        color=MD3Colors.get_text_primary(is_dark),
+                    ),
+                    padding=ft.Padding.all(16),
+                ),
+                actions=[
+                    ft.TextButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
+                ],
+                bgcolor=MD3Colors.get_surface(is_dark),
+            )
+            self._page_ref.show_dialog(flathub_dialog)
+            self._page_ref.update()
+            return
 
         # Show loading
         checking_dialog = ft.AlertDialog(

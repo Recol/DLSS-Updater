@@ -3,7 +3,7 @@ Panel manager for slide panels.
 Singleton that manages panel lifecycle and ensures only one panel is open at a time.
 """
 
-import asyncio
+import anyio
 import logging
 from typing import Optional
 
@@ -91,7 +91,7 @@ class PanelManager:
         self._page_ref = page
         self.logger = logger
         self._current_panel: Optional[SlidePanel] = None
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
 
         self.logger.info("PanelManager initialized")
 

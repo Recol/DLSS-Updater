@@ -10,7 +10,7 @@ Three outcomes:
 - 'cancel' — abort the update entirely
 """
 
-import asyncio
+import anyio
 import logging
 
 import flet as ft
@@ -45,7 +45,7 @@ class RollbackWarningDialog:
         self.flagged = flagged
         self._registry = get_theme_registry()
         self._result: str = "cancel"
-        self._close_event: asyncio.Event | None = None
+        self._close_event: anyio.Event | None = None
         self._dialog: ft.AlertDialog | None = None
 
     def _build_flagged_list(self, is_dark: bool) -> ft.Control:
@@ -119,7 +119,7 @@ class RollbackWarningDialog:
     async def show(self) -> str:
         """Show the dialog and return 'skip', 'proceed', or 'cancel'."""
         self._result = "cancel"
-        self._close_event = asyncio.Event()
+        self._close_event = anyio.Event()
         is_dark = self._registry.is_dark
 
         async def _set_result(result: str):

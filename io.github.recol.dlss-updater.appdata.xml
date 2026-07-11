@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.3.1" date="2026-07-11">
+      <description>
+        <p>Maintenance release</p>
+        <ul>
+          <li>Fixed update-history entries occasionally failing to record during large batch updates (the "all_tasks returned a result with an exception set" log warning)</li>
+          <li>Internal: completed the codebase-wide migration from raw asyncio to anyio structured concurrency</li>
+          <li>Groundwork for future Flathub distribution (channel detection, correct flatpak override hints per app ID)</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.3.0" date="2026-07-10">
       <description>
         <p>New Proton Upscalers panel for Linux</p>

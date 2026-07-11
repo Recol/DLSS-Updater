@@ -5,6 +5,7 @@ A clean, animated menu selector based on Project Matrix's CategorySelector patte
 Features colored icon circles, hover effects, and smooth animations.
 """
 
+import anyio
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -399,9 +400,8 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme with optional cascade delay - extended for complex updates"""
-        import asyncio
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             # Update container background

@@ -3,7 +3,7 @@ High Performance Mode Warning Dialog
 Shows warning and system info when user enables high-performance mode
 """
 
-import asyncio
+import anyio
 import logging
 from typing import Callable, Any
 
@@ -31,7 +31,7 @@ class HighPerfWarningDialog:
         self.logger = logger
         self._confirmed = False
         self._dialog: ft.AlertDialog | None = None
-        self._close_event: asyncio.Event | None = None
+        self._close_event: anyio.Event | None = None
 
     def _get_memory_stats(self) -> tuple[float, float, float]:
         """
@@ -188,7 +188,7 @@ class HighPerfWarningDialog:
             True if user clicked "Enable", False for "Cancel" or close
         """
         self._confirmed = False
-        self._close_event = asyncio.Event()
+        self._close_event = anyio.Event()
 
         # Get current memory stats
         available_gb, total_gb, percent_used = self._get_memory_stats()

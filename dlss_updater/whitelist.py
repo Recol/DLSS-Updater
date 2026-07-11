@@ -2,7 +2,6 @@ import csv
 import threading
 from io import StringIO
 from pathlib import Path
-import asyncio
 import aiohttp
 import anyio
 from dlss_updater.logger import setup_logger
@@ -18,17 +17,17 @@ WHITELIST_URL = (
 # Lazy-loaded whitelist cache (not fetched at import time)
 _whitelist_cache: set = set()
 _whitelist_initialized: bool = False
-_whitelist_lock: asyncio.Lock | None = None
+_whitelist_lock: anyio.Lock | None = None
 
 # Thread-safety lock for sync access (free-threading Python 3.14+)
 _whitelist_threading_lock = threading.Lock()
 
 
-async def _get_lock() -> asyncio.Lock:
+async def _get_lock() -> anyio.Lock:
     """Get or create the whitelist lock (must be called from async context)"""
     global _whitelist_lock
     if _whitelist_lock is None:
-        _whitelist_lock = asyncio.Lock()
+        _whitelist_lock = anyio.Lock()
     return _whitelist_lock
 
 

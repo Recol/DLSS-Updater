@@ -1,4 +1,3 @@
-import asyncio
 import sys
 import msgspec
 import aiohttp

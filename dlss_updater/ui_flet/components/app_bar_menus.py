@@ -7,6 +7,7 @@ with 3 separate PopupMenuButton icons for maximum performance (~20-30ms per popu
 Each popup uses native Flutter GPU-accelerated rendering with minimal control trees.
 """
 
+import anyio
 from dataclasses import dataclass
 from typing import Callable
 import inspect
@@ -236,9 +237,8 @@ class BasePopupMenu(ThemeAwareMixin):
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme with optional cascade delay"""
-        import asyncio
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             self._is_dark = is_dark

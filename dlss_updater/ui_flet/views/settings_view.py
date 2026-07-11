@@ -3,6 +3,7 @@ Settings View
 Hub for accessing all application settings: Update preferences, UI preferences, blacklist, etc.
 """
 
+import anyio
 import logging
 
 import flet as ft
@@ -284,8 +285,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme to settings view, recoloring all tiles in place."""
         if delay_ms > 0:
-            import asyncio
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         settings_accent = TabColors.SETTINGS if is_dark else TabColors._TAB_COLORS_LIGHT.get("Settings", "#6A1B9A")
 

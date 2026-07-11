@@ -4,7 +4,7 @@ Left column: Launchers + Settings cards stacked
 Right side: Large Games card spanning full height
 """
 
-import asyncio
+import anyio
 import logging
 
 import flet as ft
@@ -246,7 +246,7 @@ class HubView(ThemeAwareMixin, ft.Column):
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme to hub view and all child cards."""
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         # Cards handle their own theming via ThemeAwareMixin
         # Nothing extra needed at hub level

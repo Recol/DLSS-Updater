@@ -3,7 +3,7 @@ DLL Cache Progress Notification Component
 Custom Container-based notification with fade animations for reliable show/hide
 """
 
-import asyncio
+import anyio
 from enum import Enum
 import flet as ft
 
@@ -176,7 +176,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         self._page_ref.update()
 
         # Small delay then fade in
-        await asyncio.sleep(0.05)
+        await anyio.sleep(0.05)
         self.container.opacity = 1
         self._page_ref.update()
 
@@ -236,7 +236,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         self._page_ref.update()
 
         # Auto-dismiss after delay
-        await asyncio.sleep(auto_dismiss_delay)
+        await anyio.sleep(auto_dismiss_delay)
         await self.hide()
 
     async def show_error(self, error_message: str = "Failed to initialise DLL cache"):
@@ -259,7 +259,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         self._page_ref.update()
 
         # Auto-dismiss after longer delay for errors
-        await asyncio.sleep(5)
+        await anyio.sleep(5)
         await self.hide()
 
     async def hide(self):
@@ -272,7 +272,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         self._page_ref.update()
 
         # Wait for animation to complete
-        await asyncio.sleep(0.35)
+        await anyio.sleep(0.35)
 
         # Hide completely
         self.container.visible = False
@@ -305,7 +305,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme with cascade animation support"""
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             # Update container bgcolor based on current state

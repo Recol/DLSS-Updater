@@ -5,7 +5,6 @@ Provides timing decorators and context managers for measuring UI performance.
 All measurements are logged at DEBUG level for minimal overhead in production.
 """
 
-import asyncio
 import functools
 import logging
 import time

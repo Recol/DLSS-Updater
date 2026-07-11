@@ -3,7 +3,7 @@ Navigation Controller
 Replaces tab-based navigation with hub + view switching via Stack-based visibility toggle.
 """
 
-import asyncio
+import anyio
 import logging
 import time
 from typing import Callable, Any
@@ -62,7 +62,7 @@ class NavigationController(ft.Column):
         # Navigation state
         self._current_view = self.HUB
         self._nav_stack: list[str] = []  # Max 10 entries
-        self._transition_lock = asyncio.Lock()
+        self._transition_lock = anyio.Lock()
 
         # Store view references separately from containers.
         # Only the ACTIVE view has its content attached; inactive containers

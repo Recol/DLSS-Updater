@@ -6,7 +6,7 @@ Designed for Python 3.14 free-threaded compatibility.
 
 from __future__ import annotations
 
-import asyncio
+import anyio
 from typing import TYPE_CHECKING
 
 import flet as ft
@@ -36,7 +36,7 @@ class ThemeManager:
     def __init__(self, page: ft.Page):
         self._page_ref = page
         self.is_dark = True  # Default to dark
-        self._toggle_lock = asyncio.Lock()
+        self._toggle_lock = anyio.Lock()
         self._registry = get_theme_registry()
 
         # Load user preference or detect OS theme

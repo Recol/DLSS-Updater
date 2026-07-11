@@ -29,6 +29,23 @@ def is_flatpak() -> bool:
     return os.path.exists("/.flatpak-info")
 
 
+# App ID used by the Flathub distribution. The direct-download bundle from
+# GitHub releases keeps the historical dashed ID (io.github.recol.dlss-updater);
+# Flathub requires the underscore form that maps to the GitHub repo.
+FLATHUB_APP_ID = "io.github.recol.dlss_updater"
+
+
+def is_flathub() -> bool:
+    """
+    Check if this is the Flathub-distributed build (as opposed to the
+    .flatpak bundle attached to GitHub releases).
+
+    Flatpak exports the sandbox's app ID in FLATPAK_ID; the two distribution
+    channels use different IDs, so this distinguishes them at runtime.
+    """
+    return os.environ.get("FLATPAK_ID") == FLATHUB_APP_ID
+
+
 def get_flatpak_override_command(path: str | Path) -> str:
     """
     Generate the flatpak override command for granting filesystem access.
@@ -39,7 +56,8 @@ def get_flatpak_override_command(path: str | Path) -> str:
     Returns:
         The flatpak override command string that users can run.
     """
-    return f"flatpak override --user --filesystem={path} io.github.recol.dlss-updater"
+    app_id = os.environ.get("FLATPAK_ID", "io.github.recol.dlss-updater")
+    return f"flatpak override --user --filesystem={path} {app_id}"
 
 # System-level path prefixes that typically require root access
 SYSTEM_PATH_PREFIXES = ('/usr/', '/opt/', '/lib/', '/var/')

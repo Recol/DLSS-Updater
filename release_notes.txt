@@ -1,3 +1,28 @@
+Version 4.3.1:
+Bug Fixes:
+  - Fixed the harmless-but-noisy "Failed to record update history:
+    <built-in function all_tasks> returned a result with an exception set"
+    warning during large batch updates. Update-history rows are now written
+    directly on the worker thread instead of through a nested per-thread
+    event loop, which raced the free-threaded interpreter's asyncio
+    internals. (The fix landed in the 4.3.0 codebase; this is its first
+    Windows release.)
+
+Internal improvements:
+  - Completed the migration from raw asyncio APIs to anyio across the whole
+    codebase (~40 files): sleeps, locks, semaphores, events, timeouts,
+    cancellation handling and subprocess launching now use their anyio
+    equivalents. Direct asyncio usage remains only for individually
+    cancellable background tasks (create_task/Task), which structured
+    concurrency deliberately does not replace (see task_registry.py).
+    This also removes the last code paths capable of spinning up nested
+    per-thread event loops on the free-threaded interpreter.
+  - Groundwork for Flathub distribution: the app now detects which Flatpak
+    channel it runs under (FLATPAK_ID), points "flatpak override" hints at
+    the correct app ID, and directs update checks to Flathub in that build.
+  - Updated Flet to 0.85.3 on both platforms (Linux was previously on
+    0.85.2), unifying the UI framework pin across Windows and Linux.
+
 Version 4.3.0:
 New Features:
   - Proton Upscalers panel (Linux): the "Linux DLSS SR Presets" panel is now

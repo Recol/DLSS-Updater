@@ -3,7 +3,6 @@ Launcher Card Component
 Expandable card showing launcher configuration and detected games using Material Design 3 ExpansionTile
 """
 
-import asyncio
 import logging
 import subprocess
 from pathlib import Path
@@ -613,11 +612,13 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                     # Wrap blocking os.startfile in thread pool
                     await anyio.to_thread.run_sync(os.startfile, path, limiter=thread_io)
                 elif IS_LINUX:
-                    # Use async subprocess for non-blocking execution
-                    await asyncio.create_subprocess_exec(
-                        'xdg-open', path,
-                        stdout=asyncio.subprocess.DEVNULL,
-                        stderr=asyncio.subprocess.DEVNULL
+                    # Non-blocking subprocess; xdg-open exits as soon as it has
+                    # handed the path to the file manager
+                    await anyio.run_process(
+                        ['xdg-open', path],
+                        check=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
                     )
             except Exception as ex:
                 self.logger.error(f"Failed to open path in file manager: {ex}")
@@ -810,9 +811,8 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme with optional cascade delay - extended for complex updates"""
-        import asyncio
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             # Update ExpansionTile colors

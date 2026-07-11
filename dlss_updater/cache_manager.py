@@ -187,8 +187,8 @@ class UnifiedCacheManager:
     def __init__(self):
         """Initialize the UnifiedCacheManager."""
         # Thread-safe locks for free-threaded Python 3.14
-        self._lock = asyncio.Lock()
-        self._mmap_lock = asyncio.Lock()
+        self._lock = anyio.Lock()
+        self._mmap_lock = anyio.Lock()
 
         # Registered caches: name -> _RegisteredCache
         self._caches: dict[str, _RegisteredCache] = {}
@@ -333,7 +333,7 @@ class UnifiedCacheManager:
                 self._cleanup_task.cancel()
                 try:
                     await self._cleanup_task
-                except asyncio.CancelledError:
+                except anyio.get_cancelled_exc_class():
                     pass
                 self._cleanup_task = None
 
@@ -359,7 +359,7 @@ class UnifiedCacheManager:
                         )
 
                 # Wait for the interval
-                await asyncio.sleep(interval_hours * 3600)
+                await anyio.sleep(interval_hours * 3600)
 
                 if not self._running:
                     break
@@ -367,12 +367,12 @@ class UnifiedCacheManager:
                 # Run cleanup on all caches
                 await self.cleanup()
 
-            except asyncio.CancelledError:
+            except anyio.get_cancelled_exc_class():
                 break
             except Exception as e:
                 logger.error(f"Error in cleanup loop: {e}", exc_info=True)
                 # Wait a bit before retrying on error
-                await asyncio.sleep(60)
+                await anyio.sleep(60)
 
     # =========================================================================
     # Access Recording

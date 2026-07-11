@@ -26,6 +26,7 @@ Performance characteristics:
 """
 
 import asyncio
+import inspect
 import mmap
 import os
 import shutil
@@ -978,7 +979,7 @@ class HighPerformanceUpdateManager:
             current_step += 1
             if progress_callback:
                 result = progress_callback(current_step, total_steps, message)
-                if asyncio.iscoroutine(result):
+                if inspect.iscoroutine(result):
                     # Check if we're in the main thread with the event loop
                     if threading.current_thread() is threading.main_thread():
                         # We're in the main thread - safe to create task directly
@@ -1001,7 +1002,7 @@ class HighPerformanceUpdateManager:
             current_step += 1
             if progress_callback:
                 result = progress_callback(current_step, total_steps, message)
-                if asyncio.iscoroutine(result):
+                if inspect.iscoroutine(result):
                     await result
 
         # Initialize components

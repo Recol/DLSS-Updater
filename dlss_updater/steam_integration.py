@@ -3,7 +3,6 @@ Steam Integration for DLSS Updater
 Universal image fetching for ALL games (not just Steam launcher) via name matching
 """
 
-import asyncio
 import re
 import threading
 import msgspec
@@ -56,7 +55,7 @@ class SteamIntegration:
         # This saves ~20-30 MB RAM by eliminating the 207K-entry dictionaries
         self._db_populated = False  # Track if database has been populated
 
-        self.semaphore = asyncio.Semaphore(self.IMAGE_SEMAPHORE)
+        self.semaphore = anyio.Semaphore(self.IMAGE_SEMAPHORE)
 
         # Steam API owned games cache (for tiered resolution)
         self._owned_games_cache: dict[str, int] | None = None  # normalized_name -> app_id

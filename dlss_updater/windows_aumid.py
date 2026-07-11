@@ -13,7 +13,7 @@ import sys
 if sys.platform != "win32":
     raise ImportError("Windows only")
 
-import asyncio
+import anyio
 import ctypes
 import logging
 import os
@@ -249,7 +249,7 @@ async def apply_taskbar_fix(exe_path: str | None = None) -> bool:
 
     for attempt in range(5):
         if attempt > 0:
-            await asyncio.sleep(0.5)
+            await anyio.sleep(0.5)
 
         flet_pids = _find_flet_pids(parent_pid)
         if not flet_pids:

@@ -5,7 +5,7 @@ Thread-safe implementation using page.run_task()
 """
 
 import logging
-import asyncio
+import anyio
 import threading
 from typing import Callable, Any
 import flet as ft
@@ -113,7 +113,7 @@ class FletLoggerHandler(logging.Handler):
 
     async def _schedule_flush(self):
         """Schedule a delayed flush after BATCH_FLUSH_INTERVAL_MS"""
-        await asyncio.sleep(self.BATCH_FLUSH_INTERVAL_MS / 1000)
+        await anyio.sleep(self.BATCH_FLUSH_INTERVAL_MS / 1000)
         await self._flush_batch()
 
     async def _flush_batch(self):
@@ -503,7 +503,7 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
 
             # Delay hiding to allow opacity animation to complete
             async def hide_after_animation():
-                await asyncio.sleep(0.3)
+                await anyio.sleep(0.3)
                 self.log_container.visible = False
                 self._safe_update()
 
@@ -591,9 +591,8 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme with cascade animation support"""
-        import asyncio
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             # Apply basic properties via parent method

@@ -12,6 +12,8 @@ Thread-safe for free-threaded Python 3.14+.
 """
 
 import asyncio
+import anyio
+import inspect
 from typing import Callable, Any
 import flet as ft
 
@@ -123,7 +125,7 @@ class GameSearchBar(ft.Container):
         self.width = self._expanded_width
         self.update()
         # Let the bar attach before focusing
-        await asyncio.sleep(0.05)
+        await anyio.sleep(0.05)
         try:
             await self._bar.focus()
         except Exception:
@@ -147,7 +149,7 @@ class GameSearchBar(ft.Container):
         """Collapse when the user taps outside the bar with an empty query."""
         # Small debounce so an outside tap that also lands on another control
         # settles before we measure the value.
-        await asyncio.sleep(0.15)
+        await anyio.sleep(0.15)
         self._collapse_if_empty()
 
     # ----- internal helpers -----
@@ -198,17 +200,17 @@ class GameSearchBar(ft.Container):
         if not self.on_search_callback:
             return
         result = self.on_search_callback(query)
-        if asyncio.iscoroutine(result):
+        if inspect.iscoroutine(result):
             register_task(asyncio.create_task(result), "native_search_dispatch")
 
     async def _debounced_search(self, query: str):
         try:
-            await asyncio.sleep(0.150)
+            await anyio.sleep(0.150)
             if self.on_search_callback:
                 result = self.on_search_callback(query)
-                if asyncio.iscoroutine(result):
+                if inspect.iscoroutine(result):
                     await result
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             pass
 
     # ----- event handlers -----
@@ -230,7 +232,7 @@ class GameSearchBar(ft.Container):
             self._debounce_task.cancel()
             try:
                 await self._debounce_task
-            except asyncio.CancelledError:
+            except anyio.get_cancelled_exc_class():
                 pass
         self._debounce_task = asyncio.create_task(self._debounced_search(query))
         register_task(self._debounce_task, "search_debounce")
@@ -251,7 +253,7 @@ class GameSearchBar(ft.Container):
                 pass
             if from_history and self.on_history_selected_callback:
                 result = self.on_history_selected_callback(query)
-                if asyncio.iscoroutine(result):
+                if inspect.iscoroutine(result):
                     await result
             else:
                 self._dispatch_search(query)
@@ -266,7 +268,7 @@ class GameSearchBar(ft.Container):
             pass
         if self.on_clear_callback:
             result = self.on_clear_callback()
-            if asyncio.iscoroutine(result):
+            if inspect.iscoroutine(result):
                 await result
         # Pressing the (x) clears the search and collapses the bar to its icon
         try:
@@ -311,7 +313,7 @@ class GameSearchBar(ft.Container):
             self._debounce_task.cancel()
             try:
                 await self._debounce_task
-            except asyncio.CancelledError:
+            except anyio.get_cancelled_exc_class():
                 pass
         self.on_search_callback = None
         self.on_clear_callback = None
@@ -487,7 +489,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         self.content = self._search_row_content
         self.width = self._expanded_width
         self.update()
-        await asyncio.sleep(0.05)
+        await anyio.sleep(0.05)
         try:
             self.search_field.focus()
         except Exception:
@@ -513,7 +515,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             self._debounce_task.cancel()
             try:
                 await self._debounce_task
-            except asyncio.CancelledError:
+            except anyio.get_cancelled_exc_class():
                 pass  # Expected
 
         # Debounce search callback (150ms) - REGISTER THE TASK
@@ -526,12 +528,12 @@ class SearchBar(ThemeAwareMixin, ft.Container):
     async def _debounced_search(self, query: str):
         """Execute search callback after debounce delay."""
         try:
-            await asyncio.sleep(0.150)  # 150ms debounce
+            await anyio.sleep(0.150)  # 150ms debounce
             if self.on_search_callback:
                 result = self.on_search_callback(query)
-                if asyncio.iscoroutine(result):
+                if inspect.iscoroutine(result):
                     await result
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             pass  # Debounce cancelled by new input
 
     async def _on_focus(self, e):
@@ -542,7 +544,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
 
         if self.on_focus_change_callback:
             result = self.on_focus_change_callback(True)
-            if asyncio.iscoroutine(result):
+            if inspect.iscoroutine(result):
                 await result
 
     async def _on_blur(self, e):
@@ -556,7 +558,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         # Collapse to icon if expandable and no active search text
         if self._expandable and not self.search_field.value and self._is_expanded:
             # Debounce to avoid premature collapse when clicking history popup
-            await asyncio.sleep(0.25)
+            await anyio.sleep(0.25)
             if not self._is_focused and not self.search_field.value and self._is_expanded:
                 self._is_expanded = False
                 self.content = self._collapse_content
@@ -566,7 +568,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
 
         if self.on_focus_change_callback:
             result = self.on_focus_change_callback(False)
-            if asyncio.iscoroutine(result):
+            if inspect.iscoroutine(result):
                 await result
 
     async def _on_submit(self, e):
@@ -574,7 +576,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         query = e.control.value or ""
         if query and self.on_search_callback:
             result = self.on_search_callback(query)
-            if asyncio.iscoroutine(result):
+            if inspect.iscoroutine(result):
                 await result
 
     async def _on_clear_clicked(self, e):
@@ -588,7 +590,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
 
         if self.on_clear_callback:
             result = self.on_clear_callback()
-            if asyncio.iscoroutine(result):
+            if inspect.iscoroutine(result):
                 await result
 
     def update_history(self, history_items: list[Any]):
@@ -681,7 +683,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
 
         if self.on_history_selected_callback:
             result = self.on_history_selected_callback(query)
-            if asyncio.iscoroutine(result):
+            if inspect.iscoroutine(result):
                 # Schedule the coroutine since this is called from a sync context - REGISTER THE TASK
                 task = asyncio.create_task(result)
                 register_task(task, "history_selection")
@@ -745,7 +747,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         which require special handling.
         """
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             # Apply standard themed properties
@@ -796,7 +798,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             self._debounce_task.cancel()
             try:
                 await self._debounce_task
-            except asyncio.CancelledError:
+            except anyio.get_cancelled_exc_class():
                 pass
 
         # Unregister from theme system

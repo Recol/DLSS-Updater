@@ -9,7 +9,6 @@ Uses pre-compiled regex for O(1) key-value extraction and aiofiles for async I/O
 """
 
 import re
-import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -235,7 +234,7 @@ class VDFParser:
                 return library_games
 
             # Parse manifests concurrently with semaphore limit
-            semaphore = asyncio.Semaphore(20)  # Limit concurrent file reads
+            semaphore = anyio.Semaphore(20)  # Limit concurrent file reads
 
             manifest_results: list = [None] * len(manifest_files)
             manifest_errors: list = [None] * len(manifest_files)

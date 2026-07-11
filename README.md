@@ -212,6 +212,12 @@ winget install "DLSS Updater"
 
 **Chocolatey** — install from the [Chocolatey package page](https://community.chocolatey.org/packages/dlss-updater/).
 
+**Scoop** — via the [scoop-games](https://github.com/Calinou/scoop-games) bucket (manifest update [pending merge](https://github.com/Calinou/scoop-games/pull/1770)). Scoop extracts the MSI into a portable install, so nothing touches Program Files:
+```sh
+scoop bucket add games
+scoop install dlss-updater
+```
+
 **Direct download** — grab `DLSS.Updater.X.Y.Z.msi` from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page and run it.
 
 ### Linux
@@ -353,6 +359,7 @@ possible. Each release also ships detailed notes in `release_notes.txt` and on t
 
 ## Roadmap
 
+- Publishing on [Flathub](https://flathub.org) so Linux users can install straight from their software center ([#234](https://github.com/Recol/DLSS-Updater/issues/234)) — groundwork shipped in 4.3.1
 - Automation support with external software
 - Community-requested features — [open an issue](https://github.com/Recol/DLSS-Updater/issues) to suggest one
 

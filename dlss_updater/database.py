@@ -9,7 +9,6 @@ Performance optimizations:
 """
 
 import sqlite3
-import asyncio
 import logging
 import threading
 from pathlib import Path
@@ -102,8 +101,8 @@ class DatabaseManager:
             # Connection pool for async operations (aiosqlite)
             self._async_pool: list[Any] = []  # List of aiosqlite.Connection
             self._pool_size = 5
-            self._pool_lock = asyncio.Lock()
-            self._pool_semaphore: asyncio.Semaphore | None = None
+            self._pool_lock = anyio.Lock()
+            self._pool_semaphore: anyio.Semaphore | None = None
             self._pool_active = False  # Track pool lifecycle state
 
             # Thread-local storage for sync operations (connection reuse)
@@ -135,7 +134,7 @@ class DatabaseManager:
 
             # Initialize semaphore for connection pool
             if self._pool_semaphore is None:
-                self._pool_semaphore = asyncio.Semaphore(self._pool_size)
+                self._pool_semaphore = anyio.Semaphore(self._pool_size)
 
             # Create async connection pool
             try:
@@ -170,7 +169,7 @@ class DatabaseManager:
 
             # Initialize semaphore for connection pool
             if self._pool_semaphore is None:
-                self._pool_semaphore = asyncio.Semaphore(self._pool_size)
+                self._pool_semaphore = anyio.Semaphore(self._pool_size)
 
             # Create async connection pool
             try:

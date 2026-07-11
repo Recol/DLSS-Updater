@@ -3,6 +3,7 @@ Floating Pill Navigation Component
 A floating capsule navigation bar shown at the bottom of views (hidden on hub).
 """
 
+import anyio
 import flet as ft
 
 from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors, Shadows
@@ -212,8 +213,7 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme to pill and all icons."""
         if delay_ms > 0:
-            import asyncio
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         self.bgcolor = MD3Colors.get_surface_variant(is_dark)
         self.border = ft.Border.all(1, MD3Colors.get_outline(is_dark))

@@ -310,7 +310,6 @@ async def is_file_in_use_async(file_path, timeout=5):
     Uses asyncio.sleep() instead of time.sleep() to avoid blocking the event loop.
     Process iteration is run in a thread pool to avoid blocking.
     """
-    import asyncio
     start_time = time.monotonic()
 
     def _check_process_using_file(path):
@@ -339,7 +338,7 @@ async def is_file_in_use_async(file_path, timeout=5):
             # File is in use, check which process (in bounded I/O worker thread)
             if await anyio.to_thread.run_sync(_check_process_using_file, str(file_path), limiter=thread_io):
                 return True
-        await asyncio.sleep(0.1)  # Non-blocking sleep
+        await anyio.sleep(0.1)  # Non-blocking sleep
 
     logger.info(f"Timeout reached while checking if file {file_path} is in use")
     return True

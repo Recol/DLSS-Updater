@@ -515,7 +515,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                     self._page_ref.update()
 
                 # Yield to event loop to keep UI responsive
-                await asyncio.sleep(0.01)
+                await anyio.sleep(0.01)
 
             self.logger.debug(f"[PERF] Background loaded {loaded} additional backup groups")
 
@@ -525,7 +525,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
     async def _animate_groups_in(self, groups: list):
         """Animate backup groups with staggered fade-in for better UX"""
         # Small initial delay
-        await asyncio.sleep(0.05)
+        await anyio.sleep(0.05)
 
         # Animate groups in batches of 3 for smooth effect (fewer groups than cards)
         batch_size = 3
@@ -537,7 +537,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             # Single update per batch
             if self._page_ref:
                 self._page_ref.update()
-            await asyncio.sleep(0.08)  # 80ms delay per batch (slightly longer for groups)
+            await anyio.sleep(0.08)  # 80ms delay per batch (slightly longer for groups)
 
     async def _on_refresh_clicked(self, e):
         """Handle refresh button click with rotation animation"""

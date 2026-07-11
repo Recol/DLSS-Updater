@@ -4,6 +4,7 @@ Lets users override a game's display picture and name from Steam (issue #202).
 """
 
 import asyncio
+import anyio
 import logging
 from typing import Callable
 
@@ -219,11 +220,11 @@ class SteamResolveDialog:
 
     async def _run_search(self, query: str):
         from dlss_updater.steam_integration import search_steam_apps
-        await asyncio.sleep(_SEARCH_DEBOUNCE)
+        await anyio.sleep(_SEARCH_DEBOUNCE)
         self._set_status("Searching…")
         try:
             results = await search_steam_apps(query, _SEARCH_LIMIT)
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             return
         except Exception as exc:
             self.logger.warning(f"Steam search error: {exc}")

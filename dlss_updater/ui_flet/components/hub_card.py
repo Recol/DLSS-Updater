@@ -3,6 +3,7 @@ Hub Card Component
 Staggered card for the hub home screen with left accent bar, hover animation, and optional stats badge.
 """
 
+import anyio
 import flet as ft
 
 from dlss_updater.ui_flet.theme.colors import MD3Colors, Shadows, Animations
@@ -174,8 +175,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme colors to all sub-elements."""
         if delay_ms > 0:
-            import asyncio
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         accent = self._accent_dark if is_dark else self._accent_light
 

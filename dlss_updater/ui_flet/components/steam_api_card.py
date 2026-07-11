@@ -12,7 +12,7 @@ Styled to match the application's card-based design language with:
 Uses ExpansionTile (native Flutter) for collapse/expand animation.
 """
 
-import asyncio
+import anyio
 import webbrowser
 
 import flet as ft
@@ -617,7 +617,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme colors to all sub-elements."""
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             accent = self._get_accent(is_dark)

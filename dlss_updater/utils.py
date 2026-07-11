@@ -1,5 +1,4 @@
 import os
-import asyncio
 import anyio
 import concurrent.futures
 import threading
@@ -89,7 +88,7 @@ async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=N
     # Create progress tracker
     total_dlls = len(dll_tasks)
     completed = 0
-    completed_lock = asyncio.Lock()
+    completed_lock = anyio.Lock()
 
     async def update_progress():
         nonlocal completed
@@ -100,7 +99,7 @@ async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=N
                 progress_callback(completed, total_dlls, f"Processing DLL {completed}/{total_dlls}")
                 logger.info(f"Progress: {completed}/{total_dlls}")
                 # Yield control to event loop to allow UI updates to process
-                await asyncio.sleep(0)
+                await anyio.sleep(0)
 
     async def process_with_progress(dll_path, launcher):
         """Process single DLL and update progress"""

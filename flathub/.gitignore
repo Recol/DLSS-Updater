@@ -1,0 +1,9 @@
+.flutter-sdk/
+flet-src/
+client-build/
+generated/
+build-dir/
+repo/
+.flatpak-builder/
+*.flatpak
+*.log

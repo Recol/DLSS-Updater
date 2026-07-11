@@ -1595,7 +1595,6 @@ class MainView(ft.Column):
                               Steps 1-9 correspond to different cleanup phases.
         """
         import sys
-        import asyncio
 
         async def report_progress(step: int):
             """Report progress to callback, handling errors gracefully."""
@@ -1609,7 +1608,7 @@ class MainView(ft.Column):
         SHUTDOWN_TIMEOUT = 5.0
 
         try:
-            async with asyncio.timeout(SHUTDOWN_TIMEOUT):
+            with anyio.fail_after(SHUTDOWN_TIMEOUT):
                 # Step 1: Cancel all registered background tasks
                 await report_progress(1)
                 try:
@@ -1692,7 +1691,7 @@ class MainView(ft.Column):
             except Exception:
                 pass  # Can't log errors after logging shutdown
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.logger.error(f"Shutdown timed out after {SHUTDOWN_TIMEOUT}s")
             # Don't call sys.exit - let main.py's window.destroy() handle termination
         except Exception as e:

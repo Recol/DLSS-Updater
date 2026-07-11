@@ -6,7 +6,6 @@ Designed for Python 3.14 free-threaded compatibility.
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from weakref import WeakSet
 
@@ -100,7 +99,7 @@ class ThemeAwareMixin:
             delay_ms: Milliseconds to wait before applying (for cascade effect)
         """
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             properties = self.get_themed_properties()
@@ -158,7 +157,7 @@ class ThemeRegistry:
     """
 
     _instance: ThemeRegistry | None = None
-    _lock = asyncio.Lock()
+    _lock = anyio.Lock()
 
     def __new__(cls) -> ThemeRegistry:
         """Singleton pattern"""
@@ -173,7 +172,7 @@ class ThemeRegistry:
 
         self._components: WeakSet[ThemeAwareMixin] = WeakSet()
         self._is_dark: bool = True  # Default to dark mode
-        self._cascade_lock = asyncio.Lock()
+        self._cascade_lock = anyio.Lock()
         self._initialized = True
 
     @property

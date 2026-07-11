@@ -3,7 +3,7 @@ Loading Overlay Component
 Semi-transparent overlay with progress indicator
 """
 
-import asyncio
+import anyio
 import flet as ft
 
 from dlss_updater.ui_flet.theme.colors import Shadows, MD3Colors
@@ -180,7 +180,7 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme with cascade animation support"""
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             # Apply basic properties via parent method

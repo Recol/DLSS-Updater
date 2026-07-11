@@ -11,6 +11,7 @@ Performance characteristics:
 - Uses ExpansionTile (native Flutter component) for GPU-accelerated expand/collapse
 """
 
+import anyio
 from datetime import datetime
 from typing import Callable
 import flet as ft
@@ -371,10 +372,9 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme with optional cascade delay"""
-        import asyncio
 
         if delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
+            await anyio.sleep(delay_ms / 1000)
 
         try:
             # Apply base properties from get_themed_properties
