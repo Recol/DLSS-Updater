@@ -80,7 +80,12 @@ jobs:
         $installerContent += "- interactive`r`n"
         $installerContent += "- silent`r`n"
         $installerContent += "- silentWithProgress`r`n"
-        $installerContent += "ElevationRequirement: elevationRequired`r`n"
+        # elevatesSelf (not elevationRequired): the MSI is authored perMachine, so
+        # msiexec raises the UAC prompt itself. elevationRequired makes winget
+        # pre-elevate via the ShellExecute "runas" verb, which hits winget-cli bug
+        # #6173 ("This file does not have an app associated with it") when winget
+        # runs from a non-elevated terminal.
+        $installerContent += "ElevationRequirement: elevatesSelf`r`n"
         $installerContent += "Installers:`r`n"
         $installerContent += "- Architecture: x64`r`n"
         $installerContent += "  InstallerType: msi`r`n"

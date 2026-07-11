@@ -1,0 +1,25 @@
+name: Star History
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: star-history
+  cancel-in-progress: false
+
+jobs:
+  star-history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Renders the star-history chart in CI with the repo's own token and
+      # commits a static SVG, since GitHub's 2026-06-30 stargazers API
+      # restriction broke star-history.com's hosted chart endpoints.
+      - uses: narayann7/star-history-action@d2d4e3a948b3e05f1aef05f4576d666c97d91468 # v1.0.1
+        with:
+          repos: ${{ github.repository }}

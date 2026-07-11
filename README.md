@@ -60,13 +60,8 @@ understands games from every major launcher.
 
 ### ⭐ Star History
 
-<a href="https://www.star-history.com/?repos=Recol%2FDLSS-Updater&type=date&legend=top-left">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=Recol/DLSS-Updater&type=date&theme=dark&legend=top-left" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=Recol/DLSS-Updater&type=date&legend=top-left" />
-    <img alt="Star History Chart" src="https://api.star-history.com/image?repos=Recol/DLSS-Updater&type=date&legend=top-left" />
-  </picture>
-</a>
+<!-- star-history:start -->
+<!-- star-history:end -->
 
 </div>
 
