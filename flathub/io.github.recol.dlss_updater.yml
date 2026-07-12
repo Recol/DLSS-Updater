@@ -19,12 +19,10 @@ finish-args:
   - --device=dri
   - --share=ipc
   - --share=network
-  - --filesystem=home:rw
-  - --filesystem=/mnt:rw
-  - --filesystem=/media:rw
-  - --filesystem=/run/media:rw
-  - --filesystem=~/.local/share/dlss-updater:create
-  - --env=LD_LIBRARY_PATH=/app/lib64:/app/lib
+  - --filesystem=home
+  - --filesystem=/mnt
+  - --filesystem=/media
+  - --filesystem=/run/media
   - --env=PYTHON_GIL=0
 modules:
   - modules/cpython.json
@@ -62,15 +60,12 @@ modules:
       - mkdir -p /app/share/dlss-updater
       - cp main.py /app/share/dlss-updater/main.py
       - install -Dm755 launcher.sh /app/bin/dlss-updater
-      - "mkdir -p /app/share/metainfo\nsed 's/io\\.github\\.recol\\.dlss-updater/io.github.recol.dlss_updater/g'\
-        \ \\\n    io.github.recol.dlss-updater.appdata.xml \\\n    > /app/share/metainfo/io.github.recol.dlss_updater.metainfo.xml\n"
-      - "sed -e 's/\\r$//' -e 's/io\\.github\\.recol\\.dlss-updater/io.github.recol.dlss_updater/g'\
-        \ \\\n    flatpak/io.github.recol.dlss-updater.desktop > /tmp/desktop.tmp\n\
-        install -Dm644 /tmp/desktop.tmp /app/share/applications/io.github.recol.dlss_updater.desktop\n"
+      - install -Dm644 io.github.recol.dlss_updater.metainfo.xml /app/share/metainfo/io.github.recol.dlss_updater.metainfo.xml
+      - install -Dm644 flatpak/io.github.recol.dlss_updater.desktop /app/share/applications/io.github.recol.dlss_updater.desktop
       - install -Dm644 appimagex_png.png /app/share/icons/hicolor/256x256/apps/io.github.recol.dlss_updater.png
     sources:
       - type: git
         url: https://github.com/Recol/DLSS-Updater.git
-        commit: 9917f9978cd983ea827c4433bffe77b2ac0193e8
+        commit: 061843cbfdfbe2481d467a817e3e3971beca7b94
       - type: file
         path: launcher.sh

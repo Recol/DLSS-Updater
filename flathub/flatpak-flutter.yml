@@ -63,6 +63,6 @@ modules:
     sources:
       - type: git
         url: https://github.com/Recol/DLSS-Updater.git
-        commit: PIN_AFTER_UPSTREAM_COMMIT
+        commit: 061843cbfdfbe2481d467a817e3e3971beca7b94
       - type: file
         path: launcher.sh
