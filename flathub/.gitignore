@@ -1,7 +1,8 @@
+# build artifacts and caches (the generated/ dir is checked in: the
+# submission manifest references its pinned offline sources)
 .flutter-sdk/
 flet-src/
 client-build/
-generated/
 build-dir/
 repo/
 .flatpak-builder/

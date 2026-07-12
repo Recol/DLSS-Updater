@@ -1,0 +1,74 @@
+id: io.github.recol.dlss_updater
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+command: dlss-updater
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --share=ipc
+  - --share=network
+  # Game libraries live anywhere the user put them; the app scans and
+  # patches DLLs inside them. Narrowed set to be negotiated at review.
+  - --filesystem=home:rw
+  - --filesystem=/mnt:rw
+  - --filesystem=/media:rw
+  - --filesystem=/run/media:rw
+  - --filesystem=~/.local/share/dlss-updater:create
+  - --env=LD_LIBRARY_PATH=/app/lib64:/app/lib
+  # Keep the free-threaded interpreter's GIL disabled even if a bundled C
+  # extension hasn't declared Py_MOD_GIL_NOT_USED.
+  - --env=PYTHON_GIL=0
+modules:
+  # Python 3.14 free-threaded, built from source (the freedesktop SDK's
+  # python is neither 3.14 nor free-threaded).
+  - modules/cpython.json
+
+  # All runtime Python dependencies as pinned offline wheels (cp314t native
+  # + pure). Regenerated from uv.lock by gen_pip_sources.py.
+  - generated/python-deps.json
+
+  # Flet's Flutter client, trimmed to the extensions this app actually uses
+  # (none - core only). DEV BUILD: consumes the bundle built on the host by
+  # build_flathub.sh. The Flathub submission replaces this dir source with a
+  # from-source flutter build (flatpak-flutter generated offline sources).
+  - name: flet-client
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/share/flet-client
+      - cp -r bundle-src/* /app/share/flet-client/
+    sources:
+      - type: dir
+        path: client-build/bundle
+        dest: bundle-src
+
+  - name: dlss-updater
+    buildsystem: simple
+    build-commands:
+      - |
+        SITE=$(/app/bin/python3.14t -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
+        cp -r dlss_updater "$SITE/"
+      - mkdir -p /app/share/dlss-updater
+      - cp main.py /app/share/dlss-updater/main.py
+      - install -Dm755 launcher.sh /app/bin/dlss-updater
+      # Desktop integration: reuse the bundle-flatpak files with the app ID
+      # rewritten to the Flathub (underscore) form. Single source of truth
+      # stays io.github.recol.dlss-updater.appdata.xml.
+      - |
+        mkdir -p /app/share/metainfo
+        sed 's/io\.github\.recol\.dlss-updater/io.github.recol.dlss_updater/g' \
+            io.github.recol.dlss-updater.appdata.xml \
+            > /app/share/metainfo/io.github.recol.dlss_updater.metainfo.xml
+      - |
+        sed -e 's/\r$//' -e 's/io\.github\.recol\.dlss-updater/io.github.recol.dlss_updater/g' \
+            flatpak/io.github.recol.dlss-updater.desktop > /tmp/desktop.tmp
+        install -Dm644 /tmp/desktop.tmp /app/share/applications/io.github.recol.dlss_updater.desktop
+      - install -Dm644 appimagex_png.png /app/share/icons/hicolor/256x256/apps/io.github.recol.dlss_updater.png
+    sources:
+      # DEV BUILD: local checkout (repo root, relative to this manifest).
+      # The Flathub submission pins a git source at the release commit.
+      - type: dir
+        path: ..
+      - type: file
+        path: launcher.sh

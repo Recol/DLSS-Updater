@@ -1,0 +1,524 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.recol.dlss_updater</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <name>DLSS Updater</name>
+  <summary>Update DLSS, FSR, and XeSS DLLs for your games</summary>
+
+  <description>
+    <p>
+      DLSS Updater automatically detects and updates NVIDIA DLSS, AMD FSR, and Intel XeSS
+      DLLs across your entire game library. It supports multiple game launchers including
+      Steam, Epic Games, GOG Galaxy, Ubisoft Connect, EA Play, Battle.net, and Xbox Game Pass.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Cross-platform support for Windows and Linux</li>
+      <li>Automatic detection of games from multiple launchers</li>
+      <li>Support for Steam Proton and Wine prefixes on Linux</li>
+      <li>Built-in backup system for restoring original DLLs</li>
+      <li>Updates for DLSS, FSR, XeSS, Ray Reconstruction, Frame Generation, and Streamline</li>
+      <li>Individual game updates for specific binaries</li>
+      <li>Custom folder support for games in non-standard locations</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.recol.dlss_updater.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main application window showing detected games</caption>
+      <image>https://github.com/user-attachments/assets/59732e2c-add3-4ad2-ac85-0e0fed6e7ee9</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/Recol/DLSS-Updater</url>
+  <url type="bugtracker">https://github.com/Recol/DLSS-Updater/issues</url>
+  <url type="donation">https://buymeacoffee.com/decouk</url>
+
+  <developer id="io.github.recol">
+    <name>Recol</name>
+  </developer>
+
+  <provides>
+    <binary>DLSS_Updater</binary>
+  </provides>
+
+  <categories>
+    <category>Game</category>
+    <category>Utility</category>
+  </categories>
+
+  <keywords>
+    <keyword>DLSS</keyword>
+    <keyword>FSR</keyword>
+    <keyword>XeSS</keyword>
+    <keyword>NVIDIA</keyword>
+    <keyword>AMD</keyword>
+    <keyword>Intel</keyword>
+    <keyword>gaming</keyword>
+    <keyword>upscaling</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="4.3.1" date="2026-07-11">
+      <description>
+        <p>Maintenance release</p>
+        <ul>
+          <li>Fixed update-history entries occasionally failing to record during large batch updates (the "all_tasks returned a result with an exception set" log warning)</li>
+          <li>Internal: completed the codebase-wide migration from raw asyncio to anyio structured concurrency</li>
+          <li>Groundwork for future Flathub distribution (channel detection, correct flatpak override hints per app ID)</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.3.0" date="2026-07-10">
+      <description>
+        <p>New Proton Upscalers panel for Linux</p>
+        <ul>
+          <li>The "Linux DLSS SR Presets" panel is now a per-title Proton upscaler configurator covering all three GPU vendors</li>
+          <li>DLSS Ray Reconstruction preset override and Frame Generation override via DXVK-NVAPI (parity with the Windows per-game dialog), plus new "Latest" and "Preset J" SR preset choices</li>
+          <li>DLSS / FSR 4 / XeSS DLL upgrade toggles and on-screen indicators via the community Proton forks' launch options (GE-Proton, Proton-CachyOS, Proton-EM), with an RDNA3/RDNA4 mode switch for FSR 4</li>
+          <li>Per-game validation: the panel reads Steam's compat-tool mapping to show which Proton build a selected game runs under and disables upgrade toggles that build doesn't ship</li>
+          <li>GPU vendor auto-detection (NVIDIA/AMD/Intel) gates the vendor sections and recommends RDNA3 mode on RX 7000 GPUs</li>
+          <li>Backwards compatible: configs saved by older versions generate identical launch options, and the generated string still works as environment variables in Heroic/Lutris</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.2.3" date="2026-07-09">
+      <description>
+        <p>Modernized async/dependency stack, plus fixes found through it</p>
+        <ul>
+          <li>Replaced the DLL-download fallback library (requests, now in upstream feature-freeze) with niquests, a maintained drop-in replacement with HTTP/2 and HTTP/3 support</li>
+          <li>Settings storage migrated from config.ini to config.toml (via msgspec) with an automatic, non-destructive one-time migration - the old config.ini is left untouched</li>
+          <li>Adopted anyio for structured concurrency across the update/scan/database pipeline, consolidating several separate thread pools into shared, properly-bounded worker limiters</li>
+          <li>Logging now runs through a background queue instead of blocking on every log call</li>
+          <li>Fixed a deadlock in the high-performance batch DLL updater that could freeze the update progress dialog partway through a large batch</li>
+          <li>Fixed the Games Library not reflecting updated DLL versions after a batch update if the Games tab hadn't been opened yet that session</li>
+          <li>Fixed HyperParallelLoader briefly blocking the UI event loop while dispatching thread-pool work</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.2.2" date="2026-07-05">
+      <description>
+        <p>Linux update reliability fix (Issue #240)</p>
+        <ul>
+          <li>Fixed the source-DLL memory cache using a Windows-only os.O_BINARY flag, which made caching fail for every DLL on Linux and forced a slower file-copy fallback on every scan</li>
+          <li>Fixed Steam games being scanned and updated twice when Steam's default install path is a symlink (e.g. Linux's ~/.steam/steam -> ~/.local/share/Steam), which could also cause a spurious update failure for one of the duplicate attempts</li>
+          <li>is_file_in_use() no longer surfaces a raw error if the target file disappears between the existence check and the check itself</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.2.1" date="2026-07-02">
+      <description>
+        <p>Per-game DLSS preset overrides (Windows) and a Games Library redesign</p>
+        <ul>
+          <li>New per-game "DLSS Settings" panel forces SR/RR/FG presets for a single game via its NVIDIA per-application driver profile; it takes priority over the global override and applies at the next launch (Windows + NVIDIA only)</li>
+          <li>Automatic game-executable detection with a "Change executable" file-picker fallback; the executable and preset choices are remembered, and "Reset to default" reverts in one click</li>
+          <li>Redesigned game cards with a full-bleed hero banner using Steam's higher-quality "library_hero" artwork (replacing the old small capsule image), reframed to avoid the plain space some banners have near the top</li>
+          <li>The DLL status badge and Update/Restore buttons are now compact icons that expand on hover, with a fixed-height footer so they can no longer be clipped or hidden when resizing the window</li>
+          <li>Per-game actions are consolidated into a single "⋮" menu on each card (the Play button was removed and Launch moved into the menu; the Hide and Edit icons remain on the card)</li>
+          <li>Fixed SQLite foreign-key enforcement so removing a game correctly cleans up its related backup, ignore-list, DLL, and update-history rows</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.2.0" date="2026-06-14">
+      <description>
+        <p>Linux and Flatpak fixes for game detection (Issue #228)</p>
+        <ul>
+          <li>Folder paths now expand "~" and environment variables (e.g. ~/.steam)</li>
+          <li>Adding a folder outside the Flatpak sandbox now shows the filesystem permission instructions instead of a misleading "does not exist" error</li>
+          <li>Auto-Detect now finds Steam libraries on Linux (native and Flatpak installs) instead of relying on the Windows-only registry</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.1.9" date="2026-06-13">
+      <description>
+        <p>Desktop UX and UI improvements across the game library, launchers, and settings</p>
+        <ul>
+          <li>Light/dark theme switching is now live with a subtle cascade animation — no application restart required</li>
+          <li>Game cards now have a right-click context menu (Update all DLLs, Restore from backup, Open folder, Copy path, Launch via Steam, Ignore/Unignore, Edit display) that reflects each card's current state</li>
+          <li>Games Library search is now a native search field with live game-name suggestions and recent-search history, plus status filter chips (Needs update / Up to date / Has backups); it collapses to a search icon and expands on click</li>
+          <li>Settings view redesigned with a denser two-column responsive tile layout and an inline light/dark theme toggle on the Theme tile</li>
+          <li>Launchers tab uses a two-column responsive card layout and shows a "rescan recommended" prompt when the last scan is stale (7+ days) or missing</li>
+          <li>Home page Games card gained a stats strip showing DLL backup count and size plus time since the last scan</li>
+          <li>Undo support: removing a launcher path or toggling a game's ignored state now offers an "Undo" action in the snackbar, which auto-dismisses and is legible in both themes</li>
+          <li>Floating action pill moved to the bottom-left and no longer overlaps the launcher action bar or scrollable content</li>
+          <li>Slim, rounded, auto-hiding scrollbars across all scroll areas; log count badge caps at "99+"; window minimum size increased to 820x560 to prevent clipping at narrow widths</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.1.8" date="2026-06-06">
+      <description>
+        <p>Edit game, plus UI polish and header declutter</p>
+        <ul>
+          <li>New "Edit game" button on every game card lets you manually update or change a game's name or image via one that exists on Steam. (Issue #202)</li>
+          <li>Search uses the local FTS5 app-list database (no credentials required); Steam API credentials improve result quality when configured</li>
+          <li>The override is cosmetic only — backups, merge keys, and the global updater are unaffected; the original folder-derived name is preserved internally</li>
+          <li>Override survives rescans: stored in dedicated columns the scanner never touches, so a rescan cannot revert a manually set link</li>
+          <li>Existing overrides can be cleared from the same dialog with one click</li>
+          <li>Fixed hub card stat badges ("3 configured", "14 games found") showing an incorrect yellowish tint; they now display a proper subtle accent-tinted background in both light and dark modes</li>
+          <li>Games Library header decluttered: "Hide ignored games" and "Delete Database" moved into a compact options menu, keeping only search, options, and refresh visible</li>
+          <li>Search bar now collapses to an icon by default and expands to full width on click; auto-collapses when cleared and focus is lost</li>
+          <li>Removed the "Application" top-bar button; "Check for Updates" is now a tile in the Settings view</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.1.7" date="2026-05-30">
+      <description>
+        <p>New DLSS Settings: global DLSS preset overrides for SR / RR / FG (Windows)</p>
+        <ul>
+          <li>A new "DLSS Settings" card on the home page lets you force global DLSS presets for every game via the NVIDIA driver's NvAPI Driver Settings — the same base-profile mechanism the NVIDIA App uses. Super Resolution exposes Default/Latest/Preset J/K/L/M; Ray Reconstruction and Frame Generation expose Default/Latest model. Applied the next time each game launches; the panel shows the currently applied driver preset for each component on open</li>
+          <li>Note: the NVIDIA App's DLSS override also writes per-game overrides that take priority over this global setting for those games. Set the DLSS override to Default/Off in the NVIDIA App to let this global setting apply (the panel explains this inline)</li>
+          <li>Windows + NVIDIA only; the existing Linux DLSS SR preset panel (DXVK-NVAPI launch options) is unchanged</li>
+          <li>Dependency upgrade: flet and flet-desktop 0.85.0 -&gt; 0.85.2 (Windows); restored nvidia-ml-py for GPU detection</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.1.6" date="2026-05-16">
+      <description>
+        <p>Fixed Linux Flatpak failing to launch on Steam Deck / CachyOS / strict W^X kernels (Issue #217)</p>
+        <ul>
+          <li>v4.1.5 Flatpak failed to start with "cannot enable executable stack as shared object requires: Invalid argument" because the upstream python-build-standalone 3.14.3+freethreaded artifact (introduced in v4.1.5) ships libpython3.14t.so.1.0 with PT_GNU_STACK marked executable (RWE). Modern Linux kernels enforce W^X and refuse dlopen() on shared objects requesting an executable stack, returning EINVAL</li>
+          <li>v4.1.4 used the 3.14.2+freethreaded artifact which had a clean GNU_STACK (RW); the regression is in the upstream 3.14.3 build, not the DLSS Updater code. Verified end-to-end with readelf -lW on both artifacts (RW on 3.14.2, RWE on 3.14.3)</li>
+          <li>build_flatpak.sh now runs `execstack -c` on the uv-managed Python install immediately after `uv python install`, clearing the executable-stack flag from every .so file before PyInstaller bundles them. A readelf-based hard-verify step refuses to proceed if libpython still has GNU_STACK = RWE, so a broken artifact can never silently ship again</li>
+          <li>execstack added to the apt and dnf install dependencies in build_flatpak.sh. (On Arch, execstack lives in AUR — install manually with `yay -S execstack` if building on Arch)</li>
+          <li>Build-pipeline-only fix — no application code changes. The Windows MSI is unaffected (Windows free-threaded Python ships without an executable-stack program header)</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.1.5" date="2026-05-12">
+      <description>
+        <p>Fixed Windows 11 HDR being disabled when opening the folder picker (Issue #216)</p>
+        <ul>
+          <li>On Windows 11 (notably 24H2 with HDR enabled), clicking "Add Sub-Folder" on a launcher card disabled system HDR while the file dialog was open</li>
+          <li>Root cause: the FilePicker was created but never registered on page.overlay, so the underlying Win32 IFileOpenDialog opened as an unowned top-level window (NULL hwndOwner) that crossed the Flet window's focus group, tripping the per-app HDR auto-arbitration</li>
+          <li>FilePicker is now instantiated inline at the point of use, matching the Flet 0.85 Service pattern — the Service base class auto-attaches to the active page so the dialog inherits the Flet window's focus group and HDR is no longer disabled</li>
+          <li>Upgraded flet 0.84.0 to 0.85.0 and flet-desktop 0.84.0 to 0.85.0 (declarative router, use_dialog hook, video/audio improvements; no FilePicker or window/HDR changes)</li>
+          <li>Migrated 137 call sites across 30 files from the removed ft.padding/margin/border/border_radius module helpers to the new ft.Padding/Margin/Border/BorderRadius classmethods (hard removal in 0.85)</li>
+          <li>Upgraded requests 2.33.1 to 2.34.0 and idna 3.13 to 3.14 (transitive)</li>
+          <li>Pinned Python to 3.14.3+freethreaded (was 3.14+freethreaded) for both Windows and Linux builds — highest 3.14 free-threaded build currently published by astral-sh/python-build-standalone on both platforms (Linux lags Windows on patch releases). PyInstaller specs continue to pass -X gil=0 at the bootloader level. All CI/CD workflows (python-app, pylint, build-flatpak, update-download-badge, codspeed) bumped to match — codspeed in particular was previously benchmarking on regular GIL-enabled CPython 3.14 rather than the free-threaded interpreter the app actually ships with</li>
+          <li>Audited all 34 cp314t native extensions: only msgpack 1.1.2 still triggers the GIL re-enable warning (Cython freethreading_compatible directive landed upstream post-1.1.2 and will ship in the next release). PYTHON_GIL=0 is now also set in the Flatpak finish-args as defense-in-depth so the GIL stays disabled at runtime on Linux</li>
+          <li>Migrated license metadata to PEP 639 format (SPDX `license = "AGPL-3.0-only"` plus `license-files = ["LICENSE"]` in both [project] and [tool.briefcase]) to resolve the deprecation warning emitted by Briefcase 0.4.2 during MSI packaging</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.1.4" date="2026-05-10">
+      <description>
+        <p>Security patch and dependency upgrades (Issue #210)</p>
+        <ul>
+          <li>Bumped GitPython 3.1.49 to 3.1.50 to patch a newline-injection bypass of CVE-2026-42215 in config_writer().set_value() (the section/option arguments were not validated, allowing a forged [core] hooksPath header and RCE via git hooks)</li>
+          <li>GitPython is only used at MSI build time (transitive via briefcase), so shipped binaries were not exploitable, but the vulnerable resolution has been removed from the lock file</li>
+          <li>Upgraded briefcase 0.4.1 to 0.4.2, rich 14.3.4 to 15.0.0, urllib3 2.6.3 to 2.7.0, tomlkit 0.14.0 to 0.15.0, propcache 0.4.1 to 0.5.2, markdown-it-py 4.0.0 to 4.2.0, pyinstaller-hooks-contrib 2026.4 to 2026.5, pip 26.1 to 26.1.1</li>
+          <li>No runtime or free-threaded Python 3.14t behaviour changes</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.1.3" date="2026-04-30">
+      <description>
+        <p>Update summary now shows actual game names (Issue #207)</p>
+        <ul>
+          <li>Fixed: the Update Complete dialog showed "common" for every game instead of the actual game name</li>
+          <li>Game names are now resolved using launcher-aware path parsing (Steam, EA, Epic, GOG, Ubisoft, custom folders)</li>
+          <li>Standard update fallback path also fixed: results were passed as raw tuples instead of formatted strings</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.1.2" date="2026-04-22">
+      <description>
+        <p>Windows taskbar pinning fix (Issue #184)</p>
+        <ul>
+          <li>Fixed: pinning the running app to the taskbar previously pinned flet.exe (the Flet GUI engine), causing a white screen when relaunching from the pin</li>
+          <li>AppUserModelID and RelaunchCommand are now set on flet.exe's window at startup so Windows pins DLSS_Updater.exe instead</li>
+          <li>Start Menu shortcut in the MSI installer now carries the System.AppUserModel.ID property for correct taskbar association</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.1.1" date="2026-04-20">
+      <description>
+        <p>DLL rollback compatibility warning and Flatpak runtime upgrade (Issue #204)</p>
+        <ul>
+          <li>New DLL Rollback Compatibility Warning: before updating, the app cross-references the target DLL version against your own restore history and warns you if you've rolled back from that exact version in two or more other games within the past 48 hours</li>
+          <li>Warning dialog offers three choices: Cancel, Skip flagged DLLs, or Update anyway — the decision is yours</li>
+          <li>Inline amber badge in the DLL Details dialog flags any DLL whose latest version matches a version you've recently rolled back from</li>
+          <li>All detection is local SQL against your own backup history — no telemetry, nothing leaves your machine</li>
+          <li>Upgraded Flatpak runtime from Freedesktop 24.08 to 25.08 to fix install failures on newer Fedora versions</li>
+          <li>25.08 ships libsecret natively and brings glibc 2.42 and GCC 15.1</li>
+          <li>Fixed: Update button stayed enabled on every game regardless of DLL version — it now disables when all DLLs are current, and the dropdown only lists groups with an outdated DLL</li>
+          <li>Fixed: Restore menu now refreshes immediately after an update so newly-created backups appear without re-opening the view; bulk updates re-sync Restore menus via a single batched query</li>
+          <li>Fixed: rollback compatibility detection was keying on the wrong version (the version rolled back TO, not FROM). Warnings now fire on the correct version.</li>
+          <li>Changed the flag threshold from "two or more distinct games" to "two or more total rollback events" for the same (DLL, version). Vendor-signed DLLs are identical across every game, so each rollback is an independent vote against that version, even when repeated in the same game.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.1.0" date="2026-04-13">
+      <description>
+        <p>Personal game ignore list, DLL status indicators, and UX improvements</p>
+        <ul>
+          <li>Personal game ignore list: exclude specific games from updates via image overlay toggle (Issue #194)</li>
+          <li>Ignored Games settings panel for bulk management with search</li>
+          <li>Ignore filter moved to header bar; action buttons no longer misalign at narrow widths</li>
+          <li>Game cards show color-coded outdated/current DLL badges</li>
+          <li>DLL badges auto-refresh after Update All and Refresh Games (reads versions from disk)</li>
+          <li>Backup disk usage summary in Games view header</li>
+          <li>Enhanced empty-state UX for launcher path cards</li>
+          <li>Game launch button for Steam games via steam:// protocol</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.0.1" date="2026-04-06">
+      <description>
+        <p>Clipboard fix and Flet upgrade</p>
+        <ul>
+          <li>Fixed clipboard copy button error in Linux DLSS panel (Issue #189)</li>
+          <li>Upgraded Flet from 0.83.0 to 0.84.0 on Linux</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.0.0" date="2026-04-01">
+      <description>
+        <p>Launcher UX improvements, Steam multi-library detection, and window state persistence</p>
+        <ul>
+          <li>Window State Persistence: App remembers window size, position, and maximized state between sessions (Issue #183)</li>
+          <li>Steam Image Fix: Fallback to Steam appdetails API for newer games using hash-based CDN URLs (Issue #182)</li>
+          <li>Rescan Prompt: Snackbar with "Rescan" action button appears after removing or resetting launcher paths (Issue #181)</li>
+          <li>Steam Multi-Library Auto-Detect: Auto-Detect now discovers all Steam library folders across multiple drives via libraryfolders.vdf (Issue #180)</li>
+          <li>Launcher Page Refresh Fix: LauncherCard now correctly uses self.update() for isolated control updates (Issue #179)</li>
+        </ul>
+      </description>
+    </release>
+  <release version="3.9.9" date="2026-03-30">
+      <description>
+        <p>UI Fix - DLL Details dialog now scales responsively with window size</p>
+      </description>
+    </release>
+  <release version="3.9.8" date="2026-03-30">
+      <description>
+        <p>Bug Fixes - Scanner crash and image loading</p>
+        <ul>
+          <li>Fixed UnboundLocalError in find_all_dlls() where a redundant local import of config_manager shadowed the module-level import</li>
+          <li>Fixed "can not serialize WindowsPath object" error when loading uncached game images</li>
+          <li>Scan now correctly reads user DLL update preferences and loads all game images without errors</li>
+        </ul>
+      </description>
+    </release>
+  <release version="3.9.7" date="2026-03-29">
+      <description>
+        <p>MSI Build Fix - Free-threaded Python runtime (Issue #176)</p>
+        <ul>
+          <li>Fixed MSI installer failing to start with "Disabling the GIL is not supported by this build"</li>
+          <li>MSI GitHub Actions workflow now uses Python 3.14t (free-threaded) instead of standard 3.14</li>
+          <li>Ensures the bundled Python interpreter supports the -X gil=0 flag required by the application</li>
+        </ul>
+      </description>
+    </release>
+  <release version="3.9.6" date="2026-03-29">
+      <description>
+        <p>Steam API Integration - Dramatically improved game image loading (Issue #175)</p>
+        <ul>
+          <li>Added optional Steam API key support for accurate game app ID resolution</li>
+          <li>Four-tier resolution: Manifest → Steam API → Store Search → FTS5 fuzzy match</li>
+          <li>Steam API card on Games tab with API key input, validation, and auto-detected Steam ID</li>
+          <li>One-click re-resolution to fix images from previous scans when API key is added</li>
+          <li>Smart cache invalidation: only re-fetches images when app ID actually changes</li>
+          <li>Resolution source tracking for intelligent re-resolution decisions</li>
+        </ul>
+      </description>
+    </release>
+  <release version="3.9.5" date="2026-03-29">
+      <description>
+        <p>MSI installer for Windows, resolving Windows Defender false positive issues</p>
+        <ul>
+          <li>Added MSI installer build using PyInstaller (onedir) + Briefcase for winget and Chocolatey</li>
+          <li>Resolves Windows Defender false positive (Trojan:Win32/Wacatac.H!ml) blocking winget submission</li>
+          <li>MSI installs to Program Files with proper Add/Remove Programs entry</li>
+          <li>Portable single-exe distribution remains available via direct download</li>
+          <li>Updated winget manifest to InstallerType: msi</li>
+          <li>Updated Chocolatey package to use MSI with proper msiexec install/uninstall</li>
+        </ul>
+      </description>
+    </release>
+  <release version="3.9.4" date="2026-03-28">
+      <description>
+        <p>Flet 0.83.0 upgrade, bug fixes, and dependency updates</p>
+        <ul>
+          <li>Upgraded Flet from 0.82.2 to 0.83.0 with internal performance engine improvements (up to 6.7x for animated UIs)</li>
+          <li>Removed flet-desktop-light (deprecated); Linux now uses flet-desktop with automatic light flavor</li>
+          <li>Fixed navigation crash when switching away from Settings and back</li>
+          <li>Fixed logger panel toggle button not expanding/collapsing</li>
+          <li>Fixed incorrect "Latest" DLL version numbers in the Games DLL Details dialog (Issue #167)</li>
+          <li>Updated winloop 0.6.0, packaging 26.0, aiohttp 3.13.4, aiosqlite 0.22.1, platformdirs 4.9.4</li>
+        </ul>
+      </description>
+    </release>
+  <release version="3.9.3" date="2026-03-01">
+      <description>
+        <p>Bug fixes</p>
+        <ul>
+          <li>Fix for progressive loading of games.</li>
+          <li>Adjustments to the default Linux flatpak permissions to read/write to allow writing by default.</li>
+          <li>Some upgrades to dependencies to fix CVE reports.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.9.2" date="2026-02-03">
+      <description>
+        <p>Data Lifecycle and UX Improvements</p>
+        <ul>
+          <li>Phantom Game Cleanup: Uninstalled games are now automatically removed from the database on rescan</li>
+          <li>Version Format Normalization: DLL versions consistently display in dot-separated format</li>
+          <li>DLL Count Consistency: Fixed issue where updating custom folder games could reduce DLL count</li>
+          <li>MergedGame AttributeError: Fixed crash when using Update/Restore on duplicate game entries</li>
+          <li>Stale Version Display: DLL versions refreshed from filesystem before showing dialog</li>
+          <li>Database Cleanup: Automatic cleanup of duplicate games, backups, and orphan DLL records</li>
+          <li>Shutdown Progress Dialog: Visual feedback during app shutdown showing cleanup progress</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.9.0" date="2026-01-28">
+      <description>
+        <p>Navigation Transition Performance Optimization</p>
+        <ul>
+          <li>Reduced navigation transitions from ~600ms to under 100ms (most views)</li>
+          <li>Content detachment: only the active view is serialized during page updates</li>
+          <li>Single page.update() per transition instead of 2 (no fade-out gap)</li>
+          <li>GamesView isolation: 500+ control subtree excluded from navigation updates</li>
+          <li>Hub/Settings transitions ~10x faster, Games transitions ~10-18x faster</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.8.0" date="2026-01-27">
+      <description>
+        <p>Hub-Based Navigation Redesign</p>
+        <ul>
+          <li>Replaced tab-based navigation with a hub home screen</li>
+          <li>Added floating pill navigation bar shown when inside views</li>
+          <li>Navigation stack supports back navigation via Escape key</li>
+          <li>New Settings view for Update Preferences, UI Preferences, Blacklist, Theme</li>
+          <li>Removed standalone Backups tab (available per-game in Games view)</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.7.0" date="2026-01-24">
+      <description>
+        <p>Flet 0.80.4 Migration - Major framework upgrade</p>
+        <ul>
+          <li>Upgraded Flet from 0.28.3 to 0.80.4 (major version jump)</li>
+          <li>Modernized entry point and API usage</li>
+          <li>Updated all UI components for new Flet patterns</li>
+          <li>Improved GIL unlock support for free-threaded Python 3.14</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.6.1" date="2026-01-23">
+      <description>
+        <p>GUI Unresponsiveness Fix - Critical fix for frozen/unclickable UI</p>
+        <ul>
+          <li>Fixed LoadingOverlay blocking all input after hiding (caused frozen UI)</li>
+          <li>Removed darkdetect dependency that caused blocking startup on Linux/Wayland</li>
+          <li>Fixed admin elevation race condition causing dual process instances on Windows</li>
+          <li>Theme now loads from saved preference or defaults to dark mode</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.6.0" date="2026-01-20">
+      <description>
+        <p>Bug Fixes and Improvements</p>
+        <ul>
+          <li>Enables the use of the light theme, found under Preferences</li>
+          <li>Bug fixes for memory leak issues</li>
+          <li>DLL's are now categorised under Games, for better legibility.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.5.4" date="2026-01-17">
+      <description>
+        <p>Linux Flatpak Fixes - Resolved multiple launch and scan issues</p>
+        <ul>
+          <li>Fixed FileNotFoundError when ~/.flet/bin directory doesn't exist (Issue #127)</li>
+          <li>Fixed OSError "Read-only file system" on Flatpak by ensuring Flet directories are created (Issue #122)</li>
+          <li>Added --filesystem=~/.flet:create permission to Flatpak build script</li>
+          <li>Fixed "Scan Failed" error caused by dict being passed as path (Issue #126)</li>
+          <li>Fixed GTK/SVG icon loading failures on Nobara 43 (libstdc++ CXXABI conflict)</li>
+          <li>Excluded system C++ libraries from PyInstaller bundle to use Flatpak runtime libraries</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.5.2" date="2026-01-11">
+      <description>
+        <p>Intel XeSS Frame Generation Support</p>
+        <ul>
+          <li>Added libxess_fg.dll (XeSS Frame Generation SDK v1.2.2.118)</li>
+          <li>Added libxell.dll (Intel XeLL library v1.2.1.13)</li>
+          <li>Updated libxess.dll and libxess_dx11.dll to v2.0.2.68</li>
+          <li>Intel XeSS Frame Generation provides AI-powered frame interpolation for Arc GPUs</li>
+          <li> Fixes for multiple drives having the same game, and fixes for sub-root detection of DLL's not merging correctly </li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.5.1" date="2026-01-10">
+      <description>
+        <p>Flatpak distribution replaces AppImage for improved Linux compatibility</p>
+        <ul>
+          <li>Flatpak package available on Flathub and GitHub Releases</li>
+          <li>Eliminates library compatibility issues across different Linux distributions</li>
+          <li>Consistent runtime environment with all dependencies included</li>
+          <li>In-app dialog guides users to grant permissions for custom game locations</li>
+          <li>AppImage distribution discontinued in favor of Flatpak</li>
+          <li>Removed sudo/root elevation support (Flatpak handles permissions)</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.4.0" date="2026-01-06">
+      <description>
+        <p>DLSS SR Preset Override - GPU-based preset recommendations</p>
+        <ul>
+          <li>Configure DLSS Super Resolution presets (K/L/M) with automatic GPU detection</li>
+          <li>RTX 20/30 series recommended Preset K, RTX 40/50 series use Preset M or K</li>
+          <li>Preset L is heavier and may reduce performance</li>
+          <li>Windows: System-wide registry override for all games</li>
+          <li>Linux: Generate Steam launch options with copy-to-clipboard</li>
+          <li>First-time setup dialog appears automatically for NVIDIA GPU users</li>
+          <li>Re-configurable anytime via Preferences menu</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.3.1" date="2026-01-04">
+      <description>
+        <p>Linux improvements - removed sudo requirement</p>
+        <ul>
+          <li>Removed forced sudo/root requirement for Linux</li>
+          <li>App now runs in user space by default</li>
+          <li>System-level Wine/Proton paths skipped with warning banner</li>
+          <li>Most Steam Proton/Lutris games work without elevation</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.3.0" date="2026-01-02">
+      <description>
+        <p>Added Linux support</p>
+        <ul>
+          <li>Cross-platform support for Windows and Linux</li>
+          <li>Steam Proton and Wine prefix detection on Linux</li>
+          <li>Bundled dependencies for standalone distribution</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.2.0" date="2024-12-15">
+      <description>
+        <p>Performance improvements and bug fixes</p>
+      </description>
+    </release>
+  </releases>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+</component>

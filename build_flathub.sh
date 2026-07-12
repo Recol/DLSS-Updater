@@ -144,15 +144,13 @@ rm -rf build-dir repo
 # appstream-compose (same workaround as build_flatpak.sh). Flathub's own
 # infra runs the full pipeline from the manifest's finish-args.
 flatpak-builder --user --force-clean --build-only --install-deps-from=flathub \
-    build-dir "${APP_ID}.yml"
+    build-dir dev.yml
 
 # Keep this list in sync with finish-args in the manifest.
 flatpak build-finish build-dir \
     --socket=wayland --socket=fallback-x11 --device=dri --share=ipc --share=network \
     --filesystem=home:rw --filesystem=/mnt:rw --filesystem=/media:rw --filesystem=/run/media:rw \
-    --filesystem=xdg-config/DLSS-Updater:rw --filesystem=xdg-cache/DLSS-Updater:rw \
     --filesystem=~/.local/share/dlss-updater:create \
-    --talk-name=org.freedesktop.portal.FileChooser \
     --env=LD_LIBRARY_PATH=/app/lib64:/app/lib --env=PYTHON_GIL=0 \
     --command=dlss-updater
 
