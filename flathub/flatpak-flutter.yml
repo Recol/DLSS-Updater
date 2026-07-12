@@ -20,7 +20,19 @@ finish-args:
   - --filesystem=/run/media
   - --env=PYTHON_GIL=0
 modules:
-  - modules/cpython.json
+  # the app requires free-threaded (no-GIL) Python 3.14
+  - name: cpython-freethreaded
+    buildsystem: autotools
+    config-opts:
+      - --disable-gil
+      - --with-ensurepip=install
+      - --without-static-libpython
+    build-options:
+      no-debuginfo: true
+    sources:
+      - type: archive
+        url: https://www.python.org/ftp/python/3.14.3/Python-3.14.3.tar.xz
+        sha256: a97d5549e9ad81fe17159ed02c68774ad5d266c72f8d9a0b5a9c371fe85d902b
 
   - generated/python-deps.json
 
