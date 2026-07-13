@@ -20,6 +20,6 @@ jobs:
       # Renders the star-history chart in CI with the repo's own token and
       # commits a static SVG, since GitHub's 2026-06-30 stargazers API
       # restriction broke star-history.com's hosted chart endpoints.
-      - uses: narayann7/star-history-action@d2d4e3a948b3e05f1aef05f4576d666c97d91468 # v1.0.1
+      - uses: narayann7/star-history-action@deb4d27dc8ef0cd6415d44b3ede9aa7f2c8ecaba # v1.0.2
         with:
           repos: ${{ github.repository }}
