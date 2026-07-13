@@ -16,7 +16,7 @@ jobs:
   star-history:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Renders the star-history chart in CI with the repo's own token and
       # commits a static SVG, since GitHub's 2026-06-30 stargazers API
       # restriction broke star-history.com's hosted chart endpoints.
