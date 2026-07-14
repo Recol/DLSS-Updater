@@ -26,4 +26,4 @@ jobs:
       - uses: narayann7/star-history-action@deb4d27dc8ef0cd6415d44b3ede9aa7f2c8ecaba # v1.0.2
         with:
           repos: ${{ github.repository }}
-          token: ${{ secrets.STAR_HISTORY_TOKEN || github.token }}
+          token: ${{ secrets.STAR_HISTORY_TOKEN || secrets.GH_PAT || github.token }}
