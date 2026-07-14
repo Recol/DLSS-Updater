@@ -1,4 +1,5 @@
 import os
+import hashlib
 import inspect
 import threading
 from pathlib import Path
@@ -28,6 +29,44 @@ def _get_dll_cache_dir():
 
 
 LOCAL_DLL_CACHE_DIR = _get_dll_cache_dir()
+
+# Known-bad DLL builds that must be evicted from the cache regardless of what
+# version they report. The 310.7 DLSS DLLs originally published to the DLL repo
+# were NVIDIA's dev-variant builds (in-game "development build - do not
+# redistribute" watermark, issue #241). They carry the same PE version
+# (310.7.0.0) as the clean rel builds, so the version comparison in
+# check_for_dll_update() can never replace them on its own.
+# Size is checked before hashing so unaffected caches only pay a stat().
+KNOWN_BAD_DLL_BUILDS = {
+    "nvngx_dlss.dll": {
+        "size": 69725808,
+        "sha256": "1cdfdc957cb7fc9805500ca6793f607ef2d4dbd7c967feac70aca9caf382d0c0",
+    },
+    "nvngx_dlssd.dll": {
+        "size": 41400432,
+        "sha256": "fd83687c98d00754ae8e26b5daa7dabfed04557113c69c9eddfe4b6f3acaf426",
+    },
+    "nvngx_dlssg.dll": {
+        "size": 13959792,
+        "sha256": "0d33b5de65d60a943c33bd096d574297302b214a1c5baa6bcb74bc1150a608de",
+    },
+}
+
+
+def is_known_bad_dll(dll_name: str, local_path: Path) -> bool:
+    """Check whether a cached DLL is a known-bad build (see KNOWN_BAD_DLL_BUILDS)."""
+    bad_build = KNOWN_BAD_DLL_BUILDS.get(dll_name.lower())
+    if not bad_build:
+        return False
+    try:
+        if local_path.stat().st_size != bad_build["size"]:
+            return False
+        with open(local_path, "rb") as f:
+            digest = hashlib.file_digest(f, "sha256").hexdigest()
+        return digest == bad_build["sha256"]
+    except OSError as e:
+        logger.warning(f"Could not check {local_path} against known-bad builds: {e}")
+        return False
 
 # Thread-safety locks for free-threading (Python 3.14+)
 _session_lock = threading.Lock()
@@ -200,6 +239,13 @@ async def check_for_dll_update_async(dll_name: str, manifest: dict | None = None
         logger.info(f"No local copy of {dll_name} exists, download needed")
         return True
 
+    # Known-bad builds report the same version as their clean replacement,
+    # so they must be caught before the version comparison (hashing is
+    # CPU/IO-bound, run in a bounded worker thread)
+    if await anyio.to_thread.run_sync(is_known_bad_dll, dll_name, local_path, limiter=thread_cpu):
+        logger.info(f"Cached {dll_name} is a known-bad build, forcing re-download")
+        return True
+
     # get_dll_version is CPU-bound (reads PE headers), run in a bounded CPU worker thread
     local_version = await anyio.to_thread.run_sync(get_dll_version, str(local_path), limiter=thread_cpu)
     if not local_version:
@@ -249,6 +295,12 @@ def check_for_dll_update(dll_name):
     local_path = Path(LOCAL_DLL_CACHE_DIR) / dll_name
     if not local_path.exists():
         logger.info(f"No local copy of {dll_name} exists, download needed")
+        return True
+
+    # Known-bad builds report the same version as their clean replacement,
+    # so they must be caught before the version comparison
+    if is_known_bad_dll(dll_name, local_path):
+        logger.info(f"Cached {dll_name} is a known-bad build, forcing re-download")
         return True
 
     local_version = get_dll_version(str(local_path))

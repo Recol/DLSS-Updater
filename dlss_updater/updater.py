@@ -14,6 +14,7 @@ from packaging import version
 from .logger import setup_logger
 from .constants import DLL_TYPE_MAP, FSR4_DLL_RENAME_MAP
 from .config import config_manager
+from .dll_repository import is_known_bad_dll
 from .models import ProcessedDLLResult
 
 logger = setup_logger()
@@ -518,10 +519,17 @@ def update_dll(dll_path, latest_dll_path):
                 return ProcessedDLLResult(success=False, dll_type=dll_type)
 
             if existing_parsed >= latest_parsed:
-                logger.info(
-                    f"{dll_path} is already up-to-date (version {existing_version})."
-                )
-                return ProcessedDLLResult(success=False, dll_type=dll_type)
+                # Known-bad builds (e.g. watermarked dev variants) report the
+                # same version as the clean replacement, so replace them anyway
+                if is_known_bad_dll(dll_path.name, dll_path):
+                    logger.info(
+                        f"{dll_path} is a known-bad build, replacing despite matching version {existing_version}"
+                    )
+                else:
+                    logger.info(
+                        f"{dll_path} is already up-to-date (version {existing_version})."
+                    )
+                    return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if not dll_path.exists():
             logger.error(f"Error: Target DLL path does not exist: {dll_path}")
@@ -636,10 +644,17 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
                 return ProcessedDLLResult(success=False, dll_type=dll_type)
 
             if existing_parsed >= latest_parsed:
-                logger.info(
-                    f"{dll_path} is already up-to-date (version {existing_version})."
-                )
-                return ProcessedDLLResult(success=False, dll_type=dll_type)
+                # Known-bad builds (e.g. watermarked dev variants) report the
+                # same version as the clean replacement, so replace them anyway
+                if is_known_bad_dll(dll_path.name, dll_path):
+                    logger.info(
+                        f"{dll_path} is a known-bad build, replacing despite matching version {existing_version}"
+                    )
+                else:
+                    logger.info(
+                        f"{dll_path} is already up-to-date (version {existing_version})."
+                    )
+                    return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         if not dll_path.exists():
             logger.error(f"Error: Target DLL path does not exist: {dll_path}")

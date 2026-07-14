@@ -1,3 +1,17 @@
+Version 4.3.2:
+Bug Fixes:
+  - Fixed the DLSS 310.7 "development build - do not redistribute" in-game
+    watermark (Issue #241). The 310.7 DLSS DLLs originally published to the
+    DLL repository were NVIDIA's dev-variant builds, which carry the exact
+    same file version (310.7.0.0) as the clean release builds - so the
+    version-based update check could never replace them. The app now
+    recognises these known-bad builds by SHA256: the local DLL cache is
+    automatically re-downloaded on startup, and games that were already
+    updated to a watermarked DLL are replaced with the clean release build
+    on the next update pass (single-game or batch), even though the version
+    numbers match. Simply update the affected games again to clear the
+    watermark.
+
 Version 4.3.1:
 Bug Fixes:
   - Fixed the harmless-but-noisy "Failed to record update history:

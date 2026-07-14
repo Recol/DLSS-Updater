@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.3.2" date="2026-07-14">
+      <description>
+        <p>Fixes the DLSS 310.7 "development build" watermark (Issue #241)</p>
+        <ul>
+          <li>The 310.7 DLSS DLLs originally published to the DLL repository were NVIDIA's dev-variant builds, which show an in-game "do not redistribute" watermark and report the same file version as the clean release builds</li>
+          <li>The app now recognises these known-bad builds by SHA256: the local DLL cache is automatically re-downloaded on startup, and affected games are replaced with the clean build on the next update pass despite the matching version number</li>
+          <li>To clear the watermark in an affected game, simply update it again with this version</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.3.1" date="2026-07-11">
       <description>
         <p>Maintenance release</p>

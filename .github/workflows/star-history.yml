@@ -17,9 +17,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Renders the star-history chart in CI with the repo's own token and
-      # commits a static SVG, since GitHub's 2026-06-30 stargazers API
-      # restriction broke star-history.com's hosted chart endpoints.
+      # Renders the star-history chart in CI and commits a static SVG, since
+      # GitHub's 2026-06-30 stargazers API restriction broke star-history.com's
+      # hosted chart endpoints. Since 2026-07-13 the stargazers API also
+      # rejects the built-in Actions GITHUB_TOKEN (403 disguised as a rate
+      # limit), so the render step needs a user PAT (STAR_HISTORY_TOKEN,
+      # read-only/public_repo); the fallback keeps forks from hard-failing.
       - uses: narayann7/star-history-action@deb4d27dc8ef0cd6415d44b3ede9aa7f2c8ecaba # v1.0.2
         with:
           repos: ${{ github.repository }}
+          token: ${{ secrets.STAR_HISTORY_TOKEN || github.token }}

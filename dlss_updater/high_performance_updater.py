@@ -53,6 +53,7 @@ from .models import (
     MemoryStatus,
     ProcessedDLLResult,
 )
+from .dll_repository import is_known_bad_dll
 from .updater import (
     create_backup,
     get_dll_version,
@@ -1258,6 +1259,10 @@ class HighPerformanceUpdateManager:
             return True, "Version unknown"
 
         if parse_version(existing_version) >= parse_version(latest_version):
+            # Known-bad builds (e.g. watermarked dev variants) report the
+            # same version as the clean replacement, so replace them anyway
+            if is_known_bad_dll(target_path.name, target_path):
+                return True, f"Known-bad build ({existing_version}), replacing"
             return False, f"Up-to-date ({existing_version})"
 
         return True, f"Update available ({existing_version} -> {latest_version})"
@@ -1563,7 +1568,10 @@ class HighPerformanceUpdateManager:
                 latest_version = get_dll_version(source_path)
 
                 if existing_version and latest_version:
-                    if parse_version(existing_version) >= parse_version(latest_version):
+                    # Known-bad builds report the same version as the clean
+                    # replacement - never skip those
+                    if parse_version(existing_version) >= parse_version(latest_version) \
+                            and not is_known_bad_dll(target_path.name, target_path):
                         return make_result(
                             False, f"Already up-to-date ({existing_version})",
                             skipped=True, old_version=existing_version, new_version=latest_version
@@ -1596,7 +1604,10 @@ class HighPerformanceUpdateManager:
             latest_version = get_dll_version(source_path) if source_path else None
 
             if existing_version and latest_version:
-                if parse_version(existing_version) >= parse_version(latest_version):
+                # Known-bad builds report the same version as the clean
+                # replacement - never skip those
+                if parse_version(existing_version) >= parse_version(latest_version) \
+                        and not is_known_bad_dll(target_path.name, target_path):
                     return make_result(
                         False, f"Already up-to-date ({existing_version})",
                         skipped=True, old_version=existing_version, new_version=latest_version
