@@ -1,3 +1,55 @@
+Version 4.4.0:
+New Features:
+  - Complete "hero" visual redesign, extending the game-card design language
+    across the whole application:
+    - Hub: the Games card is now a hero backed by a mosaic of your own cached
+      game artwork with stat pills (game count, backups, last scan); the side
+      cards use brand-color gradient washes with watermark glyphs
+    - Games Library: the Steam API card has been demoted to a compact status
+      pill in the header (click it to configure); filter chips now show live
+      counts with semantic colors; the header and launcher tabs use the
+      Games accent
+    - Launchers: rebuilt as a responsive grid of banner cards matching the
+      games grid - brand-color gradient banner with a circular launcher
+      badge (real brand icons for Steam, Epic, GOG, Ubisoft, EA, Xbox and
+      Battle.net), game-count pill, and a fixed footer holding path chips
+      and actions; tapping a card opens its detected-games list in a
+      brand-accented slide panel; launchers without a configured path
+      render dimmed and tap straight into folder setup
+    - Settings: tiles swap outline borders for quiet accent washes and faint
+      watermark icons, with a subtle hover lift
+    - Backups: returns as a first-class destination - reachable from a new
+      hub card and the navigation pill - with per-game artwork thumbnails in
+      the group headers
+    - App-wide chrome: subtly tinted window background, brand-washed app bar
+      with a version pill, restyled Application Logs bar, and accent-colored
+      slide-panel headers (NVIDIA green for DLSS Settings)
+
+Bug Fixes:
+  - Fixed the light theme rendering large surfaces (hub cards, app bar,
+    washed headers) near-black: translucent brand-wash gradients let the
+    card shadow's black show through in light mode. Washes are now opaque,
+    pre-blended against the themed surface.
+  - Fixed views keeping their previous theme after a live theme toggle:
+    the UI client drops updates sent to detached (inactive) views, so
+    views are now rebuilt with fresh, theme-correct controls the next time
+    they are opened after a toggle (hub, games, launchers, backups and the
+    app bar all heal this way)
+  - Fixed custom-launcher borders never rendering (they were set on a
+    property the old control ignored)
+  - A configured launcher with 0 games no longer shows an alarming
+    accent-colored count badge
+
+Internal improvements:
+  - Updated Flet to 0.86.0 on both platforms. Drop-in upgrade (no API
+    changes were required); brings ResponsiveRow state retention across
+    breakpoint resizes and faster session patching for large control trees.
+    The flet.exe child-process architecture is unchanged, so the taskbar
+    AppUserModelID handling still applies as-is.
+  - New shared hero_surface module providing the design primitives (scrim
+    gradients, brand washes, watermark glyphs, badge pills) used by all
+    restyled components
+
 Version 4.3.2:
 Bug Fixes:
   - Fixed the DLSS 310.7 "development build - do not redistribute" in-game

@@ -8,9 +8,15 @@ import logging
 
 import flet as ft
 
-from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
+from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors, Shadows
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin
 from dlss_updater.ui_flet.components.floating_pill import PILL_CLEARANCE
+from dlss_updater.ui_flet.components.hero_surface import (
+    build_brand_wash,
+    build_watermark_icon,
+    themed_accent,
+    HOVER_ANIM_MS,
+)
 
 # Per-tile icon colors (dark, light) for visual distinction
 TILE_COLORS = {
@@ -23,6 +29,28 @@ TILE_COLORS = {
     "theme":        ("#FF9800", "#E65100"),     # Amber (light/dark toggle)
     "check_updates": ("#2196F3", "#0D47A1"),   # Blue (app updates)
 }
+
+# Settings tiles are the RESTRAINT area of the hero design: the brand wash and
+# icon watermark are dialed down well below hero_surface's card-level defaults
+# (WASH_OPACITY_*/WATERMARK_OPACITY_*) so tiles stay quiet and instantly
+# scannable — a tint, not a poster.
+TILE_WASH_OPACITY_DARK = 0.12
+TILE_WASH_OPACITY_LIGHT = 0.08
+TILE_WATERMARK_OPACITY_DARK = 0.06
+TILE_WATERMARK_OPACITY_LIGHT = 0.03
+
+# Watermark glyph geometry: sized to bleed off the tile's bottom-right corner
+# (clipped by the tile's clip_behavior) rather than sit fully inside it.
+TILE_WATERMARK_SIZE = 76
+TILE_WATERMARK_OFFSET = -16
+
+
+def _tile_wash_opacity(is_dark: bool) -> float:
+    return TILE_WASH_OPACITY_DARK if is_dark else TILE_WASH_OPACITY_LIGHT
+
+
+def _tile_watermark_opacity(is_dark: bool) -> float:
+    return TILE_WATERMARK_OPACITY_DARK if is_dark else TILE_WATERMARK_OPACITY_LIGHT
 
 
 class SettingsView(ThemeAwareMixin, ft.Column):
@@ -209,8 +237,14 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         on_click=None,
         trailing: ft.Control | None = None,
     ) -> ft.Container:
-        """Create a single settings tile (2-up responsive, dense padding)."""
-        accent = TILE_COLORS[color_key][0] if is_dark else TILE_COLORS[color_key][1]
+        """Create a single settings tile (2-up responsive, dense padding).
+
+        Structure: an outer Container (surface bgcolor, rounded, clipped) hosts
+        a Stack of [brand wash, icon watermark, foreground content] so the wash
+        and watermark can bleed across the full tile without disturbing the
+        original padding/layout of the foreground row.
+        """
+        accent = themed_accent(TILE_COLORS[color_key], is_dark)
 
         icon_widget = ft.Icon(icon, size=22, color=ft.Colors.WHITE)
         icon_circle = ft.Container(
@@ -240,7 +274,29 @@ class SettingsView(ThemeAwareMixin, ft.Column):
             color=MD3Colors.get_on_surface_variant(is_dark),
         )
 
-        tile = ft.Container(
+        # Brand wash: diagonal accent -> transparent, quieter than hub cards.
+        # Positioned to fill the Stack (left/top/right/bottom=0) so it sits as
+        # a layer directly above the tile's own surface bgcolor.
+        wash_container = ft.Container(
+            gradient=build_brand_wash(accent, is_dark, opacity=_tile_wash_opacity(is_dark)),
+            left=0,
+            top=0,
+            right=0,
+            bottom=0,
+        )
+
+        # Decorative watermark of the tile's own icon, bled off the
+        # bottom-right corner and clipped by the tile's clip_behavior.
+        watermark_container = build_watermark_icon(icon, is_dark, size=TILE_WATERMARK_SIZE)
+        watermark_container.opacity = _tile_watermark_opacity(is_dark)
+        watermark_container.right = TILE_WATERMARK_OFFSET
+        watermark_container.bottom = TILE_WATERMARK_OFFSET
+        watermark_widget = watermark_container.content  # ft.Icon, recolored/reshaped in apply_theme
+
+        # Foreground content keeps the tile's original padding/layout. It is
+        # NOT stack-positioned, so it (not the fill layers) determines the
+        # Stack's natural size. Trailing control stays above the watermark.
+        foreground = ft.Container(
             content=ft.Row(
                 controls=[
                     icon_circle,
@@ -255,14 +311,22 @@ class SettingsView(ThemeAwareMixin, ft.Column):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.Padding.symmetric(horizontal=16, vertical=12),
+        )
+
+        tile = ft.Container(
+            content=ft.Stack(controls=[wash_container, watermark_container, foreground]),
             border_radius=12,
             bgcolor=MD3Colors.get_surface(is_dark),
-            border=ft.Border.all(1, MD3Colors.get_outline(is_dark)),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(HOVER_ANIM_MS, ft.AnimationCurve.EASE_OUT),
+            scale=1.0,
+            shadow=None,
             on_click=on_click,
             ink=on_click is not None,
             col={"xs": 12, "md": 6},
         )
+        tile.on_hover = lambda e, t=tile: self._on_tile_hover(e, t)
 
         self._tile_meta.append({
             "tile": tile,
@@ -271,10 +335,30 @@ class SettingsView(ThemeAwareMixin, ft.Column):
             "icon_widget": icon_widget,
             "title_text": title_text,
             "subtitle_text": subtitle_text,
+            "wash_container": wash_container,
+            "watermark_container": watermark_container,
+            "watermark_widget": watermark_widget,
             # Chevron needs recoloring; an inline trailing control themes itself
             "chevron": trailing_control if trailing is None else None,
         })
         return tile
+
+    def _on_tile_hover(self, e, tile: ft.Container) -> None:
+        """Subtle hover motion: small scale-up + a modest shadow.
+
+        Dialed back from hub_card.py's hover (scale 1.01-1.02 / Shadows.LEVEL_3
+        multi-layer glow) to match the settings-tile restraint mandate — a
+        single-layer LEVEL_1 shadow reads as "lifted" without competing with
+        the wash/watermark tint already on the tile.
+        """
+        if e.data == "true":
+            tile.scale = 1.01
+            tile.shadow = Shadows.LEVEL_1
+        else:
+            tile.scale = 1.0
+            tile.shadow = None
+        if self._page_ref:
+            tile.update()
 
     def _handle_click(self, callback, e):
         """Handle settings tile click with async support."""
@@ -305,10 +389,16 @@ class SettingsView(ThemeAwareMixin, ft.Column):
                 meta["chevron"].color = MD3Colors.get_on_surface_variant(is_dark)
             tile = meta["tile"]
             tile.bgcolor = MD3Colors.get_surface(is_dark)
-            tile.border = ft.Border.all(1, MD3Colors.get_outline(is_dark))
-            # Theme tile icon reflects the active mode
+            # Rebuild the brand wash + watermark for the new theme's accent/opacity
+            meta["wash_container"].gradient = build_brand_wash(
+                accent, is_dark, opacity=_tile_wash_opacity(is_dark)
+            )
+            meta["watermark_container"].opacity = _tile_watermark_opacity(is_dark)
+            # Theme tile icon (+ its watermark twin) reflects the active mode
             if meta["color_key"] == "theme":
-                meta["icon_widget"].name = ft.Icons.DARK_MODE if is_dark else ft.Icons.LIGHT_MODE
+                new_icon = ft.Icons.DARK_MODE if is_dark else ft.Icons.LIGHT_MODE
+                meta["icon_widget"].name = new_icon
+                meta["watermark_widget"].name = new_icon
 
         try:
             self.update()

@@ -1,12 +1,23 @@
 """
 Launcher Card Component
-Expandable card showing launcher configuration and detected games using Material Design 3 ExpansionTile
+Banner-card grid tile showing launcher configuration status. Detected games
+have moved to the slide panel (LauncherGamesPanel) — see hero_surface.py
+for the shared banner/pill/wash primitives this design reuses.
+
+Hero design (Option B — "banner card"): the card is a Column of
+[fixed-height banner Stack, fixed-height footer]. The banner carries a
+strong brand-color wash + a large circular brand-glyph badge + the
+launcher's name/status; the footer holds path chips (horizontally
+scrollable), the compact "Add Sub-Folder" button, and the kebab menu.
+Tapping the banner opens LauncherGamesPanel (or the browse dialog when
+unconfigured) — see game_card.py's banner+footer anatomy for the idiom
+this mirrors.
 """
 
 import logging
 import subprocess
 from pathlib import Path
-from typing import Callable, Any
+from typing import Callable
 
 import anyio
 import flet as ft
@@ -14,14 +25,115 @@ import flet as ft
 from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.config import LauncherPathName, config_manager
 from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
-from dlss_updater.models import GameCardData, DLLInfo, MAX_PATHS_PER_LAUNCHER
+from dlss_updater.models import GameCardData, MAX_PATHS_PER_LAUNCHER
 from dlss_updater.ui_flet.theme.colors import MD3Colors, LauncherColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from dlss_updater.ui_flet.components.hero_surface import build_brand_wash, build_pill
+from dlss_updater.ui_flet.components.slide_panel import PanelManager
+
+# ==================== BANNER GEOMETRY ====================
+# Fixed banner height (top identity zone) — big enough for the large brand
+# badge + two lines of identity text without cramping either.
+BANNER_HEIGHT = 132
+
+# Large circular brand badge diameter. Full-bleed (BoxFit.COVER, no inset) —
+# see _build_brand_badge() for why this fixes the square-tile-in-circle clash
+# the old inset avatar had (GOG / Battle.net square tiles fighting an 8px
+# inner radius inside a circular frame).
+_BADGE_SIZE = 84
+
+# Banner wash opacity — noticeably stronger than the old row wash (0.15/0.10)
+# since the banner IS the card's brand identity now, not a subtle tint behind
+# an ExpansionTile row. Tuned to sit between hero_surface's row-wash defaults
+# and hub_card's full-strength hero wash.
+_BANNER_WASH_OPACITY_DARK = 0.42
+_BANNER_WASH_OPACITY_LIGHT = 0.26
+
+# Opacity applied to the whole shell when the launcher has no path configured.
+_UNCONFIGURED_OPACITY = 0.6
+
+# ==================== FOOTER GEOMETRY ====================
+# Fixed footer height, matching game_card.py's 52px footer idiom (there:
+# FOOTER_CONTENT_HEIGHT=36 + FOOTER_V_PADDING=8*2=52). Launcher chips carry
+# more visual weight (text + remove-X) than game_card's icon buttons, so the
+# content band is a touch taller; the footer NEVER grows regardless of chip
+# count — see the horizontally-scrollable chip strip in _build_footer().
+FOOTER_CONTENT_HEIGHT = 40
+FOOTER_V_PADDING = 8
+FOOTER_HEIGHT = FOOTER_CONTENT_HEIGHT + FOOTER_V_PADDING * 2  # 56px
+
+# ==================== BRAND ICON RESOLUTION ====================
+# Real brand PNGs live in `dlss_updater/icons/`. Resolved relative to this
+# package file (not cwd) so it survives a frozen PyInstaller build: the specs
+# bundle the whole `dlss_updater` package as a data dir (`('dlss_updater',
+# 'dlss_updater')` in DLSS_Updater.spec / DLSS_Updater_MSI.spec, equivalent
+# `dlss_updater/icons/*.png -> icons/` copy on Linux), so `dlss_updater/icons`
+# ships intact under `_internal/dlss_updater/icons` next to this very file.
+# No existing resource_path()/_MEIPASS helper was found elsewhere in the
+# codebase (checked main.py, utils.py, exe_resolver.py) — this is the first
+# bundled-asset lookup of its kind, so it establishes the pattern locally.
+_ICONS_DIR = Path(__file__).resolve().parent.parent.parent / "icons"
+
+# Launcher key (LauncherPathName.name, e.g. "STEAM") -> brand PNG filename.
+# Mirrors LauncherColors._MAPPING's key convention for consistency. Custom
+# folders (CUSTOM1-4) are intentionally absent — they have no brand and keep
+# the Material "folder" glyph.
+_BRAND_ICON_FILES: dict[str, str] = {
+    "STEAM": "steam.png",
+    "EA": "ea.png",
+    "EPIC": "epic.png",
+    "UBISOFT": "ubisoft.png",
+    "GOG": "gog.png",
+    "BATTLENET": "battlenet.png",
+    "XBOX": "xbox.png",
+}
+
+# Defensive fallback for the (unexpected) case where launcher_key doesn't hit
+# _BRAND_ICON_FILES directly — substring-matched against the display name,
+# case-insensitively. Phrases are chosen to avoid false positives (e.g. bare
+# "ea" would match inside unrelated words).
+_BRAND_NAME_HINTS: list[tuple[str, str]] = [
+    ("steam", "steam.png"),
+    ("epic", "epic.png"),
+    ("gog", "gog.png"),
+    ("ubisoft", "ubisoft.png"),
+    ("xbox", "xbox.png"),
+    ("battle.net", "battlenet.png"),
+    ("battlenet", "battlenet.png"),
+    ("ea games", "ea.png"),
+    ("ea launcher", "ea.png"),
+]
 
 
-class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
+def _resolve_brand_icon_path(launcher_key: str, display_name: str) -> str | None:
     """
-    Expandable card for launcher configuration with game list using Material Design 3 ExpansionTile
+    Resolve the absolute path to a launcher's brand PNG, or ``None`` when
+    there isn't one (custom folders, or an unrecognized launcher — both fall
+    back to the existing Material icon rendering, unchanged).
+    """
+    filename = _BRAND_ICON_FILES.get(launcher_key.upper())
+    if filename is None:
+        lowered = display_name.lower()
+        for hint, hinted_filename in _BRAND_NAME_HINTS:
+            if hint in lowered:
+                filename = hinted_filename
+                break
+    if filename is None:
+        return None
+    path = _ICONS_DIR / filename
+    return str(path) if path.exists() else None
+
+
+class LauncherCard(ThemeAwareMixin, ft.Container):
+    """
+    Banner-card grid tile for launcher configuration.
+
+    Card shell: `self` (a Container) provides the rounded, clipped card body
+    — a Column of [banner, footer]. The banner (`self._banner`) carries the
+    brand wash + large circular badge + identity text and is itself the tap
+    target that opens the detected-games slide panel (LauncherGamesPanel).
+    The footer (`self._footer`) holds path chips, Add Sub-Folder, and the
+    kebab menu.
 
     Performance: Uses is_isolated=True to prevent parent update() from including
     this control's changes. Must call self.update() manually for changes.
@@ -48,6 +160,12 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         self.launcher_enum = launcher_enum
         self.icon_name = icon
         self.is_custom = is_custom
+
+        # Real brand PNG for this launcher (None for custom folders / unknown
+        # launchers, which keep the Material `icon_name` glyph throughout).
+        self._brand_icon_path: str | None = _resolve_brand_icon_path(
+            launcher_enum.name, name
+        )
         self.on_reset_callback = on_reset
         self.on_add_subfolder_callback = on_add_subfolder
         self._page_ref = page
@@ -60,41 +178,45 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         # State - multi-path support
         self.current_paths: list[str] = []  # List of configured paths
         self.games_count: int = 0
-        self.games_data: list[dict] = []  # List of detected games
+        self.games_data: list[GameCardData] = []  # Detected games, handed to
+        # LauncherGamesPanel when the banner is tapped (see _open_games_panel).
 
         # Get theme registry and state
         self._registry = get_theme_registry()
         self._theme_priority = 25  # Cards are mid-priority
         is_dark = self._registry.is_dark
 
-        # Build UI components
-        self._build_components(is_dark)
+        # Brand color (used by banner wash, badge fill, and the panel accent)
+        self.brand_color = LauncherColors.get_color(self.launcher_enum.name)
 
-        # Initialize ExpansionTile with Material Design 3 styling
-        # Use transparent backgrounds - cards should blend with page background
-        super().__init__(
-            leading=self.leading_row,
-            title=self.title_text,
-            subtitle=self.subtitle_column,
-            trailing=self.trailing_row,
-            controls=[],  # Initially empty, populated by set_games()
-            expanded=False,
-            bgcolor=ft.Colors.TRANSPARENT,
-            shape=ft.RoundedRectangleBorder(radius=8),
-            maintain_state=True,
-            collapsed_bgcolor=ft.Colors.TRANSPARENT,
-            text_color=MD3Colors.get_on_surface(is_dark),
-            icon_color=MD3Colors.PRIMARY,
-            collapsed_text_color=MD3Colors.get_on_surface(is_dark),
-            collapsed_icon_color=MD3Colors.PRIMARY,
-            tile_padding=ft.Padding.symmetric(horizontal=16, vertical=8),
-            controls_padding=ft.Padding.only(left=56, right=16, bottom=12, top=4),
-            animate_opacity=ft.Animation(80, ft.AnimationCurve.EASE_OUT),
+        # Game-count pill ref (populated/toggled by _update_header_pill();
+        # None both before the first set_paths()/set_games() call and
+        # whenever unconfigured).
+        self.game_count_pill: ft.Container | None = None
+
+        # Build banner + footer
+        self._banner = self._build_banner(is_dark)
+        self._footer = self._build_footer(is_dark)
+
+        card_body = ft.Column(
+            controls=[self._banner, self._footer],
+            spacing=0,
         )
+
+        # Outer card shell: rounded, clipped Container wrapping banner+footer.
+        super().__init__(
+            content=card_body,
+            border_radius=12,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            bgcolor=MD3Colors.get_surface(is_dark),
+            animate_opacity=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+        )
+
+        # Dim the shell if unconfigured (current_paths is empty at this point)
+        self._apply_configured_state(is_dark)
 
         # Apply custom styling for custom launchers
         if self.is_custom:
-            # Custom cards get border
             self.border = ft.Border.all(1, MD3Colors.get_primary(is_dark))
 
         # Register for theme updates
@@ -109,77 +231,112 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         """Property for backward compatibility - returns the launcher name"""
         return self.name_str
 
-    def _create_launcher_icon_circle(
-        self,
-        icon: str,
-        color: str,
-        size: int = 44,
-        icon_size: int = 24,
-    ) -> ft.Container:
+    # ==================== CONFIGURED / DIMMED STATE ====================
+
+    def _current_banner_wash_opacity(self, is_dark: bool) -> float:
+        """Banner wash opacity for the current configured state (halved when unconfigured)."""
+        base = _BANNER_WASH_OPACITY_DARK if is_dark else _BANNER_WASH_OPACITY_LIGHT
+        return base if self.current_paths else base / 2
+
+    def _apply_configured_state(self, is_dark: bool) -> None:
         """
-        Create a colored circular container with launcher icon inside.
-        Follows AppMenuSelector pattern for visual consistency.
+        Dim the whole shell when no path is configured; restore full strength
+        once one is. Hooked from set_paths() — the single call site main_view
+        already uses for every path add/remove/reset/auto-detect, so runtime
+        (re)configuration is covered without extra plumbing.
         """
+        configured = bool(self.current_paths)
+        self._banner.gradient = build_brand_wash(
+            self.brand_color, is_dark, opacity=self._current_banner_wash_opacity(is_dark)
+        )
+        self.opacity = 1.0 if configured else _UNCONFIGURED_OPACITY
+
+    # ==================== BANNER ====================
+
+    def _build_brand_badge(self, is_dark: bool, size: int = _BADGE_SIZE) -> ft.Container:
+        """
+        Large circular brand badge for the banner.
+
+        ICON FIX: the brand PNGs are square tiles. Rendering them full-bleed
+        (BoxFit.COVER, no inset padding, no inner radius) inside a
+        border_radius=size/2 clipped Container makes the tile's own
+        background become the circle fill — no square corners poking out,
+        no colored circle showing behind an inset image (the old avatar's
+        GOG/Battle.net clash). Custom folders keep a Material glyph in a
+        brand-colored filled circle, unchanged in spirit from before.
+        """
+        if self._brand_icon_path:
+            content: ft.Control = ft.Image(
+                src=self._brand_icon_path,
+                width=size,
+                height=size,
+                fit=ft.BoxFit.COVER,
+            )
+            bgcolor = None  # tile's own background fills the circle
+        else:
+            content = ft.Icon(self.icon_name, size=round(size * 0.45), color=ft.Colors.WHITE)
+            bgcolor = self.brand_color
+
         return ft.Container(
-            content=ft.Icon(
-                icon,
-                size=icon_size,
-                color=ft.Colors.WHITE,
-            ),
+            content=content,
             width=size,
             height=size,
-            bgcolor=color,
-            border_radius=size // 2,  # Perfect circle
+            bgcolor=bgcolor,
+            border_radius=size / 2,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             alignment=ft.Alignment.CENTER,
             shadow=ft.BoxShadow(
                 spread_radius=0,
-                blur_radius=4,
-                offset=ft.Offset(0, 2),
-                color=f"{color}40",  # 25% opacity of the brand color
+                blur_radius=8,
+                offset=ft.Offset(0, 3),
+                color=ft.Colors.with_opacity(0.35, ft.Colors.BLACK),
             ),
-            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
         )
 
-    def _build_components(self, is_dark: bool):
-        """Build the UI components for the ExpansionTile"""
-
-        # Get launcher brand color
-        self.brand_color = LauncherColors.get_color(self.launcher_enum.name)
-
-        # Leading: Launcher icon in colored circle
-        self.launcher_icon = self._create_launcher_icon_circle(
-            self.icon_name,
-            self.brand_color,
-            size=44,
-            icon_size=24,
-        )
-
-        # Title: Launcher name with no wrapping
-        self.title_text = ft.Text(
-            self.name_str,
-            size=16,
-            weight=ft.FontWeight.BOLD,
-            no_wrap=True,
+    def _build_banner(self, is_dark: bool) -> ft.Container:
+        """
+        Build the fixed-height banner: brand wash + large circular badge
+        (center-right) + game-count pill (top-left) + name/status identity
+        (bottom-left). The whole banner is the tap target that opens
+        LauncherGamesPanel (or the browse dialog when unconfigured) — see
+        _on_banner_clicked().
+        """
+        self._badge = self._build_brand_badge(is_dark)
+        badge_layer = ft.Container(
+            content=self._badge,
+            alignment=ft.Alignment.CENTER_RIGHT,
+            padding=ft.Padding.only(right=18),
             expand=True,
         )
 
-        # Status indicator
+        # Game-count pill — top-left, refreshed by _update_header_pill().
+        # Empty (no controls) when unconfigured, matching the old "hidden
+        # entirely" behavior.
+        self._pill_row = ft.Row(controls=[], vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        pill_layer = ft.Container(
+            content=self._pill_row,
+            left=0,
+            top=0,
+            right=0,
+            padding=ft.Padding.only(left=16, top=14),
+        )
+
+        # Identity — bottom-left. `right` reserves room so the name/status
+        # text ellipsizes before it would ever overlap the badge, rather
+        # than the two visually colliding.
+        self.title_text = ft.Text(
+            self.name_str,
+            size=17,
+            weight=ft.FontWeight.W_600,
+            color=MD3Colors.get_on_surface(is_dark),
+            no_wrap=True,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        )
         self.status_icon = ft.Icon(
             ft.Icons.INFO_OUTLINE,
             color=ft.Colors.GREY,
-            size=20,
+            size=14,
         )
-
-        # Path health indicator
-        self.path_health_icon = ft.Icon(
-            ft.Icons.VERIFIED,
-            color=MD3Colors.SUCCESS,
-            size=18,
-            visible=False,
-            tooltip="All paths valid",
-        )
-
-        # Path status text (shows count of configured paths)
         self.path_text = ft.Text(
             "No paths configured",
             size=12,
@@ -187,50 +344,138 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             max_lines=1,
             overflow=ft.TextOverflow.ELLIPSIS,
         )
-
-        # Game count text
-        self.game_count_text = ft.Text(
-            "",
-            size=14,
-            color=MD3Colors.get_on_surface_variant(is_dark),
-        )
-
-        # Add Sub-Folder button
-        self.add_subfolder_btn = ft.TextButton(
-            "Add Sub-Folder",
-            icon=ft.Icons.CREATE_NEW_FOLDER,
-            on_click=self.on_add_subfolder_callback,
-            style=ft.ButtonStyle(
-                color=MD3Colors.PRIMARY,
-                padding=ft.Padding.symmetric(horizontal=8, vertical=4),
-            ),
-            height=28,
-        )
-
-        # Styled "add folder" zone for empty state (shown in expansion content)
-        self._add_folder_zone = self._create_add_folder_zone(is_dark)
-
-        # Paths row - holds path chips and add button
-        self.paths_row = ft.Row(
-            controls=[self.add_subfolder_btn],  # Initially just the add button
-            spacing=6,
-            wrap=True,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        )
-
-        # Subtitle: Column with game count, path status, and paths row
-        self.subtitle_column = ft.Column(
-            controls=[
-                self.game_count_text,
-                self.path_text,
-                self.paths_row,
-            ],
+        status_row = ft.Row(
+            controls=[self.status_icon, self.path_text],
             spacing=4,
             tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        identity_col = ft.Column(
+            controls=[self.title_text, status_row],
+            spacing=3,
+            tight=True,
+        )
+        identity_layer = ft.Container(
+            content=identity_col,
+            left=0,
+            bottom=0,
+            right=_BADGE_SIZE + 24,  # keep clear of the badge
+            padding=ft.Padding.only(left=16, right=8, bottom=14),
         )
 
-        # Config menu (replaces Browse button)
-        # Platform-appropriate text for file manager
+        banner_stack = ft.Stack(
+            controls=[badge_layer, pill_layer, identity_layer],
+            expand=True,
+        )
+
+        return ft.Container(
+            content=banner_stack,
+            height=BANNER_HEIGHT,
+            bgcolor=MD3Colors.get_surface(is_dark),
+            gradient=build_brand_wash(
+                self.brand_color, is_dark, opacity=self._current_banner_wash_opacity(is_dark)
+            ),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            ink=True,
+            on_click=self._on_banner_clicked,
+            tooltip="View detected games" if self.current_paths else "Add a game folder",
+        )
+
+    async def _on_banner_clicked(self, e):
+        """
+        Banner tap: unconfigured launchers open the same browse flow as the
+        old empty-state "add folder" zone (no dead-feeling click); configured
+        launchers open LauncherGamesPanel (empty-state message inside the
+        panel itself when paths are set but no games have been detected yet).
+        """
+        if not self.current_paths:
+            await self.on_add_subfolder_callback(e)
+            return
+        await self._open_games_panel()
+
+    async def _open_games_panel(self):
+        """Open the slide panel showing this launcher's detected games."""
+        from dlss_updater.ui_flet.panels.launcher_games_panel import LauncherGamesPanel
+
+        panel = LauncherGamesPanel(
+            page=self._page_ref,
+            logger=self.logger,
+            launcher_name=self.name_str,
+            accent=self.brand_color,
+            games_data=self.games_data,
+        )
+        panel_manager = PanelManager.get_instance(self._page_ref, self.logger)
+        await panel_manager.show_content(panel)
+
+    def _update_header_pill(self) -> None:
+        """
+        Refresh the banner's top-left game-count pill.
+
+        Hidden entirely when unconfigured (no paths) — the dimmed shell
+        already communicates "not set up" without a redundant badge. Uses a
+        translucent black scrim (not a theme surface color) for the neutral
+        "0 games" state so it stays legible against the banner's brand wash
+        at any strength/theme — mirrors game_card.py's overlay-cluster
+        buttons (ignore/resolve/kebab), which use the same idiom for
+        controls that sit on top of variable-color art.
+        """
+        if not self.current_paths:
+            self._pill_row.controls = []
+            self.game_count_pill = None
+            return
+        label = f"{self.games_count} game{'s' if self.games_count != 1 else ''}"
+        if self.games_count == 0:
+            self.game_count_pill = build_pill(
+                label,
+                bgcolor=ft.Colors.with_opacity(0.45, ft.Colors.BLACK),
+                text_color=ft.Colors.WHITE,
+            )
+        else:
+            self.game_count_pill = build_pill(label, bgcolor=self.brand_color)
+        self._pill_row.controls = [self.game_count_pill]
+
+    # ==================== FOOTER ====================
+
+    def _build_footer(self, is_dark: bool) -> ft.Container:
+        """
+        Build the fixed-height footer: horizontally-scrollable path chips
+        (never grows the footer regardless of chip count) + compact Add
+        Sub-Folder + kebab menu. Mirrors game_card.py's fixed-footer idiom
+        (wrap=False row, fixed-height wrappers).
+        """
+        # Path chips row — scroll=AUTO instead of wrap=True (the old
+        # ExpansionTile subtitle behavior) so an arbitrary number of chips
+        # never grows the footer's fixed height; it scrolls sideways instead.
+        self.paths_row = ft.Row(
+            controls=[],
+            spacing=6,
+            wrap=False,
+            scroll=ft.ScrollMode.AUTO,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        chips_area = ft.Container(
+            content=self.paths_row,
+            expand=True,
+            height=FOOTER_CONTENT_HEIGHT,
+            alignment=ft.Alignment.CENTER_LEFT,
+        )
+
+        # Compact icon-only Add Sub-Folder (tooltip carries the label — the
+        # footer has no room for a labelled TextButton alongside chips+kebab).
+        self.add_subfolder_btn = ft.IconButton(
+            icon=ft.Icons.CREATE_NEW_FOLDER,
+            icon_size=18,
+            icon_color=MD3Colors.PRIMARY,
+            tooltip="Add Sub-Folder",
+            on_click=self.on_add_subfolder_callback,
+            style=ft.ButtonStyle(padding=ft.Padding.all(6)),
+            width=32,
+            height=32,
+        )
+
+        # Kebab menu — every action from Option A preserved. The standalone
+        # "Reset" TextButton is dropped (it duplicated "Clear All" below;
+        # see report) to make room in the tight fixed-height footer.
         open_folder_text = "Open in Explorer" if IS_WINDOWS else "Open in File Manager"
         self.config_menu = ft.PopupMenuButton(
             icon=ft.Icons.MORE_VERT,
@@ -245,95 +490,19 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
             ],
         )
 
-        # Reset button
-        self.reset_btn = ft.TextButton(
-            "Reset",
-            icon=ft.Icons.REFRESH,
-            on_click=self.on_reset_callback,
-            style=ft.ButtonStyle(
-                color=ft.Colors.GREY,
-            ),
-            height=36,
-        )
-
-        # Leading: Row with status icon + path health icon + launcher icon for visual symmetry
-        self.leading_row = ft.Row(
-            controls=[
-                self.status_icon,
-                self.path_health_icon,
-                self.launcher_icon,
-            ],
-            spacing=8,
-            tight=True,
+        footer_row = ft.Row(
+            controls=[chips_area, self.add_subfolder_btn, self.config_menu],
+            spacing=2,
+            wrap=False,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
-        # Trailing: Row with config menu and reset button (Browse button removed)
-        self.trailing_row = ft.Row(
-            controls=[
-                self.config_menu,
-                self.reset_btn,
-            ],
-            spacing=8,
-            tight=True,
-        )
-
-    def _create_add_folder_zone(self, is_dark: bool) -> ft.Container:
-        """
-        Create a styled empty-state zone that invites users to add a game folder.
-        Shown in the expansion content area when no paths are configured.
-        Dashed-border appearance with folder icon and descriptive text.
-        Clicking opens the native file picker (same as Add Sub-Folder button).
-        """
-        primary = MD3Colors.get_primary(is_dark)
-        border_color = f"{primary}60"  # 37% opacity for subtle dashed look
-
         return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Icon(
-                        ft.Icons.FOLDER_OPEN,
-                        size=36,
-                        color=primary,
-                    ),
-                    ft.Text(
-                        "Click to add a game folder",
-                        size=14,
-                        weight=ft.FontWeight.W_500,
-                        color=MD3Colors.get_on_surface(is_dark),
-                        text_align=ft.TextAlign.CENTER,
-                    ),
-                    ft.Text(
-                        "Browse for a folder containing game installations",
-                        size=12,
-                        color=MD3Colors.get_on_surface_variant(is_dark),
-                        text_align=ft.TextAlign.CENTER,
-                    ),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=6,
-            ),
-            alignment=ft.Alignment.CENTER,
-            padding=ft.Padding.symmetric(horizontal=24, vertical=20),
-            border=ft.Border.all(2, border_color),
-            border_radius=12,
-            ink=True,
-            on_click=self.on_add_subfolder_callback,
-            on_hover=self._on_zone_hover,
+            content=footer_row,
+            height=FOOTER_HEIGHT,
+            padding=ft.Padding.symmetric(horizontal=10, vertical=FOOTER_V_PADDING),
+            border=ft.Border.only(top=ft.BorderSide(1, MD3Colors.get_divider(is_dark))),
         )
-
-    def _on_zone_hover(self, e):
-        """Handle hover on the add-folder zone — highlight border."""
-        is_dark = self._registry.is_dark
-        primary = MD3Colors.get_primary(is_dark)
-        if e.data == "true":
-            e.control.border = ft.Border.all(2, primary)
-            e.control.bgcolor = f"{primary}0A"  # 4% tint
-        else:
-            e.control.border = ft.Border.all(2, f"{primary}60")
-            e.control.bgcolor = None
-        if self._attached:
-            self.update()
 
     def _create_path_chip(self, path: str, is_dark: bool) -> ft.Container:
         """
@@ -404,61 +573,58 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
 
         # Update UI
         await self._update_paths_display()
+        self._apply_configured_state(self._registry.is_dark)
+        if self._attached:
+            self.update()
 
         # Notify parent to show rescan prompt (with undo context)
         if self.on_path_removed_callback:
             await self.on_path_removed_callback(self.name_str, self.launcher_enum, path)
 
     async def _update_paths_display(self):
-        """Update the paths display in subtitle area."""
+        """Update the path chips + status line + banner tooltip."""
         is_dark = self._registry.is_dark
 
-        # Create path chips
+        # Create path chips (footer strip — no add button mixed in anymore,
+        # it's a fixed sibling in footer_row; see _build_footer()).
         path_chips = [self._create_path_chip(p, is_dark) for p in self.current_paths]
 
         # Enable/disable add button based on path limit
         at_limit = len(self.current_paths) >= MAX_PATHS_PER_LAUNCHER
         self.add_subfolder_btn.disabled = at_limit
-        if at_limit:
-            self.add_subfolder_btn.tooltip = f"Maximum {MAX_PATHS_PER_LAUNCHER} paths reached"
-        else:
-            self.add_subfolder_btn.tooltip = None
+        self.add_subfolder_btn.tooltip = (
+            f"Maximum {MAX_PATHS_PER_LAUNCHER} paths reached" if at_limit else "Add Sub-Folder"
+        )
 
-        # Update paths row: chips + add button
-        self.paths_row.controls = path_chips + [self.add_subfolder_btn]
+        self.paths_row.controls = path_chips
 
-        # Update path status text
+        # Update path status text + combined status/validity icon (folds the
+        # old separate status_icon + path_health_icon into one — see
+        # _build_banner()).
         path_count = len(self.current_paths)
         if path_count == 0:
             self.path_text.value = "No paths configured"
             self.path_text.color = MD3Colors.get_on_surface_variant(is_dark)
             self.status_icon.name = ft.Icons.INFO_OUTLINE
             self.status_icon.color = ft.Colors.GREY
-        elif path_count == 1:
-            self.path_text.value = "1 path configured"
-            self.path_text.color = MD3Colors.get_on_surface(is_dark)
-            self.status_icon.name = ft.Icons.CHECK_CIRCLE
-            self.status_icon.color = MD3Colors.SUCCESS
+            self.status_icon.tooltip = None
         else:
-            self.path_text.value = f"{path_count} paths configured"
+            all_valid = await self._validate_paths_async()
+            self.path_text.value = f"{path_count} path{'s' if path_count != 1 else ''} configured"
             self.path_text.color = MD3Colors.get_on_surface(is_dark)
-            self.status_icon.name = ft.Icons.CHECK_CIRCLE
-            self.status_icon.color = MD3Colors.SUCCESS
-
-        # Update path health indicator (async to avoid blocking on filesystem I/O)
-        all_valid = await self._validate_paths_async()
-        if self.current_paths:
-            self.path_health_icon.visible = True
             if all_valid:
-                self.path_health_icon.name = ft.Icons.VERIFIED
-                self.path_health_icon.color = MD3Colors.SUCCESS
-                self.path_health_icon.tooltip = "All paths valid"
+                self.status_icon.name = ft.Icons.CHECK_CIRCLE
+                self.status_icon.color = MD3Colors.get_success(is_dark)
+                self.status_icon.tooltip = "All paths valid"
             else:
-                self.path_health_icon.name = ft.Icons.WARNING_AMBER
-                self.path_health_icon.color = MD3Colors.WARNING
-                self.path_health_icon.tooltip = "Some paths inaccessible"
-        else:
-            self.path_health_icon.visible = False
+                self.status_icon.name = ft.Icons.WARNING_AMBER
+                self.status_icon.color = MD3Colors.get_warning(is_dark)
+                self.status_icon.tooltip = "Some paths inaccessible"
+
+        # Refresh the header pill and banner tooltip to match the (possibly
+        # changed) path count
+        self._update_header_pill()
+        self._banner.tooltip = "View detected games" if self.current_paths else "Add a game folder"
 
         if self._attached:
             self.update()
@@ -475,19 +641,11 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         # Get theme state
         is_dark = self._registry.is_dark
 
-        # Update paths display
+        # Update paths display (also refreshes the header pill + tooltip)
         await self._update_paths_display()
 
-        # Update game count text if no paths
-        if not self.current_paths:
-            self.game_count_text.value = ""
-            # Show styled add-folder zone instead of empty content
-            self.controls = [self._add_folder_zone]
-        else:
-            # Will be updated by set_games()
-            if self.games_count == 0:
-                self.game_count_text.value = "Paths configured"
-                self.game_count_text.color = MD3Colors.SUCCESS
+        # Dim/restore the hero shell for the (possibly new) configured state
+        self._apply_configured_state(is_dark)
 
         if self._attached:
             self.update()
@@ -507,67 +665,25 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
         else:
             await self.set_paths([])
 
-    # Virtualization threshold - ListView kicks in above this count
-    VIRTUALIZATION_THRESHOLD = 20
-    # Fixed tile height for virtualization (enables ListView optimization)
-    GAME_TILE_HEIGHT = 44
-
-    async def set_games(self, games_data: list[dict]):
+    async def set_games(self, games_data: list[GameCardData]):
         """
-        Update the game list for this launcher with optional virtualization.
+        Store the detected game list for this launcher and refresh the
+        game-count pill.
 
-        Performance: For lists > 20 games, uses ft.ListView with item_extent
-        to enable virtualization (only visible items are rendered).
-        This reduces memory usage and improves scroll performance for large libraries.
+        Tile-building has moved to LauncherGamesPanel (opened by tapping the
+        banner — see _open_games_panel()); this method only keeps the data
+        for that panel to consume and updates the lightweight count pill,
+        matching CLAUDE.md's "content detachment" spirit — no offscreen
+        control tree is built until the user actually asks to see it.
 
         Args:
-            games_data: List of dicts with game info: {
-                'name': str,
-                'path': str,
-                'dlls': List[Dict] with {'type': str, 'version': str, 'update_available': bool}
-            }
+            games_data: List of GameCardData (name, path, dlls) — see
+                main_view._populate_launcher_cards() for how this is built.
         """
-        self.games_data = games_data
-        self.games_count = len(games_data)
+        self.games_data = games_data or []
+        self.games_count = len(self.games_data)
 
-        # Get theme state
-        is_dark = self._registry.is_dark
-
-        # Update count text
-        if self.games_count > 0:
-            self.game_count_text.value = f"{self.games_count} game{'s' if self.games_count != 1 else ''} detected"
-            self.game_count_text.color = MD3Colors.SUCCESS
-
-            # Build game list tiles
-            game_tiles = []
-            for game in games_data:
-                game_tile = self._create_game_tile(game)
-                game_tiles.append(game_tile)
-
-            # Use virtualized ListView for large game lists
-            if self.games_count > self.VIRTUALIZATION_THRESHOLD:
-                # ListView with item_extent enables virtualization - only visible items rendered
-                # Max height of 400px prevents excessive expansion, shows ~9 items at once
-                game_list = ft.ListView(
-                    controls=game_tiles,
-                    spacing=4,
-                    item_extent=self.GAME_TILE_HEIGHT,  # Fixed height enables virtualization
-                    height=min(400, self.games_count * (self.GAME_TILE_HEIGHT + 4)),
-                )
-                self.controls = [game_list]
-            else:
-                # Direct controls for small lists (no virtualization overhead)
-                self.controls = game_tiles
-
-        else:
-            self.game_count_text.value = "No games found"
-            self.game_count_text.color = MD3Colors.get_on_surface_variant(is_dark)
-
-            # Show add-folder zone if no paths, otherwise empty
-            if not self.current_paths:
-                self.controls = [self._add_folder_zone]
-            else:
-                self.controls = []
+        self._update_header_pill()
 
         if self._attached:
             self.update()
@@ -643,6 +759,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                         added_count += 1
                 if added_count > 0:
                     await self._update_paths_display()
+                    self._apply_configured_state(self._registry.is_dark)
                     msg = f"Detected {added_count} Steam library path(s)"
                 else:
                     msg = "All detected paths already configured"
@@ -659,6 +776,7 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                 if added:
                     self.current_paths.append(detected)
                     await self._update_paths_display()
+                    self._apply_configured_state(self._registry.is_dark)
                     self._page_ref.snack_bar = ft.SnackBar(ft.Text(f"Detected: {detected}"))
                 else:
                     self._page_ref.snack_bar = ft.SnackBar(ft.Text("Path already configured or at limit"))
@@ -666,196 +784,41 @@ class LauncherCard(ThemeAwareMixin, ft.ExpansionTile):
                 self._page_ref.snack_bar = ft.SnackBar(ft.Text("Could not auto-detect path"))
         self._page_ref.snack_bar.open = True
         self._page_ref.update()
-
-    def _create_dll_badge(
-        self,
-        dll_type: str,
-        current_ver: str,
-        latest_ver: str | None,
-        update_available: bool,
-    ) -> ft.Container:
-        """
-        Create a lightweight Container-based DLL badge (replaces heavy ft.Chip).
-
-        Performance: Container+Row+Icon+Text = 4 controls vs Chip's internal 5+ controls.
-        Reduces control count by ~25% per badge while maintaining visual appearance.
-
-        Args:
-            dll_type: Type of DLL (DLSS, XESS, FSR, etc.)
-            current_ver: Current version string
-            latest_ver: Latest available version (if update available)
-            update_available: Whether an update is available
-
-        Returns:
-            ft.Container styled as a badge with icon and text
-        """
-        # Determine badge color based on DLL type
-        dll_type_upper = dll_type.upper()
-        if dll_type_upper == "DLSS":
-            badge_bgcolor = "#76B900"  # NVIDIA green
-        elif dll_type_upper == "XESS":
-            badge_bgcolor = "#0071C5"  # Intel blue
-        elif dll_type_upper == "FSR":
-            badge_bgcolor = "#ED1C24"  # AMD red
-        else:
-            badge_bgcolor = MD3Colors.PRIMARY  # Default
-
-        # Build label text and icon based on update status
-        if update_available and latest_ver:
-            label_text = f"{dll_type}: {current_ver} -> {latest_ver}"
-            icon_name = ft.Icons.ARROW_UPWARD
-        else:
-            label_text = f"{dll_type}: {current_ver}"
-            icon_name = ft.Icons.CHECK
-
-        # Return lightweight Container-based badge (3 nested controls vs Chip's 4+)
-        return ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(icon_name, size=14, color=ft.Colors.WHITE),
-                    ft.Text(
-                        label_text,
-                        size=11,
-                        color=ft.Colors.WHITE,
-                        weight=ft.FontWeight.W_500,
-                    ),
-                ],
-                spacing=4,
-                tight=True,
-            ),
-            bgcolor=badge_bgcolor,
-            padding=ft.Padding.symmetric(horizontal=8, vertical=4),
-            border_radius=16,
-            height=26,
-        )
-
-    def _create_game_tile(self, game: GameCardData) -> ft.Container:
-        """
-        Create a flat Container-based game tile showing DLL info as badges.
-
-        Performance optimization: Replaces heavy ListTile with flat Container+Row layout.
-        This reduces nesting from ~8-9 levels to ~4-5 levels, cutting control count by ~40%.
-
-        Args:
-            game: GameCardData object containing game information
-
-        Returns:
-            ft.Container with game name and DLL badges in a flat layout
-        """
-        # Create DLL badges (lightweight Container-based)
-        dll_badges = []
-        has_updates = False
-
-        for dll in game.dlls:
-            if dll.update_available:
-                has_updates = True
-
-            dll_badge = self._create_dll_badge(
-                dll_type=dll.dll_type,
-                current_ver=dll.current_version,
-                latest_ver=dll.latest_version,
-                update_available=dll.update_available,
-            )
-            dll_badges.append(dll_badge)
-
-        # Build badges row or "No DLLs" text
-        if dll_badges:
-            badges_content = ft.Row(
-                controls=dll_badges,
-                spacing=6,
-                wrap=True,
-            )
-        else:
-            badges_content = ft.Text(
-                "No DLLs detected",
-                size=11,
-                color=ft.Colors.GREY,
-            )
-
-        # Game icon color based on update availability
-        icon_color = ft.Colors.ORANGE if has_updates else MD3Colors.PRIMARY
-
-        # Return flat Container layout (replaces ListTile for ~40% fewer controls)
-        return ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(ft.Icons.VIDEOGAME_ASSET, size=20, color=icon_color),
-                    ft.Column(
-                        controls=[
-                            ft.Text(
-                                game.name,
-                                size=13,
-                                weight=ft.FontWeight.W_500,
-                            ),
-                            badges_content,
-                        ],
-                        spacing=2,
-                        tight=True,
-                        expand=True,
-                    ),
-                ],
-                spacing=12,
-                vertical_alignment=ft.CrossAxisAlignment.START,
-            ),
-            padding=ft.Padding.symmetric(horizontal=0, vertical=6),
-        )
-
-    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
-        """Return themed property mappings for cascade updates"""
-        return {
-            "text_color": MD3Colors.get_themed_pair("on_surface"),
-            "collapsed_text_color": MD3Colors.get_themed_pair("on_surface"),
-            "path_text.color": MD3Colors.get_themed_pair("on_surface_variant"),
-            "game_count_text.color": MD3Colors.get_themed_pair("on_surface_variant"),
-        }
+        if self._attached:
+            self.update()
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
-        """Apply theme with optional cascade delay - extended for complex updates"""
+        """Apply theme with optional cascade delay - rebuilds banner wash/badge, footer border, and text colors."""
         if delay_ms > 0:
             await anyio.sleep(delay_ms / 1000)
 
         try:
-            # Update ExpansionTile colors
-            self.text_color = MD3Colors.get_on_surface(is_dark)
-            self.collapsed_text_color = MD3Colors.get_on_surface(is_dark)
-            self.icon_color = MD3Colors.get_primary(is_dark)
-            self.collapsed_icon_color = MD3Colors.get_primary(is_dark)
+            self.bgcolor = MD3Colors.get_surface(is_dark)
 
-            # Keep transparent backgrounds for all launchers
-            # Background colors should remain transparent to match page background
-            self.bgcolor = ft.Colors.TRANSPARENT
-            self.collapsed_bgcolor = ft.Colors.TRANSPARENT
+            # Rebuild the banner wash + badge for the new theme, respecting
+            # the current configured/unconfigured dimming state.
+            self._apply_configured_state(is_dark)
+            self._banner.bgcolor = MD3Colors.get_surface(is_dark)
+            self._badge = self._build_brand_badge(is_dark)
+            # badge_layer is the first control in the banner's Stack
+            self._banner.content.controls[0].content = self._badge
 
-            # Custom launchers get themed border
-            if self.is_custom:
-                self.border = ft.Border.all(1, MD3Colors.get_primary(is_dark))
+            # Identity text colors
+            self.title_text.color = MD3Colors.get_on_surface(is_dark)
+            self.path_text.color = MD3Colors.get_on_surface_variant(is_dark)
 
-            # Update path text
-            if hasattr(self, 'path_text'):
-                self.path_text.color = MD3Colors.get_on_surface_variant(is_dark)
-
-            # Update game count text
-            if hasattr(self, 'game_count_text'):
-                # Keep success color if it has games, otherwise use on_surface_variant
-                if self.games_count > 0 or (self.current_paths and self.games_count == 0):
-                    pass  # Keep existing SUCCESS color
-                else:
-                    self.game_count_text.color = MD3Colors.get_on_surface_variant(is_dark)
-
-            # Update config menu icon color
+            # Footer border + kebab icon color
+            self._footer.border = ft.Border.only(top=ft.BorderSide(1, MD3Colors.get_divider(is_dark)))
             if hasattr(self, 'config_menu'):
                 self.config_menu.icon_color = MD3Colors.get_on_surface_variant(is_dark)
 
-            # Rebuild add-folder zone with new theme colors
-            if hasattr(self, '_add_folder_zone'):
-                self._add_folder_zone = self._create_add_folder_zone(is_dark)
-                # Re-attach if currently shown
-                if not self.current_paths:
-                    self.controls = [self._add_folder_zone]
+            # Custom launchers get a themed border on the outer shell
+            if self.is_custom:
+                self.border = ft.Border.all(1, MD3Colors.get_primary(is_dark))
 
-            # Update path chips by rebuilding paths display
-            if self.current_paths:
-                await self._update_paths_display()
+            # Update path chips + status icon/text by rebuilding the display
+            # (also refreshes the header pill)
+            await self._update_paths_display()
 
             if hasattr(self, 'update'):
                 self.update()

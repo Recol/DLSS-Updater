@@ -64,6 +64,18 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.4.0" date="2026-07-15">
+      <description>
+        <p>Major visual redesign</p>
+        <ul>
+          <li>New "hero" design language across the whole app: the hub Games card shows a mosaic of your own cached game artwork, launcher cards use real brand icons (Steam, Epic, GOG, Ubisoft, EA, Xbox, Battle.net) with brand-color gradients, and the settings, window chrome, logs bar and side panels follow the same look</li>
+          <li>Backups view returns as a first-class destination with per-game artwork thumbnails, reachable from a new hub card and the navigation pill</li>
+          <li>Steam API status is now a compact header pill in the Games Library (click to configure); filter chips show live counts with semantic colors</li>
+          <li>Fixed hub cards keeping dark colors when the light theme is selected</li>
+          <li>Updated the Flet UI framework to 0.86.0 on both platforms</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.3.2" date="2026-07-14">
       <description>
         <p>Fixes the DLSS 310.7 "development build" watermark (Issue #241)</p>

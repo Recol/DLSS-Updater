@@ -75,6 +75,45 @@ def ensure_flet_directories():
             )
 
 
+def _blend_hex(base: str, tint: str, alpha: float) -> str:
+    """Alpha-blend an opaque ``tint`` color over ``base`` (both ``#RRGGBB``)
+    and return an opaque ``#RRGGBB`` result.
+
+    Used to precompute a single solid gradient stop rather than layering a
+    translucent color over unknown content — the window background gradient
+    has nothing beneath it, so its stops must be fully opaque.
+    """
+    b, t = base.lstrip("#"), tint.lstrip("#")
+    br, bg_, bb = int(b[0:2], 16), int(b[2:4], 16), int(b[4:6], 16)
+    tr, tg, tb = int(t[0:2], 16), int(t[2:4], 16), int(t[4:6], 16)
+    r = round(tr * alpha + br * (1 - alpha))
+    g = round(tg * alpha + bg_ * (1 - alpha))
+    bl = round(tb * alpha + bb * (1 - alpha))
+    return f"#{r:02X}{g:02X}{bl:02X}"
+
+
+def _build_window_decoration(is_dark: bool) -> ft.BoxDecoration:
+    """Very subtle static vertical wash for the window background.
+
+    Themed surface at the top fading to the same surface faintly tinted with
+    the brand PRIMARY color at the bottom. Static only (no animation) — a
+    single precomputed gradient, near-zero perf cost, restrained well below
+    content-level hero washes (see hero_surface.WASH_OPACITY_DARK/LIGHT).
+    """
+    from dlss_updater.ui_flet.theme.colors import MD3Colors
+
+    base = MD3Colors.get_background(is_dark)
+    tint_alpha = 0.04 if is_dark else 0.03
+    bottom = _blend_hex(base, MD3Colors.PRIMARY, tint_alpha)
+    return ft.BoxDecoration(
+        gradient=ft.LinearGradient(
+            begin=ft.Alignment.TOP_CENTER,
+            end=ft.Alignment.BOTTOM_CENTER,
+            colors=[base, bottom],
+        )
+    )
+
+
 def _detect_initial_theme() -> bool:
     """
     Load theme preference from config or default to dark.
@@ -130,6 +169,7 @@ async def main(page: ft.Page):
     # Set theme based on detection
     page.theme_mode = ft.ThemeMode.DARK if is_dark else ft.ThemeMode.LIGHT
     page.bgcolor = "#2E2E2E" if is_dark else "#FAFBFC"
+    page.decoration = _build_window_decoration(is_dark)
 
     # Material 3 themes (light + dark) built from the shared helper so the
     # seed color and slim auto-hiding scrollbars stay in sync with live toggles.

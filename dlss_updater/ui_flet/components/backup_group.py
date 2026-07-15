@@ -176,6 +176,7 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
         on_restore: Callable[[GameDLLBackup], None] | None = None,
         on_delete: Callable[[GameDLLBackup], None] | None = None,
         on_restore_all: Callable[[int, str], None] | None = None,
+        art_path: str | None = None,
     ):
         """
         Initialize BackupGroup.
@@ -189,6 +190,10 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
             on_restore: Callback for restoring a single backup
             on_delete: Callback for deleting a single backup
             on_restore_all: Callback for restoring all backups (game_id, game_name)
+            art_path: Optional local filesystem path to a cached Steam artwork
+                WebP for this game (batch-resolved by the caller - no lookups
+                happen here). When None, the header falls back to the generic
+                folder icon.
         """
         self.game_name = game_name
         self.game_id = game_id
@@ -198,6 +203,7 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
         self._on_restore = on_restore
         self._on_delete = on_delete
         self._on_restore_all = on_restore_all
+        self._art_path = art_path
 
         # Get theme registry and state
         self._registry = get_theme_registry()
@@ -211,12 +217,39 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
         ]
         self._backup_rows = backup_rows
 
-        # Leading icon (game/folder icon)
-        self._leading_icon = ft.Icon(
-            ft.Icons.FOLDER_SPECIAL,
-            color=MD3Colors.get_primary(is_dark),
-            size=24,
-        )
+        # Leading control: cached artwork thumbnail when available, otherwise
+        # the generic folder icon (unchanged fallback behavior).
+        self._leading_icon = None
+        self._leading_thumbnail = None
+        if art_path:
+            self._leading_thumbnail = ft.Image(
+                src=art_path,
+                fit=ft.BoxFit.COVER,
+                width=66,
+                height=30,
+                # Defensive: if the cached file has since been removed from
+                # disk, degrade to the same fallback icon rather than a
+                # broken-image glyph.
+                error_content=ft.Icon(
+                    ft.Icons.FOLDER_SPECIAL,
+                    color=MD3Colors.get_primary(is_dark),
+                    size=18,
+                ),
+            )
+            leading_control = ft.Container(
+                width=66,
+                height=30,
+                border_radius=6,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                content=self._leading_thumbnail,
+            )
+        else:
+            self._leading_icon = ft.Icon(
+                ft.Icons.FOLDER_SPECIAL,
+                color=MD3Colors.get_primary(is_dark),
+                size=24,
+            )
+            leading_control = self._leading_icon
 
         # Title text
         self._title_text = ft.Text(
@@ -275,7 +308,7 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
 
         # Initialize ExpansionTile with Material Design 3 styling
         super().__init__(
-            leading=self._leading_icon,
+            leading=leading_control,
             title=self._title_text,
             trailing=self._trailing_row,
             controls=backup_rows,

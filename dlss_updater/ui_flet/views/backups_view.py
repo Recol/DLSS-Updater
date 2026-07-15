@@ -59,6 +59,10 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         # PERFORMANCE: Track if backups are already loaded to prevent redundant rebuilds
         self._backups_loaded = False
 
+        # Batch-resolved game_id -> cached local artwork path (header thumbnails).
+        # Populated once per load_backups() call; never queried per-group.
+        self._art_paths_by_game_id: dict[int, str] = {}
+
         # Initialize theme system reference before building UI
         self._registry = get_theme_registry()
         self._theme_priority = 10  # Views are high priority (animate early)
@@ -384,6 +388,10 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 LoadTask("games", lambda: db_manager.get_games_with_backups_sync()),
                 LoadTask("grouped", lambda gid=game_id: db_manager.get_backups_grouped_by_game_sync(gid)),
                 LoadTask("stats", lambda: db_manager.get_backup_summary_stats_sync()),
+                # Raw game rows (id + steam_app_id/override) for header artwork
+                # thumbnails - resolved to cached image paths below, once we
+                # know which game_ids are actually being displayed.
+                LoadTask("art_games", lambda: db_manager._get_all_games_by_launcher()),
             ])
 
             self.games_with_backups = results.get("games", [])
@@ -391,6 +399,9 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             self._update_game_filter_options()
             backup_stats = results.get("stats", (0, 0))
             self._update_backup_stats(backup_stats[0], backup_stats[1])
+            art_games_by_launcher = results.get("art_games", {})
+            if isinstance(art_games_by_launcher, Exception):
+                art_games_by_launcher = {}
             db_ms = (time.perf_counter() - start_db) * 1000
             self.logger.debug(f"[PERF] Database queries (hyper-parallel): {db_ms:.1f}ms")
 
@@ -408,6 +419,28 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 if self._page_ref:
                     self._page_ref.update()
                 return
+
+            # PERFORMANCE: Resolve header artwork thumbnails in batch (no
+            # per-group queries). Map game_id -> effective Steam app_id from
+            # the raw game rows, then a single batch query resolves cached
+            # local image paths for only the app_ids we're about to display.
+            app_id_by_game_id: dict[int, int] = {}
+            for games in art_games_by_launcher.values():
+                for game in games:
+                    if game.id in grouped_backups and game.effective_steam_app_id:
+                        app_id_by_game_id[game.id] = game.effective_steam_app_id
+
+            self._art_paths_by_game_id: dict[int, str] = {}
+            needed_app_ids = list(set(app_id_by_game_id.values()))
+            if needed_app_ids:
+                cached_art_paths = await anyio.to_thread.run_sync(
+                    db_manager._batch_get_cached_image_paths, needed_app_ids, limiter=thread_io
+                )
+                self._art_paths_by_game_id = {
+                    gid: cached_art_paths[app_id]
+                    for gid, app_id in app_id_by_game_id.items()
+                    if app_id in cached_art_paths
+                }
 
             # PERFORMANCE: Progressive loading with BackupGroup components
             # 1. Create first batch of groups immediately (visible groups)
@@ -433,6 +466,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                     on_restore=self._on_restore_backup_from_group,
                     on_delete=self._on_delete_backup_from_group,
                     on_restore_all=self._on_restore_all_for_game,
+                    art_path=self._art_paths_by_game_id.get(gid),
                 )
                 groups.append(group)
 
@@ -503,6 +537,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                         on_restore=self._on_restore_backup_from_group,
                         on_delete=self._on_delete_backup_from_group,
                         on_restore_all=self._on_restore_all_for_game,
+                        art_path=self._art_paths_by_game_id.get(gid),
                     )
                     new_groups.append(group)
 
@@ -766,9 +801,10 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             )
             self._page_ref.show_dialog(result_dialog)
 
-            # Refresh backups list if successful
+            # Refresh backups list if successful (force: the restored row must
+            # actually disappear, not hit the already-loaded animate path)
             if success:
-                await self.load_backups()
+                await self.load_backups(force=True)
 
         except Exception as e:
             self.logger.error(f"Error restoring backup: {e}", exc_info=True)
@@ -853,9 +889,9 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             )
             self._page_ref.show_dialog(result_dialog)
 
-            # Refresh backups list if successful
+            # Refresh backups list if successful (force: see _perform_restore)
             if success:
-                await self.load_backups()
+                await self.load_backups(force=True)
 
         except Exception as e:
             self.logger.error(f"Error deleting backup: {e}", exc_info=True)

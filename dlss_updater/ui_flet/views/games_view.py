@@ -23,7 +23,8 @@ from dlss_updater.models import MergedGame, GameDLL, DLLBackup
 from dlss_updater.ui_flet.components.game_card import GameCard
 from dlss_updater.ui_flet.components.search_bar import GameSearchBar
 from dlss_updater.ui_flet.components.floating_pill import PILL_CLEARANCE
-from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.components.hero_surface import build_brand_wash, build_pill, themed_accent
+from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator
 from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask, BatchedImageLoader
@@ -347,24 +348,48 @@ class GamesView(ThemeAwareMixin, ft.Column):
             items=self._build_options_menu_items(),
         )
 
+        # Steam API card — built BEFORE the header pill below so the pill can
+        # read its real initial _api_key_valid state (existing key -> success)
+        # instead of transiently defaulting to "not configured". No longer
+        # placed inline in the layout (see DESIGN SPEC #1): it lives
+        # permanently off-screen as a reusable control and is only attached
+        # to the page inside the dialog opened by self.steam_api_pill (see
+        # _open_steam_api_dialog).
+        from dlss_updater.ui_flet.components.steam_api_card import SteamAPICard
+
+        self.steam_api_card = SteamAPICard(
+            page=self._page_ref,
+            on_reresolution_complete=self._on_reresolution_complete,
+        )
+        self._steam_api_dialog: ft.AlertDialog | None = None
+
         # Status filter chips (visibility-toggle filtering — no grid rebuild)
+        # Label Text controls are kept as refs so live counts can be patched
+        # in-place (self._update_filter_chip_counts()) without rebuilding the
+        # Chip's label subtree.
+        self._needs_update_label = ft.Text("Needs update", size=12)
+        self._needs_update_icon = ft.Icon(ft.Icons.ARROW_UPWARD, size=14)
         self._needs_update_chip = ft.Chip(
-            label=ft.Text("Needs update", size=12),
-            leading=ft.Icon(ft.Icons.ARROW_UPWARD, size=14),
+            label=self._needs_update_label,
+            leading=self._needs_update_icon,
             selected=False,
             on_select=self._on_status_chip_select,
             data="needs_update",
         )
+        self._up_to_date_label = ft.Text("Up to date", size=12)
+        self._up_to_date_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, size=14)
         self._up_to_date_chip = ft.Chip(
-            label=ft.Text("Up to date", size=12),
-            leading=ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, size=14),
+            label=self._up_to_date_label,
+            leading=self._up_to_date_icon,
             selected=False,
             on_select=self._on_status_chip_select,
             data="up_to_date",
         )
+        self._has_backups_label = ft.Text("Has backups", size=12)
+        self._has_backups_icon = ft.Icon(ft.Icons.RESTORE, size=14)
         self._has_backups_chip = ft.Chip(
-            label=ft.Text("Has backups", size=12),
-            leading=ft.Icon(ft.Icons.RESTORE, size=14),
+            label=self._has_backups_label,
+            leading=self._has_backups_icon,
             selected=False,
             on_select=self._on_status_chip_select,
             data="has_backups",
@@ -378,9 +403,25 @@ class GamesView(ThemeAwareMixin, ft.Column):
             spacing=8,
             wrap=True,
         )
+        self._apply_filter_chip_theme(is_dark)
 
-        # Header
-        self.header = ft.Container(
+        # Compact Steam API status pill — clicking opens the full config UI
+        # in a dialog (see _open_steam_api_dialog). Kept as a ref so its
+        # colors/icon can be patched in place after the dialog closes.
+        self.steam_api_pill = self._build_steam_api_pill(is_dark)
+
+        # Header (brand-washed surface: subtle diagonal GAMES-blue tint over
+        # the existing surface_variant fill, matching the hero-card wash
+        # language used elsewhere — see hero_surface.build_brand_wash).
+        header_accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
+        self._header_wash = ft.Container(
+            gradient=build_brand_wash(header_accent, is_dark),
+            left=0,
+            top=0,
+            right=0,
+            bottom=0,
+        )
+        header_foreground = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Row(
@@ -389,6 +430,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                             self.backup_stats_text,
                             ft.Container(expand=True),  # Spacer
                             self.search_bar,
+                            self.steam_api_pill,
                             self.options_menu,
                             ft.IconButton(
                                 icon=ft.Icons.REFRESH,
@@ -407,6 +449,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 spacing=8,
             ),
             padding=16,
+        )
+        self.header = ft.Container(
+            content=ft.Stack(controls=[self._header_wash, header_foreground]),
             bgcolor=MD3Colors.get_surface_variant(is_dark),
         )
 
@@ -455,18 +500,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
             visible=False,
         )
 
-        # Steam API configuration card
-        from dlss_updater.ui_flet.components.steam_api_card import SteamAPICard
-
-        self.steam_api_card = SteamAPICard(
-            page=self._page_ref,
-            on_reresolution_complete=self._on_reresolution_complete,
-        )
-
         # Assemble
         self.controls = [
             self.header,
-            self.steam_api_card,
             self.divider,
             ft.Stack(
                 controls=[
@@ -485,6 +521,137 @@ class GamesView(ThemeAwareMixin, ft.Column):
         if self._page_ref and self._page_ref.session.contains_key("is_dark_theme"):
             return self._page_ref.session.get("is_dark_theme")
         return True
+
+    # ===== Steam API status pill (header) =====
+
+    def _steam_pill_style(self, is_dark: bool) -> tuple[str, str, str]:
+        """Derive (icon, bgcolor, fgcolor) for the Steam API pill.
+
+        Mirrors SteamAPICard._update_status_badge()'s three states exactly
+        (connected / invalid key / not configured) so the header pill never
+        disagrees with the dialog it opens.
+        """
+        valid = self.steam_api_card._api_key_valid if getattr(self, "steam_api_card", None) else None
+        if valid is True:
+            return ft.Icons.CLOUD_DONE, MD3Colors.get_success(is_dark), ft.Colors.WHITE
+        if valid is False:
+            return ft.Icons.CLOUD_OFF, MD3Colors.get_error(is_dark), ft.Colors.WHITE
+        # Not configured: neutral/dim, not an error state
+        return ft.Icons.CLOUD_OFF, MD3Colors.get_surface(is_dark), MD3Colors.get_on_surface_variant(is_dark)
+
+    def _steam_pill_border(self, is_dark: bool) -> ft.Border | None:
+        """Faint outline for the neutral "not configured" pill state only —
+        the connected/invalid states already read clearly via their solid
+        fill, so an outline there would be redundant."""
+        if self.steam_api_card._api_key_valid is None:
+            return ft.Border.all(1, MD3Colors.get_outline(is_dark))
+        return None
+
+    def _build_steam_api_pill(self, is_dark: bool) -> ft.Container:
+        """Build the compact clickable Steam API status pill for the header."""
+        icon, bgcolor, fgcolor = self._steam_pill_style(is_dark)
+        pill = build_pill("Steam API", icon=icon, bgcolor=bgcolor, text_color=fgcolor, icon_color=fgcolor)
+        # build_pill's content is a tight Row([Icon, Text]) — keep refs so
+        # _refresh_steam_api_pill() can patch colors/icon in place.
+        row = pill.content
+        self._steam_pill_icon: ft.Icon = row.controls[0]
+        self._steam_pill_text: ft.Text = row.controls[1]
+        pill.border = self._steam_pill_border(is_dark)
+        pill.on_click = self._on_steam_api_pill_click
+        pill.ink = True
+        pill.tooltip = "Configure Steam API"
+        return pill
+
+    def _refresh_steam_api_pill(self) -> None:
+        """Re-derive the pill's state (post dialog-close) and repaint in place."""
+        if not getattr(self, "steam_api_pill", None):
+            return
+        is_dark = self._get_is_dark()
+        icon, bgcolor, fgcolor = self._steam_pill_style(is_dark)
+        self._steam_pill_icon.name = icon
+        self._steam_pill_icon.color = fgcolor
+        self._steam_pill_text.color = fgcolor
+        self.steam_api_pill.bgcolor = bgcolor
+        self.steam_api_pill.border = self._steam_pill_border(is_dark)
+        try:
+            self.update()
+        except Exception:
+            pass
+
+    def _on_steam_api_pill_click(self, e) -> None:
+        self._open_steam_api_dialog()
+
+    def _open_steam_api_dialog(self) -> None:
+        """Open the full Steam API configuration UI (the existing SteamAPICard,
+        unmodified) inside a dialog. The pill refreshes its state once the
+        dialog closes via any path (Close button, backdrop click, ESC)."""
+        # Auto-expand: the dialog IS the configuration surface now, so there's
+        # no reason to make the user click the ExpansionTile a second time.
+        self.steam_api_card.expansion_tile.expanded = True
+
+        dialog = ft.AlertDialog(
+            modal=False,
+            title=ft.Text("Steam API Configuration"),
+            content=ft.Container(content=self.steam_api_card, width=460),
+            actions=[
+                ft.TextButton("Close", on_click=lambda e: self._close_steam_api_dialog()),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            on_dismiss=lambda e: self._refresh_steam_api_pill(),
+        )
+        self._steam_api_dialog = dialog
+        self._page_ref.show_dialog(dialog)
+
+    def _close_steam_api_dialog(self) -> None:
+        self._page_ref.pop_dialog()
+        self._refresh_steam_api_pill()
+
+    # ===== Filter chip theming + live counts =====
+
+    def _apply_filter_chip_theme(self, is_dark: bool) -> None:
+        """Tint the three status filter chips with semantic accents.
+
+        Needs update -> WARNING amber, Up to date -> SUCCESS green,
+        Has backups -> BACKUPS orange (themed_accent picks the _LIGHT variant
+        in light mode). Unselected chips stay on the neutral surface with a
+        subtle colored outline; selecting fills with a translucent accent tint.
+        """
+        needs_update_accent = MD3Colors.get_warning(is_dark)
+        up_to_date_accent = MD3Colors.get_success(is_dark)
+        has_backups_accent = themed_accent((TabColors.BACKUPS, TabColors.BACKUPS_LIGHT), is_dark)
+
+        fill_opacity = 0.28 if is_dark else 0.16
+        border_opacity = 0.5 if is_dark else 0.4
+
+        for chip, icon, accent in (
+            (self._needs_update_chip, self._needs_update_icon, needs_update_accent),
+            (self._up_to_date_chip, self._up_to_date_icon, up_to_date_accent),
+            (self._has_backups_chip, self._has_backups_icon, has_backups_accent),
+        ):
+            chip.selected_color = ft.Colors.with_opacity(fill_opacity, accent)
+            chip.check_color = accent
+            chip.border_side = ft.BorderSide(1, ft.Colors.with_opacity(border_opacity, accent))
+            icon.color = accent
+
+    def _update_filter_chip_counts(self) -> None:
+        """Recompute live "(N)" counts on the status filter chip labels.
+
+        Purely derived from already-loaded card state (card._check_for_updates()
+        / card.has_backups) — no new queries. Called whenever game_cards
+        changes shape or a card's DLL/backup state changes.
+        """
+        needs_update = 0
+        has_backups = 0
+        for card in self.game_cards.values():
+            if card._check_for_updates():
+                needs_update += 1
+            if card.has_backups:
+                has_backups += 1
+        up_to_date = len(self.game_cards) - needs_update
+
+        self._needs_update_label.value = f"Needs update ({needs_update})"
+        self._up_to_date_label.value = f"Up to date ({up_to_date})"
+        self._has_backups_label.value = f"Has backups ({has_backups})"
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """Return themed property mappings for theme-aware system"""
@@ -506,6 +673,31 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 self.options_menu.update()
             except Exception:
                 pass
+
+        # Header brand wash — rebuild the diagonal GAMES-blue gradient at the
+        # new theme's opacity/accent.
+        if getattr(self, "_header_wash", None):
+            header_accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
+            self._header_wash.gradient = build_brand_wash(header_accent, is_dark)
+
+        # Status filter chip semantic tints (WARNING/SUCCESS/BACKUPS accents
+        # differ between light and dark mode).
+        self._apply_filter_chip_theme(is_dark)
+
+        # Steam API pill — repaint using the current connection state at the
+        # new theme's colors (handles the neutral-state outline color too).
+        self._refresh_steam_api_pill()
+
+        # Launcher tabs indicator/label accent (if tabs are currently built).
+        if getattr(self, "_tab_bar_ref", None):
+            tab_accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
+            self._tab_bar_ref.indicator_color = tab_accent
+            self._tab_bar_ref.label_color = tab_accent
+
+        try:
+            self.update()
+        except Exception:
+            pass
 
     def mark_pending_dll_reconcile(self) -> None:
         """Flag that a global update wrote new DLL files while this view wasn't
@@ -804,6 +996,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self.logger.debug(f"[PERF] Initial card creation ({initial_card_count} cards): {cards_ms:.1f}ms")
 
         # ========== PHASE 5: Create tabs control and show UI ==========
+        # Indicator/label accent = GAMES blue, matching the header wash.
+        is_dark = self._get_is_dark()
+        tab_accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
+        self._tab_bar_ref = ft.TabBar(tabs=tabs, indicator_color=tab_accent, label_color=tab_accent)
         self.tabs_control = ft.Tabs(
             length=len(tabs),
             selected_index=0,
@@ -813,12 +1009,16 @@ class GamesView(ThemeAwareMixin, ft.Column):
             content=ft.Column(
                 expand=True,
                 controls=[
-                    ft.TabBar(tabs=tabs),
+                    self._tab_bar_ref,
                     ft.TabBarView(expand=True, controls=tab_contents),
                 ],
             ),
         )
         self.tabs_container.content = self.tabs_control
+
+        # Live filter-chip counts reflect the initial (first-batch) cards now;
+        # refreshed again once background progressive loading finishes below.
+        self._update_filter_chip_counts()
 
         # ========== PHASE 6: Background tasks ==========
         # Trigger staggered fade-in animation for initial cards
@@ -1043,6 +1243,13 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 # Continue to next batch — don't abandon remaining cards
 
         self.logger.debug(f"[PERF] Progressive loading complete: {loaded} additional cards")
+
+        # Final, complete-dataset recount now that every card has loaded.
+        self._update_filter_chip_counts()
+        try:
+            self.update()
+        except RuntimeError:
+            pass
 
     async def _animate_cards_in(self, game_cards: list[GameCard]):
         """Animate game cards with staggered fade-in for grid layout (optimized)"""
@@ -1539,6 +1746,11 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         self.logger.info(f"Refreshed DLL badges for {refreshed}/{len(game_ids)} game cards")
 
+        # Badge refresh can flip needs_update/has_backups for many cards at
+        # once (bulk update reconciliation) — recount the filter chips.
+        if refreshed:
+            self._update_filter_chip_counts()
+
     def _on_game_update(self, game, dll_group: str = "all"):
         """Handle game update button click - launches async update"""
         self.logger.info(f"Update requested for game: {game.name}, group: {dll_group}")
@@ -1668,6 +1880,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 await game_card.refresh_dlls(new_dlls)
                 new_backup_groups = await db_manager.get_backups_grouped_by_dll_type(game.id)
                 await game_card.refresh_restore_button(new_backup_groups)
+                # This card's needs_update/has_backups may have just flipped.
+                self._update_filter_chip_counts()
+                self.update()
 
         except Exception as ex:
             self.logger.error(f"Update failed for {game.name}: {ex}", exc_info=True)
@@ -1830,6 +2045,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 await game_card.refresh_dlls(new_dlls)
                 new_backup_groups = await db_manager.get_backups_grouped_by_dll_type(game.id)
                 await game_card.refresh_restore_button(new_backup_groups)
+                # Restoring a backup flips needs_update/has_backups for this card.
+                self._update_filter_chip_counts()
+                self.update()
 
         except Exception as ex:
             self.logger.error(f"Restore failed for {game.name}: {ex}", exc_info=True)

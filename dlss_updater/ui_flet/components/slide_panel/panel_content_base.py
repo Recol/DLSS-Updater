@@ -71,6 +71,34 @@ class PanelContentBase(ABC):
         return None
 
     @property
+    def accent(self) -> str | None:
+        """
+        Optional brand accent color for the panel header's brand wash.
+
+        Override to give a panel its own identity (e.g. NVIDIA green for a
+        DLSS-specific panel). Defaults to None, which SlidePanel resolves to
+        the app's PRIMARY color for a generic, quiet header wash.
+
+        Returns:
+            Hex color string (e.g. "#76B900"), or None for the default.
+        """
+        return None
+
+    @property
+    def icon(self) -> str | None:
+        """
+        Optional decorative watermark glyph shown (small, low-opacity) in the
+        panel header, echoing the hero card language elsewhere in the app.
+
+        Override to give a panel a more specific glyph. Defaults to a
+        generic "tune" icon; return None to omit the watermark entirely.
+
+        Returns:
+            An ft.Icons name, or None for no watermark.
+        """
+        return ft.Icons.TUNE
+
+    @property
     @abstractmethod
     def width(self) -> int:
         """

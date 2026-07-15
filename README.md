@@ -95,7 +95,7 @@ understands games from every major launcher.
     </td>
     <td valign="top">
       <h3>💾 Safe by Default</h3>
-      Every binary is backed up before it's touched — restore any DLL in one click from the <strong>Backups</strong> tab.
+      Every binary is backed up before it's touched — restore any DLL in one click from the <strong>Backups</strong> view.
     </td>
     <td valign="top">
       <h3>🚫 Custom Blacklist</h3>
@@ -176,7 +176,7 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 <summary><h3>💾 Backups &amp; Safety</h3></summary>
 
 - Built-in backup system that snapshots game binaries before modifying them
-- Restore any modified DLL from the **Backups** tab
+- Restore any modified DLL from the **Backups** view
 - Build your own per-game blacklist to skip titles for any reason
 
 </details>

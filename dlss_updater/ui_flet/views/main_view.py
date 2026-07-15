@@ -74,7 +74,13 @@ from dlss_updater.ui_flet.components.launcher_card import LauncherCard
 from dlss_updater.ui_flet.components.loading_overlay import LoadingOverlay
 from dlss_updater.ui_flet.components.logger_panel import LoggerPanel
 from dlss_updater.ui_flet.components.theme_manager import ThemeManager
-from dlss_updater.ui_flet.theme.colors import Shadows
+from dlss_updater.ui_flet.theme.colors import Shadows, MD3Colors, TabColors
+from dlss_updater.ui_flet.components.hero_surface import (
+    build_brand_wash,
+    build_pill,
+    build_watermark_icon,
+    themed_accent,
+)
 from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDialog
 from dlss_updater.ui_flet.components.slide_panel import PanelManager
 from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel, ProtonUpscalerPanel, WindowsDLSSPresetsPanel, IgnoreListPanel
@@ -84,6 +90,7 @@ from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdatePro
 from dlss_updater.platform_utils import FEATURES, IS_LINUX, IS_WINDOWS
 from dlss_updater.linux_paths import is_flatpak, get_flatpak_override_command
 from dlss_updater.ui_flet.views.games_view import GamesView
+from dlss_updater.ui_flet.views.backups_view import BackupsView
 from dlss_updater.ui_flet.views.hub_view import HubView
 from dlss_updater.ui_flet.views.settings_view import SettingsView
 from dlss_updater.ui_flet.navigation.navigation_controller import NavigationController
@@ -93,6 +100,14 @@ from dlss_updater.ui_flet.components.app_bar_menus import (
 )
 from dlss_updater.version import __version__
 from dlss_updater.utils import find_game_root
+
+
+# Chrome brand-wash opacity for the app bar / view header bands — deliberately
+# much lower than content-level hero washes (WASH_OPACITY_DARK/LIGHT in
+# hero_surface.py) so the surrounding app chrome reads as tinted, not
+# postered. Shared by the app bar and the Launchers view header.
+_CHROME_WASH_OPACITY_DARK = 0.10
+_CHROME_WASH_OPACITY_LIGHT = 0.06
 
 
 class MainView(ft.Column):
@@ -152,9 +167,18 @@ class MainView(ft.Column):
         # View instances (will be created in _build_ui)
         self.launchers_view = None
         self.games_view = None
+        self.backups_view = None
         self.settings_view = None
         self.hub_view = None
         self.navigation_controller: NavigationController | None = None
+
+        # Views whose content was rebuilt/re-themed while detached and is
+        # therefore stale on the client (see CLAUDE.md's Flet 0.86
+        # patch-drop note). Set on theme toggle to every view except the
+        # currently-active one; each view's attach hook (_on_view_load /
+        # _on_view_hidden's HUB branch) rebuilds fresh instances and clears
+        # its own entry the next time it's visited.
+        self._theme_stale_views: set[str] = set()
 
         # Initialize launcher configurations
         self.launcher_configs = [
@@ -219,6 +243,9 @@ class MainView(ft.Column):
         # Create games view
         self.games_view = GamesView(self._page_ref, self.logger)
 
+        # Create backups view
+        self.backups_view = BackupsView(self._page_ref, self.logger)
+
         # Create settings view
         self.settings_view = SettingsView(
             page=self._page_ref,
@@ -249,6 +276,7 @@ class MainView(ft.Column):
             views={
                 NavigationController.LAUNCHERS: self.launchers_view,
                 NavigationController.GAMES: self.games_view,
+                NavigationController.BACKUPS: self.backups_view,
                 NavigationController.SETTINGS: self.settings_view,
             },
             on_view_load=self._on_view_load,
@@ -258,9 +286,17 @@ class MainView(ft.Column):
         # Create logger panel
         self.logger_panel = LoggerPanel(self._page_ref, self.logger)
 
+        # App bar lives inside a permanent wrapper Column ("slot"). Theme
+        # heals swap a FRESH bar into the slot (slot.controls = [new_bar] +
+        # slot.update()) - the same wrapper-swap mechanism the nav
+        # controller uses for view heals, and the only operation class the
+        # client reliably renders after a theme toggle (in-place property
+        # mutation and positional same-class swaps both fail; see CLAUDE.md).
+        self._app_bar_slot = ft.Column(controls=[app_bar], spacing=0)
+
         # Assemble main layout: AppBar + Divider + NavigationController + Logger
         self.controls = [
-            app_bar,
+            self._app_bar_slot,
             ft.Container(
                 height=1,
                 gradient=ft.LinearGradient(
@@ -282,28 +318,138 @@ class MainView(ft.Column):
         """Handle view loading when navigated to."""
         from dlss_updater.task_registry import register_task
 
+        theme_stale = view_name in self._theme_stale_views
+        if theme_stale:
+            self._theme_stale_views.discard(view_name)
+
+        # App bar heal rides the first navigation after a theme toggle
+        # (patches sent earlier are dropped - see _toggle_theme_from_menu).
+        # Deferred to a background task: updates issued DURING the nav
+        # transition's callback phase don't flush reliably.
+        if getattr(self, '_app_bar_theme_stale', False):
+            self._app_bar_theme_stale = False
+
+            async def _heal_bar():
+                await anyio.sleep(0.1)
+                await self._rebuild_app_bar_for_theme()
+
+            register_task(asyncio.create_task(_heal_bar()), "heal_app_bar")
+
         if view_name == NavigationController.GAMES:
-            if not self.games_view._games_loaded:
+            if not self.games_view._games_loaded or theme_stale:
                 self.games_view.loading_indicator.visible = True
                 self.games_view.empty_state.visible = False
                 self.games_view.tabs_container.visible = False
                 self.games_view.update()  # Targeted update (GamesView is isolated)
                 register_task(
-                    asyncio.create_task(self._load_games_background()),
+                    asyncio.create_task(self._load_games_background(force=theme_stale)),
                     "load_games_background"
                 )
 
+        elif view_name == NavigationController.BACKUPS:
+            # BackupsView.load_backups() already gates on its own
+            # _backups_loaded flag internally (full load when unloaded/stale,
+            # a fast staggered re-animate when already loaded, reusing the
+            # SAME BackupGroup instances). A theme toggle that fired while
+            # this view was detached needs fresh instances (see CLAUDE.md's
+            # Flet 0.86 patch-drop note), so force the full-rebuild path by
+            # marking it unloaded rather than calling force=True directly -
+            # this keeps the "already loaded" fast path as the default for
+            # ordinary tab switches.
+            if theme_stale:
+                self.backups_view._backups_loaded = False
+            register_task(
+                asyncio.create_task(self._load_backups_background()),
+                "load_backups_background"
+            )
+
         elif view_name == NavigationController.LAUNCHERS:
-            pass  # Launchers view is always ready, no loading needed
+            if theme_stale:
+                await self._rebuild_launchers_view_for_theme()
 
     async def _on_view_hidden(self, old_view: str, new_view: str):
         """Handle view cleanup when navigated away."""
+        # Returning to the hub: refresh its stat pills (game count, backups,
+        # scan age) and Games mosaic so restores/updates/scans performed in
+        # other views are reflected without an app restart. Cheap: the same
+        # hyper-parallel batch used at startup (~4ms of queries).
+        if new_view == NavigationController.HUB and self.hub_view:
+            from dlss_updater.task_registry import register_task
+
+            hub_theme_stale = NavigationController.HUB in self._theme_stale_views
+            if hub_theme_stale:
+                self._theme_stale_views.discard(NavigationController.HUB)
+
+            # Bar heal also rides hub returns (nav skips _on_view_load for
+            # the hub, so this hook covers the settings -> hub path).
+            # Deferred like the _on_view_load variant.
+            hub_bar_stale = getattr(self, '_app_bar_theme_stale', False)
+            if hub_bar_stale:
+                self._app_bar_theme_stale = False
+
+                async def _heal_bar_hub():
+                    await anyio.sleep(0.1)
+                    await self._rebuild_app_bar_for_theme()
+
+                register_task(asyncio.create_task(_heal_bar_hub()), "heal_app_bar")
+
+            async def _refresh_hub():
+                # Theme-stale heal: replace the ENTIRE HubView instance via
+                # the nav controller's wrapper (a never-detached parent).
+                # Swapping children INSIDE the remounted hub_view (the old
+                # rebuild_for_theme approach) is dropped by the client just
+                # like in-place mutations - verified live. The launchers
+                # heal uses this same wrapper-level replace_view mechanism
+                # and renders correctly.
+                if hub_theme_stale:
+                    old_hub = self.hub_view
+                    for card in (
+                        old_hub._launchers_card, old_hub._dlss_settings_card,
+                        old_hub._backups_card, old_hub._settings_card,
+                        old_hub._games_card,
+                    ):
+                        if card is not None:
+                            card._unregister_theme_aware()
+                    old_hub._unregister_theme_aware()
+
+                    self.hub_view = HubView(
+                        page=self._page_ref,
+                        logger=self.logger,
+                        on_navigate=self._on_hub_navigate,
+                        on_open_dlss_settings=self._on_dlss_settings_clicked,
+                    )
+                    # Unique key so Flet's list differ treats this as a
+                    # keyed ADD (full serialization) instead of a same-class
+                    # positional MERGE against the stale cached child -
+                    # merge-diff property patches are exactly what the
+                    # client drops (see CLAUDE.md).
+                    import uuid as _uuid
+                    self.hub_view.key = f"hub-{_uuid.uuid4().hex[:8]}"
+                    self.navigation_controller.replace_view(
+                        NavigationController.HUB, self.hub_view
+                    )
+                await self.hub_view.load_stats()
+
+            register_task(
+                asyncio.create_task(_refresh_hub()),
+                "refresh_hub_stats"
+            )
+
         if old_view == NavigationController.GAMES and new_view != NavigationController.GAMES:
             from dlss_updater.task_registry import register_task
             register_task(
                 asyncio.create_task(self._cleanup_games_view()),
                 "cleanup_games_view"
             )
+
+            # Per-game DLL restores can happen from within the Games view
+            # (card menu -> restore/restore group), which create/consume
+            # backup rows without notifying BackupsView. Mark it stale here
+            # so the next visit reloads fresh instead of showing stale
+            # groups. Cheap: just resets the existing loaded flag that
+            # load_backups() already checks - no new lifecycle method.
+            if self.backups_view:
+                self.backups_view._backups_loaded = False
 
     def _on_keyboard_event(self, e: ft.KeyboardEvent):
         """Handle keyboard events for navigation."""
@@ -397,6 +543,12 @@ class MainView(ft.Column):
         # Create launcher cards
         launcher_list = await self._create_launcher_list()
 
+        # Header band: title + LAUNCHERS brand wash + rocket watermark + a
+        # neutral "N configured" pill — mirrors the header treatment other
+        # views already carry (see games_view.py's header) so Launchers
+        # doesn't start "bare" straight into the grid. Kept shallow (~72px).
+        self.launchers_header = self._build_launchers_header(is_dark)
+
         # Create last scan info text
         self.last_scan_info_text = ft.Text(
             "",
@@ -449,6 +601,7 @@ class MainView(ft.Column):
         self.launchers_content_container = ft.Container(
             content=ft.Column(
                 controls=[
+                    self.launchers_header,
                     launcher_list,
                     self.launchers_action_buttons,
                 ],
@@ -461,6 +614,81 @@ class MainView(ft.Column):
 
         # Return launchers view wrapped in themed container
         return self.launchers_content_container
+
+    def _build_launchers_header(self, is_dark: bool) -> ft.Container:
+        """Build the Launchers view header band.
+
+        Title + LAUNCHERS-accent brand wash + small rocket watermark + a
+        neutral "N configured" pill, matching the hero header language used
+        by the Games view. The configured count is derived from
+        ``self.launcher_cards`` (already-live state — no extra query).
+        """
+        header_accent = themed_accent(
+            (TabColors.LAUNCHERS, TabColors.LAUNCHERS_LIGHT), is_dark
+        )
+
+        self._launchers_header_title = ft.Text(
+            "Launchers",
+            size=20,
+            weight=ft.FontWeight.BOLD,
+            color=MD3Colors.get_on_surface(is_dark),
+        )
+
+        configured_count = sum(1 for c in self.launcher_cards.values() if c.current_paths)
+        self.launchers_configured_pill = build_pill(
+            f"{configured_count} configured",
+            bgcolor=MD3Colors.get_surface_container(is_dark),
+            text_color=MD3Colors.get_on_surface_variant(is_dark),
+        )
+
+        self._launchers_watermark = build_watermark_icon(
+            ft.Icons.ROCKET_LAUNCH, is_dark, size=64
+        )
+        # Small negative offset so the glyph "bleeds" slightly off the
+        # header's bottom-right edge, matching the hero-card watermark
+        # convention (see hub_card.py) instead of sitting fully inset.
+        self._launchers_watermark.right = -6
+        self._launchers_watermark.bottom = -10
+
+        return ft.Container(
+            content=ft.Stack(
+                controls=[
+                    self._launchers_watermark,
+                    ft.Row(
+                        controls=[
+                            self._launchers_header_title,
+                            ft.Container(expand=True),
+                            self.launchers_configured_pill,
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                ]
+            ),
+            padding=ft.Padding.symmetric(horizontal=20, vertical=18),
+            bgcolor=MD3Colors.get_surface(is_dark),
+            gradient=build_brand_wash(
+                header_accent,
+                is_dark,
+                opacity=_CHROME_WASH_OPACITY_DARK if is_dark else _CHROME_WASH_OPACITY_LIGHT,
+            ),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+        )
+
+    def _update_launchers_configured_pill(self) -> None:
+        """Refresh the launchers header's "N configured" pill: recompute the
+        count from current launcher card state and restyle for the active
+        theme. Called after any path add/remove/reset so the header never
+        goes stale, and again on theme toggle.
+        """
+        if not hasattr(self, 'launchers_configured_pill') or not self.launchers_configured_pill:
+            return
+        is_dark = self.theme_manager.is_dark
+        count = sum(1 for c in self.launcher_cards.values() if c.current_paths)
+        # build_pill() wraps its Text in a Row([Text]) — reach the Text ref.
+        text_widget = self.launchers_configured_pill.content.controls[-1]
+        text_widget.value = f"{count} configured"
+        text_widget.color = MD3Colors.get_on_surface_variant(is_dark)
+        self.launchers_configured_pill.bgcolor = MD3Colors.get_surface_container(is_dark)
 
     def _create_header_icon_button(
         self,
@@ -517,32 +745,27 @@ class MainView(ft.Column):
             callbacks=menu_callbacks,
         )
 
-        # App title + version — store refs so theme toggles recolor them live
+        # App title + version pill — store refs so theme toggles recolor them live
         self._app_title_text = ft.Text(
             "DLSS Updater",
             size=24,
             weight=ft.FontWeight.BOLD,
             color=MD3Colors.get_on_surface(is_dark),
         )
-        self._app_version_text = ft.Text(
-            f"Version {__version__}",
-            size=12,
-            color=MD3Colors.get_on_surface_variant(is_dark),
-            weight=ft.FontWeight.W_400,
-            opacity=0.9,
+        self._app_version_pill = self._build_version_pill(is_dark)
+
+        # Title row: name + compact neutral version pill side-by-side
+        self._app_title_row = ft.Row(
+            controls=[self._app_title_text, self._app_version_pill],
+            spacing=10,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            expand=True,
         )
 
         # Compact top bar with 3 popup menu buttons on the right
         top_bar = ft.Row(
             controls=[
-                ft.Column(
-                    controls=[
-                        self._app_title_text,
-                        self._app_version_text,
-                    ],
-                    spacing=2,
-                    expand=True,
-                ),
+                self._app_title_row,
                 # Right side: Community (Heart)
                 self.community_menu.button,
             ],
@@ -552,93 +775,163 @@ class MainView(ft.Column):
         # Return app bar with dark surface style (full width, no border)
         # Store reference for theme updates
         # PERF: Merged double Container into single (-1 control)
+        # Subtle PRIMARY brand wash on top of the base surface — quieter than
+        # any content-level hero wash, just enough to tie the chrome into the
+        # hero design language (see _CHROME_WASH_OPACITY_DARK/LIGHT).
         self.app_bar_container = ft.Container(
             content=top_bar,
             padding=ft.Padding.symmetric(vertical=16, horizontal=16),
             bgcolor=MD3Colors.get_background(is_dark),
+            gradient=build_brand_wash(
+                MD3Colors.PRIMARY,
+                is_dark,
+                opacity=_CHROME_WASH_OPACITY_DARK if is_dark else _CHROME_WASH_OPACITY_LIGHT,
+            ),
             shadow=Shadows.LEVEL_2,
         )
         return self.app_bar_container
 
-    async def _toggle_theme_from_menu(self, e):
-        """Handle theme toggle from menu with cascade animation
+    def _build_version_pill(self, is_dark: bool) -> ft.Container:
+        """Build the compact, surface-tinted version pill shown in the app bar."""
+        return build_pill(
+            f"v{__version__}",
+            bgcolor=MD3Colors.get_surface_container(is_dark),
+            text_color=MD3Colors.get_on_surface_variant(is_dark),
+        )
 
-        PERFORMANCE: Batches all theme-related UI updates into a single page.update() call.
-        Individual update methods no longer call page.update() to avoid 3x serialization.
+    async def _toggle_theme_from_menu(self, e):
+        """Handle theme toggle from menu with cascade animation.
+
+        Theme toggling is only ever wired from the Settings view's inline
+        Switch (SettingsView -> on_toggle_theme -> here), so SETTINGS is
+        always the active view at this point - it re-themes correctly live
+        (attached + ThemeAwareMixin cascade). Every OTHER view - and the
+        app bar, which is MainView's own chrome and needs a different fix -
+        is handled below.
         """
         # Use async toggle for cascade animations to registered components
+        # (ThemeAwareMixin components that are currently ATTACHED - e.g. the
+        # Settings view itself, the floating pill, the logger panel - all
+        # re-theme correctly through this cascade).
         await self.theme_manager.toggle_theme_async()
 
-        # Rebuild popup menus with updated colors (no page.update inside)
-        await self._rebuild_popup_menus()
-
-        # Update launchers view colors for new theme (no page.update inside)
-        await self._update_launchers_view_for_theme()
+        # Every view except the one currently active during this toggle is
+        # now theme-stale: Flet 0.86 silently drops property-only patches
+        # sent to controls in a detached subtree (see CLAUDE.md), so those
+        # views' cascade updates above never reached the client. Each is
+        # rebuilt with fresh control instances on its next attach instead
+        # (see _on_view_load / _on_view_hidden's HUB branch).
+        active_view = (
+            self.navigation_controller.current_view
+            if self.navigation_controller else None
+        )
+        all_views = {
+            NavigationController.HUB,
+            NavigationController.LAUNCHERS,
+            NavigationController.GAMES,
+            NavigationController.BACKUPS,
+            NavigationController.SETTINGS,
+        }
+        self._theme_stale_views |= (all_views - {active_view})
 
         # SINGLE batched page.update() for all theme changes
         if self._page_ref:
             self._page_ref.update()
 
+        # App bar: patches flushed between the theme cascade and the NEXT
+        # NAVIGATION are lost client-side (the cascade's patches to
+        # detached-view controls stall the pipe; a nav transition's
+        # page.update() is the observed recovery point - verified live:
+        # neither container swaps nor property mutations on the bar render
+        # in this window, while identical operations render fine right
+        # after a navigation). Mark the bar stale; the next attach hook
+        # heals it alongside the views.
+        self._app_bar_theme_stale = True
+
         self.logger.info(f"Theme toggled to {'Dark' if self.theme_manager.is_dark else 'Light'} Mode")
 
-    async def _rebuild_popup_menus(self):
-        """Rebuild popup menus with updated colors after theme change"""
-        from dlss_updater.ui_flet.theme.colors import MD3Colors
+    async def _rebuild_app_bar_for_theme(self) -> None:
+        """Rebuild the app bar as a brand-new Container and swap it into
+        MainView.controls.
 
-        is_dark = self.theme_manager.is_dark
+        The app bar is always attached, but in-place property mutation
+        performed from within the toggle flow doesn't reliably reach the
+        client under Flet 0.86 (see CLAUDE.md) - only replacing the control
+        does. _create_app_bar() is idempotent (it reassigns
+        self.app_bar_container / self.community_menu / the title elements
+        each time it's called), so simply calling it again and swapping the
+        result into self.controls[0] gives a fully fresh, theme-correct bar.
+        """
+        if self.community_menu is not None:
+            # Explicit unregister rather than relying on WeakSet GC timing -
+            # _create_app_bar() below constructs a brand-new CommunityMenu.
+            self.community_menu._unregister_theme_aware()
 
-        # Update app bar container background for new theme
-        if hasattr(self, 'app_bar_container') and self.app_bar_container:
-            self.app_bar_container.bgcolor = MD3Colors.get_background(is_dark)
+        new_app_bar = await self._create_app_bar()
 
-        # Recolor app title + version text for the new theme
-        if hasattr(self, '_app_title_text') and self._app_title_text:
-            self._app_title_text.color = MD3Colors.get_on_surface(is_dark)
-        if hasattr(self, '_app_version_text') and self._app_version_text:
-            self._app_version_text.color = MD3Colors.get_on_surface_variant(is_dark)
+        # Wrapper-slot swap: the ONLY operation class the client reliably
+        # renders after a theme toggle (verified live; property mutation and
+        # positional same-class swaps into MainView.controls both fail).
+        if hasattr(self, '_app_bar_slot') and self._app_bar_slot:
+            try:
+                # Two-phase detach/attach across separate flushes - the
+                # exact sequence the nav controller uses (which provably
+                # renders). A single-flush swap merge-diffs same-class
+                # children and the client drops it.
+                self._app_bar_slot.controls = []
+                self._page_ref.update()
+                await anyio.sleep(0.03)
+                self._app_bar_slot.controls = [new_app_bar]
+                self._page_ref.update()
+            except Exception as e:
+                self.logger.warning(f"App bar theme heal flush failed: {e}")
 
-        # Rebuild community popup menu with new theme colors
-        if self.community_menu:
-            self.community_menu.rebuild(is_dark)
+    async def _rebuild_launchers_view_for_theme(self) -> None:
+        """Rebuild the launchers view (cards + header + action bar) with
+        fresh, theme-correct instances.
 
-        # Update the button reference in the app bar
-        if hasattr(self, 'app_bar_container') and self.app_bar_container:
-            top_bar = self.app_bar_container.content  # Container -> Row
-            if hasattr(top_bar, 'controls') and len(top_bar.controls) >= 2:
-                # controls: [title_col, community_button]
-                top_bar.controls[1] = self.community_menu.button
+        Flet 0.86 silently drops property-only patches sent to controls in
+        a detached subtree (see CLAUDE.md); LauncherCard's in-place
+        apply_theme() mutations made while this view was detached therefore
+        never reached the client, and the header/action-bar chrome (plain
+        Containers, not ThemeAware) was never even attempted. Freshly
+        constructed/replaced controls always render correctly, so this
+        rebuilds the whole launchers subtree instead of healing it in place.
 
-        # NOTE: No page.update() here - batched in _toggle_theme_from_menu()
+        Called from _on_view_load() right after LAUNCHERS has been attached
+        by the nav controller, so navigation_controller.replace_view() below
+        can flush the swap immediately.
+        """
+        # Capture per-launcher scan results (games_data) so the rebuild
+        # doesn't wipe the "N games" count pills - this is the only place
+        # that state lives (it isn't persisted anywhere outside the cards).
+        old_games_data = {
+            enum: card.games_data for enum, card in self.launcher_cards.items()
+        }
 
-    async def _update_launchers_view_for_theme(self):
-        """Update launchers view colors after theme change"""
-        from dlss_updater.ui_flet.theme.colors import MD3Colors
+        # Unregister the old cards from the theme registry before dropping
+        # the only strong references to them.
+        for card in self.launcher_cards.values():
+            card._unregister_theme_aware()
 
-        is_dark = self.theme_manager.is_dark
+        # Rebuild cards + header + action bar + content container from
+        # scratch (also repopulates self.launcher_cards).
+        new_view = await self._create_launchers_view()
+        self.launchers_view = new_view
 
-        # Update launchers content container background
-        if hasattr(self, 'launchers_content_container') and self.launchers_content_container:
-            self.launchers_content_container.bgcolor = MD3Colors.get_background(is_dark)
+        # Restore the captured scan-result state onto the fresh instances.
+        for enum, card in self.launcher_cards.items():
+            data = old_games_data.get(enum)
+            if data:
+                await card.set_games(data)
 
-        # Update action buttons container background and border
-        if hasattr(self, 'launchers_action_buttons') and self.launchers_action_buttons:
-            self.launchers_action_buttons.bgcolor = MD3Colors.get_background(is_dark)
-            self.launchers_action_buttons.border = ft.Border.only(
-                top=ft.BorderSide(1, MD3Colors.get_outline(is_dark))
+        # Swap the fresh container into the nav controller's view registry -
+        # LAUNCHERS is the currently-attached view at this point, so this
+        # also flushes the swap to the client immediately.
+        if self.navigation_controller:
+            self.navigation_controller.replace_view(
+                NavigationController.LAUNCHERS, new_view
             )
-
-        # Recolor the Scan/Update action buttons (bg, border, label) for new theme
-        if hasattr(self, '_action_button_refs'):
-            for button_container, label_text in self._action_button_refs:
-                button_container.bgcolor = MD3Colors.get_surface_container(is_dark)
-                button_container.border = ft.Border.all(1, MD3Colors.get_outline(is_dark))
-                label_text.color = MD3Colors.get_on_surface(is_dark)
-
-        # Update last scan info text color (re-applies stale/normal styling)
-        if hasattr(self, 'last_scan_info_text') and self.last_scan_info_text:
-            self._update_scan_info_text()
-
-        # NOTE: No page.update() here - batched in _toggle_theme_from_menu()
 
     def _create_discord_banner(self) -> ft.Banner:
         """Create the Discord invite banner using ft.Banner widget."""
@@ -724,10 +1017,12 @@ class MainView(ft.Column):
             self.launcher_cards[config["enum"]] = card
             launcher_cards.append(card)
 
-        # Lay cards 2-up on large windows (single column when narrow) so wide
-        # displays aren't a narrow centered strip with dead margins
+        # Banner-card grid (Option B): 1-up narrow, 2-up medium, 3-up wide —
+        # matching the games grid's density rhythm. Every card has the same
+        # fixed banner + footer height (see launcher_card.py), so equal-height
+        # rows fall out automatically with no extra layout work here.
         for card in launcher_cards:
-            card.col = {"xs": 12, "lg": 6}
+            card.col = {"xs": 12, "sm": 6, "xl": 4}
 
         launcher_grid = ft.ResponsiveRow(
             controls=launcher_cards,
@@ -812,6 +1107,7 @@ class MainView(ft.Column):
                     card = self.launcher_cards.get(launcher)
                     if card:
                         await card.set_paths(all_paths)
+                    self._update_launchers_configured_pill()
                     await self._show_snackbar(f"Path added: {path}")
                 else:
                     await self._show_snackbar("Path already exists or limit reached")
@@ -856,12 +1152,19 @@ class MainView(ft.Column):
 
         self._page_ref.show_dialog(dialog)
 
-    async def _load_games_background(self):
+    async def _load_games_background(self, force: bool = False):
         """Load games in background - non-blocking for tab switch."""
         try:
-            await self.games_view.load_games()
+            await self.games_view.load_games(force=force)
         except Exception as e:
             self.logger.error(f"Background games load error: {e}")
+
+    async def _load_backups_background(self):
+        """Load backups in background - non-blocking for tab switch."""
+        try:
+            await self.backups_view.load_backups()
+        except Exception as e:
+            self.logger.error(f"Background backups load error: {e}")
 
     async def _handle_folder_selected(self, path: str, launcher: LauncherPathName, is_adding: bool = False):
         """Handle folder selection result (Flet 0.80.4+ direct call pattern)"""
@@ -882,6 +1185,7 @@ class MainView(ft.Column):
                 all_paths = config_manager.get_launcher_paths(launcher)
                 if card:
                     await card.set_paths(all_paths)
+                self._update_launchers_configured_pill()
                 await self._show_snackbar(f"Sub-folder added to {card.name}")
             else:
                 # Path already exists or limit reached
@@ -906,6 +1210,7 @@ class MainView(ft.Column):
             all_paths = config_manager.get_launcher_paths(launcher)
             if card:
                 await card.set_paths(all_paths)
+            self._update_launchers_configured_pill()
             await self._show_snackbar(f"Path updated for {card.name}")
 
     def _create_reset_handler(self, launcher: LauncherPathName):
@@ -927,6 +1232,7 @@ class MainView(ft.Column):
 
             if card:
                 await card.set_paths([])
+                self._update_launchers_configured_pill()
                 await self._show_rescan_snackbar(f"All paths cleared for {card.name}")
 
         # Customize message based on path count
@@ -1005,14 +1311,6 @@ class MainView(ft.Column):
         )
 
         self._page_ref.show_dialog(dialog)
-
-    def _toggle_theme(self, e):
-        """Handle theme toggle button click"""
-        self.theme_manager.toggle_theme()
-        # Update button icon and tooltip
-        e.control.icon = self.theme_manager.get_icon()
-        e.control.tooltip = self.theme_manager.get_tooltip()
-        self._page_ref.update()
 
     async def _on_release_notes_clicked(self, e):
         """Handle release notes button click"""
@@ -1386,6 +1684,11 @@ class MainView(ft.Column):
                 else:
                     self.games_view.mark_pending_dll_reconcile()
 
+            # DLL updates create new backups - mark BackupsView stale so its
+            # next visit reloads fresh instead of showing a pre-update list.
+            if self.backups_view:
+                self.backups_view._backups_loaded = False
+
         except Exception as ex:
             self.logger.error(f"Update failed: {ex}", exc_info=True)
             self.loading_overlay.hide(self._page_ref)
@@ -1545,6 +1848,10 @@ class MainView(ft.Column):
 
         Shows a snackbar with an Undo action that re-adds the removed path.
         """
+        # The card already mutated its own current_paths before this callback
+        # fires — refresh the header's configured count now so it doesn't lag.
+        self._update_launchers_configured_pill()
+
         if launcher_enum is None or path is None:
             await self._show_rescan_snackbar(f"Path removed from {launcher_name}")
             return
@@ -1554,6 +1861,7 @@ class MainView(ft.Column):
             card = self.launcher_cards.get(launcher_enum)
             if card:
                 await card.set_paths(config_manager.get_launcher_paths(launcher_enum))
+            self._update_launchers_configured_pill()
             await self._show_snackbar(f"Path restored for {launcher_name}")
 
         from dlss_updater.ui_flet.theme.colors import MD3Colors

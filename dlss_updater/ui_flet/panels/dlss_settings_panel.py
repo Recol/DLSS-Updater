@@ -28,7 +28,7 @@ from dlss_updater.models import (
     WindowsDLSSFGPreset,
 )
 from dlss_updater import nvapi_drs
-from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.theme.colors import MD3Colors, TechnologyColors
 from dlss_updater.ui_flet.panels.dlss_preset_panel_base import _DLSSPresetPanelBase
 
 
@@ -65,6 +65,15 @@ class WindowsDLSSPresetsPanel(_DLSSPresetPanelBase):
     @property
     def width(self) -> int:
         return 520
+
+    @property
+    def accent(self) -> str:
+        """NVIDIA green — this panel writes NVIDIA driver DLSS settings."""
+        return TechnologyColors.DLSS
+
+    @property
+    def icon(self) -> str:
+        return ft.Icons.MEMORY
 
     def _load_config(self):
         self._config = config_manager.get_windows_dlss_config()

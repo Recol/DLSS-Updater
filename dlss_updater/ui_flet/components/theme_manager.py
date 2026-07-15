@@ -19,6 +19,39 @@ if TYPE_CHECKING:
     pass
 
 
+def _blend_hex(base: str, tint: str, alpha: float) -> str:
+    """Alpha-blend an opaque ``tint`` color over ``base`` (both ``#RRGGBB``)
+    and return an opaque ``#RRGGBB`` result. Mirrors main.py's helper of the
+    same name so the window background gradient stays in sync across both
+    the startup path (main.py) and live theme toggles (this module).
+    """
+    b, t = base.lstrip("#"), tint.lstrip("#")
+    br, bg_, bb = int(b[0:2], 16), int(b[2:4], 16), int(b[4:6], 16)
+    tr, tg, tb = int(t[0:2], 16), int(t[2:4], 16), int(t[4:6], 16)
+    r = round(tr * alpha + br * (1 - alpha))
+    g = round(tg * alpha + bg_ * (1 - alpha))
+    bl = round(tb * alpha + bb * (1 - alpha))
+    return f"#{r:02X}{g:02X}{bl:02X}"
+
+
+def _window_decoration(is_dark: bool) -> ft.BoxDecoration:
+    """Very subtle static vertical window-background wash (surface -> surface
+    faintly tinted with PRIMARY). See main.py's ``_build_window_decoration``
+    for the full rationale — duplicated here (not imported) to avoid a
+    main.py <-> theme_manager.py import cycle.
+    """
+    base = MD3Colors.get_background(is_dark)
+    tint_alpha = 0.04 if is_dark else 0.03
+    bottom = _blend_hex(base, MD3Colors.PRIMARY, tint_alpha)
+    return ft.BoxDecoration(
+        gradient=ft.LinearGradient(
+            begin=ft.Alignment.TOP_CENTER,
+            end=ft.Alignment.BOTTOM_CENTER,
+            colors=[base, bottom],
+        )
+    )
+
+
 class ThemeManager:
     """
     Manages application theme (light/dark mode) with cascade animations
@@ -110,6 +143,7 @@ class ThemeManager:
         # Apply page-level theme (preserve scrollbar styling via shared builder)
         self._page_ref.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
         self._page_ref.bgcolor = MD3Colors.get_background(self.is_dark)
+        self._page_ref.decoration = _window_decoration(self.is_dark)
         self._page_ref.theme = build_page_theme(is_dark=False)
         self._page_ref.dark_theme = build_page_theme(is_dark=True)
 
@@ -146,6 +180,7 @@ class ThemeManager:
         # Apply page-level theme immediately (preserve scrollbar styling)
         self._page_ref.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
         self._page_ref.bgcolor = MD3Colors.get_background(self.is_dark)
+        self._page_ref.decoration = _window_decoration(self.is_dark)
         self._page_ref.theme = build_page_theme(is_dark=False)
         self._page_ref.dark_theme = build_page_theme(is_dark=True)
 

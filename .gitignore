@@ -24,3 +24,5 @@ dist/
 build-dir/
 repo/ n
 *.flatpak
+
+nudge_releases.ps1

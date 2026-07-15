@@ -12,6 +12,18 @@ from typing import Optional
 from .panel_content_base import PanelContentBase
 from ...theme.colors import MD3Colors, Shadows, Animations
 from ...theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from ..hero_surface import (
+    build_brand_wash,
+    build_watermark_icon,
+    WATERMARK_OPACITY_DARK,
+    WATERMARK_OPACITY_LIGHT,
+)
+
+# Chrome brand-wash opacity for the panel header — matches the app bar / logger
+# panel's restrained wash (see main_view.py's _CHROME_WASH_OPACITY_DARK/LIGHT)
+# so all of the app's "quiet chrome" surfaces read as one consistent system.
+_HEADER_WASH_OPACITY_DARK = 0.10
+_HEADER_WASH_OPACITY_LIGHT = 0.06
 
 
 class SlidePanel(ThemeAwareMixin):
@@ -68,6 +80,7 @@ class SlidePanel(ThemeAwareMixin):
 
         # Store themed element references
         self._header_container: Optional[ft.Container] = None
+        self._header_watermark: Optional[ft.Container] = None
         self._content_container: Optional[ft.Container] = None
         self._footer_container: Optional[ft.Container] = None
         self._title_text: Optional[ft.Text] = None
@@ -162,10 +175,16 @@ class SlidePanel(ThemeAwareMixin):
         """
         Build panel header with title, subtitle, and close button.
 
+        The header carries a subtle brand-wash gradient (PRIMARY by default,
+        or the content's own `accent` — e.g. NVIDIA green for the DLSS
+        settings panel) plus a small, low-opacity watermark glyph from
+        `content.icon`, echoing the hero card language used elsewhere.
+
         Returns:
             Container with header content
         """
         is_dark = self._registry.is_dark
+        accent = self.content.accent or MD3Colors.PRIMARY
 
         # Title text
         self._title_text = ft.Text(
@@ -207,13 +226,33 @@ class SlidePanel(ThemeAwareMixin):
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
 
+        # Small decorative watermark glyph, bottom-right, behind the row
+        # content (mirrors hub_card.py's negative-offset "bleed" technique,
+        # scaled down for the header band). Close button sits top-right, so
+        # anchoring the glyph toward the bottom keeps the two from clashing.
+        self._header_watermark: ft.Container | None = None
+        header_content: ft.Control = header_row
+        if self.content.icon:
+            self._header_watermark = build_watermark_icon(
+                self.content.icon, is_dark, size=48
+            )
+            self._header_watermark.right = -4
+            self._header_watermark.bottom = -8
+            header_content = ft.Stack(controls=[self._header_watermark, header_row])
+
         self._header_container = ft.Container(
-            content=header_row,
+            content=header_content,
             bgcolor=MD3Colors.get_surface_variant(is_dark),
+            gradient=build_brand_wash(
+                accent,
+                is_dark,
+                opacity=_HEADER_WASH_OPACITY_DARK if is_dark else _HEADER_WASH_OPACITY_LIGHT,
+            ),
             padding=ft.Padding.only(left=24, right=16, top=20, bottom=16),
             border=ft.Border.only(
                 bottom=ft.BorderSide(1, MD3Colors.get_divider(is_dark))
             ),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
         )
         return self._header_container
 
@@ -301,9 +340,24 @@ class SlidePanel(ThemeAwareMixin):
         if self._panel_container:
             props["_panel_container.bgcolor"] = MD3Colors.get_themed_pair("surface_bright")
 
-        # Header container
+        # Header container: surface base + brand wash gradient (precomputed
+        # for both themes here so the existing dict-driven apply_theme()
+        # contract can set it directly — no custom apply_theme() override
+        # needed even though a gradient isn't a simple color pair).
         if self._header_container:
             props["_header_container.bgcolor"] = MD3Colors.get_themed_pair("surface_variant")
+            accent = self.content.accent or MD3Colors.PRIMARY
+            props["_header_container.gradient"] = (
+                build_brand_wash(accent, True, opacity=_HEADER_WASH_OPACITY_DARK),
+                build_brand_wash(accent, False, opacity=_HEADER_WASH_OPACITY_LIGHT),
+            )
+
+        # Header watermark glyph opacity
+        if self._header_watermark:
+            props["_header_watermark.opacity"] = (
+                WATERMARK_OPACITY_DARK,
+                WATERMARK_OPACITY_LIGHT,
+            )
 
         # Content container
         if self._content_container:

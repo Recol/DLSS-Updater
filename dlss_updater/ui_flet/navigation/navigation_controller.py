@@ -25,10 +25,11 @@ class NavigationController(ft.Column):
     HUB = "hub"
     LAUNCHERS = "launchers"
     GAMES = "games"
+    BACKUPS = "backups"
     SETTINGS = "settings"
 
     # All navigable view names (excluding hub)
-    VIEW_NAMES = [LAUNCHERS, GAMES, SETTINGS]
+    VIEW_NAMES = [LAUNCHERS, GAMES, BACKUPS, SETTINGS]
 
     def __init__(
         self,
@@ -146,12 +147,37 @@ class NavigationController(ft.Column):
         """Get the current view name."""
         return self._current_view
 
+    def replace_view(self, view_name: str, new_view: ft.Control) -> None:
+        """Swap a view's control reference for a freshly rebuilt instance.
+
+        Used by MainView when a view's content was rebuilt from scratch to
+        heal theme staleness (see CLAUDE.md's Flet 0.86 patch-drop note -
+        only freshly constructed/replaced controls are guaranteed to render
+        correctly). Updates the stored reference so future attach cycles
+        pick up the fresh instance, and - if this view is currently the
+        attached/visible one - immediately flushes the swap to the client.
+
+        Args:
+            view_name: One of LAUNCHERS, GAMES, BACKUPS, SETTINGS (or HUB -
+                though the hub is swapped via its own wrapper, not a
+                views-dict entry).
+            new_view: The freshly constructed replacement control.
+        """
+        self._view_refs[view_name] = new_view
+        container = self._view_containers.get(view_name)
+        if container is not None and self._current_view == view_name:
+            container.controls = [new_view]
+            try:
+                container.update()
+            except Exception:
+                pass
+
     async def navigate_to(self, view_name: str):
         """
         Navigate to a view by name.
 
         Args:
-            view_name: One of HUB, LAUNCHERS, GAMES, SETTINGS
+            view_name: One of HUB, LAUNCHERS, GAMES, BACKUPS, SETTINGS
         """
         self.logger.debug(f"[NAV] navigate_to({view_name}) called, current={self._current_view}")
         if view_name == self._current_view:
@@ -235,6 +261,16 @@ class NavigationController(ft.Column):
         self.logger.debug(f"[NAV] page.update() returned: {(t_update_done-t_update)*1000:.1f}ms")
 
         self._current_view = new_view
+
+        # NOTE: Theme staleness for detached-then-reattached views is no
+        # longer handled here. Flet 0.86 silently drops property-only
+        # patches sent to controls in a detached subtree, so re-running the
+        # ThemeRegistry cascade against an already-stale-but-attached
+        # control doesn't reliably heal it either (identical values -> no
+        # diff -> no ops). MainView tracks per-view theme staleness
+        # explicitly and REBUILDS each view's content with fresh control
+        # instances on its next attach instead (see
+        # MainView._theme_stale_views and replace_view() below).
 
         # Callbacks (async, non-blocking)
         t_callbacks = time.perf_counter()

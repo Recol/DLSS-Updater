@@ -11,6 +11,13 @@ from typing import Callable, Any
 import flet as ft
 from dlss_updater.ui_flet.theme.colors import MD3Colors, Animations, Shadows
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from dlss_updater.ui_flet.components.hero_surface import build_brand_wash, PILL_HEIGHT
+
+# Chrome brand-wash opacity for the panel header — matches the app bar's
+# restrained wash (see main_view.py's _CHROME_WASH_OPACITY_DARK/LIGHT) so the
+# app's outer chrome reads as one consistent, quiet surface.
+_CHROME_WASH_OPACITY_DARK = 0.10
+_CHROME_WASH_OPACITY_LIGHT = 0.06
 
 
 class FletLoggerHandler(logging.Handler):
@@ -243,11 +250,17 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
             color=MD3Colors.ON_PRIMARY,
             weight=ft.FontWeight.BOLD,
         )
+        # Geometry matches hero_surface.build_pill() (PILL_HEIGHT, 16px radius,
+        # 8/4 padding) for visual consistency with the rest of the hero
+        # language. Content stays a bare Text (not build_pill's Row wrapper)
+        # so update_log_count()'s existing `.content.value` write keeps
+        # working unchanged.
         self.log_count_badge = ft.Container(
             content=self.log_count_badge_text,
             bgcolor=MD3Colors.get_primary(is_dark),
-            padding=ft.Padding.symmetric(horizontal=6, vertical=2),
-            border_radius=10,
+            padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+            border_radius=16,
+            height=PILL_HEIGHT,
             visible=False,
         )
 
@@ -329,10 +342,11 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
             padding=ft.Padding.all(12),
-            gradient=ft.LinearGradient(
-                begin=ft.Alignment.TOP_LEFT,
-                end=ft.Alignment.BOTTOM_RIGHT,
-                colors=[MD3Colors.get_surface_variant(is_dark), MD3Colors.get_surface(is_dark)],
+            bgcolor=MD3Colors.get_surface(is_dark),
+            gradient=build_brand_wash(
+                MD3Colors.PRIMARY,
+                is_dark,
+                opacity=_CHROME_WASH_OPACITY_DARK if is_dark else _CHROME_WASH_OPACITY_LIGHT,
             ),
             on_hover=lambda e: self._on_header_hover(e),
             animate=Animations.HOVER,
@@ -388,7 +402,11 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
         # Container styling with MD3 shadow
         self.bgcolor = MD3Colors.get_surface(is_dark)
         self.shadow = Shadows.LEVEL_2
-        self.border_radius = 0  # Bottom panel, no radius
+        # Rounded top corners only (flush with the window's bottom edge) so
+        # the panel reads as a surface floating on the window background
+        # wash (see main.py's page.decoration) rather than a flat bar.
+        self.border_radius = ft.BorderRadius.only(top_left=12, top_right=12)
+        self.clip_behavior = ft.ClipBehavior.ANTI_ALIAS
 
         # Register for theme updates
         self._register_theme_aware()
@@ -601,11 +619,12 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
                 value = dark_val if is_dark else light_val
                 self._set_nested_property(prop_path, value)
 
-            # Update header gradient (cannot use simple property mapping)
-            self.header_container.gradient = ft.LinearGradient(
-                begin=ft.Alignment.TOP_LEFT,
-                end=ft.Alignment.BOTTOM_RIGHT,
-                colors=[MD3Colors.get_surface_variant(is_dark), MD3Colors.get_surface(is_dark)],
+            # Update header brand wash (cannot use simple property mapping)
+            self.header_container.bgcolor = MD3Colors.get_surface(is_dark)
+            self.header_container.gradient = build_brand_wash(
+                MD3Colors.PRIMARY,
+                is_dark,
+                opacity=_CHROME_WASH_OPACITY_DARK if is_dark else _CHROME_WASH_OPACITY_LIGHT,
             )
 
             # Update top divider gradient

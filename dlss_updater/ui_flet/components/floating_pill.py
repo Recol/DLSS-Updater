@@ -39,6 +39,12 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
             "accent_dark": TabColors.GAMES,
             "accent_light": TabColors.GAMES_LIGHT,
         },
+        "backups": {
+            "icon": ft.Icons.SETTINGS_BACKUP_RESTORE,
+            "label": "Backups",
+            "accent_dark": TabColors.BACKUPS,
+            "accent_light": TabColors.BACKUPS_LIGHT,
+        },
         "settings": {
             "icon": ft.Icons.SETTINGS,
             "label": "Settings",
