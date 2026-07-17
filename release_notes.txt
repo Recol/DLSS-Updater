@@ -1,3 +1,28 @@
+Version 4.4.1:
+New Features:
+  - The Edit display dialog (game-card pencil icon) now also searches the
+    Steam Store in addition to the local app index. Store results merge in
+    behind the instant local results, need no Steam API credentials, and
+    handle punctuation and fuzzy matching server-side. When a Steam API key
+    is configured, games you own are floated to the top of the results.
+  - The Edit display dialog has been redesigned in the hero style introduced
+    in 4.4.0: brand-washed header band with the search field and current
+    override state (as a status pill) integrated into it, and search results
+    upgraded to rich cards with large capsule artwork, shimmer loading
+    placeholders and an accent-highlighted selected state. Also fixes the
+    dead empty band that could appear between the search field and the
+    results list.
+
+Bug Fixes:
+  - Fixed Edit display search finding nothing for punctuated or multi-word
+    titles such as "S.T.A.L.K.E.R. 2: Heart of Chornobyl" (Issue #246).
+    The local search index tokenized names without spaces, so queries like
+    "stalker 2" could never match, and punctuation like the dots in
+    "S.T.A.L.K.E.R." crashed the query into a dead fallback path. Names are
+    now indexed and queried through one shared space-preserving
+    normalization; existing installs upgrade via a one-time in-place index
+    rebuild on first launch (works offline, no app-list re-download).
+
 Version 4.4.0:
 New Features:
   - Complete "hero" visual redesign, extending the game-card design language

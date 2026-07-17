@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.4.1" date="2026-07-17">
+      <description>
+        <p>Edit display search fix and redesign</p>
+        <ul>
+          <li>Fixed the Edit display search finding nothing for punctuated or multi-word titles such as "S.T.A.L.K.E.R. 2: Heart of Chornobyl" (Issue #246) — the local index is rebuilt once on first launch, no re-download needed</li>
+          <li>The Edit display dialog now also searches the Steam Store (no API credentials required), merging results behind the instant local ones; owned games rank first when an API key is configured</li>
+          <li>The dialog has been redesigned in the 4.4.0 hero style: brand-washed header, status pill for the current override, and rich result cards with capsule artwork and shimmer loading</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.4.0" date="2026-07-15">
       <description>
         <p>Major visual redesign</p>

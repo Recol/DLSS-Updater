@@ -14,6 +14,7 @@ import anyio
 from dlss_updater.logger import setup_logger
 from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.database import db_manager
+from dlss_updater.name_normalize import normalize_search_name
 
 logger = setup_logger()
 
@@ -188,8 +189,9 @@ class SteamIntegration:
 
             logger.info(f"Total: {len(all_apps)} Steam apps, processing for database...")
 
-            # Prepare data for database: (appid, name, name_normalized)
-            # Normalize names by lowercasing and removing spaces for exact matching
+            # Prepare data for database: (appid, name, name_normalized, name_search)
+            #   name_normalized - space-less form for exact-match lookup
+            #   name_search     - normalized WITH spaces for FTS word-token search
             db_apps = []
             for app in all_apps:
                 if not app.get('name'):
@@ -197,9 +199,10 @@ class SteamIntegration:
 
                 appid = app['appid']
                 name = app['name']
-                # Normalize: lowercase and remove spaces for exact matching
-                name_normalized = self.normalize_game_name(name).replace(' ', '')
-                db_apps.append((appid, name, name_normalized))
+                # Compute once (cached); derive both forms from it.
+                name_search = self.normalize_game_name(name)  # keeps spaces
+                name_normalized = name_search.replace(' ', '')  # space-less
+                db_apps.append((appid, name, name_normalized, name_search))
 
             logger.info(f"Inserting {len(db_apps)} apps into database with FTS5 indexing...")
 
@@ -236,21 +239,10 @@ class SteamIntegration:
             if name in _normalize_cache:
                 return _normalize_cache[name]
 
-        # Compute normalized name
-        normalized = name.lower().strip()
-
-        # Remove trademark symbols
-        normalized = re.sub(r'[™®©]', '', normalized)
-
-        # Remove "The" prefix
-        if normalized.startswith('the '):
-            normalized = normalized[4:]
-
-        # Remove special characters except spaces and alphanumeric
-        normalized = re.sub(r'[^a-z0-9\s]', '', normalized)
-
-        # Collapse multiple spaces
-        normalized = re.sub(r'\s+', ' ', normalized).strip()
+        # Compute normalized name via the shared single-source-of-truth helper
+        # (keeps spaces). Must stay identical to the FTS index/query normalization
+        # in database.py — see dlss_updater.name_normalize for why (issue #246).
+        normalized = normalize_search_name(name)
 
         # Store in cache with size limit (thread-safe)
         with _normalize_cache_lock:
@@ -625,17 +617,33 @@ class SteamIntegration:
 
         return app_id
 
-    async def find_app_id_via_store_search(self, game_name: str) -> int | None:
-        """Search Steam Store API for a game by name.
+    def get_owned_app_ids(self) -> set[int]:
+        """Return the set of app IDs from the cached owned-games library.
 
-        Uses store.steampowered.com/api/storesearch which is unauthenticated
-        but rate-limited to ~200 requests per 5 minutes.
+        Empty when no Steam API key is configured / get_owned_games() has not
+        run. Used purely as a ranking-boost signal in the resolve dialog — never
+        as a substitute for search (issue #246, item 8).
+        """
+        with self._owned_games_lock:
+            cache = self._owned_games_cache
+        if not cache:
+            return set()
+        return {app_id for app_id in cache.values() if app_id}
+
+    async def search_store_apps(self, game_name: str, limit: int = 20) -> list[tuple[int, str]]:
+        """Search the Steam Store API, returning the FULL result list.
+
+        Sibling of find_app_id_via_store_search (which returns only the top hit).
+        Uses the unauthenticated store.steampowered.com/api/storesearch endpoint
+        (rate-limited ~200 requests / 5 min) — works without credentials, and
+        Steam handles punctuation/fuzzy matching server-side.
 
         Args:
             game_name: Game name to search for
+            limit: Maximum results to return
 
         Returns:
-            Steam app ID of the best match, or None
+            List of (appid, name) tuples in Steam's relevance order (may be empty).
         """
         import urllib.parse
         encoded_name = urllib.parse.quote(game_name)
@@ -646,29 +654,47 @@ class SteamIntegration:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     if resp.status == 429:
                         logger.warning("Steam store search rate limited, skipping")
-                        return None
+                        return []
                     if resp.status != 200:
                         logger.debug(f"Store search returned HTTP {resp.status} for '{game_name}'")
-                        return None
+                        return []
                     data = _json_decoder.decode(await resp.read())
 
             items = data.get("items", [])
-            if not items:
-                logger.debug(f"Store search found no results for '{game_name}'")
-                return None
-
-            best = items[0]
-            app_id = best.get("id")
-            matched_name = best.get("name", "unknown")
-            logger.debug(f"Store search for '{game_name}' -> app_id {app_id} ('{matched_name}')")
-            return app_id
+            results: list[tuple[int, str]] = []
+            for item in items[:limit]:
+                app_id = item.get("id")
+                name = item.get("name")
+                if app_id and name:
+                    results.append((int(app_id), name))
+            return results
 
         except TimeoutError:
             logger.debug(f"Store search timed out for '{game_name}'")
-            return None
+            return []
         except Exception as e:
             logger.debug(f"Store search error for '{game_name}': {e}")
+            return []
+
+    async def find_app_id_via_store_search(self, game_name: str) -> int | None:
+        """Search Steam Store API for a game by name, returning the best match.
+
+        Thin wrapper over search_store_apps for the automatic resolution
+        pipeline (scanner / reresolution), which only needs the top hit.
+
+        Args:
+            game_name: Game name to search for
+
+        Returns:
+            Steam app ID of the best match, or None
+        """
+        results = await self.search_store_apps(game_name, limit=1)
+        if not results:
+            logger.debug(f"Store search found no results for '{game_name}'")
             return None
+        app_id, matched_name = results[0]
+        logger.debug(f"Store search for '{game_name}' -> app_id {app_id} ('{matched_name}')")
+        return app_id
 
     async def detect_steam_id_from_loginusers_vdf(self) -> str | None:
         """Auto-detect Steam 64-bit ID from loginusers.vdf.
@@ -785,6 +811,22 @@ async def search_steam_apps(query: str, limit: int = 10) -> list[tuple[int, str]
         List of tuples (appid, name) matching the query
     """
     return await steam_integration.search_steam_apps(query, limit)
+
+
+async def search_store_apps(query: str, limit: int = 20) -> list[tuple[int, str]]:
+    """
+    Search the Steam Store API by name, returning the full result list.
+
+    Unauthenticated (no API key required); rate-limited ~200 req / 5 min.
+
+    Args:
+        query: Search query string
+        limit: Maximum results to return (default 20)
+
+    Returns:
+        List of tuples (appid, name) in Steam's relevance order (may be empty)
+    """
+    return await steam_integration.search_store_apps(query, limit)
 
 
 async def validate_steam_api_key(api_key: str) -> bool:

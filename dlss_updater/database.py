@@ -21,6 +21,7 @@ import anyio
 
 from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.logger import setup_logger
+from dlss_updater.name_normalize import normalize_search_name, normalize_search_name_spaceless
 from dlss_updater.platform_utils import APP_CONFIG_DIR
 from dlss_updater.models import (
     Game, GameDLL, DLLBackup, UpdateHistory, SteamImage,
@@ -398,21 +399,32 @@ class DatabaseManager:
 
             # Steam apps table with FTS5 for high-performance name search
             # Eliminates ~20-30 MB in-memory index (207K+ entries)
+            #
+            # Three name forms are stored (issue #246):
+            #   name             - raw Steam title (e.g. "S.T.A.L.K.E.R. 2: Heart of Chornobyl")
+            #   name_normalized  - space-less normalized form ("stalker2heartofchornobyl"),
+            #                      ONLY for exact-match lookup (get_steam_app_by_name)
+            #   name_search      - normalized form that KEEPS spaces
+            #                      ("stalker 2 heart of chornobyl") so FTS5 tokenizes it
+            #                      into real word tokens that multi-word prefix queries hit.
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS steam_apps (
                     appid INTEGER PRIMARY KEY,
                     name TEXT NOT NULL,
-                    name_normalized TEXT NOT NULL
+                    name_normalized TEXT NOT NULL,
+                    name_search TEXT NOT NULL DEFAULT ''
                 )
             """)
 
-            # FTS5 virtual table for full-text search on Steam app names
-            # content='steam_apps' means FTS5 stores only the index, not the content
-            # content_rowid='appid' links FTS5 rows to steam_apps.appid
+            # FTS5 virtual table for full-text search on Steam app names.
+            # content='steam_apps' means FTS5 stores only the index, not the content.
+            # content_rowid='appid' links FTS5 rows to steam_apps.appid.
+            # Indexes name (raw) + name_search (spaced normalized) — NOT name_normalized,
+            # whose space-less single giant token is useless for word-level search.
             cursor.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS steam_apps_fts USING fts5(
                     name,
-                    name_normalized,
+                    name_search,
                     content='steam_apps',
                     content_rowid='appid'
                 )
@@ -421,24 +433,24 @@ class DatabaseManager:
             # Triggers to keep FTS5 index in sync with steam_apps table
             cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS steam_apps_ai AFTER INSERT ON steam_apps BEGIN
-                    INSERT INTO steam_apps_fts(rowid, name, name_normalized)
-                    VALUES (new.appid, new.name, new.name_normalized);
+                    INSERT INTO steam_apps_fts(rowid, name, name_search)
+                    VALUES (new.appid, new.name, new.name_search);
                 END
             """)
 
             cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS steam_apps_ad AFTER DELETE ON steam_apps BEGIN
-                    INSERT INTO steam_apps_fts(steam_apps_fts, rowid, name, name_normalized)
-                    VALUES ('delete', old.appid, old.name, old.name_normalized);
+                    INSERT INTO steam_apps_fts(steam_apps_fts, rowid, name, name_search)
+                    VALUES ('delete', old.appid, old.name, old.name_search);
                 END
             """)
 
             cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS steam_apps_au AFTER UPDATE ON steam_apps BEGIN
-                    INSERT INTO steam_apps_fts(steam_apps_fts, rowid, name, name_normalized)
-                    VALUES ('delete', old.appid, old.name, old.name_normalized);
-                    INSERT INTO steam_apps_fts(rowid, name, name_normalized)
-                    VALUES (new.appid, new.name, new.name_normalized);
+                    INSERT INTO steam_apps_fts(steam_apps_fts, rowid, name, name_search)
+                    VALUES ('delete', old.appid, old.name, old.name_search);
+                    INSERT INTO steam_apps_fts(rowid, name, name_search)
+                    VALUES (new.appid, new.name, new.name_search);
                 END
             """)
 
@@ -550,6 +562,14 @@ class DatabaseManager:
             # convention of declaring per-game-id indexes).
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_game_dlss_presets_game ON game_dlss_presets(game_id)")
 
+            # Steam apps FTS schema migration (issue #246).
+            # Existing installs have an FTS index over (name, name_normalized) where
+            # name_normalized is a single space-less token — multi-word / punctuated
+            # queries can never match. Upgrade in place: add name_search, rebuild FTS
+            # over (name, name_search). Uses PRAGMA user_version as the schema marker
+            # (unused elsewhere in this DB). No re-download required.
+            self._migrate_steam_fts_schema(cursor)
+
             conn.commit()
             logger.info("Database schema created successfully")
 
@@ -559,6 +579,104 @@ class DatabaseManager:
             raise
         finally:
             conn.close()
+
+    # Steam apps FTS schema version. Bumped when the FTS index layout changes so
+    # existing installs rebuild instead of silently keeping a broken index.
+    #   v0 -> pre-#246: FTS over (name, name_normalized) [space-less giant token]
+    #   v1 -> #246: FTS over (name, name_search) [normalized WITH spaces]
+    STEAM_FTS_SCHEMA_VERSION = 1
+
+    def _migrate_steam_fts_schema(self, cursor: sqlite3.Cursor) -> None:
+        """Upgrade the Steam apps FTS index in place (issue #246).
+
+        Idempotent and keyed off PRAGMA user_version. For a brand-new DB the
+        steam_apps/FTS tables were just created with the current layout and this
+        is a no-op rebuild over zero rows. For a pre-#246 install it:
+          1. adds the name_search column to steam_apps,
+          2. backfills name_search from the raw name (normalized, spaces kept),
+          3. drops and recreates the FTS virtual table + triggers over
+             (name, name_search),
+          4. rebuilds the FTS index from the content table.
+
+        Runs on the schema-setup thread; no network access, so offline installs
+        are fixed too. The heavy path (backfill of ~200K rows) only executes once
+        because user_version is stamped afterwards.
+        """
+        try:
+            current_version = cursor.execute("PRAGMA user_version").fetchone()[0]
+        except Exception:
+            current_version = 0
+
+        if current_version >= self.STEAM_FTS_SCHEMA_VERSION:
+            return
+
+        logger.info(
+            f"Migrating Steam apps FTS index to schema v{self.STEAM_FTS_SCHEMA_VERSION} "
+            f"(from v{current_version}) — issue #246"
+        )
+
+        # 1. Drop the stale FTS table + triggers FIRST so the backfill UPDATE below
+        #    doesn't fire the old (name, name_normalized) triggers against a table
+        #    we're about to discard anyway.
+        cursor.execute("DROP TRIGGER IF EXISTS steam_apps_ai")
+        cursor.execute("DROP TRIGGER IF EXISTS steam_apps_ad")
+        cursor.execute("DROP TRIGGER IF EXISTS steam_apps_au")
+        cursor.execute("DROP TABLE IF EXISTS steam_apps_fts")
+
+        # 2. Ensure the name_search column exists on steam_apps.
+        columns = {row[1] for row in cursor.execute("PRAGMA table_info(steam_apps)").fetchall()}
+        if "name_search" not in columns:
+            cursor.execute("ALTER TABLE steam_apps ADD COLUMN name_search TEXT NOT NULL DEFAULT ''")
+
+        # 3. Backfill name_search wherever it is still empty (recompute from raw name).
+        #    Single source of truth: normalize_search_name (keeps spaces) — must match
+        #    the index-build path in steam_integration.download_steam_app_list.
+        rows = cursor.execute(
+            "SELECT appid, name FROM steam_apps WHERE name_search = '' OR name_search IS NULL"
+        ).fetchall()
+        if rows:
+            updates = [(normalize_search_name(name), appid) for appid, name in rows]
+            cursor.executemany(
+                "UPDATE steam_apps SET name_search = ? WHERE appid = ?", updates
+            )
+            logger.info(f"Backfilled name_search for {len(updates)} Steam apps")
+
+        # 4. Recreate the FTS virtual table + triggers over (name, name_search).
+        cursor.execute("""
+            CREATE VIRTUAL TABLE steam_apps_fts USING fts5(
+                name,
+                name_search,
+                content='steam_apps',
+                content_rowid='appid'
+            )
+        """)
+        cursor.execute("""
+            CREATE TRIGGER steam_apps_ai AFTER INSERT ON steam_apps BEGIN
+                INSERT INTO steam_apps_fts(rowid, name, name_search)
+                VALUES (new.appid, new.name, new.name_search);
+            END
+        """)
+        cursor.execute("""
+            CREATE TRIGGER steam_apps_ad AFTER DELETE ON steam_apps BEGIN
+                INSERT INTO steam_apps_fts(steam_apps_fts, rowid, name, name_search)
+                VALUES ('delete', old.appid, old.name, old.name_search);
+            END
+        """)
+        cursor.execute("""
+            CREATE TRIGGER steam_apps_au AFTER UPDATE ON steam_apps BEGIN
+                INSERT INTO steam_apps_fts(steam_apps_fts, rowid, name, name_search)
+                VALUES ('delete', old.appid, old.name, old.name_search);
+                INSERT INTO steam_apps_fts(rowid, name, name_search)
+                VALUES (new.appid, new.name, new.name_search);
+            END
+        """)
+
+        # 5. Rebuild the FTS index from the content table in one shot.
+        cursor.execute("INSERT INTO steam_apps_fts(steam_apps_fts) VALUES('rebuild')")
+
+        # Stamp the schema version so this only runs once.
+        cursor.execute(f"PRAGMA user_version = {self.STEAM_FTS_SCHEMA_VERSION}")
+        logger.info("Steam apps FTS index migration complete")
 
     # ===== Game Operations =====
 
@@ -2820,7 +2938,7 @@ class DatabaseManager:
 
     # ===== Steam Apps FTS5 Operations (Phase 3) =====
 
-    async def upsert_steam_apps(self, apps: list[tuple[int, str, str]]) -> int:
+    async def upsert_steam_apps(self, apps: list[tuple[int, str, str, str]]) -> int:
         """
         Bulk insert/update Steam apps with FTS5 indexing.
 
@@ -2830,7 +2948,9 @@ class DatabaseManager:
         Performance: ~207K apps in ~2-3 seconds with proper batching.
 
         Args:
-            apps: List of tuples (appid, name, name_normalized)
+            apps: List of tuples (appid, name, name_normalized, name_search)
+                  where name_normalized is space-less (exact-match lookup) and
+                  name_search is normalized WITH spaces (FTS word tokens).
 
         Returns:
             Number of apps upserted
@@ -2840,7 +2960,7 @@ class DatabaseManager:
 
         return await anyio.to_thread.run_sync(self._upsert_steam_apps, apps, limiter=thread_io)
 
-    def _upsert_steam_apps(self, apps: list[tuple[int, str, str]]) -> int:
+    def _upsert_steam_apps(self, apps: list[tuple[int, str, str, str]]) -> int:
         """Bulk upsert Steam apps (runs in thread)"""
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -2856,8 +2976,8 @@ class DatabaseManager:
 
                 # Use INSERT OR REPLACE which triggers the FTS5 update triggers
                 cursor.executemany("""
-                    INSERT OR REPLACE INTO steam_apps (appid, name, name_normalized)
-                    VALUES (?, ?, ?)
+                    INSERT OR REPLACE INTO steam_apps (appid, name, name_normalized, name_search)
+                    VALUES (?, ?, ?, ?)
                 """, batch)
 
                 total_upserted += len(batch)
@@ -2893,31 +3013,32 @@ class DatabaseManager:
         return await anyio.to_thread.run_sync(self._search_steam_app, query, limit, limiter=thread_io)
 
     def _search_steam_app(self, query: str, limit: int) -> list[tuple[int, str]]:
-        """FTS5 search for Steam app (runs in thread)"""
+        """FTS5 search for Steam app (runs in thread).
+
+        The query is normalized the SAME way the index is built
+        (normalize_search_name: lowercase, drop punctuation, KEEP spaces) so a
+        punctuated title like "S.T.A.L.K.E.R. 2" becomes the query "stalker 2"
+        and matches the tokenized name_search column. This removes the two ways
+        the pre-#246 path failed: FTS5 syntax errors from raw punctuation (e.g.
+        the '.' in "S.T.A.L.K.E.R.") and the missing word tokens for multi-word
+        queries against a space-less column.
+        """
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
 
         try:
-            # Clean and prepare query for FTS5
-            # Escape special FTS5 characters and add prefix matching
-            clean_query = query.strip().lower()
-            if not clean_query:
-                return []
-
-            # Escape special characters for FTS5
-            for char in ['"', "'", '-', '+', '*', '(', ')', ':']:
-                clean_query = clean_query.replace(char, ' ')
-
-            # Split into words and add prefix matching
-            words = clean_query.split()
+            # Normalize the query to the same token space as the index.
+            # After this only [a-z0-9 ] remain, so no FTS5 special char (" ' - + *
+            # ( ) : . , / ! ? etc.) can survive to break MATCH parsing.
+            normalized_query = normalize_search_name(query)
+            words = normalized_query.split()
             if not words:
                 return []
 
-            # Build FTS5 query with prefix matching on last word
-            # e.g., "black myth" -> "black myth*" for prefix search
-            fts_query = ' '.join(words[:-1]) + ' ' + words[-1] + '*' if words else ''
-            fts_query = fts_query.strip()
-
+            # Prefix-match the last word so incremental typing matches
+            # ("stalker 2 hea" -> "stalker 2 hea*"). Earlier words are exact
+            # tokens, all AND-ed together by FTS5.
+            fts_query = " ".join(words[:-1] + [words[-1] + "*"]).strip()
             if not fts_query:
                 return []
 
@@ -2935,15 +3056,21 @@ class DatabaseManager:
             return results
 
         except Exception as e:
-            # FTS5 MATCH can fail on malformed queries - fall back to LIKE
+            # FTS5 MATCH can still fail on pathological input - fall back to LIKE.
+            # Compare a space-less/punctuation-less form of the input against the
+            # space-less name_normalized column so "S.T.A.L.K.E.R. 2" still hits
+            # "stalker2heartofchornobyl".
             logger.debug(f"FTS5 search failed, falling back to LIKE: {e}")
             try:
+                spaceless = normalize_search_name_spaceless(query)
+                if not spaceless:
+                    return []
                 cursor.execute("""
                     SELECT appid, name
                     FROM steam_apps
                     WHERE name_normalized LIKE ?
                     LIMIT ?
-                """, (f"%{query.strip().lower()}%", limit))
+                """, (f"%{spaceless}%", limit))
 
                 return [(row[0], row[1]) for row in cursor.fetchall()]
             except Exception as e2:
