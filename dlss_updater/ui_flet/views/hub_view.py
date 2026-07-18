@@ -258,32 +258,19 @@ class HubView(ThemeAwareMixin, ft.Column):
     def _load_mosaic_art_paths() -> list[str]:
         """Collect up to 6 locally cached game artwork paths for the Games
         hero mosaic. Runs inside the HyperParallelLoader thread pool
-        (blocking DB I/O) — mirrors the exact private sync accessors
-        games_view.py already calls directly for its own HyperParallelLoader
-        batch (``_get_all_games_by_launcher`` / ``_batch_get_cached_image_paths``);
-        there is no separate services-layer module to route through in this
-        checkout (dlss_updater/services/ contains only stale __pycache__, no
-        source files).
+        (blocking DB I/O).
+
+        Uses the targeted ``get_mosaic_app_ids_sync`` query (a capped candidate
+        pool of resolved Steam app IDs) instead of loading the entire games
+        table just to pick 6 images, then resolves cached local image paths for
+        that pool in a single batch.
         """
         from dlss_updater.database import db_manager
 
         try:
-            games_by_launcher = db_manager._get_all_games_by_launcher()
+            app_ids = db_manager.get_mosaic_app_ids_sync(limit=60)
         except Exception:
             return []
-
-        # Collect a candidate pool of resolved Steam app IDs (dedup, capped —
-        # we only need enough candidates to likely find 6 with cached art).
-        seen: set[int] = set()
-        app_ids: list[int] = []
-        for games in games_by_launcher.values():
-            for g in games:
-                app_id = g.effective_steam_app_id
-                if app_id and app_id not in seen:
-                    seen.add(app_id)
-                    app_ids.append(app_id)
-            if len(app_ids) >= 60:
-                break
 
         if not app_ids:
             return []

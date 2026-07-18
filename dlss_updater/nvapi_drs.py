@@ -44,6 +44,7 @@ Notes
 from __future__ import annotations
 
 import logging
+import threading
 
 import anyio
 
@@ -264,6 +265,10 @@ def _build_nvapi():
         return WINFUNCTYPE(c_int, *argtypes)(addr)
 
     return {
+        # Pin the loaded module so the resolved function pointers below stay
+        # valid for the lifetime of the (now cached) table - prevents FreeLibrary
+        # from unloading nvapi64.dll when local refs are dropped.
+        "_dll": dll,
         "ctypes": ctypes,
         "byref": byref,
         "c_void_p": c_void_p,
@@ -299,6 +304,62 @@ def _build_nvapi():
             c_void_p, NvAPI_UnicodeString, POINTER(c_void_p), POINTER(NVDRS_APPLICATION),
         ),
     }
+
+
+# -----------------------------------------------------------------------------
+# Cached NvAPI function table (free-threaded safe)
+# -----------------------------------------------------------------------------
+# _build_nvapi() loads nvapi64.dll and resolves ~20 function pointers via
+# nvapi_QueryInterface. That work is identical on every call and is pure overhead
+# when a single exe_resolver run probes up to _DRIVER_PROBE_LIMIT candidates
+# (each triggering a full read/apply cycle). Cache the built table once.
+#
+# Both outcomes are cached:
+#   - success: the table dict is reused for every subsequent call.
+#   - failure (no NVIDIA driver / DLL missing): the raised exception is cached
+#     and re-raised, so repeated probes don't retry the DLL load every call.
+#     Callers already wrap _get_nvapi()/_build_nvapi() in try/except and downgrade
+#     to an error tuple, so re-raising the cached exception preserves the exact
+#     existing "NvAPI unavailable: ..." error semantics.
+#
+# The cached table holds only read-only artefacts (ctypes classes, pure helper
+# closures, and immutable WINFUNCTYPE call wrappers). Callers instantiate their
+# own structs and per-call _DrsSession, so the shared table is safe to reuse
+# concurrently across worker threads on the free-threaded build.
+_nvapi_lock = threading.Lock()
+_nvapi_table: dict | None = None
+_nvapi_error: Exception | None = None
+_nvapi_built: bool = False
+
+
+def _get_nvapi() -> dict:
+    """Return the cached NvAPI function table, building it once on first use.
+
+    Raises the (cached) build exception if nvapi64.dll cannot be loaded/resolved,
+    mirroring a direct ``_build_nvapi()`` failure for callers.
+    """
+    global _nvapi_table, _nvapi_error, _nvapi_built
+
+    # Fast path: no lock once the build outcome is known.
+    if _nvapi_built:
+        if _nvapi_error is not None:
+            raise _nvapi_error
+        return _nvapi_table  # type: ignore[return-value]
+
+    with _nvapi_lock:
+        # Double-check after acquiring the lock.
+        if not _nvapi_built:
+            try:
+                _nvapi_table = _build_nvapi()
+                _nvapi_error = None
+            except Exception as e:
+                _nvapi_table = None
+                _nvapi_error = e
+            finally:
+                _nvapi_built = True
+        if _nvapi_error is not None:
+            raise _nvapi_error
+        return _nvapi_table  # type: ignore[return-value]
 
 
 class _DrsSession:
@@ -409,7 +470,7 @@ def _read_dword_ex(api: dict, drs: _DrsSession, profile, setting_id: int) -> tup
 def _read_all_blocking() -> tuple[dict[str, int | None], str | None]:
     """Read current raw preset values for all features. Returns (values, error)."""
     try:
-        api = _build_nvapi()
+        api = _get_nvapi()
     except Exception as e:
         return ({}, f"NvAPI unavailable: {e}")
 
@@ -440,7 +501,7 @@ def _apply_blocking(selections: dict[str, str]) -> tuple[bool, str | None]:
             return (False, f"Unknown {feat.upper()} preset: {preset}")
 
     try:
-        api = _build_nvapi()
+        api = _get_nvapi()
     except Exception as e:
         return (False, f"NvAPI unavailable: {e}")
 
@@ -549,7 +610,7 @@ def _read_app_blocking(exe_path: str) -> tuple[dict[str, int | None], dict, str 
     ``is_predefined_profile`` and a per-feature ``predefined`` flag map.
     """
     try:
-        api = _build_nvapi()
+        api = _get_nvapi()
     except Exception as e:
         return ({}, {}, f"NvAPI unavailable: {e}")
 
@@ -592,7 +653,7 @@ def _apply_app_blocking(
             return (False, f"Unknown {feat.upper()} preset: {preset}")
 
     try:
-        api = _build_nvapi()
+        api = _get_nvapi()
     except Exception as e:
         return (False, f"NvAPI unavailable: {e}")
 

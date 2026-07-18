@@ -58,6 +58,29 @@ class VDFParser:
             return {}
 
     @classmethod
+    def parse_file_sync(cls, file_path: Path, encoding: str = 'utf-8') -> dict[str, Any]:
+        """Synchronous sibling of :meth:`parse_file`.
+
+        For callers that run inside a ThreadPoolExecutor / synchronous batch path
+        (e.g. ``exe_resolver._resolve_game_exe_sync``) where awaiting is not
+        possible. Error-tolerant: a missing/malformed file yields ``{}`` rather
+        than raising, matching :meth:`parse_file`.
+
+        Args:
+            file_path: Path to the VDF/ACF file
+            encoding: File encoding (default utf-8)
+
+        Returns:
+            Parsed VDF data as a nested dict (``{}`` on any error)
+        """
+        try:
+            content = Path(file_path).read_text(encoding=encoding, errors='ignore')
+            return cls._parse_vdf_content(content)
+        except Exception as e:
+            logger.debug(f"Error parsing VDF file {file_path}: {e}")
+            return {}
+
+    @classmethod
     def _parse_vdf_content(cls, content: str) -> dict[str, Any]:
         """
         Parse VDF content string into nested dictionary.

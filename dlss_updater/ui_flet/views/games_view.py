@@ -27,7 +27,7 @@ from dlss_updater.ui_flet.components.hero_surface import build_brand_wash, build
 from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator
-from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask, BatchedImageLoader
+from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask
 from dlss_updater.config import is_dll_cache_ready, config_manager
 from dlss_updater.search_service import search_service
 from dlss_updater.task_registry import register_task
@@ -761,7 +761,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 self.loading_indicator.visible = False
                 self._update_delete_button_state(False)
                 self._games_loaded = False  # Allow retry on next tab switch
-                self.update()
+                # No self.update() here: the finally block issues the single
+                # terminal update for this early-return path (was double-updating).
                 return
 
             # Build launcher tabs

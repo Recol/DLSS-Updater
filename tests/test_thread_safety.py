@@ -57,10 +57,9 @@ class TestDatabaseManagerThreadSafety:
 
     def test_singleton_concurrent_access(self, tmp_path):
         """Ensure DatabaseManager returns same instance from multiple threads"""
-        db_file = tmp_path / "test.db"
+        import dlss_updater.database as db_module
 
-        with patch('dlss_updater.database.get_db_path', return_value=str(db_file)):
-            import dlss_updater.database as db_module
+        with patch.object(db_module, 'APP_CONFIG_DIR', tmp_path):
             db_module.DatabaseManager._instance = None
 
             instances = []

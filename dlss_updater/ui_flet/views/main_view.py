@@ -164,6 +164,12 @@ class MainView(ft.Column):
         self.last_scan_timestamp: str | None = None
         self.scan_cache_path = Path(get_config_path()).parent / "scan_cache.json"
 
+        # Launcher paths whose filesystem-validating set_paths() was deferred
+        # off the startup critical path (populated by _create_launcher_list when
+        # defer_paths=True, drained by _populate_launcher_paths_deferred after
+        # first paint).
+        self._deferred_launcher_paths: dict[LauncherPathName, list[str]] = {}
+
         # View instances (will be created in _build_ui)
         self.launchers_view = None
         self.games_view = None
@@ -216,6 +222,16 @@ class MainView(ft.Column):
         # Build UI components
         await self._build_ui()
 
+        # Populate launcher-card path displays off the startup critical path.
+        # LauncherCard.set_paths() runs blocking filesystem existence checks per
+        # card; the Launchers view isn't visible at startup (the hub is), so the
+        # seeded-but-undisplayed cards are filled in by this background task.
+        from dlss_updater.task_registry import register_task as _register_task
+        _register_task(
+            asyncio.create_task(self._populate_launcher_paths_deferred()),
+            "populate_launcher_paths",
+        )
+
         # Register keyboard handler for Escape navigation
         self._page_ref.on_keyboard_event = self._on_keyboard_event
 
@@ -237,8 +253,10 @@ class MainView(ft.Column):
         # Create app bar
         app_bar = await self._create_app_bar()
 
-        # Create launcher view (with existing cards and action buttons)
-        self.launchers_view = await self._create_launchers_view()
+        # Create launcher view (with existing cards and action buttons).
+        # defer_paths=True keeps the per-card set_paths() filesystem validation
+        # off the startup critical path — see _populate_launcher_paths_deferred.
+        self.launchers_view = await self._create_launchers_view(defer_paths=True)
 
         # Create games view
         self.games_view = GamesView(self._page_ref, self.logger)
@@ -531,8 +549,18 @@ class MainView(ft.Column):
 
         return button_container
 
-    async def _create_launchers_view(self):
-        """Create the launchers view with cards and action buttons"""
+    async def _create_launchers_view(self, defer_paths: bool = False):
+        """Create the launchers view with cards and action buttons.
+
+        Args:
+            defer_paths: When True, per-card set_paths() (which runs blocking
+                filesystem existence checks) is NOT awaited here; paths are
+                seeded cheaply and displayed later by
+                _populate_launcher_paths_deferred. Only the startup build passes
+                True — the theme-rebuild path (_rebuild_launchers_view_for_theme)
+                keeps the default eager behaviour so the rebuilt view renders
+                its paths immediately.
+        """
         from dlss_updater.ui_flet.theme.colors import MD3Colors
 
         is_dark = self.theme_manager.is_dark
@@ -541,7 +569,7 @@ class MainView(ft.Column):
         self._action_button_refs = []
 
         # Create launcher cards
-        launcher_list = await self._create_launcher_list()
+        launcher_list = await self._create_launcher_list(defer_paths=defer_paths)
 
         # Header band: title + LAUNCHERS brand wash + rocket watermark + a
         # neutral "N configured" pill — mirrors the header treatment other
@@ -990,8 +1018,16 @@ class MainView(ft.Column):
         config_manager.set_discord_banner_dismissed(False)
         await self.show_discord_banner()
 
-    async def _create_launcher_list(self) -> ft.Container:
-        """Create the scrollable list of launcher cards"""
+    async def _create_launcher_list(self, defer_paths: bool = False) -> ft.Container:
+        """Create the scrollable list of launcher cards.
+
+        Args:
+            defer_paths: When True, set_paths() (filesystem-validating) is not
+                awaited per card; each card's current_paths is seeded cheaply
+                (so the header "N configured" pill is accurate immediately) and
+                the display is filled in later by
+                _populate_launcher_paths_deferred.
+        """
         launcher_cards = []
 
         # Create launcher cards
@@ -1012,7 +1048,14 @@ class MainView(ft.Column):
             # Load existing paths from config (multi-path support)
             current_paths = config_manager.get_launcher_paths(config["enum"])
             if current_paths:
-                await card.set_paths(current_paths)
+                if defer_paths:
+                    # Seed current_paths now (cheap, no I/O) so the header
+                    # "N configured" pill is accurate immediately, but defer the
+                    # filesystem-validating set_paths() display refresh.
+                    card.current_paths = list(current_paths)
+                    self._deferred_launcher_paths[config["enum"]] = current_paths
+                else:
+                    await card.set_paths(current_paths)
 
             self.launcher_cards[config["enum"]] = card
             launcher_cards.append(card)
@@ -1165,6 +1208,36 @@ class MainView(ft.Column):
             await self.backups_view.load_backups()
         except Exception as e:
             self.logger.error(f"Background backups load error: {e}")
+
+    async def _populate_launcher_paths_deferred(self):
+        """Populate launcher-card path displays off the startup critical path.
+
+        LauncherCard.set_paths() runs blocking filesystem existence checks
+        (_validate_paths_async) per card; awaiting it for every configured
+        launcher inside _create_launcher_list serialised that I/O on the startup
+        path. The Launchers view isn't visible at startup (the hub is), so the
+        seeded-but-undisplayed cards are filled in here instead. Each card's
+        current_paths was already seeded in _create_launcher_list, so the header
+        "N configured" pill is correct in the meantime; this fills in the
+        per-path chips and validity status. If the user reaches the Launchers
+        view before this runs, set_paths() renders the chips live (the card is
+        attached by then).
+        """
+        deferred = self._deferred_launcher_paths
+        self._deferred_launcher_paths = {}
+        if not deferred:
+            return
+        for enum, paths in deferred.items():
+            card = self.launcher_cards.get(enum)
+            if not card:
+                continue
+            try:
+                await card.set_paths(paths)
+            except Exception as e:
+                self.logger.debug(f"Deferred launcher set_paths failed for {enum}: {e}")
+        # Restyle/refresh the header "N configured" pill (count already correct
+        # from the seed; this keeps it in sync after the deferred population).
+        self._update_launchers_configured_pill()
 
     async def _handle_folder_selected(self, path: str, launcher: LauncherPathName, is_adding: bool = False):
         """Handle folder selection result (Flet 0.80.4+ direct call pattern)"""
@@ -1952,7 +2025,7 @@ class MainView(ft.Column):
                 except Exception as e:
                     self.logger.warning(f"Error shutting down search service: {e}")
 
-                # Step 5: Close HTTP session
+                # Step 5: Close HTTP sessions
                 await report_progress(5)
                 try:
                     from dlss_updater.dll_repository import close_http_session
@@ -1960,6 +2033,14 @@ class MainView(ft.Column):
                     self.logger.info("HTTP session closed")
                 except Exception as e:
                     self.logger.warning(f"Error closing HTTP session: {e}")
+                try:
+                    from dlss_updater.steam_integration import (
+                        close_http_session as close_steam_http_session,
+                    )
+                    await close_steam_http_session()
+                    self.logger.info("Steam HTTP session closed")
+                except Exception as e:
+                    self.logger.warning(f"Error closing Steam HTTP session: {e}")
 
                 # Step 6: Close database connections
                 await report_progress(6)

@@ -1,3 +1,22 @@
+Version 4.4.2:
+Performance:
+  - Much faster batch updates: removed a per-DLL system-wide process scan
+    from the file-lock check and stopped re-parsing DLL versions during the
+    apply phase.
+  - Parallel scanning of non-Steam launcher libraries (EA, Epic, GOG,
+    Battle.net, Xbox, custom folders) and of Proton/Wine prefixes on Linux.
+  - Faster game resolution: the NVIDIA NvAPI interface is now loaded once
+    per session instead of per probe.
+  - Steam requests share one pooled HTTP connection, artwork downloads run
+    at doubled concurrency, DLL downloads use 256 KB chunks, and backup
+    restores use the OS fast-copy path.
+  - Database tuning: proper SQLite pragmas on all connections and no more
+    per-call connection churn (previously one per search keystroke).
+  - Snappier search and UI: indexed exact/prefix search, launcher path
+    validation moved off the startup path, targeted queries for hub and
+    backup artwork, cached per-card update counts, and view-scoped redraws
+    in Backups.
+
 Version 4.4.1:
 New Features:
   - The Edit display dialog (game-card pencil icon) now also searches the

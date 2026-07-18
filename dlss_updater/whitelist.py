@@ -19,8 +19,27 @@ _whitelist_cache: set = set()
 _whitelist_initialized: bool = False
 _whitelist_lock: anyio.Lock | None = None
 
+# Precomputed lowercase index: lower(name) -> list of original whitelist names.
+# Built once whenever the cache is (re)loaded so the hot per-path membership
+# check in is_whitelisted() is an O(1) dict lookup instead of two O(n) scans
+# that lowercased every element on every call.
+_whitelist_lower_index: dict[str, list[str]] = {}
+
 # Thread-safety lock for sync access (free-threading Python 3.14+)
 _whitelist_threading_lock = threading.Lock()
+
+
+def _build_lower_index(cache: set) -> dict[str, list[str]]:
+    """Build the lowercase lookup index from a whitelist cache set.
+
+    Maps each lowercased name to the list of original-cased entries that share
+    it, so blacklist-skip evaluation can be done against the actual matched
+    names (preserving the original semantics exactly).
+    """
+    index: dict[str, list[str]] = {}
+    for name in cache:
+        index.setdefault(name.lower(), []).append(name)
+    return index
 
 
 async def _get_lock() -> anyio.Lock:
@@ -63,7 +82,7 @@ async def initialize_whitelist() -> None:
 
     Thread-safe for free-threading (Python 3.14+).
     """
-    global _whitelist_cache, _whitelist_initialized
+    global _whitelist_cache, _whitelist_initialized, _whitelist_lower_index
 
     # Quick check without lock
     if _whitelist_initialized:
@@ -77,10 +96,12 @@ async def initialize_whitelist() -> None:
 
         logger.info("Initializing whitelist...")
         new_cache = await fetch_whitelist_async()
+        new_index = _build_lower_index(new_cache)
 
         # Update globals with threading lock for free-threading safety
         with _whitelist_threading_lock:
             _whitelist_cache = new_cache
+            _whitelist_lower_index = new_index
             _whitelist_initialized = True
 
         logger.info(f"Whitelist initialized with {len(_whitelist_cache)} games")
@@ -197,28 +218,29 @@ async def is_whitelisted(game_path):
 
     logger.debug(f"Identified game directory: {game_dir}")
 
-    # Check for skip list first
-    for game in whitelist:
+    # O(1) lookup against the precomputed lowercase index instead of two O(n)
+    # scans. `whitelist` above is fetched only to guarantee initialization; the
+    # index is populated in the same locked block that fills the cache.
+    game_dir_lower = game_dir.lower()
+    with _whitelist_threading_lock:
+        matched_names = _whitelist_lower_index.get(game_dir_lower)
+
+    if not matched_names:
+        logger.debug(f"No whitelist match found for: {game_dir}")
+        return False
+
+    # Evaluate the blacklist-skip only for the matched name(s). Original
+    # semantics: if the matched whitelist entry is also in the skip list, the
+    # update is allowed (returns False); otherwise it is a real whitelist hit.
+    for game in matched_names:
         if config_manager.is_blacklist_skipped(game):
-            if game.lower() == game_dir.lower():
-                logger.info(
-                    f"Game '{game_dir}' is in whitelist but also in skip list - allowing update"
-                )
-                return False
+            logger.info(
+                f"Game '{game_dir}' is in whitelist but also in skip list - allowing update"
+            )
+            return False
 
-    # Now check against whitelist
-    for game in whitelist:
-        # Skip if in skip list (already handled)
-        if config_manager.is_blacklist_skipped(game):
-            continue
-
-        # Simple direct name comparison
-        if game.lower() == game_dir.lower():
-            logger.info(f"Whitelist match found: {game_dir}")
-            return True
-
-    logger.debug(f"No whitelist match found for: {game_dir}")
-    return False
+    logger.info(f"Whitelist match found: {game_dir}")
+    return True
 
 
 def get_all_blacklisted_games():

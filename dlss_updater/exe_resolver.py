@@ -197,17 +197,14 @@ def _resolve_steam_manifest_exe(game, candidates: list[str]) -> str | None:
         if not os.path.isfile(manifest):
             return None
 
-        # Read installdir from the manifest (tiny file, simple line parse).
-        installdir = None
-        with open(manifest, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                # "installdir"		"GameFolder"
-                if '"installdir"' in line:
-                    parts = line.split('"')
-                    # ['', 'installdir', '\t\t', 'GameFolder', '']
-                    if len(parts) >= 4:
-                        installdir = parts[3]
-                    break
+        # Read installdir via the shared VDF/ACF parser (sync variant for this
+        # ThreadPoolExecutor-safe path). Error-tolerant: returns {} on a
+        # malformed/partial manifest rather than raising.
+        from dlss_updater.vdf_parser import VDFParser
+
+        manifest_data = VDFParser.parse_file_sync(manifest)
+        app_state = manifest_data.get("AppState", manifest_data)
+        installdir = app_state.get("installdir") if isinstance(app_state, dict) else None
         if not installdir:
             return None
 

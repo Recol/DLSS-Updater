@@ -17,6 +17,50 @@ if IS_WINDOWS:
 
 logger = setup_logger()
 
+# Per-directory probe cache for find_game_root()'s generic fallback.
+#
+# The generic branch walks up to max_depth levels, and at each level probes the
+# directory with a glob("*.exe") plus several exists() calls. During a scan the
+# same directories are probed repeatedly (many DLLs share ancestor dirs), so the
+# indicator count is memoized per directory. Lock-guarded + FIFO-bounded to stay
+# correct and memory-stable on the free-threaded (GIL-disabled) build — the same
+# pattern used by the version caches (no functools.lru_cache on shared state).
+_game_root_probe_cache: dict = {}
+_game_root_probe_cache_lock = threading.Lock()
+_GAME_ROOT_PROBE_CACHE_MAX = 512
+
+
+def _game_root_indicator_count(current: Path) -> int:
+    """Count strong game-root indicators in ``current`` (memoized per dir).
+
+    Returns the number of "this looks like a game root" signals present in the
+    directory: at least one .exe, a bin/Binaries dir, an engine/Engine dir, a
+    data/Data dir, or a Content dir. Results are cached per directory path for
+    the free-threaded build under a bounded, lock-guarded dict.
+    """
+    key = str(current)
+    with _game_root_probe_cache_lock:
+        cached = _game_root_probe_cache.get(key)
+    if cached is not None:
+        return cached
+
+    has_exe = any(current.glob("*.exe"))
+    has_bin = (current / "bin").exists() or (current / "Binaries").exists()
+    has_engine = (current / "engine").exists() or (current / "Engine").exists()
+    has_data = (current / "data").exists() or (current / "Data").exists()
+    has_content = (current / "Content").exists()
+
+    count = sum([has_exe, has_bin, has_engine, has_data, has_content])
+
+    with _game_root_probe_cache_lock:
+        _game_root_probe_cache[key] = count
+        if len(_game_root_probe_cache) > _GAME_ROOT_PROBE_CACHE_MAX:
+            # Remove oldest entries (simple FIFO - remove first half)
+            keys_to_remove = list(_game_root_probe_cache.keys())[: _GAME_ROOT_PROBE_CACHE_MAX // 2]
+            for k in keys_to_remove:
+                del _game_root_probe_cache[k]
+    return count
+
 
 def process_single_dll_thread_safe(dll_path, launcher, progress_tracker):
     """Thread-safe version of process_single_dll"""
@@ -422,24 +466,9 @@ def find_game_root(dll_path: Path, launcher: str) -> Path:
     # For other launchers: Walk up with stricter heuristics
     max_depth = 5  # Increased from 3 for better detection
     for _ in range(max_depth):
-        # Strong indicators of game root
-        has_exe = list(current.glob("*.exe"))
-        has_bin = (current / "bin").exists() or (current / "Binaries").exists()
-        has_engine = (current / "engine").exists() or (current / "Engine").exists()
-        has_data = (current / "data").exists() or (current / "Data").exists()
-        has_content = (current / "Content").exists()
-
-        # Count strong indicators
-        indicators = [
-            len(has_exe) > 0,
-            has_bin,
-            has_engine,
-            has_data,
-            has_content
-        ]
-
+        # Count strong indicators (glob + exists probes are memoized per dir)
         # If we have 2+ indicators, this is likely the root
-        if sum(indicators) >= 2:
+        if _game_root_indicator_count(current) >= 2:
             return current
 
         # Move up one level

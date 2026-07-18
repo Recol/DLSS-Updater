@@ -41,18 +41,24 @@ async def check_for_updates_async() -> tuple[str | None, bool, str | None]:
     try:
         logger.info("Checking for updates...")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                GITHUB_API_URL,
-                timeout=aiohttp.ClientTimeout(total=10),
-                headers={"Accept": "application/vnd.github.v3+json"}
-            ) as response:
-                if response.status != 200:
-                    logger.error(f"GitHub API returned status {response.status}")
-                    return None, False, None
+        # Reuse the shared, connection-pooled aiohttp session rather than
+        # spinning up (and tearing down) a fresh ClientSession per check.
+        # Do NOT close it here - it is owned by dll_repository and lives for the
+        # app's lifetime; the per-request timeout below still applies.
+        from dlss_updater.dll_repository import get_http_session
 
-                content = await response.read()
-                latest_release = _json_decoder.decode(content)
+        session = await get_http_session()
+        async with session.get(
+            GITHUB_API_URL,
+            timeout=aiohttp.ClientTimeout(total=10),
+            headers={"Accept": "application/vnd.github.v3+json"}
+        ) as response:
+            if response.status != 200:
+                logger.error(f"GitHub API returned status {response.status}")
+                return None, False, None
+
+            content = await response.read()
+            latest_release = _json_decoder.decode(content)
 
         latest_version = latest_release["tag_name"].lstrip("Vv")
 

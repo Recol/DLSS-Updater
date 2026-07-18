@@ -1,6 +1,7 @@
 import os
 import sys
 import threading
+from contextlib import contextmanager
 from enum import StrEnum
 from pathlib import Path
 
@@ -109,7 +110,13 @@ class Concurrency:
     # ThreadPoolExecutor limits (OS has limits on actual threads)
     # These are for actual OS threads, not async tasks
     # Keep modest to limit memory usage (~1MB stack per thread on Windows)
-    THREADPOOL_CPU: int = max(8, min(32, int(CPU_THREADS * 0.9)))  # Cap at 32 for CPU work
+    #
+    # CPU cap: PE parsing is genuinely parallel on the free-threaded build
+    # (no GIL to serialise it), so lift the cap to 64 there to exploit more
+    # cores; keep 32 on GIL builds where extra CPU threads mostly contend on
+    # the GIL and only add ~1MB-stack-per-thread memory pressure.
+    _THREADPOOL_CPU_CAP: int = 64 if GIL_DISABLED else 32
+    THREADPOOL_CPU: int = max(8, min(_THREADPOOL_CPU_CAP, int(CPU_THREADS * 0.9)))  # Cap for CPU work
     THREADPOOL_IO: int = min(32, CPU_THREADS * 2)  # Cap at 32 for I/O (was 128, too much memory)
 
     @classmethod
@@ -315,6 +322,13 @@ class ConfigManager:
             self.logger = setup_logger()
             self.config_path = get_config_path()
             self._config: AppConfig = self._load_config()
+            # Deferred-save batching state (guarded by _config_lock). When
+            # _save_defer_depth > 0, _save_unlocked() records the intent to
+            # save instead of rewriting config.toml; the outermost
+            # deferred_save() context flushes a single write on exit. See
+            # deferred_save() for the batching contract.
+            self._save_defer_depth = 0
+            self._save_deferred_pending = False
             self.initialized = True
 
     # =========================================================================
@@ -533,8 +547,46 @@ class ConfigManager:
         """
         Persist the current config to disk (internal, assumes ``_config_lock``
         is already held). External callers should use :meth:`save`.
+
+        When a :meth:`deferred_save` batch is active (``_save_defer_depth`` > 0)
+        the write is suppressed and only the intent is recorded; the outermost
+        ``deferred_save`` context performs a single write on exit. This collapses
+        the write amplification of setters that each call ``_save_unlocked`` (e.g.
+        ``add_launcher_path`` invoked once per auto-detected launcher path).
         """
+        if self._save_defer_depth > 0:
+            self._save_deferred_pending = True
+            return
         self._write_config(self._config)
+
+    @contextmanager
+    def deferred_save(self):
+        """
+        Batch config writes: suppress per-setter ``_save_unlocked`` writes for
+        the duration of the ``with`` block, then perform a single write on exit
+        if anything requested a save.
+
+        Re-entrant and thread-safe for free-threaded Python 3.14+: the defer
+        depth and pending flag are guarded by the reentrant ``_config_lock``.
+        Nested ``deferred_save`` blocks share one depth counter, so only the
+        outermost exit flushes. The lock is *not* held across the ``with`` body
+        (only around the brief depth adjust/flush), so ``await`` points inside
+        the block — as in the scanner's auto-detection path — never serialise
+        other threads.
+
+        Note: an explicit :meth:`save` call still writes immediately; only the
+        internal ``_save_unlocked`` path is deferred.
+        """
+        with _config_lock:
+            self._save_defer_depth += 1
+        try:
+            yield
+        finally:
+            with _config_lock:
+                self._save_defer_depth -= 1
+                if self._save_defer_depth == 0 and self._save_deferred_pending:
+                    self._save_deferred_pending = False
+                    self._write_config(self._config)
 
     def save(self):
         """

@@ -408,22 +408,51 @@ async def get_all_linux_game_paths() -> dict[str, Any]:
         result['steam_native'], steam_skipped = await filter_accessible_paths(steam_libs)
         all_skipped.extend(steam_skipped)
 
-        # Proton games within Steam
+        # Proton games within Steam — scan every prefix in PARALLEL.
+        # scan_proton_games already offloads its synchronous directory walk to a
+        # worker thread via anyio.to_thread.run_sync(..., limiter=thread_io); we
+        # fan the per-prefix calls out across an anyio task group so multiple
+        # prefixes are walked concurrently instead of one-at-a-time. Results are
+        # stored index-keyed to keep the aggregated order deterministic.
         proton_prefixes = await get_proton_prefixes(steam_path)
+        proton_results: list[list[Path] | None] = [None] * len(proton_prefixes)
+
+        async def _scan_proton_prefix(i: int, prefix: Path) -> None:
+            try:
+                proton_results[i] = await scan_proton_games(prefix)
+            except Exception as e:
+                logger.warning(f"Error scanning Proton prefix {prefix}: {e}")
+
+        async with anyio.create_task_group() as tg:
+            for i, prefix in enumerate(proton_prefixes):
+                tg.start_soon(_scan_proton_prefix, i, prefix)
+
         proton_games: list[Path] = []
-        for prefix in proton_prefixes:
-            games = await scan_proton_games(prefix)
-            proton_games.extend(games)
+        for games in proton_results:
+            if games:
+                proton_games.extend(games)
         # Filter Proton games for accessibility
         result['proton'], proton_skipped = await filter_accessible_paths(proton_games)
         all_skipped.extend(proton_skipped)
 
-    # Non-Steam Wine games
+    # Non-Steam Wine games — same parallel fan-out across Wine prefixes.
     wine_prefixes = await get_wine_prefixes()
+    wine_results: list[list[Path] | None] = [None] * len(wine_prefixes)
+
+    async def _scan_wine_prefix(i: int, prefix: Path) -> None:
+        try:
+            wine_results[i] = await scan_proton_games(prefix)
+        except Exception as e:
+            logger.warning(f"Error scanning Wine prefix {prefix}: {e}")
+
+    async with anyio.create_task_group() as tg:
+        for i, prefix in enumerate(wine_prefixes):
+            tg.start_soon(_scan_wine_prefix, i, prefix)
+
     wine_games: list[Path] = []
-    for prefix in wine_prefixes:
-        games = await scan_proton_games(prefix)
-        wine_games.extend(games)
+    for games in wine_results:
+        if games:
+            wine_games.extend(games)
     # Filter Wine games for accessibility
     result['wine'], wine_skipped = await filter_accessible_paths(wine_games)
     all_skipped.extend(wine_skipped)

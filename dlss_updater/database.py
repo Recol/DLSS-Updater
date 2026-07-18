@@ -40,6 +40,35 @@ _db_manager_lock = threading.Lock()
 ROLLBACK_FLAG_THRESHOLD = 2
 ROLLBACK_WINDOW_DAYS = 2.0
 
+# Shared SQLite pragmas applied to EVERY connection (async pool, thread-local,
+# schema-setup, dedicated bulk-write). Single source of truth for connection
+# tuning so the async pool / thread-local / schema paths can never drift apart.
+#
+# journal_mode=WAL is deliberately NOT here: it is a PERSISTENT database-file
+# setting (it survives once written), so it is set exactly once during schema
+# creation and does not need re-applying on every connection.
+_CONNECTION_PRAGMAS = (
+    "PRAGMA busy_timeout=5000;"     # wait up to 5s for a lock instead of instant SQLITE_BUSY
+    "PRAGMA synchronous=NORMAL;"    # safe under WAL, far fewer fsyncs than FULL
+    "PRAGMA cache_size=-8000;"      # 8MB page cache (negative value == KiB)
+    "PRAGMA mmap_size=134217728;"   # 128MB memory-mapped I/O
+    "PRAGMA temp_store=MEMORY;"     # keep temp b-trees in RAM
+    "PRAGMA foreign_keys=ON;"       # enforce ON DELETE CASCADE (off by default in SQLite)
+)
+
+
+def _apply_connection_pragmas(conn: sqlite3.Connection) -> None:
+    """Apply the shared performance/safety pragmas to a sync sqlite3 connection.
+
+    ``executescript`` runs the pragmas outside any transaction (it implicitly
+    commits first), which is required for ``foreign_keys`` to take effect.
+
+    The async (aiosqlite) connection paths apply the SAME ``_CONNECTION_PRAGMAS``
+    via ``await conn.executescript(...)`` because their ``execute`` is a coroutine
+    and cannot call this sync helper directly.
+    """
+    conn.executescript(_CONNECTION_PRAGMAS)
+
 
 def merge_games_by_name(games: list[Game]) -> list[MergedGame]:
     """Merge games with same name (case-insensitive) into MergedGame entries.
@@ -142,8 +171,8 @@ class DatabaseManager:
                 for _ in range(self._pool_size):
                     conn = await aiosqlite.connect(str(self.db_path))
                     conn.row_factory = aiosqlite.Row
-                    # Enforce ON DELETE CASCADE foreign keys (off by default in SQLite).
-                    await conn.execute("PRAGMA foreign_keys=ON")
+                    # Apply the shared pragma set (foreign_keys, busy_timeout, WAL tuning).
+                    await conn.executescript(_CONNECTION_PRAGMAS)
                     self._async_pool.append(conn)
 
                 self._pool_active = True
@@ -177,8 +206,8 @@ class DatabaseManager:
                 for _ in range(self._pool_size):
                     conn = await aiosqlite.connect(str(self.db_path))
                     conn.row_factory = aiosqlite.Row
-                    # Enforce ON DELETE CASCADE foreign keys (off by default in SQLite).
-                    await conn.execute("PRAGMA foreign_keys=ON")
+                    # Apply the shared pragma set (foreign_keys, busy_timeout, WAL tuning).
+                    await conn.executescript(_CONNECTION_PRAGMAS)
                     self._async_pool.append(conn)
 
                 self._pool_active = True
@@ -222,13 +251,13 @@ class DatabaseManager:
                         pass
                     conn = await aiosqlite.connect(str(self.db_path))
                     conn.row_factory = aiosqlite.Row
-                    await conn.execute("PRAGMA foreign_keys=ON")
+                    await conn.executescript(_CONNECTION_PRAGMAS)
                     conn_valid = True
             else:
                 # Pool exhausted, create new connection
                 conn = await aiosqlite.connect(str(self.db_path))
                 conn.row_factory = aiosqlite.Row
-                await conn.execute("PRAGMA foreign_keys=ON")
+                await conn.executescript(_CONNECTION_PRAGMAS)
 
             yield conn
 
@@ -258,8 +287,8 @@ class DatabaseManager:
         if not hasattr(self._thread_local, 'connection') or self._thread_local.connection is None:
             self._thread_local.connection = sqlite3.connect(str(self.db_path))
             self._thread_local.connection.row_factory = sqlite3.Row
-            # Enforce ON DELETE CASCADE foreign keys (off by default in SQLite).
-            self._thread_local.connection.execute("PRAGMA foreign_keys=ON")
+            # Apply the shared pragma set (foreign_keys, busy_timeout, WAL tuning).
+            _apply_connection_pragmas(self._thread_local.connection)
         return self._thread_local.connection
 
     def _close_thread_connection(self):
@@ -317,11 +346,11 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         try:
-            # Enable WAL mode for better write performance
+            # Enable WAL mode for better write performance. journal_mode is a
+            # persistent DB-file setting, so it is set here once (not in the
+            # shared pragma helper). The rest of the tuning comes from the helper.
             cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute("PRAGMA synchronous=NORMAL")
-            # Enforce ON DELETE CASCADE foreign keys (off by default in SQLite).
-            cursor.execute("PRAGMA foreign_keys=ON")
+            _apply_connection_pragmas(conn)
 
             # Games table
             cursor.execute("""
@@ -2865,6 +2894,82 @@ class DatabaseManager:
             logger.error(f"Error batch getting cached image paths: {e}", exc_info=True)
             return {}
 
+    def get_mosaic_app_ids_sync(self, limit: int = 60) -> list[int]:
+        """Return up to ``limit`` distinct non-null ``steam_app_id`` values from games.
+
+        Sync (for HyperParallelLoader / direct UI-thread calls). Powers the hub
+        mosaic, which only needs a handful of app IDs to render artwork - this
+        avoids loading the entire games table just to read ~6 image IDs.
+
+        Args:
+            limit: Maximum number of distinct app IDs to return.
+
+        Returns:
+            List of distinct steam_app_id ints (at most ``limit``).
+        """
+        if limit <= 0:
+            return []
+
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                """
+                SELECT DISTINCT steam_app_id
+                FROM games
+                WHERE steam_app_id IS NOT NULL
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting mosaic app ids: {e}", exc_info=True)
+            return []
+
+    def batch_get_app_ids_for_games_sync(self, game_ids: list[int]) -> dict[int, int]:
+        """Map ``game_id -> steam_app_id`` for the given games, skipping nulls.
+
+        Sync single-query (chunked) lookup for the backups-view artwork, replacing
+        a full games-table load previously used to map a handful of IDs.
+
+        Args:
+            game_ids: Game database IDs to look up.
+
+        Returns:
+            Dict mapping game_id to steam_app_id (games with NULL app_id are omitted).
+        """
+        if not game_ids:
+            return {}
+
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+        result: dict[int, int] = {}
+
+        # Chunk IN lists to stay under SQLite's parameter limit (999 on older
+        # builds, 32766 on 3.32+). 900 is safe everywhere.
+        CHUNK = 900
+
+        try:
+            for i in range(0, len(game_ids), CHUNK):
+                chunk = game_ids[i:i + CHUNK]
+                placeholders = ",".join("?" * len(chunk))
+                cursor.execute(
+                    f"""
+                    SELECT id, steam_app_id
+                    FROM games
+                    WHERE id IN ({placeholders}) AND steam_app_id IS NOT NULL
+                    """,
+                    chunk,
+                )
+                for row in cursor.fetchall():
+                    result[row[0]] = row[1]
+            return result
+        except Exception as e:
+            logger.error(f"Error batch getting app ids for games: {e}", exc_info=True)
+            return result
+
     async def mark_image_fetch_failed(self, app_id: int):
         """Mark image fetch as failed"""
         return await anyio.to_thread.run_sync(self._mark_image_fetch_failed, app_id, limiter=thread_io)
@@ -2961,8 +3066,14 @@ class DatabaseManager:
         return await anyio.to_thread.run_sync(self._upsert_steam_apps, apps, limiter=thread_io)
 
     def _upsert_steam_apps(self, apps: list[tuple[int, str, str, str]]) -> int:
-        """Bulk upsert Steam apps (runs in thread)"""
+        """Bulk upsert Steam apps (runs in thread).
+
+        Keeps a DEDICATED connection (not the thread-local one) so the large
+        multi-batch write with its own commit cadence does not interfere with
+        the reusable read connection's transaction state.
+        """
         conn = sqlite3.connect(str(self.db_path))
+        _apply_connection_pragmas(conn)
         cursor = conn.cursor()
 
         try:
@@ -3022,8 +3133,13 @@ class DatabaseManager:
         the pre-#246 path failed: FTS5 syntax errors from raw punctuation (e.g.
         the '.' in "S.T.A.L.K.E.R.") and the missing word tokens for multi-word
         queries against a space-less column.
+
+        Uses the reusable thread-local connection (read-only SELECT/MATCH — no
+        implicit transaction is opened, so nothing is left dangling on reuse).
+        This runs per debounced search keystroke against the 207K-row FTS table,
+        so avoiding a fresh connect()/close() per call matters.
         """
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -3076,8 +3192,6 @@ class DatabaseManager:
             except Exception as e2:
                 logger.error(f"Error searching Steam apps: {e2}", exc_info=True)
                 return []
-        finally:
-            conn.close()
 
     async def get_steam_app_by_name(self, name_normalized: str) -> int | None:
         """
@@ -3094,8 +3208,8 @@ class DatabaseManager:
         return await anyio.to_thread.run_sync(self._get_steam_app_by_name, name_normalized, limiter=thread_io)
 
     def _get_steam_app_by_name(self, name_normalized: str) -> int | None:
-        """Get Steam app by normalized name (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Get Steam app by normalized name (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -3111,8 +3225,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting Steam app by name: {e}", exc_info=True)
             return None
-        finally:
-            conn.close()
 
     async def get_steam_apps_count(self) -> int:
         """
@@ -3126,8 +3238,8 @@ class DatabaseManager:
         return await anyio.to_thread.run_sync(self._get_steam_apps_count, limiter=thread_io)
 
     def _get_steam_apps_count(self) -> int:
-        """Get Steam apps count (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Get Steam apps count (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -3138,8 +3250,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting Steam apps count: {e}", exc_info=True)
             return 0
-        finally:
-            conn.close()
 
     async def clear_steam_apps(self):
         """
@@ -3150,8 +3260,13 @@ class DatabaseManager:
         return await anyio.to_thread.run_sync(self._clear_steam_apps, limiter=thread_io)
 
     def _clear_steam_apps(self):
-        """Clear all Steam apps (runs in thread)"""
+        """Clear all Steam apps (runs in thread).
+
+        Keeps a DEDICATED connection (bulk delete cascades through the FTS5
+        triggers); the shared pragma init is applied for consistency.
+        """
         conn = sqlite3.connect(str(self.db_path))
+        _apply_connection_pragmas(conn)
         cursor = conn.cursor()
 
         try:
@@ -3397,8 +3512,8 @@ class DatabaseManager:
         return await anyio.to_thread.run_sync(self._get_games_with_backups, limiter=thread_io)
 
     def _get_games_with_backups(self) -> list[GameWithBackupCount]:
-        """Get games with backups (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Get games with backups (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -3431,8 +3546,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting games with backups: {e}", exc_info=True)
             return []
-        finally:
-            conn.close()
 
     async def get_all_backups_filtered(
         self,
@@ -3453,8 +3566,8 @@ class DatabaseManager:
         self,
         game_id: int | None = None
     ) -> list[GameDLLBackup]:
-        """Get all backups with optional game filter (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Get all backups with optional game filter (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -3504,8 +3617,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting filtered backups: {e}", exc_info=True)
             return []
-        finally:
-            conn.close()
 
     async def batch_check_games_have_backups(
         self,
@@ -3531,8 +3642,8 @@ class DatabaseManager:
         self,
         game_ids: list[int]
     ) -> dict[int, bool]:
-        """Batch check games for backups (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        """Batch check games for backups (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
         cursor = conn.cursor()
 
         try:
@@ -3557,8 +3668,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error batch checking games for backups: {e}", exc_info=True)
             return {gid: False for gid in game_ids}
-        finally:
-            conn.close()
 
     # ===== Search Operations =====
 
@@ -3742,6 +3851,70 @@ class DatabaseManager:
             conn.rollback()
         finally:
             conn.close()
+
+    async def add_search_history_batch(
+        self,
+        entries: list[tuple[str, str | None, int]]
+    ):
+        """Persist multiple search-history entries in a single batched write.
+
+        Used by the search service on shutdown to flush its in-memory history
+        snapshot without a per-row DB round-trip.
+
+        Args:
+            entries: List of (query, launcher, result_count) tuples.
+        """
+        if not entries:
+            return
+        return await anyio.to_thread.run_sync(
+            self._add_search_history_batch, entries, limiter=thread_io)
+
+    def _add_search_history_batch(
+        self,
+        entries: list[tuple[str, str | None, int]]
+    ):
+        """Batch add search history (runs in thread) - uses thread-local connection.
+
+        executemany for both the dedup DELETE and the INSERT, then a single trim,
+        replacing the previous per-entry ``add_search_history`` loop.
+        """
+        if not entries:
+            return
+
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            # Deduplicate: drop any existing rows for these queries (case-insensitive).
+            cursor.executemany(
+                "DELETE FROM search_history WHERE LOWER(query) = LOWER(?)",
+                [(q.strip(),) for q, _launcher, _rc in entries],
+            )
+
+            # Bulk insert the new entries.
+            cursor.executemany(
+                """
+                INSERT INTO search_history (query, launcher, result_count, timestamp)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                [(q.strip(), launcher, result_count) for q, launcher, result_count in entries],
+            )
+
+            # Trim to max 50 entries (same cap as the single-row path).
+            cursor.execute("""
+                DELETE FROM search_history
+                WHERE id NOT IN (
+                    SELECT id FROM search_history
+                    ORDER BY timestamp DESC
+                    LIMIT 50
+                )
+            """)
+
+            conn.commit()
+
+        except Exception as e:
+            logger.error(f"Error batch adding search history: {e}", exc_info=True)
+            conn.rollback()
 
     async def get_search_history(self, limit: int = 10) -> list[dict[str, Any]]:
         """

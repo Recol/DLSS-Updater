@@ -3,7 +3,6 @@ Steam Integration for DLSS Updater
 Universal image fetching for ALL games (not just Steam launcher) via name matching
 """
 
-import re
 import threading
 import msgspec
 from pathlib import Path
@@ -25,6 +24,51 @@ _json_decoder = msgspec.json.Decoder()
 _normalize_cache_lock = threading.Lock()
 _normalize_cache: dict = {}
 
+# Shared aiohttp session for connection reuse across all Steam HTTP calls.
+# A new ClientSession per request forces a fresh TCP+TLS handshake every time -
+# especially costly during the cold-start image fan-out (one handshake per image).
+# Mirrors dll_repository.get_http_session() but is a separate session owned here.
+# Thread-safe for free-threading (Python 3.14+): guarded by _session_lock with
+# double-checked locking.
+_session_lock = threading.Lock()
+_http_session: aiohttp.ClientSession | None = None
+
+
+async def get_http_session() -> aiohttp.ClientSession:
+    """Get or create the shared Steam HTTP session.
+
+    Reuses one connection pool across all Steam API / CDN requests. Per-request
+    timeouts are passed at each call site, so the session-level timeout is only a
+    safety ceiling. Thread-safe for free-threading (Python 3.14+).
+    """
+    global _http_session
+
+    # Fast path: no lock when an open session already exists.
+    if _http_session is not None and not _http_session.closed:
+        return _http_session
+
+    with _session_lock:
+        # Double-check after acquiring the lock.
+        if _http_session is None or _http_session.closed:
+            _http_session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=60)
+            )
+    return _http_session
+
+
+async def close_http_session() -> None:
+    """Close the shared Steam HTTP session (call on app shutdown).
+
+    Thread-safe for free-threading (Python 3.14+).
+    """
+    global _http_session
+
+    with _session_lock:
+        session = _http_session
+        _http_session = None
+    if session and not session.closed:
+        await session.close()
+
 
 class SteamIntegration:
     """
@@ -42,7 +86,10 @@ class SteamIntegration:
     CDN_FALLBACK = "https://cdn.akamai.steamstatic.com/steam/apps"
 
     APP_LIST_CACHE_DAYS = 7  # Re-download app list after 7 days
-    IMAGE_SEMAPHORE = 5  # Max 5 concurrent image downloads
+    IMAGE_SEMAPHORE = 10  # Max concurrent image CDN downloads (cold-start fan-out).
+    #                       Gates ONLY fetch_steam_header_image (CDN image pulls);
+    #                       the rate-limited storesearch/appdetails lookups have their
+    #                       own guards and are not throttled by this semaphore.
 
     def __init__(self):
         from dlss_updater.platform_utils import APP_CONFIG_DIR
@@ -155,33 +202,33 @@ class SteamIntegration:
             logger.info("Downloading Steam app list from GitHub repository...")
             all_apps = []
 
-            async with aiohttp.ClientSession() as session:
-                # Download all category files
-                for url in self.STEAM_APP_LIST_URLS:
-                    try:
-                        logger.info(f"Fetching {url.split('/')[-1]}...")
-                        async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as response:
-                            if response.status != 200:
-                                logger.warning(f"Failed to download {url}: HTTP {response.status}")
-                                continue
+            session = await get_http_session()
+            # Download all category files
+            for url in self.STEAM_APP_LIST_URLS:
+                try:
+                    logger.info(f"Fetching {url.split('/')[-1]}...")
+                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as response:
+                        if response.status != 200:
+                            logger.warning(f"Failed to download {url}: HTTP {response.status}")
+                            continue
 
-                            # Read raw bytes and decode with msgspec (GitHub returns text/plain MIME type)
-                            content = await response.read()
-                            apps = _json_decoder.decode(content)
+                        # Read raw bytes and decode with msgspec (GitHub returns text/plain MIME type)
+                        content = await response.read()
+                        apps = _json_decoder.decode(content)
 
-                            # GitHub repo format: array of {appid, name, last_modified, price_change_number}
-                            if isinstance(apps, list):
-                                all_apps.extend(apps)
-                                logger.info(f"Downloaded {len(apps)} apps from {url.split('/')[-1]}")
-                            else:
-                                logger.warning(f"Unexpected format from {url}")
+                        # GitHub repo format: array of {appid, name, last_modified, price_change_number}
+                        if isinstance(apps, list):
+                            all_apps.extend(apps)
+                            logger.info(f"Downloaded {len(apps)} apps from {url.split('/')[-1]}")
+                        else:
+                            logger.warning(f"Unexpected format from {url}")
 
-                    except TimeoutError:
-                        logger.warning(f"Timeout downloading {url}")
-                        continue
-                    except Exception as e:
-                        logger.warning(f"Error downloading {url}: {e}")
-                        continue
+                except TimeoutError:
+                    logger.warning(f"Timeout downloading {url}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error downloading {url}: {e}")
+                    continue
 
             if not all_apps:
                 logger.error("Failed to download any Steam app data")
@@ -345,20 +392,23 @@ class SteamIntegration:
             # Get game folder name for comparison
             game_folder_name = game_dir.name.lower()
 
+            # Shared VDF/ACF parser (async, error-tolerant) instead of a bespoke
+            # read_text + regex; parse_appmanifest returns None on any parse error.
+            from dlss_updater.vdf_parser import VDFParser
+
             # Search appmanifest files
             for manifest_file in steamapps_dir.glob("appmanifest_*.acf"):
                 try:
-                    content = manifest_file.read_text(encoding='utf-8', errors='ignore')
+                    manifest_data = await VDFParser.parse_appmanifest(manifest_file)
+                    if not manifest_data:
+                        continue
 
-                    # Parse VDF for installdir
-                    match = re.search(r'"installdir"\s+"([^"]+)"', content, re.IGNORECASE)
-                    if match:
-                        install_dir = match.group(1).lower()
-                        if install_dir == game_folder_name:
-                            # Extract app ID from filename: appmanifest_271590.acf -> 271590
-                            app_id = int(manifest_file.stem.split('_')[1])
-                            logger.info(f"Found Steam app ID {app_id} from appmanifest for {game_dir.name}")
-                            return app_id
+                    install_dir = (manifest_data.get('installdir') or '').lower()
+                    if install_dir and install_dir == game_folder_name:
+                        # Extract app ID from filename: appmanifest_271590.acf -> 271590
+                        app_id = int(manifest_file.stem.split('_')[1])
+                        logger.info(f"Found Steam app ID {app_id} from appmanifest for {game_dir.name}")
+                        return app_id
 
                 except Exception as e:
                     logger.debug(f"Error parsing {manifest_file}: {e}")
@@ -439,47 +489,48 @@ class SteamIntegration:
                     f"{self.CDN_FALLBACK}/{app_id}/header.jpg",
                 ]
 
-                async with aiohttp.ClientSession() as session:
-                    for url in urls:
-                        try:
-                            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                                if response.status == 200:
-                                    raw_data = await response.read()
-                                    await _persist(raw_data)
-                                    logger.info(f"Fetched and cached hero thumbnail for Steam app {app_id} from {url}")
-                                    return cache_file
-
-                                elif response.status == 404:
-                                    logger.debug(f"Image not found (404) for app {app_id} at {url}")
-                                    continue
-
-                        except TimeoutError:
-                            logger.debug(f"Timeout fetching image from {url}")
-                            continue
-                        except Exception as e:
-                            logger.debug(f"Error fetching from {url}: {e}")
-                            continue
-
-                    # CDN URLs failed — newer games use hash-based URLs that
-                    # can only be discovered via the appdetails API. This field is
-                    # header-sized art (no hero variant), acceptable as last resort.
+                # Shared session (connection reuse across the whole image fan-out).
+                session = await get_http_session()
+                for url in urls:
                     try:
-                        api_url = f"https://store.steampowered.com/api/appdetails?appids={app_id}"
-                        async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                             if response.status == 200:
-                                data = _json_decoder.decode(await response.read())
-                                app_data = data.get(str(app_id), {})
-                                if app_data.get("success"):
-                                    header_url = app_data.get("data", {}).get("header_image")
-                                    if header_url:
-                                        async with session.get(header_url, timeout=aiohttp.ClientTimeout(total=10)) as img_resp:
-                                            if img_resp.status == 200:
-                                                raw_data = await img_resp.read()
-                                                await _persist(raw_data)
-                                                logger.info(f"Fetched thumbnail for Steam app {app_id} via appdetails API")
-                                                return cache_file
+                                raw_data = await response.read()
+                                await _persist(raw_data)
+                                logger.info(f"Fetched and cached hero thumbnail for Steam app {app_id} from {url}")
+                                return cache_file
+
+                            elif response.status == 404:
+                                logger.debug(f"Image not found (404) for app {app_id} at {url}")
+                                continue
+
+                    except TimeoutError:
+                        logger.debug(f"Timeout fetching image from {url}")
+                        continue
                     except Exception as e:
-                        logger.debug(f"appdetails fallback failed for app {app_id}: {e}")
+                        logger.debug(f"Error fetching from {url}: {e}")
+                        continue
+
+                # CDN URLs failed — newer games use hash-based URLs that
+                # can only be discovered via the appdetails API. This field is
+                # header-sized art (no hero variant), acceptable as last resort.
+                try:
+                    api_url = f"https://store.steampowered.com/api/appdetails?appids={app_id}"
+                    async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        if response.status == 200:
+                            data = _json_decoder.decode(await response.read())
+                            app_data = data.get(str(app_id), {})
+                            if app_data.get("success"):
+                                header_url = app_data.get("data", {}).get("header_image")
+                                if header_url:
+                                    async with session.get(header_url, timeout=aiohttp.ClientTimeout(total=10)) as img_resp:
+                                        if img_resp.status == 200:
+                                            raw_data = await img_resp.read()
+                                            await _persist(raw_data)
+                                            logger.info(f"Fetched thumbnail for Steam app {app_id} via appdetails API")
+                                            return cache_file
+                except Exception as e:
+                    logger.debug(f"appdetails fallback failed for app {app_id}: {e}")
 
                 # All methods failed - expected for games without images
                 logger.debug(f"Failed to fetch image for Steam app {app_id} from all sources")
@@ -523,14 +574,14 @@ class SteamIntegration:
         """
         url = f"https://api.steampowered.com/ISteamWebAPIUtil/GetSupportedAPIList/v1/?key={api_key}"
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    is_valid = resp.status == 200
-                    if is_valid:
-                        logger.info("Steam API key validated successfully")
-                    else:
-                        logger.warning(f"Steam API key validation failed: HTTP {resp.status}")
-                    return is_valid
+            session = await get_http_session()
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                is_valid = resp.status == 200
+                if is_valid:
+                    logger.info("Steam API key validated successfully")
+                else:
+                    logger.warning(f"Steam API key validation failed: HTTP {resp.status}")
+                return is_valid
         except Exception as e:
             logger.error(f"Error validating Steam API key: {e}")
             return False
@@ -559,13 +610,13 @@ class SteamIntegration:
             f"&skip_unvetted_apps=0"
         )
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                if resp.status == 401:
-                    raise ValueError("Invalid API key")
-                if resp.status != 200:
-                    raise ValueError(f"Steam API returned HTTP {resp.status}")
-                data = _json_decoder.decode(await resp.read())
+        session = await get_http_session()
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+            if resp.status == 401:
+                raise ValueError("Invalid API key")
+            if resp.status != 200:
+                raise ValueError(f"Steam API returned HTTP {resp.status}")
+            data = _json_decoder.decode(await resp.read())
 
         response = data.get("response", {})
         games = response.get("games", [])
@@ -650,15 +701,15 @@ class SteamIntegration:
         url = f"https://store.steampowered.com/api/storesearch/?term={encoded_name}&l=english&cc=US"
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status == 429:
-                        logger.warning("Steam store search rate limited, skipping")
-                        return []
-                    if resp.status != 200:
-                        logger.debug(f"Store search returned HTTP {resp.status} for '{game_name}'")
-                        return []
-                    data = _json_decoder.decode(await resp.read())
+            session = await get_http_session()
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status == 429:
+                    logger.warning("Steam store search rate limited, skipping")
+                    return []
+                if resp.status != 200:
+                    logger.debug(f"Store search returned HTTP {resp.status} for '{game_name}'")
+                    return []
+                data = _json_decoder.decode(await resp.read())
 
             items = data.get("items", [])
             results: list[tuple[int, str]] = []
@@ -719,30 +770,30 @@ class SteamIntegration:
                 logger.debug(f"loginusers.vdf not found at {vdf_path}")
                 return None
 
-            # Parse the VDF file (simple key-value format)
-            content = await anyio.to_thread.run_sync(
-                lambda: vdf_path.read_text(encoding='utf-8', errors='ignore'), limiter=thread_io
-            )
+            # Parse via the shared VDF parser (async I/O, error-tolerant: returns
+            # {} on a malformed/partial file rather than raising).
+            from dlss_updater.vdf_parser import VDFParser
 
-            # Parse users block - keys are Steam64 IDs
-            # Format: "76561198084417777" { "PersonaName" "User" "MostRecent" "1" }
-            current_steam_id = None
+            data = await VDFParser.parse_file(vdf_path)
+
+            # Structure:
+            #   "users" { "76561198084417777" { "PersonaName" "User" "MostRecent" "1" } }
+            # Top-level keys under "users" are Steam64 IDs. Keep the 17-digit
+            # filter so non-ID keys are ignored (matches prior behaviour).
+            users = data.get('users', data)
+            if not isinstance(users, dict):
+                users = {}
+
             most_recent_id = None
             first_id = None
 
-            for line in content.split('\n'):
-                line = line.strip()
-
-                # Match Steam64 ID (17-digit number as a quoted key)
-                id_match = re.match(r'^"(\d{17})"', line)
-                if id_match:
-                    current_steam_id = id_match.group(1)
-                    if first_id is None:
-                        first_id = current_steam_id
-
-                # Check for MostRecent flag
-                if current_steam_id and '"MostRecent"' in line and '"1"' in line:
-                    most_recent_id = current_steam_id
+            for steam_id, info in users.items():
+                if not (steam_id.isdigit() and len(steam_id) == 17):
+                    continue
+                if first_id is None:
+                    first_id = steam_id
+                if isinstance(info, dict) and str(info.get('MostRecent')) == '1':
+                    most_recent_id = steam_id
 
             result = most_recent_id or first_id
             if result:

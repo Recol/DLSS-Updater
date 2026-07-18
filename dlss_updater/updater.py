@@ -2,6 +2,7 @@ import os
 import shutil
 import threading
 import sys
+import logging
 import anyio
 from .config import LATEST_DLL_VERSIONS, LATEST_DLL_PATHS, Concurrency
 from .concurrency_limiters import thread_cpu, thread_io
@@ -29,65 +30,40 @@ except AttributeError:
 _dll_version_cache_lock = threading.Lock()
 _parse_version_cache_lock = threading.Lock()
 
-# Thread pool for parallel version extraction (reused across calls)
-_version_executor = None
-_version_executor_lock = threading.Lock()
-
-
-def _get_version_executor():
-    """Get or create the shared thread pool executor for version extraction."""
-    global _version_executor
-    if _version_executor is None:
-        with _version_executor_lock:
-            if _version_executor is None:
-                # Use CPU-bound thread pool - scales with hardware
-                _version_executor = concurrent.futures.ThreadPoolExecutor(
-                    max_workers=Concurrency.THREADPOOL_CPU,
-                    thread_name_prefix="version_extract"
-                )
-    return _version_executor
-
 
 def shutdown_version_executor():
     """
-    Shutdown the shared version extraction thread pool executor.
+    No-op retained for API stability.
 
-    Must be called during application shutdown to ensure clean process exit.
-    Without this, the ThreadPoolExecutor threads keep the process alive.
+    The dedicated version-extraction ThreadPoolExecutor was removed: it nested
+    inside the anyio thread limiters (thread_cpu/thread_io) and oversubscribed
+    them - a sync ``update_dll`` already runs on a bounded thread_io worker and
+    would then block that slot on ``future.result()`` waiting for executor
+    threads. Version extraction now goes through ``get_dll_version`` directly
+    (see ``get_dll_versions_parallel``), so there is no longer a pool to shut
+    down. Shutdown callers can keep invoking this safely.
     """
-    global _version_executor
-    with _version_executor_lock:
-        if _version_executor is not None:
-            try:
-                # wait=True ensures pending tasks complete
-                # cancel_futures=True cancels pending tasks (Python 3.9+)
-                _version_executor.shutdown(wait=True, cancel_futures=True)
-                logger.debug("Version executor shutdown complete")
-            except Exception as e:
-                logger.warning(f"Error shutting down version executor: {e}")
-            finally:
-                _version_executor = None
+    return None
 
 
 def get_dll_versions_parallel(dll_path1, dll_path2):
     """
-    Extract versions from two DLLs in parallel.
+    Extract versions from two DLLs.
 
-    With GIL disabled (Python 3.14+), this achieves true parallelism.
-    With GIL enabled, it still provides I/O overlap benefits.
+    Both extractions go through ``get_dll_version``, which caches results on
+    ``(path, mtime)`` behind a lock-guarded FIFO cache, so back-to-back calls
+    are cheap (the second unique parse is the only real cost, and repeats are
+    served from cache). This previously fanned out to a dedicated
+    ThreadPoolExecutor, but that nested pool oversubscribed the anyio thread
+    limiters: sync callers already run on a bounded worker thread and would
+    block it on ``future.result()``. We therefore extract sequentially here;
+    async callers that want true parallelism should use
+    ``get_dll_version_async(..., limiter=thread_cpu)`` instead.
 
     Returns:
         Tuple of (version1, version2)
     """
-    executor = _get_version_executor()
-    future1 = executor.submit(get_dll_version, dll_path1)
-    future2 = executor.submit(get_dll_version, dll_path2)
-
-    # Wait for both to complete
-    version1 = future1.result()
-    version2 = future2.result()
-
-    return version1, version2
+    return get_dll_version(dll_path1), get_dll_version(dll_path2)
 
 # Cache for DLL version extraction (key: (path, mtime) for cache invalidation)
 _dll_version_cache: dict = {}
@@ -267,82 +243,90 @@ def restore_permissions(file_path, original_permissions):
     os.chmod(file_path, original_permissions)
 
 
+def _debug_log_locking_process(file_path):
+    """
+    Best-effort diagnostic: name the process holding ``file_path`` open.
+
+    Only ever called when DEBUG logging is enabled - enumerating every process
+    on the system and its open handles is extremely expensive on Windows, so we
+    refuse to pay that cost just to populate a log line at INFO/higher.
+    """
+    try:
+        target = str(file_path)
+        for proc in psutil.process_iter(["pid", "name", "open_files"]):
+            try:
+                for f in proc.open_files():
+                    if f.path == target:
+                        logger.debug(
+                            f"File {file_path} is in use by process {proc.name()} (PID: {proc.pid})"
+                        )
+                        return
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    except Exception:
+        # Diagnostics must never break the update path
+        pass
+
+
 def is_file_in_use(file_path, timeout=5):
     """
     Check if a file is in use by another process.
 
+    A failed *exclusive* open with PermissionError already proves the file is
+    locked, so we return True immediately instead of scanning every process on
+    the system (which the previous implementation did per-DLL, retried, purely
+    to build a log message). The expensive process enumeration now runs only
+    when DEBUG logging is enabled, and never as a retry.
+
     Args:
         file_path: Path to the file to check
-        timeout: Maximum time to wait in seconds
+        timeout: Retained for API stability with existing call sites; callers
+            perform their own retry/backoff around this check.
 
     Returns:
         True if file is in use, False otherwise
     """
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            with open(file_path, "rb"):
-                return False
-        except FileNotFoundError:
-            # File vanished between the caller's existence check and this open
-            # (e.g. a duplicate scan entry already moved/replaced it). It can't
-            # be "in use" if it no longer exists.
+    try:
+        with open(file_path, "rb"):
             return False
-        except PermissionError:
-            for proc in psutil.process_iter(["pid", "name", "open_files"]):
-                try:
-                    for file in proc.open_files():
-                        if file.path == file_path:
-                            logger.error(
-                                f"File {file_path} is in use by process {proc.name()} (PID: {proc.pid})"
-                            )
-                            return True
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-        time.sleep(0.1)
-    logger.info(f"Timeout reached while checking if file {file_path} is in use")
-    return True  # Assume file is NOT in use if we can't determine otherwise to prevent hanging conditions
+    except FileNotFoundError:
+        # File vanished between the caller's existence check and this open
+        # (e.g. a duplicate scan entry already moved/replaced it). It can't
+        # be "in use" if it no longer exists.
+        return False
+    except PermissionError:
+        # Locked - the failed exclusive open is proof enough. Only spend cycles
+        # identifying the offending process when someone is watching DEBUG logs.
+        if logger.isEnabledFor(logging.DEBUG):
+            _debug_log_locking_process(file_path)
+        return True
 
 
 async def is_file_in_use_async(file_path, timeout=5):
     """
     Async version of is_file_in_use.
 
-    Uses asyncio.sleep() instead of time.sleep() to avoid blocking the event loop.
-    Process iteration is run in a thread pool to avoid blocking.
+    A failed exclusive open with PermissionError already proves the file is
+    locked, so we return True immediately. The per-process handle enumeration
+    (extremely expensive on Windows) runs only when DEBUG logging is enabled,
+    dispatched to a bounded I/O worker so it never blocks the event loop.
     """
-    start_time = time.monotonic()
-
-    def _check_process_using_file(path):
-        """Check which process has the file open (runs in thread)"""
-        for proc in psutil.process_iter(["pid", "name", "open_files"]):
-            try:
-                for f in proc.open_files():
-                    if f.path == path:
-                        logger.error(f"File {path} is in use by process {proc.name()} (PID: {proc.pid})")
-                        return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-        return False
-
-    while time.monotonic() - start_time < timeout:
-        try:
-            # Quick test - try to open for reading
-            with open(file_path, "rb"):
-                return False
-        except FileNotFoundError:
-            # File vanished between the caller's existence check and this open
-            # (e.g. a duplicate scan entry already moved/replaced it). It can't
-            # be "in use" if it no longer exists.
+    try:
+        # Quick test - try to open for reading
+        with open(file_path, "rb"):
             return False
-        except PermissionError:
-            # File is in use, check which process (in bounded I/O worker thread)
-            if await anyio.to_thread.run_sync(_check_process_using_file, str(file_path), limiter=thread_io):
-                return True
-        await anyio.sleep(0.1)  # Non-blocking sleep
-
-    logger.info(f"Timeout reached while checking if file {file_path} is in use")
-    return True
+    except FileNotFoundError:
+        # File vanished between the caller's existence check and this open
+        # (e.g. a duplicate scan entry already moved/replaced it). It can't
+        # be "in use" if it no longer exists.
+        return False
+    except PermissionError:
+        # Locked. Only identify the offending process for DEBUG diagnostics.
+        if logger.isEnabledFor(logging.DEBUG):
+            await anyio.to_thread.run_sync(
+                _debug_log_locking_process, file_path, limiter=thread_io
+            )
+        return True
 
 
 def normalize_path(path):

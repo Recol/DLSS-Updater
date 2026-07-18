@@ -851,6 +851,13 @@ class DLLTask:
     game_name: str = "Unknown Game"
     dll_type: str = "Unknown"
 
+    # Versions extracted during the pre-filter phase (_check_needs_update) and
+    # reused by _apply_single_update so Phase 2 does not re-parse the same PE
+    # files. Remain None when the filter phase never reached extraction (e.g. a
+    # task included on error); Phase 2 falls back to extracting in that case.
+    existing_version: str | None = None
+    latest_version: str | None = None
+
     def __post_init__(self):
         if not self.dll_type or self.dll_type == "Unknown":
             self.dll_type = DLL_TYPE_MAP.get(
@@ -1254,6 +1261,11 @@ class HighPerformanceUpdateManager:
         existing_version = get_dll_version(target_path)
         latest_version = get_dll_version(source_path)
 
+        # Stash on the task so _apply_single_update (Phase 2) can reuse these
+        # instead of re-parsing the same PE files.
+        task.existing_version = existing_version
+        task.latest_version = latest_version
+
         if not existing_version or not latest_version:
             # Can't determine versions - include for update
             return True, "Version unknown"
@@ -1563,9 +1575,14 @@ class HighPerformanceUpdateManager:
                 # Fall back to standard copy
                 logger.debug(f"[PHASE 2] Cache miss for {task.source_dll_name}, using file copy")
 
-                # Get versions for comparison
-                existing_version = get_dll_version(target_path)
-                latest_version = get_dll_version(source_path)
+                # Reuse versions computed in the pre-filter phase; only re-parse
+                # on a cache miss (task included without a prior version check).
+                existing_version = task.existing_version
+                if existing_version is None:
+                    existing_version = get_dll_version(target_path)
+                latest_version = task.latest_version
+                if latest_version is None:
+                    latest_version = get_dll_version(source_path)
 
                 if existing_version and latest_version:
                     # Known-bad builds report the same version as the clean
@@ -1599,9 +1616,14 @@ class HighPerformanceUpdateManager:
             # Use cached source data
             source_path = LATEST_DLL_PATHS.get(task.source_dll_name)
 
-            # Get versions for comparison
-            existing_version = get_dll_version(target_path)
-            latest_version = get_dll_version(source_path) if source_path else None
+            # Reuse versions computed in the pre-filter phase; only re-parse on a
+            # cache miss (task included without a prior version check).
+            existing_version = task.existing_version
+            if existing_version is None:
+                existing_version = get_dll_version(target_path)
+            latest_version = task.latest_version
+            if latest_version is None:
+                latest_version = get_dll_version(source_path) if source_path else None
 
             if existing_version and latest_version:
                 # Known-bad builds report the same version as the clean

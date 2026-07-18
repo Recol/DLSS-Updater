@@ -8,7 +8,6 @@ import os
 import stat
 import tempfile
 import anyio
-import aiofiles
 from pathlib import Path
 
 from dlss_updater.logger import setup_logger
@@ -20,22 +19,21 @@ logger = setup_logger()
 
 async def async_copy2(src: Path, dst: Path, chunk_size: int = 65536) -> None:
     """
-    Async file copy that preserves metadata (similar to shutil.copy2).
+    Async file copy that preserves metadata (identical semantics to
+    ``shutil.copy2`` — file data plus permission/stat metadata).
 
-    Uses aiofiles for non-blocking I/O, improving UI responsiveness.
+    Delegates to :func:`shutil.copy2` on a worker thread via the shared
+    ``thread_io`` limiter. ``shutil.copy2`` uses the platform fast-copy path
+    (``sendfile``/``copy_file_range`` on Linux, ``CopyFile2`` on Windows)
+    instead of streaming 64KB chunks through Python, which is dramatically
+    faster for large DLLs while keeping the event loop non-blocking.
 
     Args:
         src: Source file path
         dst: Destination file path
-        chunk_size: Size of chunks for streaming copy (default 64KB)
+        chunk_size: Unused; retained for signature/backwards compatibility.
     """
-    async with aiofiles.open(src, 'rb') as fsrc:
-        async with aiofiles.open(dst, 'wb') as fdst:
-            while chunk := await fsrc.read(chunk_size):
-                await fdst.write(chunk)
-
-    # Copy metadata (stat info) - run in thread pool since it's sync
-    await anyio.to_thread.run_sync(shutil.copystat, src, dst, limiter=thread_io)
+    await anyio.to_thread.run_sync(shutil.copy2, src, dst, limiter=thread_io)
 
 
 def record_backup_metadata_sync(dll_path: Path, backup_path: Path) -> int | None:

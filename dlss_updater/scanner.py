@@ -305,38 +305,53 @@ async def find_dlls(library_paths, launcher_name, dll_names):
     # Pre-compute lowercase DLL names for O(1) lookup
     dll_names_lower = frozenset(d.lower() for d in dll_names)
 
-    # First, collect all potential DLL paths
+    # Collect all potential DLL paths, scanning every library path in PARALLEL.
+    # Each library's synchronous scan is dispatched to a worker thread via the
+    # shared thread_io limiter and awaited concurrently from a single anyio task
+    # group (same pattern as scan_steam_libraries_parallel). Results are stored
+    # index-keyed so ordering across library paths is preserved regardless of
+    # completion order; per-library errors are logged and skipped as before.
+    library_paths = list(library_paths)
     potential_dlls = []
+    lib_results: list[list[str] | None] = [None] * len(library_paths)
 
-    for library_path in library_paths:
+    def _scan_library(library_path) -> list[str]:
+        results = []
+
+        # Use scandir-rs for 6-70x faster scanning on Windows if available
+        if HAVE_SCANDIR_RS:
+            try:
+                for entry in FastWalk(str(library_path)):
+                    # Skip directories in skip list
+                    if entry.is_dir:
+                        if entry.name.lower() in _SKIP_DIRECTORIES:
+                            continue
+                    elif entry.is_file:
+                        if entry.name.lower() in dll_names_lower:
+                            results.append(entry.path)
+                return results
+            except Exception as e:
+                logger.warning(f"scandir-rs failed, falling back to os.walk: {e}")
+
+        # Fallback to parallel scandir (faster than os.walk, especially with GIL disabled)
+        return _parallel_scandir_walk(str(library_path), dll_names_lower)
+
+    async def _scan_worker(i: int, library_path) -> None:
         logger.debug(f"Scanning directory: {library_path}")
         try:
-            # Use asyncio.to_thread to avoid blocking the event loop
-            def _scan_library():
-                results = []
-
-                # Use scandir-rs for 6-70x faster scanning on Windows if available
-                if HAVE_SCANDIR_RS:
-                    try:
-                        for entry in FastWalk(str(library_path)):
-                            # Skip directories in skip list
-                            if entry.is_dir:
-                                if entry.name.lower() in _SKIP_DIRECTORIES:
-                                    continue
-                            elif entry.is_file:
-                                if entry.name.lower() in dll_names_lower:
-                                    results.append(entry.path)
-                        return results
-                    except Exception as e:
-                        logger.warning(f"scandir-rs failed, falling back to os.walk: {e}")
-
-                # Fallback to parallel scandir (faster than os.walk, especially with GIL disabled)
-                return _parallel_scandir_walk(str(library_path), dll_names_lower)
-
-            lib_dlls = await anyio.to_thread.run_sync(_scan_library, limiter=thread_io)
-            potential_dlls.extend(lib_dlls)
+            lib_results[i] = await anyio.to_thread.run_sync(
+                _scan_library, library_path, limiter=thread_io
+            )
         except Exception as e:
             logger.error(f"Error scanning {library_path}: {e}")
+
+    async with anyio.create_task_group() as tg:
+        for i, library_path in enumerate(library_paths):
+            tg.start_soon(_scan_worker, i, library_path)
+
+    for lib_dlls in lib_results:
+        if lib_dlls:
+            potential_dlls.extend(lib_dlls)
 
     # Batch check whitelist status
     if potential_dlls:
@@ -1079,56 +1094,63 @@ async def find_all_dlls(progress_callback=None):
         return []
 
     # Create tasks for all launchers and register them for shutdown tracking
-    # This ensures tasks are cancelled gracefully during application shutdown
-    tasks = {
-        "Steam": register_task(asyncio.create_task(scan_steam()), "scan_steam"),
-        "EA Launcher": register_task(asyncio.create_task(scan_ea()), "scan_ea"),
-        "Ubisoft Launcher": register_task(asyncio.create_task(scan_ubisoft()), "scan_ubisoft"),
-        "Epic Games Launcher": register_task(asyncio.create_task(scan_epic()), "scan_epic"),
-        "GOG Launcher": register_task(asyncio.create_task(scan_gog()), "scan_gog"),
-        "Battle.net Launcher": register_task(asyncio.create_task(scan_battlenet()), "scan_battlenet"),
-        "Xbox Launcher": register_task(asyncio.create_task(scan_xbox()), "scan_xbox"),
-        "Custom Folder 1": register_task(asyncio.create_task(scan_custom(1)), "scan_custom_1"),
-        "Custom Folder 2": register_task(asyncio.create_task(scan_custom(2)), "scan_custom_2"),
-        "Custom Folder 3": register_task(asyncio.create_task(scan_custom(3)), "scan_custom_3"),
-        "Custom Folder 4": register_task(asyncio.create_task(scan_custom(4)), "scan_custom_4"),
-    }
+    # This ensures tasks are cancelled gracefully during application shutdown.
+    #
+    # Auto-detection (get_steam_install_path / get_ubisoft_install_path inside
+    # the scan_* tasks) can add_launcher_path once per detected launcher, each
+    # of which would otherwise rewrite config.toml. Wrap the whole concurrent
+    # scan in a single deferred_save() batch so the file is rewritten at most
+    # once when detection completes, regardless of how many paths were added.
+    with config_manager.deferred_save():
+        tasks = {
+            "Steam": register_task(asyncio.create_task(scan_steam()), "scan_steam"),
+            "EA Launcher": register_task(asyncio.create_task(scan_ea()), "scan_ea"),
+            "Ubisoft Launcher": register_task(asyncio.create_task(scan_ubisoft()), "scan_ubisoft"),
+            "Epic Games Launcher": register_task(asyncio.create_task(scan_epic()), "scan_epic"),
+            "GOG Launcher": register_task(asyncio.create_task(scan_gog()), "scan_gog"),
+            "Battle.net Launcher": register_task(asyncio.create_task(scan_battlenet()), "scan_battlenet"),
+            "Xbox Launcher": register_task(asyncio.create_task(scan_xbox()), "scan_xbox"),
+            "Custom Folder 1": register_task(asyncio.create_task(scan_custom(1)), "scan_custom_1"),
+            "Custom Folder 2": register_task(asyncio.create_task(scan_custom(2)), "scan_custom_2"),
+            "Custom Folder 3": register_task(asyncio.create_task(scan_custom(3)), "scan_custom_3"),
+            "Custom Folder 4": register_task(asyncio.create_task(scan_custom(4)), "scan_custom_4"),
+        }
 
-    # Wait for all tasks to complete and gather results with progress reporting
-    completed_count = 0
-    total_launchers = len(tasks)
+        # Wait for all tasks to complete and gather results with progress reporting
+        completed_count = 0
+        total_launchers = len(tasks)
 
-    for launcher_name, task in tasks.items():
-        try:
-            dlls = await task
-            all_dll_paths[launcher_name] = dlls
-            completed_count += 1
+        for launcher_name, task in tasks.items():
+            try:
+                dlls = await task
+                all_dll_paths[launcher_name] = dlls
+                completed_count += 1
 
-            # Calculate progress (5% base + 65% for launchers = 5-70%)
-            progress_pct = int(5 + (completed_count / total_launchers) * 65)
+                # Calculate progress (5% base + 65% for launchers = 5-70%)
+                progress_pct = int(5 + (completed_count / total_launchers) * 65)
 
-            await _safe_progress_callback(
-                progress_callback,
-                progress_pct,
-                100,
-                f"Scanned {launcher_name}: {len(dlls)} DLLs found"
-            )
+                await _safe_progress_callback(
+                    progress_callback,
+                    progress_pct,
+                    100,
+                    f"Scanned {launcher_name}: {len(dlls)} DLLs found"
+                )
 
-            if dlls:
-                logger.info(f"Found {len(dlls)} DLLs in {launcher_name}")
-        except Exception as e:
-            logger.error(f"Error scanning {launcher_name}: {e}")
-            all_dll_paths[launcher_name] = []
-            completed_count += 1
+                if dlls:
+                    logger.info(f"Found {len(dlls)} DLLs in {launcher_name}")
+            except Exception as e:
+                logger.error(f"Error scanning {launcher_name}: {e}")
+                all_dll_paths[launcher_name] = []
+                completed_count += 1
 
-            # Report progress even on error
-            progress_pct = int(5 + (completed_count / total_launchers) * 65)
-            await _safe_progress_callback(
-                progress_callback,
-                progress_pct,
-                100,
-                f"Error scanning {launcher_name}"
-            )
+                # Report progress even on error
+                progress_pct = int(5 + (completed_count / total_launchers) * 65)
+                await _safe_progress_callback(
+                    progress_callback,
+                    progress_pct,
+                    100,
+                    f"Error scanning {launcher_name}"
+                )
 
     # Report whitelist filtering phase
     await _safe_progress_callback(progress_callback, 70, 100, "Filtering whitelisted games...")
@@ -1165,14 +1187,26 @@ async def find_all_dlls(progress_callback=None):
         logger.info("Recording scanned games in database (batch mode)...")
 
         # Phase 1: Group DLLs by game directory
+        #
+        # Cache Path.resolve() results per unique game directory for the
+        # duration of this scan pass. Many DLLs live under the same game root
+        # (bin/, engine/, plugins/, ...), and resolve() hits the filesystem to
+        # canonicalise the path; keyed by the game_dir string, one resolve per
+        # unique directory instead of one per DLL. Local to the pass, so no
+        # cross-thread sharing / locking is required.
         all_games_dict = {}
+        resolve_cache: dict[str, str] = {}
         for launcher, dll_paths in all_dll_paths.items():
             games_dict = {}
             normalized_to_original = {}
 
             for dll_path in dll_paths:
                 game_dir = find_game_root(Path(dll_path), launcher)
-                game_dir_normalized = str(game_dir.resolve()).lower()
+                game_dir_key = str(game_dir)
+                game_dir_normalized = resolve_cache.get(game_dir_key)
+                if game_dir_normalized is None:
+                    game_dir_normalized = str(game_dir.resolve()).lower()
+                    resolve_cache[game_dir_key] = game_dir_normalized
 
                 if game_dir_normalized not in games_dict:
                     games_dict[game_dir_normalized] = []

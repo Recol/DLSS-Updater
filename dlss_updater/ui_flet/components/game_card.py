@@ -83,6 +83,11 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self.all_paths = [game.path]
 
         self.dlls = dlls
+        # Cache for _get_update_counts(): parse_version() over every DLL is
+        # otherwise re-run on each status-row / badge / context-menu build and
+        # on every per-card filter recount in GamesView. Invalidated whenever
+        # self.dlls changes (see _invalidate_update_counts()).
+        self._update_counts_cache: tuple[int, int, int] | None = None
         self._page_ref = page
         self.logger = logger
         self.on_update_callback = on_update
@@ -201,9 +206,18 @@ class GameCard(ThemeAwareMixin, ft.Card):
     def _get_update_counts(self) -> tuple[int, int, int]:
         """Count outdated, current, and unknown DLLs.
 
+        Result is cached on the instance and reused until self.dlls changes
+        (see _invalidate_update_counts()). This method is called from the
+        status row, DLL badges, the update button, the context menu and the
+        GamesView filter recount — each of which would otherwise re-run
+        parse_version() over every DLL on every call.
+
         Returns:
             Tuple of (outdated_count, current_count, unknown_count)
         """
+        if self._update_counts_cache is not None:
+            return self._update_counts_cache
+
         from dlss_updater.config import LATEST_DLL_VERSIONS
         from dlss_updater.updater import parse_version
 
@@ -229,7 +243,17 @@ class GameCard(ThemeAwareMixin, ft.Card):
             except Exception:
                 unknown += 1
 
-        return (outdated, current, unknown)
+        self._update_counts_cache = (outdated, current, unknown)
+        return self._update_counts_cache
+
+    def _invalidate_update_counts(self) -> None:
+        """Clear the cached _get_update_counts() result.
+
+        Must be called after any mutation of self.dlls (refresh_dlls, the
+        _show_dll_dialog DB refresh) so the next count reflects the new
+        versions instead of the stale cache.
+        """
+        self._update_counts_cache = None
 
     def _build_dll_popover_items(self) -> list[ft.PopupMenuItem]:
         """Build popup menu items for all DLLs with color coding and update status"""
@@ -1230,6 +1254,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             refreshed_dlls = await db_manager.refresh_dll_versions_for_game(self.game.id)
             if refreshed_dlls:
                 self.dlls = refreshed_dlls
+                self._invalidate_update_counts()
                 self.logger.debug(f"Refreshed {len(refreshed_dlls)} DLL versions for {self.game.name}")
         except Exception as e:
             self.logger.warning(f"Failed to refresh DLL versions: {e}")
@@ -1470,6 +1495,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
         """Refresh DLL badges and update button with new data after update/restore."""
         async with self._ui_lock:
             self.dlls = new_dlls
+            self._invalidate_update_counts()
 
             # Rebuild the DLL badges
             new_badges = self._create_dll_badges()

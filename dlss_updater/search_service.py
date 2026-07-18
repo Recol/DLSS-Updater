@@ -23,6 +23,7 @@ Library Versions (December 2025):
 - rapidfuzz 3.12.0+ (optional, fuzzy matching)
 """
 
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -44,6 +45,10 @@ logger = setup_logger()
 # Thread-safety lock for search history (free-threaded Python 3.14)
 # Note: SearchResultCache has its own internal lock
 _history_lock = threading.Lock()
+
+# Pre-compiled once at import. _tokenize runs on every game name during index
+# build and on every query, so avoid re.compile / uncompiled re.split per call.
+_TOKEN_SPLIT_RE = re.compile(r'[\s\-_:]+')
 
 
 # =============================================================================
@@ -133,9 +138,8 @@ class GameSearchIndex:
 
     def _tokenize(self, text: str) -> list[str]:
         """Split text into searchable tokens."""
-        # Split on common separators
-        import re
-        tokens = re.split(r'[\s\-_:]+', text.lower())
+        # Split on common separators using the module-level compiled pattern.
+        tokens = _TOKEN_SPLIT_RE.split(text.lower())
         return [t for t in tokens if len(t) >= 2]  # Min 2 chars
 
     def build(self, games_by_launcher: dict[str, list[Game]]):
@@ -213,13 +217,51 @@ class GameSearchIndex:
         results: dict[int, SearchResult] = {}  # game_id -> SearchResult
 
         with self._lock:
-            # Filter by launcher if specified
-            candidate_games = (
-                self._launcher_index.get(launcher, [])
-                if launcher else self._all_games
-            )
+            # Filter by launcher if specified. The exact/prefix indexes are
+            # global, so when a launcher filter is active we constrain index
+            # hits with an allowed-id set built from the launcher's games.
+            if launcher:
+                candidate_games = self._launcher_index.get(launcher, [])
+                allowed_ids: set[int] | None = {g.id for g in candidate_games}
+            else:
+                candidate_games = self._all_games
+                allowed_ids = None  # no filter
 
+            # --- Tier 1: exact match via O(1) hash index ---
+            exact_game = self._exact_index.get(query_normalized)
+            if exact_game is not None and (
+                allowed_ids is None or exact_game.id in allowed_ids
+            ):
+                results[exact_game.id] = SearchResult(
+                    game=exact_game, score=100.0, match_type="exact"
+                )
+
+            # --- Tier 2: prefix match via prefix index ---
+            # The index buckets names by their first 1-5 chars; the bucket for
+            # the query's first (up to 5) chars is a SUPERSET of every prefix
+            # match, so filtering it with a real startswith() reproduces exactly
+            # the prefix tier (score 90-99) the scan below would compute.
+            prefix_bucket = self._prefix_index.get(query_normalized[:5], ())
+            for norm_name, game in prefix_bucket:
+                if game.id in results:
+                    continue
+                if allowed_ids is not None and game.id not in allowed_ids:
+                    continue
+                if norm_name == query_normalized:
+                    continue  # exact - handled above (or by the scan for dup-normalized names)
+                if norm_name.startswith(query_normalized):
+                    match_ratio = len(query_normalized) / len(norm_name)
+                    results[game.id] = SearchResult(
+                        game=game, score=90.0 + (match_ratio * 9.0), match_type="prefix"
+                    )
+
+            # --- Tier 3+: scored scan for word / substring / multi-word tiers ---
+            # Games already resolved as exact/prefix above are skipped to preserve
+            # their scores; every other candidate is scored exactly as before (its
+            # exact/prefix branches are naturally False), so ranking is unchanged.
             for game in candidate_games:
+                if game.id in results:
+                    continue
                 game_normalized = self._normalize(game.name)
                 score = 0.0
                 match_type = ""
@@ -537,7 +579,9 @@ class GameSearchService:
             logger.debug(f"Search cache hit: '{query}' ({elapsed_ms:.2f}ms)")
 
             if record_history:
-                await self._record_history(query, launcher, len(cached))
+                # Cache hit: refresh in-memory recency only, skip the DB write
+                # (the query is already persisted from when it first missed).
+                await self._record_history(query, launcher, len(cached), persist=False)
 
             return cached[:limit]
 
@@ -666,8 +710,20 @@ class GameSearchService:
     # Search History
     # =========================================================================
 
-    async def _record_history(self, query: str, launcher: str | None, result_count: int):
-        """Record a search in history."""
+    async def _record_history(
+        self,
+        query: str,
+        launcher: str | None,
+        result_count: int,
+        persist: bool = True,
+    ):
+        """Record a search in history.
+
+        Args:
+            persist: When False (cache hits), only the in-memory recency list is
+                updated and the DB write is skipped - the query was already
+                persisted on its first (cache-missing) execution.
+        """
         entry = SearchHistoryEntry(
             query=query,
             timestamp=datetime.now(),
@@ -684,6 +740,9 @@ class GameSearchService:
 
             # Trim to max size
             self._history = self._history[:self._history_max]
+
+        if not persist:
+            return
 
         # Persist to database (async, non-blocking)
         try:
@@ -799,12 +858,10 @@ class GameSearchService:
 
         try:
             db = await self._get_db_manager()
-            for entry in history_snapshot:
-                await db.add_search_history(
-                    entry.query,
-                    entry.launcher,
-                    entry.result_count
-                )
+            # Single batched write (executemany) instead of a per-entry loop.
+            await db.add_search_history_batch(
+                [(e.query, e.launcher, e.result_count) for e in history_snapshot]
+            )
         except Exception as e:
             logger.debug(f"Failed to save search history: {e}")
 

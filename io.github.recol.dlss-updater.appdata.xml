@@ -64,6 +64,19 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.4.2" date="2026-07-18">
+      <description>
+        <p>Performance release</p>
+        <ul>
+          <li>Much faster batch updates: removed a per-DLL system-wide process scan and redundant DLL version re-parsing</li>
+          <li>Parallel scanning of non-Steam launcher libraries and of Proton/Wine prefixes on Linux</li>
+          <li>Faster game resolution: the NVIDIA NvAPI interface is loaded once per session instead of per probe</li>
+          <li>Pooled Steam HTTP connections, doubled artwork download concurrency, 256 KB download chunks, and OS fast-copy backup restores</li>
+          <li>Database tuning: proper SQLite pragmas everywhere and no more per-call connection churn</li>
+          <li>Snappier search and UI: indexed search, startup no longer blocks on launcher path validation, targeted artwork queries, and lighter redraws</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.4.1" date="2026-07-17">
       <description>
         <p>Edit display search fix and redesign</p>

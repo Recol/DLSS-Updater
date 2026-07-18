@@ -15,6 +15,8 @@ Performance benefits:
 - Reduced memory usage for large datasets
 """
 
+import threading
+
 import msgspec
 from enum import StrEnum
 
@@ -59,6 +61,23 @@ def datetime_dec_hook(type, obj):
 json_encoder = msgspec.json.Encoder(enc_hook=datetime_enc_hook)
 json_decoder = msgspec.json.Decoder(dec_hook=datetime_dec_hook)
 
+# Per-type typed decoder cache. msgspec's guidance is to build a Decoder once
+# and reuse it (construction is relatively expensive; decode() is hot). Guarded
+# by a lock instead of functools.lru_cache because module-level mutable state
+# must be explicitly synchronized under free-threaded Python 3.14.
+_typed_decoder_cache: dict[type, "msgspec.json.Decoder"] = {}
+_typed_decoder_cache_lock = threading.Lock()
+
+
+def _get_typed_decoder(type_) -> "msgspec.json.Decoder":
+    """Return a cached typed JSON decoder for ``type_`` (created on first use)."""
+    with _typed_decoder_cache_lock:
+        decoder = _typed_decoder_cache.get(type_)
+        if decoder is None:
+            decoder = msgspec.json.Decoder(type_, dec_hook=datetime_dec_hook)
+            _typed_decoder_cache[type_] = decoder
+        return decoder
+
 
 # =============================================================================
 # Convenience Functions
@@ -97,8 +116,7 @@ def decode_json(data: bytes, type=None):
         >>> cache = decode_json(data, type=ScanCacheData)
     """
     if type:
-        decoder = msgspec.json.Decoder(type, dec_hook=datetime_dec_hook)
-        return decoder.decode(data)
+        return _get_typed_decoder(type).decode(data)
     return json_decoder.decode(data)
 
 

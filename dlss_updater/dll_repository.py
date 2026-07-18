@@ -378,7 +378,9 @@ async def download_latest_dll_async(dll_name: str, manifest: dict | None = None,
             downloaded = 0
 
             async with aiofiles.open(temp_path, 'wb') as f:
-                async for chunk in response.content.iter_chunked(8192):
+                # 256 KB chunks - DLLs are multi-MB, so 8 KB meant thousands of
+                # tiny awaits/writes per download for no benefit.
+                async for chunk in response.content.iter_chunked(262144):
                     await f.write(chunk)
                     downloaded += len(chunk)
 
@@ -444,7 +446,8 @@ def download_latest_dll(dll_name, progress_callback=None):
         downloaded = 0
 
         with open(temp_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
+            # 256 KB chunks - see download_latest_dll_async; DLLs are multi-MB.
+            for chunk in response.iter_content(chunk_size=262144):
                 f.write(chunk)
                 downloaded += len(chunk)
 
