@@ -31,7 +31,7 @@ dependencies = [
     "rapidfuzz>=3.14.5",  # Fast fuzzy string matching for game search
     "nvidia-ml-py>=13.610.43",  # NVML GPU detection (architecture / DLSS preset hints); best-effort, returns False on non-NVIDIA systems
     "flet==0.86.0",  # Core framework (pin unified across Windows/Linux in 4.3.1)
-    "flet-desktop==0.86.0",  # Desktop runtime (flet-desktop-light removed in 0.83.0; flet-desktop defaults to "light" flavor on Linux automatically)
+    "flet-desktop==0.86.1",  # Desktop runtime (flet-desktop-light removed in 0.83.0; flet-desktop defaults to "light" flavor on Linux automatically)
     "msgspec>=0.21.1",
     "tomli-w>=1.2.0",  # TOML writer required by msgspec.toml.encode (config.toml persistence); msgspec bundles no writer. Pure-Python, free-threaded + PyInstaller safe. Decode uses stdlib tomllib.
     "msgpack>=1.2.1",  # Free-threading compatible (has Py_mod_gil declaration)
