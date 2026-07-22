@@ -199,6 +199,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         # State
         self.games_by_launcher: dict[str, list[Game]] = {}
+        self._total_games: int = 0  # Merged game total for the header subtitle
         self.is_loading = False
         self.refresh_button_ref = ft.Ref[ft.IconButton]()
 
@@ -316,8 +317,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
             color=MD3Colors.get_text_primary(is_dark),
         )
 
-        # Backup stats (populated after loading)
-        self.backup_stats_text = ft.Text(
+        # Game-centric subtitle (populated after loading): "N games · M need updates
+        # · scanned Xd ago". Derived entirely from already-loaded card/game state —
+        # see _update_games_subtitle().
+        self.games_subtitle_text = ft.Text(
             "",
             size=12,
             color=MD3Colors.get_on_surface_variant(is_dark),
@@ -427,7 +430,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                     ft.Row(
                         controls=[
                             self.header_title,
-                            self.backup_stats_text,
+                            self.games_subtitle_text,
                             ft.Container(expand=True),  # Spacer
                             self.search_bar,
                             self.steam_api_pill,
@@ -653,6 +656,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self._up_to_date_label.value = f"Up to date ({up_to_date})"
         self._has_backups_label.value = f"Has backups ({has_backups})"
 
+        # Header subtitle shares this recount (avoids a second pass over the cards).
+        self._update_games_subtitle(needs_update)
+
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """Return themed property mappings for theme-aware system"""
         return {
@@ -660,7 +666,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             "header_title.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
             "loading_text.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
             "divider.color": (MD3Colors.get_outline(True), MD3Colors.get_outline(False)),
-            "backup_stats_text.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
+            "games_subtitle_text.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
         }
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
@@ -874,15 +880,16 @@ class GamesView(ThemeAwareMixin, ft.Column):
             LoadTask("backups", lambda: db_manager.batch_get_backups_grouped_sync(all_game_ids)),
             LoadTask("images", lambda: db_manager._batch_get_cached_image_paths(all_steam_app_ids)),
             LoadTask("ignored", lambda: db_manager.batch_get_ignored_game_ids_sync()),
-            LoadTask("backup_stats", lambda: db_manager.get_backup_summary_stats_sync()),
         ])
 
         dlls_by_game: dict[int, list[GameDLL]] = results.get("dlls", {})
         backups_by_game: dict[int, dict[str, list[DLLBackup]]] = results.get("backups", {})
         cached_image_paths: dict[int, str] = results.get("images", {})
         self._ignored_game_ids = results.get("ignored", set())
-        backup_stats: tuple[int, int] = results.get("backup_stats", (0, 0))
-        self._update_backup_stats(backup_stats[0], backup_stats[1])
+
+        # Headline game count for the subtitle — the true merged total, shown
+        # immediately even while later cards are still loading progressively.
+        self._total_games = len(all_merged_games)
 
         data_ms = (time.perf_counter() - start_data) * 1000
         self.logger.debug(f"[PERF] Batch data loading ({len(all_game_ids)} games): {data_ms:.1f}ms")
@@ -1001,6 +1008,11 @@ class GamesView(ThemeAwareMixin, ft.Column):
         is_dark = self._get_is_dark()
         tab_accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
         self._tab_bar_ref = ft.TabBar(tabs=tabs, indicator_color=tab_accent, label_color=tab_accent)
+        # A lone launcher tab (e.g. "Steam (14)") just wastes a vertical band — the
+        # grid alone is unambiguous. Hide the bar row entirely when there's only one
+        # launcher; the TabBarView still renders index 0. Detachment (visible=False)
+        # keeps the Tabs(length=N)/Column([TabBar, TabBarView]) shape intact.
+        self._tab_bar_ref.visible = len(tabs) > 1
         self.tabs_control = ft.Tabs(
             length=len(tabs),
             selected_index=0,
@@ -1289,20 +1301,58 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Force=True to bypass the "already loaded" optimization
         await self.load_games(force=True)
 
-    def _update_backup_stats(self, count: int, total_size: int):
-        """Update the backup stats display in the header."""
-        if count == 0:
-            self.backup_stats_text.value = ""
+    def _scan_age_str(self) -> str | None:
+        """Compact "scanned Xd ago" derived from the most recent Game.last_scanned.
+
+        Uses only already-loaded game data (no new query). Mirrors the hub's format
+        (m/h/d). Returns None if no games are loaded or the timestamps are unusable.
+        """
+        try:
+            from datetime import datetime
+
+            latest = None
+            for games in self.games_by_launcher.values():
+                for g in games:
+                    ts = getattr(g, "last_scanned", None)
+                    if ts is not None and (latest is None or ts > latest):
+                        latest = ts
+            if latest is None:
+                return None
+            age = datetime.now() - latest
+            hours = age.total_seconds() / 3600
+            if hours < 1:
+                return f"scanned {int(age.total_seconds() / 60)}m ago"
+            if hours < 24:
+                return f"scanned {int(hours)}h ago"
+            return f"scanned {int(hours / 24)}d ago"
+        except Exception:
+            return None
+
+    def _update_games_subtitle(self, needs_update: int) -> None:
+        """Set the header subtitle to game-centric stats (no new queries).
+
+        e.g. "14 games · 2 need updates · scanned 3d ago". The total is the true
+        merged count; needs_update is passed in from the shared card recount so we
+        don't iterate the cards twice.
+        """
+        total = self._total_games or len(self.game_cards)
+        if total == 0:
+            self.games_subtitle_text.value = ""
+            return
+
+        parts = [f"{total} game{'s' if total != 1 else ''}"]
+        if needs_update > 0:
+            verb = "needs" if needs_update == 1 else "need"
+            noun = "update" if needs_update == 1 else "updates"
+            parts.append(f"{needs_update} {verb} {noun}")
         else:
-            if total_size < 1024:
-                size_str = f"{total_size} B"
-            elif total_size < 1024 * 1024:
-                size_str = f"{total_size / 1024:.1f} KB"
-            elif total_size < 1024 * 1024 * 1024:
-                size_str = f"{total_size / (1024 * 1024):.1f} MB"
-            else:
-                size_str = f"{total_size / (1024 * 1024 * 1024):.1f} GB"
-            self.backup_stats_text.value = f"{count} DLL backup{'s' if count != 1 else ''} · {size_str}"
+            parts.append("all up to date")
+
+        age = self._scan_age_str()
+        if age:
+            parts.append(age)
+
+        self.games_subtitle_text.value = " · ".join(parts)
 
     async def _on_reresolution_complete(self):
         """Called after re-resolution updates game app IDs.

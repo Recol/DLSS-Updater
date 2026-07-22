@@ -41,6 +41,23 @@ WATERMARK_OPACITY_LIGHT = 0.04
 # ==================== PILL GEOMETRY ====================
 PILL_HEIGHT = 26
 
+# ==================== SCRIM TUNING ====================
+# The bottom-weighted scrim keeps the identity caption legible over artwork.
+# Dark mode fades toward the near-black surface, which reads as a natural
+# vignette — extending it high up the tile is harmless. Light mode fades
+# toward WHITE, so the same tall ramp visibly desaturates/washes out the
+# artwork (verified on the light-mode Games mosaic). The light profile
+# therefore keeps a much taller CLEAR zone (scrim confined to the caption
+# band near the bottom) while preserving a strong opaque edge where the text
+# actually sits. Stops/opacities are paired 1:1 (position, white-veil alpha);
+# an alpha of 0 emits a fully transparent stop. This layer is shadow-LESS, so
+# alpha stops are safe here (CLAUDE.md rendering pitfall #1 applies only to
+# shadowed containers).
+_SCRIM_STOPS_DARK = [0.0, 0.45, 0.75, 1.0]
+_SCRIM_OPACITY_DARK = [0.0, 0.15, 0.60, 0.85]
+_SCRIM_STOPS_LIGHT = [0.0, 0.58, 0.82, 1.0]
+_SCRIM_OPACITY_LIGHT = [0.0, 0.10, 0.50, 0.90]
+
 
 def build_scrim_gradient(is_dark: bool) -> ft.LinearGradient:
     """Bottom-weighted gradient scrim for legibility over artwork.
@@ -49,19 +66,20 @@ def build_scrim_gradient(is_dark: bool) -> ft.LinearGradient:
     fully transparent (top) to the theme's own surface color (bottom) —
     not a hardcoded black — so the scrim's opaque edge matches whatever
     themed surface sits below it (footer, card background, etc.) in both
-    light and dark mode.
+    light and dark mode. Light mode uses a taller clear zone so it doesn't
+    wash out the artwork it sits over (see the _SCRIM_* constants above).
     """
     base = MD3Colors.get_surface(is_dark)
+    stops = _SCRIM_STOPS_DARK if is_dark else _SCRIM_STOPS_LIGHT
+    opacities = _SCRIM_OPACITY_DARK if is_dark else _SCRIM_OPACITY_LIGHT
     return ft.LinearGradient(
         begin=ft.Alignment.TOP_CENTER,
         end=ft.Alignment.BOTTOM_CENTER,
         colors=[
-            ft.Colors.TRANSPARENT,
-            ft.Colors.with_opacity(0.15, base),
-            ft.Colors.with_opacity(0.60, base),
-            ft.Colors.with_opacity(0.85, base),
+            ft.Colors.TRANSPARENT if o <= 0 else ft.Colors.with_opacity(o, base)
+            for o in opacities
         ],
-        stops=[0.0, 0.45, 0.75, 1.0],
+        stops=stops,
     )
 
 

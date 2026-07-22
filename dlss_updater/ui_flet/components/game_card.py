@@ -11,8 +11,9 @@ import flet as ft
 
 from dlss_updater.database import GameDLL
 from dlss_updater.models import Game, MergedGame
+from dlss_updater.name_normalize import prettify_display_name
 from dlss_updater.steam_integration import fetch_steam_image
-from dlss_updater.ui_flet.theme.colors import MD3Colors, Shadows, TechnologyColors
+from dlss_updater.ui_flet.theme.colors import MD3Colors, TechnologyColors
 from dlss_updater.ui_flet.theme.md3_system import MD3Spacing
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.constants import DLL_GROUPS
@@ -137,16 +138,17 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self.elevation = 2
         self.surface_tint_color = MD3Colors.get_primary(is_dark)
         self.margin = ft.Margin.all(0)  # ResponsiveRow handles spacing
-        self.shadow = Shadows.LEVEL_2
         self.width = None  # Let ResponsiveRow control width
         self.expand = True  # Fill available space in grid cell
 
-        # Animation
-        self.animate = ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+        # Animation (ft.Card has no shadow/animate fields — elevation drives
+        # the Material shadow and animates natively; scale animates below)
         self.animate_scale = ft.Animation(200, ft.AnimationCurve.EASE_OUT)
 
-        # Hover callback
-        self.on_hover = self._on_hover
+        # Hover callback: NOT wired here — ft.Card has no on_hover field in
+        # Flet 0.86 (a dataclass attribute write is silently dead), so the
+        # handler is attached to the full-bleed card_body Container in
+        # _build_card_content() instead.
 
         # Build content
         self._build_card_content()
@@ -305,23 +307,13 @@ class GameCard(ThemeAwareMixin, ft.Card):
     def _build_scrim_gradient(self, is_dark: bool) -> ft.LinearGradient:
         """Bottom-weighted gradient scrim (legibility on ANY box art).
 
-        Fades toward the card's own surface color (not a hardcoded black) so the
-        scrim's opaque bottom edge matches the footer sitting directly below it —
-        in light theme this fades to white instead of black, avoiding a hard dark
-        seam between the scrim and the (correctly theme-aware) footer.
+        Delegates to hero_surface.build_scrim_gradient so grid cards and the
+        hub mosaic share one per-theme ramp — light mode confines the scrim
+        to the caption band instead of veiling the artwork.
         """
-        base = MD3Colors.get_surface(is_dark)
-        return ft.LinearGradient(
-            begin=ft.Alignment.TOP_CENTER,
-            end=ft.Alignment.BOTTOM_CENTER,
-            colors=[
-                ft.Colors.TRANSPARENT,
-                ft.Colors.with_opacity(0.15, base),
-                ft.Colors.with_opacity(0.60, base),
-                ft.Colors.with_opacity(0.85, base),
-            ],
-            stops=[0.0, 0.45, 0.75, 1.0],
-        )
+        from dlss_updater.ui_flet.components.hero_surface import build_scrim_gradient
+
+        return build_scrim_gradient(is_dark)
 
     def _build_card_content(self):
         """Build the full-bleed "hero" card layout (Option C).
@@ -382,7 +374,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # Themed: the scrim now fades to the card's own surface color (not a fixed
         # black), so the text needs to flip dark/light with it to stay legible.
         self.game_name_text = ft.Text(
-            self.game.display_name,
+            prettify_display_name(self.game.display_name),
             size=16,
             weight=ft.FontWeight.BOLD,
             color=MD3Colors.get_text_primary(is_dark),
@@ -486,7 +478,12 @@ class GameCard(ThemeAwareMixin, ft.Card):
             items=self._build_context_menu_items(),
         )
 
-        overlay_cluster = ft.Container(
+        # Corner action cluster is hidden at rest and fades in on card hover (see
+        # _on_hover). opacity (GPU, no layout recalc) is the sanctioned show/hide
+        # animation here — height animation is a documented anti-pattern. The buttons
+        # sit INSIDE the card bounds, so the mouse can only reach them while the card
+        # is hovered (opacity already 1) — no stray tooltip fires over an invisible one.
+        self._overlay_cluster = ft.Container(
             content=ft.Row(
                 controls=[self.ignore_button, self.resolve_button, self.kebab_button],
                 spacing=2,
@@ -494,6 +491,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
             ),
             right=4,
             top=4,
+            opacity=0,
+            animate_opacity=ft.Animation(FOOTER_ANIM_MS, ft.AnimationCurve.EASE_OUT),
         )
 
         # ---- Banner stack: image | scrim | title overlay | overlay cluster ----
@@ -506,7 +505,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 self.image_container,
                 self._scrim,
                 ft.Container(content=title_overlay, bottom=0, left=0, right=0),
-                overlay_cluster,
+                self._overlay_cluster,
             ],
             expand=True,
         )
@@ -594,7 +593,15 @@ class GameCard(ThemeAwareMixin, ft.Card):
             ),
             expand=True,
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            # Hover lives here, not on the Card: ft.Card has no on_hover
+            # field (assignment on it is silently dead), while Container
+            # emits enter/exit with boolean e.data. card_body fills the
+            # whole card, so the hover area matches the card bounds.
+            on_hover=self._on_hover,
         )
+        # Kept for _on_hover: the border glow must target a Container
+        # (ft.Card has no border field).
+        self._card_body = card_body
 
         # Right-click context menu wrapping the whole card body.
         # secondary_items = right mouse button; left-click children (badges,
@@ -610,7 +617,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
     def _title_tooltip(self) -> str:
         """Tooltip for the title: full name plus the install path(s)."""
-        name = self.game.display_name
+        name = prettify_display_name(self.game.display_name)
         if len(self.all_paths) == 1:
             return f"{name}\n{self.all_paths[0]}"
         paths = "\n".join(f"• {p}" for p in self.all_paths)
@@ -1210,9 +1217,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 self.game.override_steam_app_id = None
                 self.game.display_name_override = None
 
-            # Refresh title text
-            new_name = self.game.display_name
-            self.game_name_text.value = new_name
+            # Refresh title text (prettified for display only — see prettify_display_name)
+            self.game_name_text.value = prettify_display_name(self.game.display_name)
             self.game_name_text.tooltip = self._title_tooltip()
 
             # Refresh resolve button tooltip
@@ -1432,17 +1438,18 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
         is_dark = self._registry.is_dark
         primary_color = MD3Colors.get_primary(is_dark)
-        hovering = e.data == "true"
+        hovering = e.data is True or e.data == "true"
+        # elevation/scale are real ft.Card fields; shadow/border are NOT
+        # (dead dataclass attribute writes) — the border glow targets the
+        # card_body Container instead.
         if hovering:
             self.elevation = 8
-            self.shadow = Shadows.LEVEL_3
             self.scale = 1.015
-            self.border = ft.Border.all(1, ft.Colors.with_opacity(0.3, primary_color))
+            self._card_body.border = ft.Border.all(1, ft.Colors.with_opacity(0.3, primary_color))
         else:
             self.elevation = 2
-            self.shadow = Shadows.LEVEL_2
             self.scale = 1.0
-            self.border = None
+            self._card_body.border = None
 
         # Footer expand/collapse — WIDTH animation only (height stays constant, so no
         # layout recalc and no GridView reflow). On hover: shrink the badge to icon-only
@@ -1457,6 +1464,10 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self.update_button_text.opacity = 1 if hovering else 0
         if self.restore_button_text is not None:
             self.restore_button_text.opacity = 1 if hovering else 0
+
+        # Corner action cluster (eye / pencil / kebab) fades in on hover only.
+        if getattr(self, "_overlay_cluster", None) is not None:
+            self._overlay_cluster.opacity = 1 if hovering else 0
 
         start_update = time.perf_counter()
         self.update()

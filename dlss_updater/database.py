@@ -11,7 +11,8 @@ Performance optimizations:
 import sqlite3
 import logging
 import threading
-from pathlib import Path
+import zlib
+from pathlib import Path, PurePath
 from typing import Any
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -21,7 +22,12 @@ import anyio
 
 from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.logger import setup_logger
-from dlss_updater.name_normalize import normalize_search_name, normalize_search_name_spaceless
+from dlss_updater.constants import DLL_TYPE_MAP
+from dlss_updater.name_normalize import (
+    normalize_search_name,
+    normalize_search_name_spaceless,
+    prettify_display_name,
+)
 from dlss_updater.platform_utils import APP_CONFIG_DIR
 from dlss_updater.models import (
     Game, GameDLL, DLLBackup, UpdateHistory, SteamImage,
@@ -106,6 +112,128 @@ def merge_games_by_name(games: list[Game]) -> list[MergedGame]:
             ))
 
     return merged
+
+
+# ---------------------------------------------------------------------------
+# Orphaned-backup identity derivation
+# ---------------------------------------------------------------------------
+# A backup is "orphaned" when its game_dlls / games rows were deleted (game
+# removed / rescanned / unlinked) WITHOUT the ON DELETE CASCADE firing, leaving
+# the dll_backups row alive with a dangling game_dll_id. Such rows are counted
+# by the global stats query (raw dll_backups) but dropped by every INNER-JOIN
+# grouped query, making them invisible AND unmanageable in the per-game view.
+#
+# The only identity left on the surviving row is backup_path, so we recover a
+# readable game label + original dll filename/type from it. Backups are written
+# next to the original DLL with a mangled suffix, so the original filename is
+# simply backup_path re-suffixed to ".dll".
+
+# Launcher "library container" markers: the path segment immediately AFTER a
+# marker sequence is the game's own folder. Matched case-insensitively on
+# normalised ("/") separators. Most-specific first.
+_LIBRARY_MARKERS: tuple[tuple[str, ...], ...] = (
+    ("steamapps", "common"),          # Steam
+    ("gog galaxy", "games"),          # GOG Galaxy
+    ("ubisoft game launcher", "games"),
+    ("ubisoft", "games"),             # Ubisoft Connect
+    ("epic games",),                  # Epic Games Store
+    ("ea games",),                    # EA app / Origin
+    ("origin games",),
+    ("xboxgames",),                   # Xbox / Game Pass
+    ("modifiablewindowsapps",),       # Xbox (WindowsApps mount)
+)
+
+# Generic engine/binary folders skipped by the "deepest meaningful directory"
+# fallback used when no launcher marker matches.
+_GENERIC_PATH_SEGMENTS: frozenset[str] = frozenset({
+    "binaries", "win64", "win32", "win", "x64", "x86", "thirdparty",
+    "third_party", "plugins", "marketplace", "streamline", "engine", "bin",
+    "retail", "shipping", "content", "game", "mods", "dll", "dlls", "redist",
+    "system", "release", "debug",
+})
+
+
+def _derive_orphan_game_label(backup_path: str) -> str:
+    """Recover a readable game label from an orphaned backup's stored path.
+
+    Best-effort — the path is the only surviving identity:
+      1. If a known launcher library marker (e.g. ``steamapps/common``) is
+         present, the segment immediately after it is the game folder. This is
+         correct for the overwhelming majority of real installs.
+      2. Otherwise, the deepest path segment that is not a generic engine/binary
+         folder (``Binaries``, ``Win64`` ...).
+      3. Otherwise the file's parent directory, then its stem.
+
+    The raw folder token is run through :func:`prettify_display_name` so
+    run-together names ("MarvelRivals") read as titles ("Marvel Rivals").
+    """
+    if not backup_path:
+        return "Unknown game"
+
+    parts = [p for p in PurePath(backup_path.replace("\\", "/")).parts if p not in ("/", "")]
+    if not parts:
+        return "Unknown game"
+    lowered = [p.lower().rstrip("/").rstrip(":") for p in parts]
+    last_dir_idx = len(parts) - 2  # exclude the filename at parts[-1]
+
+    folder: str | None = None
+
+    # Tier 1: launcher library markers -> segment right after the marker.
+    for marker in _LIBRARY_MARKERS:
+        n = len(marker)
+        for i in range(len(lowered) - n + 1):
+            if tuple(lowered[i:i + n]) == marker:
+                cand = i + n
+                if cand <= last_dir_idx:  # a real directory, not the filename
+                    folder = parts[cand]
+                    break
+        if folder:
+            break
+
+    # Tier 2: deepest non-generic directory.
+    if folder is None and last_dir_idx >= 0:
+        for idx in range(last_dir_idx, -1, -1):
+            if lowered[idx] not in _GENERIC_PATH_SEGMENTS and not parts[idx].endswith(":"):
+                folder = parts[idx]
+                break
+
+    # Tier 3: parent dir, then filename stem.
+    if folder is None:
+        if last_dir_idx >= 0:
+            folder = parts[last_dir_idx]
+        else:
+            folder = PurePath(parts[-1]).stem or "Unknown game"
+
+    return prettify_display_name(folder) or folder
+
+
+def _derive_orphan_dll_filename(backup_path: str) -> str:
+    """Recover the original DLL filename from an orphaned backup path.
+
+    Backups live next to the original DLL with a mangled suffix, so the original
+    filename is the backup path re-suffixed to ``.dll`` (matches the restore
+    path derivation in ``backup_manager.restore_dll_from_backup``).
+    """
+    if not backup_path:
+        return "unknown.dll"
+    return PurePath(backup_path.replace("\\", "/")).with_suffix(".dll").name
+
+
+def _derive_orphan_dll_type(dll_filename: str) -> str:
+    """Classify a derived DLL filename via the shared DLL_TYPE_MAP."""
+    return DLL_TYPE_MAP.get(dll_filename.lower(), "Unknown DLL")
+
+
+def _orphan_group_id(group_label: str) -> int:
+    """Deterministic SYNTHETIC NEGATIVE game id for an orphan group.
+
+    Negative so it can never collide with a real (positive, AUTOINCREMENT)
+    ``games.id``; stable across calls (crc32 of the label); distinct per label.
+    The UI treats these ids opaquely (art lookup misses -> folder-icon fallback;
+    restore-all is not offered for orphans). ``0`` is remapped to ``-1``.
+    """
+    h = zlib.crc32(group_label.encode("utf-8")) & 0x7FFFFFFF
+    return -(h or 1)
 
 
 class DatabaseManager:
@@ -2265,6 +2393,99 @@ class DatabaseManager:
             logger.error(f"Error getting grouped backups (sync): {e}", exc_info=True)
             return {}
 
+    def get_orphaned_backups_grouped_sync(self) -> dict[int, list[GameDLLBackup]]:
+        """
+        Get active backups whose owning game is no longer in the library,
+        grouped for display under an "Unlinked games" section.
+
+        An orphaned backup is an active ``dll_backups`` row that the standard
+        per-game view drops because its ``game_dlls`` / ``games`` rows were
+        deleted without the ON DELETE CASCADE firing (game removed, rescanned,
+        unlinked, or a delete performed on a connection with foreign_keys OFF).
+        These rows ARE counted by ``get_backup_summary_stats_sync`` (which reads
+        raw ``dll_backups``) yet are invisible and individually unrestorable /
+        undeletable in the per-game view — this method surfaces them so the
+        header total and the displayed groups reconcile.
+
+        This is the exact COMPLEMENT of ``get_backups_grouped_by_game_sync``:
+        that method returns rows whose ``games`` row exists (INNER JOIN); this
+        returns rows whose ``games`` row does NOT (LEFT JOIN ... WHERE
+        ``g.id IS NULL``). Their union is every active backup, so
+        ``(linked count/bytes) + (orphaned count/bytes) == summary stats`` — the
+        drift that made the header total unreachable is removed by construction.
+
+        SYNC method for ThreadPoolExecutor / HyperParallelLoader ``LoadTask``
+        use; uses the thread-local connection for reuse.
+
+        Returns:
+            Dict mapping a SYNTHETIC NEGATIVE game id (stable per derived game
+            label, never colliding with real positive game ids) to a list of
+            ``GameDLLBackup`` objects — identical in shape to
+            ``get_backups_grouped_by_game_sync`` for drop-in ``BackupGroup``
+            reuse. Each backup carries a recovered, display-ready ``game_name``
+            (derived from ``backup_path``), a derived ``dll_filename`` /
+            ``dll_type``, and its real ``id`` / ``backup_path`` so the existing
+            restore/delete callbacks operate unchanged. All backups in a group
+            share the group's synthetic ``game_id``, and (as the view already
+            does) ``backups[0].game_name`` is a valid group title.
+        """
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            # LEFT JOINs + "g.id IS NULL" == the complement of the INNER-JOIN
+            # linked query. Captures BOTH orphan shapes: game_dlls missing
+            # (dangling game_dll_id) and game_dlls present but its game deleted.
+            # gd.* is recovered opportunistically; game_name always comes from
+            # the path since the games row is gone in every orphan case.
+            cursor.execute("""
+                SELECT b.id, b.game_dll_id, gd.game_id, gd.dll_type,
+                       gd.dll_filename, b.backup_path, b.original_version,
+                       b.backup_created_at, b.backup_size, b.is_active
+                FROM dll_backups b
+                LEFT JOIN game_dlls gd ON b.game_dll_id = gd.id
+                LEFT JOIN games g ON gd.game_id = g.id
+                WHERE b.is_active = 1 AND g.id IS NULL
+                ORDER BY b.backup_created_at DESC
+            """)
+
+            grouped: dict[int, list[GameDLLBackup]] = {}
+            for row in cursor:
+                backup_path = row[5]
+                group_label = _derive_orphan_game_label(backup_path)
+                group_id = _orphan_group_id(group_label)
+
+                # Prefer any surviving game_dlls metadata; fall back to path.
+                dll_filename = row[4] or _derive_orphan_dll_filename(backup_path)
+                dll_type = row[3] or _derive_orphan_dll_type(dll_filename)
+
+                created_raw = row[7]
+                created = (
+                    datetime.fromisoformat(created_raw)
+                    if created_raw else datetime.now()
+                )
+
+                backup = GameDLLBackup(
+                    id=row[0],
+                    game_dll_id=row[1],
+                    game_id=group_id,
+                    game_name=group_label,
+                    dll_type=dll_type,
+                    dll_filename=dll_filename,
+                    backup_path=backup_path,
+                    original_version=row[6],
+                    backup_created_at=created,
+                    backup_size=row[8] or 0,
+                    is_active=bool(row[9]),
+                )
+                grouped.setdefault(group_id, []).append(backup)
+
+            return grouped
+
+        except Exception as e:
+            logger.error(f"Error getting orphaned backups (sync): {e}", exc_info=True)
+            return {}
+
     # ===== Backup Operations =====
 
     async def insert_backup(self, backup_data: dict[str, Any]) -> int | None:
@@ -2353,25 +2574,34 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         try:
+            # LEFT JOINs so ORPHANED backups (game_dlls/games rows deleted
+            # without CASCADE) are still resolvable by id. Without this, both
+            # delete_backup and restore_dll_from_backup — which fetch the row
+            # here first — would bail with "Backup not found" for orphans,
+            # leaving them permanently unmanageable. game_name/dll_filename are
+            # recovered from backup_path when their source rows are gone.
             cursor.execute("""
                 SELECT
                     b.id, b.game_dll_id, g.name, d.dll_filename,
                     b.backup_path, b.original_version, b.backup_created_at,
                     b.backup_size, b.is_active
                 FROM dll_backups b
-                JOIN game_dlls d ON b.game_dll_id = d.id
-                JOIN games g ON d.game_id = g.id
+                LEFT JOIN game_dlls d ON b.game_dll_id = d.id
+                LEFT JOIN games g ON d.game_id = g.id
                 WHERE b.id = ?
             """, (backup_id,))
 
             row = cursor.fetchone()
             if row:
+                backup_path = row[4]
+                game_name = row[2] if row[2] is not None else _derive_orphan_game_label(backup_path)
+                dll_filename = row[3] if row[3] is not None else _derive_orphan_dll_filename(backup_path)
                 return DLLBackup(
                     id=row[0],
                     game_dll_id=row[1],
-                    game_name=row[2],
-                    dll_filename=row[3],
-                    backup_path=row[4],
+                    game_name=game_name,
+                    dll_filename=dll_filename,
+                    backup_path=backup_path,
                     original_version=row[5],
                     backup_created_at=datetime.fromisoformat(row[6]),
                     backup_size=row[7],

@@ -15,6 +15,18 @@ from dlss_updater.ui_flet.components.hub_card import HubCard, GamesHeroCard
 from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask
 
 
+# The Launchers accent (TabColors.LAUNCHERS teal) is markedly lower-chroma than
+# the other three side-tile accents (NVIDIA green / rust / purple). A brand wash
+# preserves accent chroma scaled by its alpha, so at the shared hero-wash
+# default alpha (WASH_OPACITY_DARK/LIGHT) the teal reads as barely tinted —
+# near-neutral in dark, near-white in light. Boost ONLY this tile's wash alpha
+# so its resulting tint matches the other tiles' (roughly their average
+# resulting chroma). Tune these two numbers if a visual pass wants more/less;
+# every other tile keeps hero_surface's defaults untouched.
+LAUNCHERS_WASH_OPACITY_DARK = 0.34
+LAUNCHERS_WASH_OPACITY_LIGHT = 0.24
+
+
 class HubView(ThemeAwareMixin, ft.Column):
     """
     Staggered hub home screen with 3 navigation cards.
@@ -77,6 +89,8 @@ class HubView(ThemeAwareMixin, ft.Column):
             on_click=lambda e: self._navigate("launchers"),
             border_radius_val=16,
             page=page,
+            wash_opacity_dark=LAUNCHERS_WASH_OPACITY_DARK,
+            wash_opacity_light=LAUNCHERS_WASH_OPACITY_LIGHT,
         )
 
         self._games_card = GamesHeroCard(

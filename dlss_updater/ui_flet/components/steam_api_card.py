@@ -433,7 +433,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
         is_dark = self._get_is_dark()
         accent = self._get_accent(is_dark)
 
-        if e.data == "true":
+        if e.data is True or e.data == "true":
             self.shadow = Shadows.LEVEL_2
         else:
             self.shadow = Shadows.LEVEL_1

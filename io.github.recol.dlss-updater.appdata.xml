@@ -64,6 +64,21 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.4.3" date="2026-07-22">
+      <description>
+        <p>UI polish and backup fixes</p>
+        <ul>
+          <li>Game titles without spaces are now prettified on cards (e.g. "Black Myth Wukong", "Forza Horizon 6")</li>
+          <li>Card action buttons appear on hover instead of covering the artwork, and the Games header shows game-centric stats</li>
+          <li>Backups from games no longer in the library are now visible in a delete-only "Unlinked games" section, so backup totals match what is listed</li>
+          <li>Backup groups show an expand chevron and their most recent backup date</li>
+          <li>Toggling the theme no longer leaves the top app bar in the previous theme until the next navigation</li>
+          <li>Light mode: artwork on the home mosaic and game cards is no longer washed out by the caption scrim</li>
+          <li>The Application Logs badge counts only warnings and errors instead of saturating at 99+</li>
+          <li>Restored all hover effects (cards, tiles, navigation pill) that were silently disabled by a Flet event-format change</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.4.2" date="2026-07-18">
       <description>
         <p>Performance release</p>

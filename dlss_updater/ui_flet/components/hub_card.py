@@ -80,6 +80,8 @@ class HubCard(ThemeAwareMixin, ft.Container):
         on_click=None,
         border_radius_val: int = 16,
         page: ft.Page | None = None,
+        wash_opacity_dark: float | None = None,
+        wash_opacity_light: float | None = None,
     ):
         self._page_ref = page
         self._title = title
@@ -91,6 +93,11 @@ class HubCard(ThemeAwareMixin, ft.Container):
         self._title_size = title_size
         self._border_radius_val = border_radius_val
         self._on_click_callback = on_click
+        # Per-tile wash strength override (None -> hero_surface defaults). Used
+        # to lift low-chroma accents (e.g. the Launchers teal) so they read as
+        # tinted as the higher-chroma tiles at the shared default alpha.
+        self._wash_opacity_dark = wash_opacity_dark
+        self._wash_opacity_light = wash_opacity_light
 
         # Read from the ThemeRegistry singleton (single source of truth kept
         # in lockstep with page.theme_mode by ThemeManager), matching the
@@ -181,7 +188,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
             padding=ft.Padding.all(0),
             border_radius=border_radius_val,
             bgcolor=MD3Colors.get_surface(is_dark),
-            gradient=build_brand_wash(accent, is_dark),
+            gradient=build_brand_wash(accent, is_dark, opacity=self._wash_opacity(is_dark)),
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             shadow=Shadows.LEVEL_2,
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
@@ -194,6 +201,10 @@ class HubCard(ThemeAwareMixin, ft.Container):
         )
 
         self._register_theme_aware()
+
+    def _wash_opacity(self, is_dark: bool) -> float | None:
+        """Themed per-tile wash alpha override (None -> hero_surface default)."""
+        return self._wash_opacity_dark if is_dark else self._wash_opacity_light
 
     def did_mount(self):
         """Defensive theme re-sync on every (re)mount.
@@ -222,7 +233,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
 
     def _on_hover(self, e):
         """Handle hover effect - scale + shadow (wash replaces the old left accent bar)."""
-        if e.data == "true":
+        if e.data is True or e.data == "true":
             max_scale = 1.01 if self._icon_size >= 64 else 1.02
             self.scale = max_scale
             self.shadow = Shadows.LEVEL_3
@@ -258,7 +269,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
         accent = themed_accent((self._accent_dark, self._accent_light), is_dark)
 
         self.bgcolor = MD3Colors.get_surface(is_dark)
-        self.gradient = build_brand_wash(accent, is_dark)
+        self.gradient = build_brand_wash(accent, is_dark, opacity=self._wash_opacity(is_dark))
 
         self._icon_widget.color = accent
         self._title_text.color = MD3Colors.get_on_surface(is_dark)
@@ -431,7 +442,7 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
 
     def _on_hover(self, e):
         """Handle hover effect - scale + shadow (unchanged from the pre-hero HubCard)."""
-        if e.data == "true":
+        if e.data is True or e.data == "true":
             self.scale = 1.01  # smaller scale for the large card, matches prior behavior
             self.shadow = Shadows.LEVEL_3
         else:

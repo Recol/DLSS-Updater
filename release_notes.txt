@@ -1,3 +1,48 @@
+Version 4.4.3:
+UI Polish:
+  - Game titles on cards are now prettified for display: names stored
+    without spaces (e.g. "BlackMythWukong", "ForzaHorizon6") render as
+    "Black Myth Wukong", "Forza Horizon 6". Display-only — search,
+    matching and paths are unaffected.
+  - The hide/edit/menu buttons on game cards now appear on hover instead
+    of sitting permanently over the artwork.
+  - The Games Library header now shows game-centric stats ("14 games ·
+    2 need updates · scanned 3d ago") instead of duplicating backup
+    totals, and the launcher tab row is hidden when only one launcher
+    has games.
+  - Backup groups show a rotating expand chevron and their most recent
+    backup date; the Filter by Game control was restyled to match the
+    app's pill design and hides itself when there is nothing to filter.
+  - The Launchers tile on the home screen now carries the same visual
+    weight as the other tiles in both themes (its teal accent previously
+    blended much weaker).
+  - The Application Logs badge now counts only warnings and errors
+    (red when errors are present) instead of saturating at 99+ with
+    routine log chatter.
+  - Light mode: artwork on the home-screen mosaic and game cards is no
+    longer veiled by the caption scrim (the white wash is now confined
+    to the caption band).
+
+Bug Fixes:
+  - Restored ALL hover effects across the app (game-card shadow/scale and
+    footer button expansion, hub tiles, settings tiles, floating pill,
+    logger panel, backup rows). Two separate causes: Flet 0.86 changed
+    hover event data from the string "true" to a boolean (all 14 handlers
+    now accept both forms), and ft.Card has no on_hover/shadow/border
+    fields at all — those writes were silently dead, so game and backup
+    cards never received hover events; their hover wiring and border glow
+    now live on the cards' content containers, with elevation driving the
+    Material shadow.
+  - Backups whose game was removed or rescanned out of the library are
+    no longer invisible: they now appear in a delete-only "Unlinked
+    games" section of the Backups view, so the header totals finally
+    match what is listed (previously 6 of 8 backups could not be seen
+    or deleted individually). Deleting them works; restoring is
+    unavailable since the game is gone.
+  - Toggling the theme no longer leaves the top app bar in the previous
+    theme until the next navigation — it re-themes in place, in both
+    directions.
+
 Version 4.4.2:
 Performance:
   - Much faster batch updates: removed a per-DLL system-wide process scan

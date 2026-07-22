@@ -166,7 +166,7 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
         accent = config["accent_dark"] if is_dark else config["accent_light"]
         container = self._icon_containers[view_name]
 
-        if e.data == "true":
+        if e.data is True or e.data == "true":
             container.bgcolor = f"{accent}14"  # 8% tint
         else:
             container.bgcolor = None
@@ -179,7 +179,7 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
         is_dark = self._page_ref.theme_mode == ft.ThemeMode.DARK if self._page_ref else True
         primary = MD3Colors.get_primary(is_dark)
 
-        if e.data == "true":
+        if e.data is True or e.data == "true":
             self._home_container.bgcolor = f"{primary}14"
         else:
             self._home_container.bgcolor = None

@@ -150,7 +150,7 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
     def _on_item_hover(self, e, container: ft.Container, category_color: str):
         """Handle item hover state"""
         is_dark = self._get_is_dark()
-        if e.data == "true":
+        if e.data is True or e.data == "true":
             # Hover enter
             container.bgcolor = f"{category_color}15"  # 8% opacity
             container.border = ft.Border.all(1, f"{category_color}30")

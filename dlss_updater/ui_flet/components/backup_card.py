@@ -8,7 +8,7 @@ from datetime import datetime
 import flet as ft
 
 from dlss_updater.database import DLLBackup
-from dlss_updater.ui_flet.theme.colors import MD3Colors, Shadows
+from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 
@@ -28,11 +28,11 @@ class BackupCard(ThemeAwareMixin, ft.Card):
         self._theme_priority = 25  # Cards are mid-priority
         is_dark = self._registry.is_dark
 
-        # Card styling
+        # Card styling. NOTE: ft.Card has no shadow or on_hover fields in
+        # Flet 0.86 (writes are silently dead) — elevation drives the Material
+        # shadow, and hover is wired to the content Container below.
         self.elevation = 1
         self.margin = ft.Margin.symmetric(horizontal=8, vertical=4)
-        self.shadow = Shadows.LEVEL_1
-        self.on_hover = self._on_hover_shadow
 
         # Build content
         self._build_card_content(is_dark)
@@ -41,11 +41,12 @@ class BackupCard(ThemeAwareMixin, ft.Card):
         self._register_theme_aware()
 
     def _on_hover_shadow(self, e):
-        """Handle hover state for shadow effects"""
-        if e.data == "true":
-            self.shadow = Shadows.LEVEL_2
+        """Elevate the card while hovered (elevation is the Card's real
+        shadow driver; ft.Card has no shadow field)."""
+        if e.data is True or e.data == "true":
+            self.elevation = 3
         else:
-            self.shadow = Shadows.LEVEL_1
+            self.elevation = 1
         self.update()
 
     def _build_card_content(self, is_dark: bool):
@@ -131,6 +132,8 @@ class BackupCard(ThemeAwareMixin, ft.Card):
             padding=10,
             height=220,  # Same as GameCard - fits all content including buttons
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            # Hover must live on the Container — ft.Card has no on_hover field.
+            on_hover=self._on_hover_shadow,
         )
 
     def _create_metadata_row(self, label: str, value: str, is_dark: bool) -> ft.Row:

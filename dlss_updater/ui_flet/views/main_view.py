@@ -531,7 +531,7 @@ class MainView(ft.Column):
         # Add hover effect — read theme live so it stays correct after toggles
         def on_hover(e):
             current_dark = self.theme_manager.is_dark
-            if e.data == "true":
+            if e.data is True or e.data == "true":
                 button_container.bgcolor = f"{color}15"
                 button_container.border = ft.Border.all(1, f"{color}30")
             else:
@@ -866,15 +866,38 @@ class MainView(ft.Column):
         if self._page_ref:
             self._page_ref.update()
 
-        # App bar: patches flushed between the theme cascade and the NEXT
-        # NAVIGATION are lost client-side (the cascade's patches to
-        # detached-view controls stall the pipe; a nav transition's
-        # page.update() is the observed recovery point - verified live:
-        # neither container swaps nor property mutations on the bar render
-        # in this window, while identical operations render fine right
-        # after a navigation). Mark the bar stale; the next attach hook
-        # heals it alongside the views.
+        # App bar chrome (plain Containers/Text, NOT ThemeAware) is untouched
+        # by the cascade above, so it must be rebuilt explicitly. Mark it stale
+        # so the next-navigation attach hooks (_on_view_load / _on_view_hidden)
+        # heal it, AND — crucially — schedule an in-place heal now so the bar
+        # re-themes immediately even when the user stays on Settings and never
+        # navigates (the previously-shipped behaviour left the bar visibly
+        # stale until the next navigation; verified live).
+        #
+        # Why deferred to its own task rather than swapped inline here: an
+        # inline slot swap runs in the SAME continuation as the cascade's big
+        # page.update() above, so its two phases coalesce with the in-flight
+        # cascade flush into a single positional merge-diff, which the client
+        # drops (CLAUDE.md rendering pitfall #3). Letting the cascade flush
+        # settle first (short sleep) gives the two-phase swap its own distinct
+        # flushes — the exact mechanism the navigation hooks already use
+        # successfully. toggle_theme_async() has fully awaited by now, so
+        # theme_manager.is_dark is already the NEW value: the rebuild reads the
+        # correct theme, not a stale one.
         self._app_bar_theme_stale = True
+
+        from dlss_updater.task_registry import register_task
+
+        async def _heal_bar_in_place():
+            await anyio.sleep(0.12)
+            # _app_bar_theme_stale is the shared guard: if a navigation raced
+            # ahead and its hook already healed the bar, the flag is cleared
+            # and this becomes a no-op (prevents a double rebuild).
+            if getattr(self, '_app_bar_theme_stale', False):
+                self._app_bar_theme_stale = False
+                await self._rebuild_app_bar_for_theme()
+
+        register_task(asyncio.create_task(_heal_bar_in_place()), "heal_app_bar_in_place")
 
         self.logger.info(f"Theme toggled to {'Dark' if self.theme_manager.is_dark else 'Light'} Mode")
 
@@ -890,29 +913,37 @@ class MainView(ft.Column):
         each time it's called), so simply calling it again and swapping the
         result into self.controls[0] gives a fully fresh, theme-correct bar.
         """
-        if self.community_menu is not None:
-            # Explicit unregister rather than relying on WeakSet GC timing -
-            # _create_app_bar() below constructs a brand-new CommunityMenu.
-            self.community_menu._unregister_theme_aware()
+        # Serialize concurrent heals: a second rebuild entering while the
+        # first is between its two flushes would interleave detach/attach
+        # phases and can leave the bar rendered from a half-completed swap
+        # (reachable via rapid double-toggle within the heal deferral).
+        if not hasattr(self, '_app_bar_rebuild_lock'):
+            self._app_bar_rebuild_lock = asyncio.Lock()
 
-        new_app_bar = await self._create_app_bar()
+        async with self._app_bar_rebuild_lock:
+            if self.community_menu is not None:
+                # Explicit unregister rather than relying on WeakSet GC timing -
+                # _create_app_bar() below constructs a brand-new CommunityMenu.
+                self.community_menu._unregister_theme_aware()
 
-        # Wrapper-slot swap: the ONLY operation class the client reliably
-        # renders after a theme toggle (verified live; property mutation and
-        # positional same-class swaps into MainView.controls both fail).
-        if hasattr(self, '_app_bar_slot') and self._app_bar_slot:
-            try:
-                # Two-phase detach/attach across separate flushes - the
-                # exact sequence the nav controller uses (which provably
-                # renders). A single-flush swap merge-diffs same-class
-                # children and the client drops it.
-                self._app_bar_slot.controls = []
-                self._page_ref.update()
-                await anyio.sleep(0.03)
-                self._app_bar_slot.controls = [new_app_bar]
-                self._page_ref.update()
-            except Exception as e:
-                self.logger.warning(f"App bar theme heal flush failed: {e}")
+            new_app_bar = await self._create_app_bar()
+
+            # Wrapper-slot swap: the ONLY operation class the client reliably
+            # renders after a theme toggle (verified live; property mutation and
+            # positional same-class swaps into MainView.controls both fail).
+            if hasattr(self, '_app_bar_slot') and self._app_bar_slot:
+                try:
+                    # Two-phase detach/attach across separate flushes - the
+                    # exact sequence the nav controller uses (which provably
+                    # renders). A single-flush swap merge-diffs same-class
+                    # children and the client drops it.
+                    self._app_bar_slot.controls = []
+                    self._page_ref.update()
+                    await anyio.sleep(0.03)
+                    self._app_bar_slot.controls = [new_app_bar]
+                    self._page_ref.update()
+                except Exception as e:
+                    self.logger.warning(f"App bar theme heal flush failed: {e}")
 
     async def _rebuild_launchers_view_for_theme(self) -> None:
         """Rebuild the launchers view (cards + header + action bar) with

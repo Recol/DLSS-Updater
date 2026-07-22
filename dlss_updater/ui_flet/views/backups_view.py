@@ -63,6 +63,14 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         # Populated once per load_backups() call; never queried per-group.
         self._art_paths_by_game_id: dict[int, str] = {}
 
+        # "Unlinked games" (orphaned backups) section header controls. Recreated
+        # per orphan render; referenced by get_themed_properties for live
+        # re-theming (missing paths are skipped when no orphan section exists).
+        self._orphan_divider: ft.Divider | None = None
+        self._orphan_icon: ft.Icon | None = None
+        self._orphan_label: ft.Text | None = None
+        self._orphan_hint: ft.Text | None = None
+
         # Initialize theme system reference before building UI
         self._registry = get_theme_registry()
         self._theme_priority = 10  # Views are high priority (animate early)
@@ -93,25 +101,40 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             self.clear_all_button.disabled = not has_backups
 
     def _create_game_filter_dropdown(self) -> ft.Dropdown:
-        """Create dropdown for filtering backups by game with MD3 theme styling"""
+        """Create the game filter as a compact, filled pill.
+
+        Restyled away from the outlined/floating-label form-field look toward
+        the app's chip/pill language (see games_view status chips): filled
+        surface-container background, borderless, rounded, no floating label
+        (the selected value / "All Games" hint carries the meaning). A leading
+        filter glyph reinforces the affordance.
+
+        Starts hidden; ``load_backups`` reveals it only when >= 2 backup groups
+        exist (linked + orphaned), since a filter is pointless with fewer.
+        """
         is_dark = self._get_is_dark()
+        surface = MD3Colors.get_surface_container(is_dark)
+        on_surface = MD3Colors.get_on_surface(is_dark)
         self.game_filter_dropdown = ft.Dropdown(
-            label="Filter by Game",
             hint_text="All Games",
             options=[ft.dropdown.Option(key="all", text="All Games")],
             value="all",
             on_select=self._on_game_filter_changed,
-            width=250,
+            leading_icon=ft.Icons.FILTER_LIST,
+            width=210,
             dense=True,
-            text_size=14,
-            bgcolor=MD3Colors.get_surface_variant(is_dark),
-            color=MD3Colors.get_on_surface(is_dark),
-            border_color=MD3Colors.get_outline(is_dark),
-            focused_border_color=MD3Colors.get_primary(is_dark),
-            border_radius=8,
-            label_style=ft.TextStyle(color=MD3Colors.get_on_surface_variant(is_dark)),
-            text_style=ft.TextStyle(color=MD3Colors.get_on_surface(is_dark)),
-            fill_color=MD3Colors.get_surface_variant(is_dark),
+            text_size=13,
+            filled=True,
+            fill_color=surface,
+            bgcolor=surface,
+            color=on_surface,
+            border_width=0,
+            border_color=ft.Colors.TRANSPARENT,
+            border_radius=20,
+            content_padding=ft.Padding.symmetric(horizontal=14, vertical=6),
+            text_style=ft.TextStyle(color=on_surface),
+            hint_style=ft.TextStyle(color=MD3Colors.get_on_surface_variant(is_dark)),
+            visible=False,
         )
         return self.game_filter_dropdown
 
@@ -291,12 +314,20 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             "header_title.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
             "loading_text.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
             "divider.color": (MD3Colors.get_outline(True), MD3Colors.get_outline(False)),
-            "game_filter_dropdown.bgcolor": (MD3Colors.SURFACE_VARIANT, MD3Colors.SURFACE_VARIANT_LIGHT),
-            "game_filter_dropdown.color": (MD3Colors.ON_SURFACE, MD3Colors.ON_SURFACE_LIGHT),
-            "game_filter_dropdown.border_color": (MD3Colors.OUTLINE, MD3Colors.OUTLINE_LIGHT),
-            "game_filter_dropdown.focused_border_color": (MD3Colors.PRIMARY, MD3Colors.PRIMARY_LIGHT),
-            "game_filter_dropdown.fill_color": (MD3Colors.SURFACE_VARIANT, MD3Colors.SURFACE_VARIANT_LIGHT),
+            # Filter pill: filled surface-container, borderless (see
+            # _create_game_filter_dropdown). No border/focused-border entries
+            # since the pill has no visible border.
+            "game_filter_dropdown.bgcolor": (MD3Colors.get_surface_container(True), MD3Colors.get_surface_container(False)),
+            "game_filter_dropdown.fill_color": (MD3Colors.get_surface_container(True), MD3Colors.get_surface_container(False)),
+            "game_filter_dropdown.color": (MD3Colors.get_on_surface(True), MD3Colors.get_on_surface(False)),
             "backup_stats_text.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
+            # Orphan ("Unlinked games") section header — controls only exist
+            # while an orphan section is rendered; _set_nested_property skips
+            # missing paths, so these are safe no-ops otherwise.
+            "_orphan_divider.color": (MD3Colors.get_outline(True), MD3Colors.get_outline(False)),
+            "_orphan_icon.color": (MD3Colors.get_text_secondary(True), MD3Colors.get_text_secondary(False)),
+            "_orphan_label.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
+            "_orphan_hint.color": (MD3Colors.get_text_secondary(True), MD3Colors.get_text_secondary(False)),
         }
 
     def _format_size(self, size_bytes: int) -> str:
@@ -386,22 +417,50 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             results = await loader.load_all([
                 LoadTask("games", lambda: db_manager.get_games_with_backups_sync()),
                 LoadTask("grouped", lambda gid=game_id: db_manager.get_backups_grouped_by_game_sync(gid)),
+                LoadTask("orphaned", lambda: db_manager.get_orphaned_backups_grouped_sync()),
                 LoadTask("stats", lambda: db_manager.get_backup_summary_stats_sync()),
             ])
 
             self.games_with_backups = results.get("games", [])
             grouped_backups: dict[int, list[GameDLLBackup]] = results.get("grouped", {})
+            # Orphaned backups: active rows whose owning game left the library.
+            # Loaded UNFILTERED (independent of the game filter) so (a) the
+            # header total reconciles with what's displayed and (b) the filter
+            # pill's visibility reflects the true group count. Only RENDERED
+            # under the "All Games" view — a specific game filter excludes them
+            # cleanly (they are never filter options; see below).
+            orphaned_grouped: dict[int, list[GameDLLBackup]] = results.get("orphaned", {})
             self._update_game_filter_options()
+
+            # Reveal the filter pill only when there are >= 2 backup groups
+            # (linked games with backups + orphan groups), counted UNFILTERED so
+            # an active filter can always be reset back to "All Games".
+            if self.game_filter_dropdown:
+                total_group_count = len(self.games_with_backups) + len(orphaned_grouped)
+                self.game_filter_dropdown.visible = total_group_count >= 2
+
             backup_stats = results.get("stats", (0, 0))
             self._update_backup_stats(backup_stats[0], backup_stats[1])
             db_ms = (time.perf_counter() - start_db) * 1000
             self.logger.debug(f"[PERF] Database queries (hyper-parallel): {db_ms:.1f}ms")
 
-            # Flatten for total count and clear all operation
+            # Orphan groups are only RENDERED under "All Games" (no active game
+            # filter). A specific game filter shows just that linked game and
+            # excludes orphans — they are never filter options, so this is the
+            # clean exclusion path and the view cannot crash on a stale filter.
+            orphan_items: list[tuple[int, list[GameDLLBackup]]] = (
+                list(orphaned_grouped.items()) if self.selected_game_id is None else []
+            )
+
+            # Flatten for total count and clear-all state. Include orphan backups
+            # when they are being displayed so the Clear All enablement and its
+            # confirmation count reflect everything on screen.
             self.backups = list(itertools.chain.from_iterable(grouped_backups.values()))
+            for _gid, _obs in orphan_items:
+                self.backups.extend(_obs)
             total_count = len(self.backups)
 
-            if not grouped_backups:
+            if not grouped_backups and not orphan_items:
                 self.logger.info("No backups found")
                 self.empty_state.visible = True
                 self.loading_indicator.visible = False
@@ -479,16 +538,24 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
             self.update()
 
-            # Step 3: Create remaining groups in background batches (non-blocking)
+            # Step 3: Create remaining linked groups in background batches, then
+            # the orphan section LAST so it always sits below the linked groups.
+            # If there are no remaining linked groups, append orphans inline now.
             remaining_items = game_items[INITIAL_BATCH_SIZE:]
             if remaining_items:
-                task = asyncio.create_task(self._load_remaining_groups(remaining_items))
+                task = asyncio.create_task(
+                    self._load_remaining_groups(remaining_items, orphan_items)
+                )
                 register_task(task, "load_remaining_backup_groups")
+            elif orphan_items:
+                self._append_orphan_section(orphan_items)
+                self.update()
 
             total_ms = (time.perf_counter() - start_total) * 1000
             self.logger.info(
                 f"Loaded {len(first_batch_items)} game groups ({total_count} backups total) instantly, "
-                f"{len(remaining_items)} groups loading in background ({total_ms:.1f}ms)"
+                f"{len(remaining_items)} groups loading in background, "
+                f"{len(orphan_items)} orphan group(s) ({total_ms:.1f}ms)"
             )
 
             # NOTE: the success path already issued its single self.update()
@@ -505,7 +572,11 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         finally:
             self.is_loading = False
 
-    async def _load_remaining_groups(self, remaining_items: list[tuple[int, list[GameDLLBackup]]]):
+    async def _load_remaining_groups(
+        self,
+        remaining_items: list[tuple[int, list[GameDLLBackup]]],
+        orphan_items: list[tuple[int, list[GameDLLBackup]]] | None = None,
+    ):
         """Load remaining BackupGroup components in background batches.
 
         PERFORMANCE: Creates groups in batches with yields to keep UI responsive.
@@ -513,6 +584,8 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
         Args:
             remaining_items: List of (game_id, backups) tuples to create groups for
+            orphan_items: Optional orphan (game_id, backups) tuples to render in
+                the "Unlinked games" section AFTER all linked groups.
         """
         try:
             total_remaining = len(remaining_items)
@@ -554,8 +627,88 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
             self.logger.debug(f"[PERF] Background loaded {loaded} additional backup groups")
 
+            # Orphan section renders last, below every linked group.
+            if orphan_items:
+                self._append_orphan_section(orphan_items)
+                try:
+                    self.update()
+                except Exception:
+                    pass
+
         except Exception as e:
             self.logger.error(f"Error loading remaining backup groups: {e}", exc_info=True)
+
+    def _build_orphan_section_header(self, is_dark: bool) -> ft.Container:
+        """Build the "Unlinked games" section header (divider + label + hint).
+
+        Stores its themed sub-controls on self so get_themed_properties can
+        re-theme them live. Matches the view's secondary typography.
+        """
+        self._orphan_divider = ft.Divider(height=1, color=MD3Colors.get_outline(is_dark))
+        self._orphan_icon = ft.Icon(
+            ft.Icons.LINK_OFF,
+            size=16,
+            color=MD3Colors.get_text_secondary(is_dark),
+        )
+        self._orphan_label = ft.Text(
+            "Unlinked games",
+            size=13,
+            weight=ft.FontWeight.W_600,
+            color=MD3Colors.get_on_surface_variant(is_dark),
+        )
+        self._orphan_hint = ft.Text(
+            "No longer in your library — restore unavailable, delete only.",
+            size=11,
+            italic=True,
+            color=MD3Colors.get_text_secondary(is_dark),
+        )
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    self._orphan_divider,
+                    ft.Row(
+                        controls=[self._orphan_icon, self._orphan_label],
+                        spacing=6,
+                        tight=True,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    self._orphan_hint,
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            padding=ft.Padding.only(left=4, right=4, top=12, bottom=4),
+        )
+
+    def _append_orphan_section(self, orphan_items: list[tuple[int, list[GameDLLBackup]]]):
+        """Append the "Unlinked games" header and one delete-only BackupGroup
+        per orphan group to the end of the backups list.
+
+        Orphan groups pass on_restore/on_restore_all as None and is_orphan=True,
+        so BackupGroup hides all restore affordances (restore fails for these
+        with "DLL information not found in database"). Delete still works.
+        """
+        if not orphan_items:
+            return
+
+        is_dark = self._get_is_dark()
+        self.backups_list.controls.append(self._build_orphan_section_header(is_dark))
+
+        for gid, backups in orphan_items:
+            game_name = backups[0].game_name if backups else "Unknown"
+            group = BackupGroup(
+                game_name=game_name,
+                game_id=gid,
+                backups=backups,
+                page=self._page_ref,
+                logger=self.logger,
+                on_restore=None,          # restore unavailable for orphans
+                on_delete=self._on_delete_backup_from_group,
+                on_restore_all=None,      # no Restore All for orphans
+                art_path=None,            # negative id -> folder-icon fallback
+                is_orphan=True,
+            )
+            self.backups_list.controls.append(group)
 
     async def _animate_groups_in(self, groups: list):
         """Animate backup groups with staggered fade-in for better UX"""

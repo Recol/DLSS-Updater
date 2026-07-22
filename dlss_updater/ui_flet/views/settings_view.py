@@ -351,7 +351,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         single-layer LEVEL_1 shadow reads as "lifted" without competing with
         the wash/watermark tint already on the tile.
         """
-        if e.data == "true":
+        if e.data is True or e.data == "true":
             tile.scale = 1.01
             tile.shadow = Shadows.LEVEL_1
         else:

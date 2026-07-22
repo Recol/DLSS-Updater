@@ -184,7 +184,7 @@ class FletLoggerHandler(logging.Handler):
     def _on_log_hover(self, e: ft.HoverEvent, container: ft.Container):
         """Handle hover effect on log entries using control-level update"""
         is_dark = self._registry.is_dark
-        if e.data == "true":
+        if e.data is True or e.data == "true":
             container.bgcolor = MD3Colors.HOVER_OVERLAY if is_dark else "rgba(0, 0, 0, 0.04)"
         else:
             container.bgcolor = ft.Colors.TRANSPARENT
@@ -477,7 +477,7 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
 
     def _on_header_hover(self, e: ft.HoverEvent):
         """Handle header hover effect with elevation change"""
-        if e.data == "true":
+        if e.data is True or e.data == "true":
             self.shadow = Shadows.LEVEL_3
         else:
             self.shadow = Shadows.LEVEL_2
@@ -544,11 +544,38 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
         self._safe_update()
 
     def update_log_count(self):
-        """Update the log count badge (no page update - caller handles it)"""
-        count = len(self.log_column.controls)
+        """Update the attention badge (no page update - caller handles it).
+
+        Counts only WARNING + ERROR/CRITICAL records rather than every entry:
+        a total-entry count saturates to "99+" within a minute of an idle boot
+        (INFO/DEBUG chatter), reading as permanently alarming while conveying
+        nothing. The badge now surfaces only records the user may want to act
+        on, is hidden entirely at zero, and turns the error color when any
+        ERROR/CRITICAL is present (else the neutral primary color)."""
+        error_count = 0
+        warning_count = 0
+        for entry in self.log_column.controls:
+            level = entry.data
+            if level in ("ERROR", "CRITICAL"):
+                error_count += 1
+            elif level == "WARNING":
+                warning_count += 1
+        count = error_count + warning_count
+
         # Cap the displayed value so the badge stays compact (e.g. "99+")
         self.log_count_badge.content.value = "99+" if count > 99 else str(count)
         self.log_count_badge.visible = count > 0
+
+        # Error state recolors the badge; otherwise the neutral primary color.
+        # Follows the file's get_themed_pair theming convention so it stays
+        # correct across theme toggles (see apply_theme, which re-invokes this).
+        is_dark = self._registry.is_dark
+        badge_pair = (
+            MD3Colors.get_themed_pair("error")
+            if error_count > 0
+            else MD3Colors.get_themed_pair("primary")
+        )
+        self.log_count_badge.bgcolor = badge_pair[0] if is_dark else badge_pair[1]
         # Note: No _safe_update() here - called from _flush_batch which does a single update
 
     def expand_on_error(self):
@@ -601,8 +628,11 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
             "toggle_button.icon_color": MD3Colors.get_themed_pair("primary"),
             # Log container background
             "log_container.bgcolor": MD3Colors.get_themed_pair("surface_dim"),
-            # Badge
-            "log_count_badge.bgcolor": MD3Colors.get_themed_pair("primary"),
+            # Note: log_count_badge.bgcolor is intentionally NOT mapped here —
+            # its color depends on error state (error vs primary) and is
+            # recomputed for the active theme by update_log_count(), which
+            # apply_theme() re-invokes. A static primary mapping would clobber
+            # the error color on every theme toggle.
             # Filter label
             "filter_label.color": MD3Colors.get_themed_pair("on_surface_variant"),
         }
@@ -651,6 +681,11 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
                 else:
                     chip.bgcolor = MD3Colors.get_surface_variant(is_dark)
                     chip.content.color = MD3Colors.get_on_surface_variant(is_dark)
+
+            # Recolor the attention badge for the new theme (error vs primary,
+            # error/warning-only count) — see get_themed_properties for why the
+            # badge bgcolor isn't in the static property map.
+            self.update_log_count()
 
             if hasattr(self, 'update'):
                 self.update()
