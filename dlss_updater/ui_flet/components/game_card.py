@@ -129,12 +129,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self._ui_lock = anyio.Lock()
         self._image_loaded = False  # Prevent duplicate image loads
 
-        # Hover-expanded footer state. Opening the Update/Restore popup menu
-        # fires a spurious mouse-exit on card_body (the overlay steals the
-        # pointer from the framework's perspective), which used to snap the
-        # footer back to its resting state WHILE the menu sat open on top of
-        # it. _menu_open keeps the footer expanded for as long as either
-        # popup is open, independent of the raw hover signal.
+        # _menu_open keeps the footer expanded while a popup is open, since
+        # opening it fires a spurious mouse-exit on card_body.
         self._is_hovering = False
         self._menu_open = False
 
@@ -149,17 +145,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self.margin = ft.Margin.all(0)  # ResponsiveRow handles spacing
         self.width = None  # Let ResponsiveRow control width
         self.expand = True  # Fill available space in grid cell
-        # ft.Card defaults clip_behavior to NONE, so its own rounded Material
-        # background isn't clipped to its shape — the square-cornered content
-        # below (card_body) doesn't quite reach the rounded top corners, leaving
-        # a sliver of the card's background visible as a "bar" above the hero
-        # image. Clipping the Card itself to its shape closes that gap. Also
-        # give the Card the SAME solid bgcolor as card_body below (rather than
-        # leaving it to the Material default, which shifts with elevation/
-        # surface_tint_color, most visibly during the hover scale+elevation
-        # bump) so even a renderer that doesn't clip the scale transform
-        # perfectly on every platform shows the same color underneath instead
-        # of a mismatched sliver.
+        # Clip + match card_body's bgcolor so an unclipped Card background
+        # doesn't show as a sliver above the hero image on hover scale/elevation.
         self.clip_behavior = ft.ClipBehavior.ANTI_ALIAS
         self.bgcolor = MD3Colors.get_surface(is_dark)
 
@@ -616,13 +603,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
             ),
             expand=True,
             bgcolor=MD3Colors.get_surface(is_dark),
-            # Rounds + clips to the SAME radius as the Card's own default
-            # shape (RoundedRectangleBorder(radius=12)) so card_body fully
-            # owns the visible rounded surface, independent of whatever the
-            # outer ft.Card does with its own clip/shape during the hover
-            # scale transform (see the Card-level clip_behavior/bgcolor
-            # comment above — belt and suspenders against renderer-specific
-            # gaps around the top edge).
+            # Matches the Card's own default radius so card_body owns the visible
+            # rounded surface (belt-and-suspenders with the Card-level clip above).
             border_radius=ft.BorderRadius.all(12),
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             # Hover lives here, not on the Card: ft.Card has no on_hover
@@ -979,15 +961,11 @@ class GameCard(ThemeAwareMixin, ft.Card):
         is_dark = self._registry.is_dark
         has_outdated = self._check_for_updates()
         disabled_color = MD3Colors.get_themed("text_tertiary", is_dark)
-        # Warning/amber (not primary) when outdated — matches the badge's "X
-        # outdated" color language so the footer button and badge read as one
-        # signal instead of two different colors for the same state.
+        # Amber (not primary) when outdated, matching the badge's color language.
         active_color = MD3Colors.get_warning(is_dark)
         color = active_color if has_outdated else disabled_color
 
-        # Store references for theming. Downward arrow (not the clock/refresh
-        # "update" glyph) reads as "update available to pull down" and matches
-        # the badge's arrow language.
+        # Downward arrow (not the refresh glyph) matches the badge's arrow language.
         icon_name = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
         self.update_button_icon = ft.Icon(icon_name, size=20, color=color)
         # Amber notification dot overlaid on the icon — carries the "needs update"
@@ -1481,23 +1459,17 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self._apply_hover_visual_state()
 
     def _on_menu_open(self, e):
-        """Popup menu opened (Update or Restore) — keep the footer expanded
-        even though card_body will spuriously report a mouse-exit."""
+        """Keep footer expanded while popup is open (opening it fires a spurious mouse-exit)."""
         self._menu_open = True
         self._apply_hover_visual_state()
 
     def _on_menu_closed(self, e):
-        """Popup menu closed (selected or dismissed) — resync to the real
-        hover state, since the exit event we ignored while it was open may
-        have been the mouse genuinely leaving the card."""
+        """Resync to real hover state now that the popup is closed."""
         self._menu_open = False
         self._apply_hover_visual_state()
 
     def _apply_hover_visual_state(self):
-        """Apply the hover/expanded footer visuals. Expanded whenever the
-        mouse is actually over the card OR a footer popup menu is open (see
-        _on_menu_open/_on_menu_closed) — otherwise the footer would snap back
-        to resting state behind an still-open popup."""
+        """Apply hover visuals; expanded while hovering OR a footer popup is open."""
         import time
         start = time.perf_counter()
 
