@@ -45,7 +45,7 @@ RESTORE_EXPANDED_WIDTH = 116  # icon + "Restore" + ▾ (hover)
 BADGE_FULL_WIDTH = 140  # DLL status badge with text (resting) — headroom for
 # double-digit counts like "14/14 outdated" (games bundling DLSS+Streamline+
 # XeSS+FSR+DirectStorage can realistically hit 10+ tracked DLLs).
-BADGE_COMPACT_WIDTH = 40  # DLL status badge shrunk to icon-only (hover, frees room for labels)
+BADGE_HOVER_WIDTH = 0  # DLL status badge fully collapses on hover — Update/Restore take over
 FOOTER_ANIM_MS = 180  # Width/opacity animation duration for the hover expand/collapse
 
 # ---- Hero art zoom bias ----
@@ -129,6 +129,15 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self._ui_lock = anyio.Lock()
         self._image_loaded = False  # Prevent duplicate image loads
 
+        # Hover-expanded footer state. Opening the Update/Restore popup menu
+        # fires a spurious mouse-exit on card_body (the overlay steals the
+        # pointer from the framework's perspective), which used to snap the
+        # footer back to its resting state WHILE the menu sat open on top of
+        # it. _menu_open keeps the footer expanded for as long as either
+        # popup is open, independent of the raw hover signal.
+        self._is_hovering = False
+        self._menu_open = False
+
         # Get theme state and register
         self._registry = get_theme_registry()
         self._theme_priority = 25  # Cards are mid-priority
@@ -140,6 +149,19 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self.margin = ft.Margin.all(0)  # ResponsiveRow handles spacing
         self.width = None  # Let ResponsiveRow control width
         self.expand = True  # Fill available space in grid cell
+        # ft.Card defaults clip_behavior to NONE, so its own rounded Material
+        # background isn't clipped to its shape — the square-cornered content
+        # below (card_body) doesn't quite reach the rounded top corners, leaving
+        # a sliver of the card's background visible as a "bar" above the hero
+        # image. Clipping the Card itself to its shape closes that gap. Also
+        # give the Card the SAME solid bgcolor as card_body below (rather than
+        # leaving it to the Material default, which shifts with elevation/
+        # surface_tint_color, most visibly during the hover scale+elevation
+        # bump) so even a renderer that doesn't clip the scale transform
+        # perfectly on every platform shows the same color underneath instead
+        # of a mismatched sliver.
+        self.clip_behavior = ft.ClipBehavior.ANTI_ALIAS
+        self.bgcolor = MD3Colors.get_surface(is_dark)
 
         # Animation (ft.Card has no shadow/animate fields — elevation drives
         # the Material shadow and animates natively; scale animates below)
@@ -428,7 +450,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 spacing=2,
                 tight=True,
             ),
-            padding=ft.Padding.only(left=12, right=12, bottom=10),
+            padding=ft.Padding.only(left=12, right=12, top=14, bottom=10),
         )
 
         # ---- Top-right overlay cluster: eye + pencil + kebab ----
@@ -537,6 +559,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             border_radius=8,
             animate=_anim,
+            animate_opacity=_anim,
         )
         self.update_button_wrapper = ft.Container(
             content=self.update_button,
@@ -592,6 +615,15 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 spacing=0,
             ),
             expand=True,
+            bgcolor=MD3Colors.get_surface(is_dark),
+            # Rounds + clips to the SAME radius as the Card's own default
+            # shape (RoundedRectangleBorder(radius=12)) so card_body fully
+            # owns the visible rounded surface, independent of whatever the
+            # outer ft.Card does with its own clip/shape during the hover
+            # scale transform (see the Card-level clip_behavior/bgcolor
+            # comment above — belt and suspenders against renderer-specific
+            # gaps around the top edge).
+            border_radius=ft.BorderRadius.all(12),
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             # Hover lives here, not on the Card: ft.Card has no on_hover
             # field (assignment on it is silently dead), while Container
@@ -947,11 +979,17 @@ class GameCard(ThemeAwareMixin, ft.Card):
         is_dark = self._registry.is_dark
         has_outdated = self._check_for_updates()
         disabled_color = MD3Colors.get_themed("text_tertiary", is_dark)
-        active_color = MD3Colors.get_primary(is_dark)
+        # Warning/amber (not primary) when outdated — matches the badge's "X
+        # outdated" color language so the footer button and badge read as one
+        # signal instead of two different colors for the same state.
+        active_color = MD3Colors.get_warning(is_dark)
         color = active_color if has_outdated else disabled_color
 
-        # Store references for theming.
-        self.update_button_icon = ft.Icon(ft.Icons.UPDATE, size=20, color=color)
+        # Store references for theming. Downward arrow (not the clock/refresh
+        # "update" glyph) reads as "update available to pull down" and matches
+        # the badge's arrow language.
+        icon_name = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
+        self.update_button_icon = ft.Icon(icon_name, size=20, color=color)
         # Amber notification dot overlaid on the icon — carries the "needs update"
         # signal in the compact/icon-only state where the "Update" label is hidden.
         # Ringed with the surface colour so it reads clearly on the update icon.
@@ -1002,6 +1040,9 @@ class GameCard(ThemeAwareMixin, ft.Card):
             tooltip="Select DLLs to update" if has_outdated else "All DLLs are up to date",
             items=self._build_update_menu_items(),
             disabled=not has_outdated,
+            on_open=self._on_menu_open,
+            on_select=self._on_menu_closed,
+            on_cancel=self._on_menu_closed,
         )
 
     def _build_update_menu_items(self) -> list[ft.PopupMenuItem]:
@@ -1104,6 +1145,9 @@ class GameCard(ThemeAwareMixin, ft.Card):
             content=restore_content,
             tooltip="Restore DLLs from backup",
             items=self._build_restore_menu_items(),
+            on_open=self._on_menu_open,
+            on_select=self._on_menu_closed,
+            on_cancel=self._on_menu_closed,
         )
 
     def _build_restore_menu_items(self) -> list[ft.PopupMenuItem]:
@@ -1433,12 +1477,33 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
     def _on_hover(self, e):
         """Handle hover effect with multi-layer shadow and border glow"""
+        self._is_hovering = e.data is True or e.data == "true"
+        self._apply_hover_visual_state()
+
+    def _on_menu_open(self, e):
+        """Popup menu opened (Update or Restore) — keep the footer expanded
+        even though card_body will spuriously report a mouse-exit."""
+        self._menu_open = True
+        self._apply_hover_visual_state()
+
+    def _on_menu_closed(self, e):
+        """Popup menu closed (selected or dismissed) — resync to the real
+        hover state, since the exit event we ignored while it was open may
+        have been the mouse genuinely leaving the card."""
+        self._menu_open = False
+        self._apply_hover_visual_state()
+
+    def _apply_hover_visual_state(self):
+        """Apply the hover/expanded footer visuals. Expanded whenever the
+        mouse is actually over the card OR a footer popup menu is open (see
+        _on_menu_open/_on_menu_closed) — otherwise the footer would snap back
+        to resting state behind an still-open popup."""
         import time
         start = time.perf_counter()
 
         is_dark = self._registry.is_dark
         primary_color = MD3Colors.get_primary(is_dark)
-        hovering = e.data is True or e.data == "true"
+        hovering = self._is_hovering or self._menu_open
         # elevation/scale are real ft.Card fields; shadow/border are NOT
         # (dead dataclass attribute writes) — the border glow targets the
         # card_body Container instead.
@@ -1452,14 +1517,16 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self._card_body.border = None
 
         # Footer expand/collapse — WIDTH animation only (height stays constant, so no
-        # layout recalc and no GridView reflow). On hover: shrink the badge to icon-only
+        # layout recalc and no GridView reflow). On hover: collapse the DLL badge away
+        # entirely (it's redundant with the "Needs update"/"Up to date" status row above)
         # and grow the buttons to reveal their labels + ▾; fade the labels in/out.
         if self.update_button_wrapper is not None:
             self.update_button_wrapper.width = UPDATE_EXPANDED_WIDTH if hovering else BTN_COMPACT_WIDTH
         if self.restore_button_wrapper is not None:
             self.restore_button_wrapper.width = RESTORE_EXPANDED_WIDTH if hovering else BTN_COMPACT_WIDTH
         if self.dll_badge_wrapper is not None:
-            self.dll_badge_wrapper.width = BADGE_COMPACT_WIDTH if hovering else BADGE_FULL_WIDTH
+            self.dll_badge_wrapper.width = BADGE_HOVER_WIDTH if hovering else BADGE_FULL_WIDTH
+            self.dll_badge_wrapper.opacity = 0 if hovering else 1
         if self.update_button_text is not None:
             self.update_button_text.opacity = 1 if hovering else 0
         if self.restore_button_text is not None:
@@ -1487,9 +1554,15 @@ class GameCard(ThemeAwareMixin, ft.Card):
         """
         is_dark = self._registry.is_dark
         self.is_updating = is_updating
-        color = MD3Colors.get_text_secondary(is_dark) if is_updating else MD3Colors.get_primary(is_dark)
+        has_outdated = self._check_for_updates()
+        disabled_color = MD3Colors.get_themed("text_tertiary", is_dark)
+        rest_color = MD3Colors.get_warning(is_dark) if has_outdated else disabled_color
+        color = MD3Colors.get_text_secondary(is_dark) if is_updating else rest_color
         if self.update_button_icon is not None:
-            self.update_button_icon.name = ft.Icons.HOURGLASS_TOP if is_updating else ft.Icons.UPDATE
+            if is_updating:
+                self.update_button_icon.name = ft.Icons.HOURGLASS_TOP
+            else:
+                self.update_button_icon.name = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
             self.update_button_icon.color = color
         if self.update_button_text is not None:
             self.update_button_text.color = color
@@ -1526,7 +1599,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 has_outdated = self._check_for_updates()
                 is_dark = self._registry.is_dark
                 disabled_color = MD3Colors.get_themed("text_tertiary", is_dark)
-                active_color = MD3Colors.get_primary(is_dark)
+                active_color = MD3Colors.get_warning(is_dark)
                 color = active_color if has_outdated else disabled_color
 
                 self.update_button.items = self._build_update_menu_items()
@@ -1535,6 +1608,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                     "Select DLLs to update" if has_outdated else "All DLLs are up to date"
                 )
                 if self.update_button_icon:
+                    self.update_button_icon.name = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
                     self.update_button_icon.color = color
                 if self.update_button_text:
                     self.update_button_text.color = color
