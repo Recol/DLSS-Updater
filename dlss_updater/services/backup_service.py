@@ -14,6 +14,7 @@ from dlss_updater.database import db_manager, DLLBackup
 from dlss_updater.models import GameDLLBackup
 from dlss_updater.backup_manager import (
     restore_dll_from_backup,
+    restore_orphaned_dll_from_backup,
     restore_group_for_game,
     delete_backup,
 )
@@ -135,6 +136,7 @@ __all__ = [
     "get_backup_overview_sync",
     "BackupOverview",
     "restore_dll_from_backup",
+    "restore_orphaned_dll_from_backup",
     "restore_group_for_game",
     "delete_backup",
 ]

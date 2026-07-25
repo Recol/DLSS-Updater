@@ -33,10 +33,12 @@ class BackupRow(ft.Container):
     - File size
     - Delete action button (plus Restore, unless the row is orphaned)
 
-    When ``is_orphan`` is True the backup's owning game is no longer in the
-    library, so restore is impossible ("DLL information not found in
-    database") — the restore affordance is omitted entirely and only delete
-    is offered.
+    The restore affordance is shown whenever an ``on_restore`` handler is
+    supplied and omitted otherwise. ``is_orphan`` is retained as informational
+    context (the owning game left the library) but no longer suppresses restore:
+    orphan rows are restorable by path (the backup is copied back over the DLL
+    location derived from its ``.dlsss`` sidecar), so the view now wires a
+    handler for them too.
     """
 
     def __init__(
@@ -95,8 +97,10 @@ class BackupRow(ft.Container):
             ft.Container(expand=True),  # Spacer
         ]
 
-        # Restore is only meaningful for linked games — omit it for orphans.
-        if not is_orphan:
+        # Restore affordance follows the callback: shown whenever an on_restore
+        # handler is supplied. Orphan rows are now restorable-by-path, so the
+        # view wires a handler for them too (only truly restore-less rows omit it).
+        if on_restore is not None:
             row_controls.append(
                 ft.IconButton(
                     icon=ft.Icons.RESTORE,
@@ -182,9 +186,11 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
     Expanded state shows:
     - All BackupRow entries for this game
 
-    When ``is_orphan`` is True the owning game is no longer in the library.
-    Restore (per-row and Restore All) fails with "DLL information not found in
-    database", so every restore affordance is omitted — only delete is offered.
+    Restore affordances follow their callbacks: per-row Restore appears when
+    ``on_restore`` is supplied, Restore All when ``on_restore_all`` is supplied.
+    ``is_orphan`` marks groups whose owning game left the library; those are now
+    restorable by path (per-DLL Restore only — no Restore All slot), so the view
+    wires ``on_restore`` for them while leaving ``on_restore_all`` None.
 
     Performance: Uses is_isolated=True for independent updates.
     """
@@ -223,9 +229,10 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
                 happen here). When None, the header falls back to the generic
                 folder icon.
             is_orphan: When True this group represents backups whose owning game
-                is no longer in the library. Restore is impossible for these, so
-                the Restore All button and per-row restore buttons are hidden;
-                only delete remains available.
+                is no longer in the library. Informational only — restore
+                affordances are driven by the on_restore / on_restore_all
+                callbacks, not this flag. Orphan groups are restorable by path
+                (per-DLL restore) but pass on_restore_all=None (no Restore All).
         """
         self.game_name = game_name
         self.game_id = game_id
@@ -327,11 +334,13 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
             color=MD3Colors.get_text_secondary(is_dark),
         )
 
-        # Restore All button — only for linked groups. Orphan groups cannot be
-        # restored, so the button is not created at all (self._restore_all_btn
-        # stays None; apply_theme guards on it existing).
+        # Restore All button follows its callback: created only when an
+        # on_restore_all handler is supplied. Orphan groups pass None here
+        # (per-DLL restore only — no group-level restore-all slot for them),
+        # so the button is not created (self._restore_all_btn stays None;
+        # apply_theme guards on it existing).
         self._restore_all_btn: ft.TextButton | None = None
-        if not is_orphan:
+        if on_restore_all is not None:
             self._restore_all_btn = ft.TextButton(
                 "Restore All",
                 icon=ft.Icons.RESTORE,

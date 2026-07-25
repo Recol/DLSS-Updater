@@ -240,8 +240,8 @@ def _default_launcher_paths() -> dict[str, str]:
 
 
 def _default_update_preferences() -> UpdatePreferencesConfig:
-    """Fresh-install update prefs. Streamline defaults OFF to match the legacy INI."""
-    return UpdatePreferencesConfig(update_streamline=False)
+    """Fresh-install update prefs. All technologies enabled, including Streamline."""
+    return UpdatePreferencesConfig(update_streamline=True)
 
 
 def _default_performance() -> PerformanceConfig:
@@ -419,7 +419,6 @@ class ConfigManager:
             up.update_fsr = parser.getboolean("UpdatePreferences", "UpdateFSR", fallback=True)
             up.update_streamline = parser.getboolean("UpdatePreferences", "UpdateStreamline", fallback=False)
             up.create_backups = parser.getboolean("UpdatePreferences", "CreateBackups", fallback=True)
-            up.high_performance_mode = parser.getboolean("UpdatePreferences", "HighPerformanceMode", fallback=False)
 
         # -- DiscordBanner: preserve dismissed; an existing user upgrading should
         #    NOT be re-shown the banner, so absence -> dismissed=True.
@@ -966,7 +965,6 @@ class ConfigManager:
             update_fsr=self.get_update_preference("FSR"),
             update_streamline=self.get_update_preference("Streamline"),
             create_backups=self.get_backup_preference(),
-            high_performance_mode=self.get_high_performance_mode()
         )
 
     def save_update_preferences_struct(self, prefs: UpdatePreferencesConfig):
@@ -979,7 +977,6 @@ class ConfigManager:
             up.update_fsr = prefs.update_fsr
             up.update_streamline = prefs.update_streamline
             up.create_backups = prefs.create_backups
-            up.high_performance_mode = prefs.high_performance_mode
             self._save_unlocked()
 
     def get_launcher_paths_struct(self) -> LauncherPathsConfig:
@@ -1041,25 +1038,6 @@ class ConfigManager:
             # range validation to preserve the old setter's permissive behaviour.
             self._config.performance.max_worker_threads = int(count)
             self._save_unlocked()
-
-    def get_high_performance_mode(self) -> bool:
-        """
-        Get high performance update mode.
-
-        Always returns True as high-performance mode is now the only mode.
-        This method is kept for backward compatibility with existing code.
-        """
-        return True
-
-    def set_high_performance_mode(self, enabled: bool) -> None:
-        """
-        Set high performance update mode preference (deprecated).
-
-        This method is a no-op since high-performance mode is now always enabled.
-        Kept for backward compatibility with existing code.
-        """
-        # No-op: high-performance mode is now always enabled
-        pass
 
     # =========================================================================
     # Linux DLSS SR Presets Configuration
@@ -1226,7 +1204,6 @@ def get_current_settings():
         "UpdateFSR": config_manager.get_update_preference("FSR"),
         "UpdateStreamline": config_manager.get_update_preference("Streamline"),
         "CreateBackups": config_manager.get_backup_preference(),
-        "HighPerformanceMode": config_manager.get_high_performance_mode(),
     }
 
 

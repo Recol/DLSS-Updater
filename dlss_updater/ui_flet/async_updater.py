@@ -12,7 +12,7 @@ import anyio
 
 from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.scanner import find_all_dlls
-from dlss_updater.utils import update_dlss_versions, process_single_dll, extract_game_name
+from dlss_updater.utils import update_dlss_versions, process_single_dll, extract_game_name, find_game_root
 from dlss_updater.config import config_manager, get_current_settings
 from dlss_updater.models import UpdateProgress, UpdateResult
 from dlss_updater.database import db_manager
@@ -27,6 +27,14 @@ class AsyncUpdateCoordinator:
         self.logger = logger
         self._progress_callback: Callable | None = None
         self._cancel_requested = False
+        # Reflects the outcome of the most recent run so the UI can render a
+        # cancellation summary through the normal completion path. cancel_processed
+        # / cancel_total count cancel_unit items ("games" for the standard path,
+        # "DLLs" for the high-performance pipeline) for the last batch update run.
+        self.was_cancelled = False
+        self.cancel_processed = 0
+        self.cancel_total = 0
+        self.cancel_unit = "games"
 
     async def scan_for_games(
         self,
@@ -43,6 +51,8 @@ class AsyncUpdateCoordinator:
         """
         self.logger.info("Starting game scan...")
         self._progress_callback = progress_callback
+        self._cancel_requested = False
+        self.was_cancelled = False
 
         # Get current settings
         settings = get_current_settings()
@@ -64,6 +74,15 @@ class AsyncUpdateCoordinator:
 
             # find_all_dlls is already async and now accepts progress_callback
             dll_dict = await find_all_dlls(progress_callback=scanner_progress_wrapper)
+
+            # The scanner fans out through scanner.py, which we must not modify;
+            # its internal launcher/DB phases can't be interrupted from here, so a
+            # cancel requested mid-scan is honoured at this phase boundary — the
+            # results are discarded and callers skip any follow-on work.
+            if self._cancel_requested:
+                self.was_cancelled = True
+                self.logger.info("Scan cancelled by user")
+                return {}
 
             # Count total games found
             total_games = sum(len(dlls) for dlls in dll_dict.values())
@@ -93,6 +112,10 @@ class AsyncUpdateCoordinator:
         self.logger.info("Starting DLL updates...")
         self._progress_callback = progress_callback
         self._cancel_requested = False
+        self.was_cancelled = False
+        self.cancel_processed = 0
+        self.cancel_total = 0
+        self.cancel_unit = "games"
 
         # Filter out DLLs belonging to personally-ignored games
         dll_dict = await self._filter_ignored_games(dll_dict)
@@ -101,74 +124,115 @@ class AsyncUpdateCoordinator:
         settings = get_current_settings()
         backup_enabled = config_manager.get_backup_preference()
 
-        # Check if high-performance mode is enabled (opt-in only)
-        if config_manager.get_high_performance_mode():
-            try:
-                from ..high_performance_updater import HighPerformanceUpdateManager, DLLTask
-                from ..config import LATEST_DLL_PATHS
+        # The high-performance pipeline is the only batch update path (the
+        # opt-out setting was removed); the standard per-game loop below is
+        # kept solely as an automatic fallback if the pipeline raises.
+        try:
+            from ..high_performance_updater import HighPerformanceUpdateManager, DLLTask
+            from ..config import LATEST_DLL_PATHS
 
-                self.logger.info("Using high-performance update mode")
-                manager = HighPerformanceUpdateManager()
+            self.logger.info("Using high-performance update mode")
+            manager = HighPerformanceUpdateManager()
 
-                # Build task list from dll_dict with proper DLLTask objects
-                dll_tasks = []
-                for launcher, dll_paths in dll_dict.items():
-                    for dll_path in dll_paths:
-                        path_obj = Path(dll_path)
-                        dll_name = path_obj.name.lower()
-                        # Only create task if we have a source DLL for this
-                        if dll_name in LATEST_DLL_PATHS and LATEST_DLL_PATHS[dll_name]:
-                            dll_tasks.append(DLLTask(
-                                target_path=str(dll_path),
-                                source_dll_name=dll_name,
-                                game_name=extract_game_name(dll_path, launcher),
-                            ))
-
-                # Create progress wrapper to convert (int, int, str) to UpdateProgress
-                async def hp_progress_wrapper(current: int, total: int, message: str):
-                    if self._progress_callback:
-                        raw_percentage = int((current / total * 100)) if total > 0 else 0
-                        percentage = max(0, min(100, raw_percentage))  # Clamp to [0, 100]
-                        await self._progress_callback(UpdateProgress(
-                            current=current,
-                            total=total,
-                            message=message,
-                            percentage=percentage
+            # Build task list from dll_dict with proper DLLTask objects
+            dll_tasks = []
+            for launcher, dll_paths in dll_dict.items():
+                for dll_path in dll_paths:
+                    path_obj = Path(dll_path)
+                    dll_name = path_obj.name.lower()
+                    # Only create task if we have a source DLL for this
+                    if dll_name in LATEST_DLL_PATHS and LATEST_DLL_PATHS[dll_name]:
+                        dll_tasks.append(DLLTask(
+                            target_path=str(dll_path),
+                            source_dll_name=dll_name,
+                            game_name=extract_game_name(dll_path, launcher),
                         ))
 
-                # Execute high-performance pipeline
-                result = await manager.execute(dll_tasks, settings, hp_progress_wrapper)
+            # Create progress wrapper to convert (int, int, str) to UpdateProgress
+            async def hp_progress_wrapper(current: int, total: int, message: str):
+                if self._progress_callback:
+                    raw_percentage = int((current / total * 100)) if total > 0 else 0
+                    percentage = max(0, min(100, raw_percentage))  # Clamp to [0, 100]
+                    await self._progress_callback(UpdateProgress(
+                        current=current,
+                        total=total,
+                        message=message,
+                        percentage=percentage
+                    ))
 
-                # Log if fallback was used
-                if result.mode_used == "fallback":
-                    self.logger.warning("Fell back to standard mode due to memory pressure")
-
-                # Convert detailed results to expected format
-                updated_games = []
-                for detail in result.detailed_updates:
-                    game_name = detail.get("game_name", "Unknown Game")
-                    dll_name = detail.get("dll_name", "")
-                    old_ver = detail.get("old_version", "?")
-                    new_ver = detail.get("new_version", "?")
-                    updated_games.append(f"{game_name} ({dll_name}: {old_ver} → {new_ver})")
-
-                skipped_games = []
-                for detail in result.detailed_skipped:
-                    game_name = detail.get("game_name", "Unknown Game")
-                    dll_name = detail.get("dll_name", "")
-                    reason = detail.get("reason", "Already up-to-date")
-                    skipped_games.append(f"{game_name} ({dll_name}: {reason})")
-
+            # Honour a cancel that arrived during the pre-filter phase
+            # before kicking off the pipeline.
+            if self._cancel_requested:
+                self.was_cancelled = True
+                self.logger.info("Update cancelled before high-performance run started")
                 return UpdateResult(
-                    updated_games=updated_games,
-                    skipped_games=skipped_games,
-                    errors=result.errors,
-                    backup_created=result.backups_created > 0,
-                    total_processed=result.updates_succeeded + result.updates_skipped + len(result.errors)
+                    updated_games=[],
+                    skipped_games=[],
+                    errors=[],
+                    backup_created=False,
+                    total_processed=0,
                 )
-            except Exception as e:
-                self.logger.error(f"High-performance update failed, falling back to standard: {e}")
-                # Fall through to standard mode
+
+            # Execute high-performance pipeline. The manager polls the
+            # cancel flag at phase boundaries and before each queued DLL
+            # write, so a mid-run cancel skips remaining DLLs without ever
+            # interrupting an in-flight copy.
+            result = await manager.execute(
+                dll_tasks,
+                settings,
+                hp_progress_wrapper,
+                cancel_check=lambda: self._cancel_requested,
+            )
+
+            # Log if fallback was used
+            if result.mode_used == "fallback":
+                self.logger.warning("Fell back to standard mode due to memory pressure")
+
+            if result.was_cancelled:
+                # DLLs skipped purely by the cancel don't count as processed.
+                cancelled_dlls = sum(
+                    1 for d in result.detailed_skipped
+                    if d.get("reason") == "Cancelled by user"
+                )
+                self.was_cancelled = True
+                self.cancel_unit = "DLLs"
+                self.cancel_total = len(dll_tasks)
+                self.cancel_processed = max(
+                    0,
+                    result.updates_succeeded + result.updates_failed
+                    + result.updates_skipped - cancelled_dlls,
+                )
+                self.logger.info(
+                    f"Update cancelled: processed {self.cancel_processed} of "
+                    f"{self.cancel_total} DLLs"
+                )
+
+            # Convert detailed results to expected format
+            updated_games = []
+            for detail in result.detailed_updates:
+                game_name = detail.get("game_name", "Unknown Game")
+                dll_name = detail.get("dll_name", "")
+                old_ver = detail.get("old_version", "?")
+                new_ver = detail.get("new_version", "?")
+                updated_games.append(f"{game_name} ({dll_name}: {old_ver} → {new_ver})")
+
+            skipped_games = []
+            for detail in result.detailed_skipped:
+                game_name = detail.get("game_name", "Unknown Game")
+                dll_name = detail.get("dll_name", "")
+                reason = detail.get("reason", "Already up-to-date")
+                skipped_games.append(f"{game_name} ({dll_name}: {reason})")
+
+            return UpdateResult(
+                updated_games=updated_games,
+                skipped_games=skipped_games,
+                errors=result.errors,
+                backup_created=result.backups_created > 0,
+                total_processed=result.updates_succeeded + result.updates_skipped + len(result.errors)
+            )
+        except Exception as e:
+            self.logger.error(f"High-performance update failed, falling back to standard: {e}")
+            # Fall through to standard mode
 
         # Count total DLLs to process
         total_dlls = sum(len(dlls) for dlls in dll_dict.values())
@@ -183,39 +247,78 @@ class AsyncUpdateCoordinator:
                 percentage=0
             ))
 
+        # Group the flat launcher->DLL mapping into per-game batches so the cancel
+        # flag can be honoured between games. The heavy per-DLL work lives in
+        # utils.update_dlss_versions (which we must not modify) and processes a
+        # batch in a single parallel task group, so a game's own DLLs still update
+        # concurrently — cancellation just takes effect at the next game boundary,
+        # never mid-file-copy.
+        game_groups: list[tuple[str, str, list]] = []  # (game_name, launcher, dll_paths)
+        group_index: dict[tuple[str, str], int] = {}
+        for launcher, dll_paths in dll_dict.items():
+            for dll_path in dll_paths:
+                game_root = find_game_root(Path(dll_path), launcher)
+                key = (launcher, str(game_root))
+                idx = group_index.get(key)
+                if idx is None:
+                    group_index[key] = len(game_groups)
+                    game_groups.append((game_root.name, launcher, [dll_path]))
+                else:
+                    game_groups[idx][2].append(dll_path)
+
+        self.cancel_total = len(game_groups)
+
         # Run updater (now fully async, no thread pool needed)
         try:
-            # Create progress wrapper that calls our async callback
-            processed_count = 0
             # Use a bounded deque for O(1) cleanup - only keep last N pending tasks
             # This prevents memory leak with O(n²) list comprehension on every callback
             from collections import deque
             _pending_progress_tasks: deque[asyncio.Task] = deque(maxlen=32)
 
-            def sync_progress_callback(current, total, message):
-                """Synchronous progress callback for compatibility"""
-                nonlocal processed_count
-                processed_count = current
-                raw_percentage = int((current / total * 100)) if total > 0 else 0
-                percentage = max(0, min(100, raw_percentage))  # Clamp to [0, 100]
+            raw_updated: list = []
+            raw_skipped: list = []
+            errors: list = []
+            processed_dlls = 0
+            processed_games = 0
+            cancelled = False
 
-                # Call async callback directly (we're in async context now)
-                if self._progress_callback:
-                    # Schedule as a task - deque automatically evicts old tasks (maxlen=32)
-                    task = asyncio.create_task(self._progress_callback(UpdateProgress(
-                        current=current,
-                        total=total,
-                        message=message,
-                        percentage=percentage
-                    )))
-                    _pending_progress_tasks.append(task)
+            def make_progress_callback(base_offset: int, name: str):
+                """Build a per-game callback mapping a game's local (current/total)
+                onto the run's global progress."""
+                def sync_progress_callback(current, total, message):
+                    global_current = base_offset + current
+                    raw_percentage = int((global_current / total_dlls * 100)) if total_dlls > 0 else 0
+                    percentage = max(0, min(100, raw_percentage))  # Clamp to [0, 100]
+                    if self._progress_callback:
+                        # Schedule as a task - deque automatically evicts old tasks (maxlen=32)
+                        task = asyncio.create_task(self._progress_callback(UpdateProgress(
+                            current=global_current,
+                            total=total_dlls,
+                            message=f"Updating {name}...",
+                            percentage=percentage
+                        )))
+                        _pending_progress_tasks.append(task)
+                return sync_progress_callback
 
-            # Call async update_dlss_versions directly (no thread pool)
-            result = await update_dlss_versions(
-                dll_dict,
-                settings,
-                sync_progress_callback
-            )
+            for game_name, launcher, dll_paths in game_groups:
+                # Checkpoint between games — never inside a game's parallel batch,
+                # so no half-written DLLs result.
+                if self._cancel_requested:
+                    cancelled = True
+                    break
+
+                # Call async update_dlss_versions per game (no thread pool)
+                result = await update_dlss_versions(
+                    {launcher: dll_paths},
+                    settings,
+                    make_progress_callback(processed_dlls, game_name)
+                )
+
+                raw_updated.extend(result.get("updated_games", []))
+                raw_skipped.extend(result.get("skipped_games", []))
+                errors.extend(result.get("errors", []))
+                processed_dlls += len(dll_paths)
+                processed_games += 1
 
             # Await any remaining pending progress tasks to ensure completion
             if _pending_progress_tasks:
@@ -229,13 +332,9 @@ class AsyncUpdateCoordinator:
                     for t in _pending_progress_tasks:
                         tg.start_soon(_drain, t)
 
-            # Parse result (update_dlss_versions returns dict with results)
+            # Parse aggregated results (update_dlss_versions returns dict with results)
             # updated_games: list of (dll_path, launcher, dll_type) tuples
             # skipped_games: list of (dll_path, launcher, reason, dll_type) tuples
-            raw_updated = result.get("updated_games", [])
-            raw_skipped = result.get("skipped_games", [])
-            errors = result.get("errors", [])
-
             updated_games = [
                 f"{extract_game_name(dll_path, launcher)} ({dll_type})"
                 for dll_path, launcher, dll_type in raw_updated
@@ -245,18 +344,28 @@ class AsyncUpdateCoordinator:
                 for dll_path, launcher, reason, dll_type in raw_skipped
             ]
 
-            self.logger.info(
-                f"Update complete: {len(updated_games)} updated, "
-                f"{len(skipped_games)} skipped, {len(errors)} errors"
-            )
+            self.was_cancelled = cancelled
+            self.cancel_processed = processed_games
 
-            # Report completion
+            if cancelled:
+                self.logger.info(
+                    f"Update cancelled: processed {processed_games} of "
+                    f"{len(game_groups)} games "
+                    f"({len(updated_games)} updated, {len(skipped_games)} skipped)"
+                )
+            else:
+                self.logger.info(
+                    f"Update complete: {len(updated_games)} updated, "
+                    f"{len(skipped_games)} skipped, {len(errors)} errors"
+                )
+
+            # Report completion / cancellation
             if self._progress_callback:
                 await self._progress_callback(UpdateProgress(
-                    current=total_dlls,
+                    current=processed_dlls,
                     total=total_dlls,
-                    message="Update complete",
-                    percentage=100
+                    message="Update cancelled" if cancelled else "Update complete",
+                    percentage=int((processed_dlls / total_dlls) * 100) if total_dlls > 0 else 100
                 ))
 
             return UpdateResult(
@@ -264,7 +373,7 @@ class AsyncUpdateCoordinator:
                 skipped_games=skipped_games,
                 errors=errors,
                 backup_created=backup_enabled,
-                total_processed=total_dlls
+                total_processed=processed_dlls
             )
 
         except Exception as e:
@@ -320,6 +429,11 @@ class AsyncUpdateCoordinator:
             UpdateResult with details of what was updated
         """
         self.logger.info("Starting scan and update operation...")
+        self._cancel_requested = False
+        self.was_cancelled = False
+        self.cancel_processed = 0
+        self.cancel_total = 0
+        self.cancel_unit = "games"
 
         # Phase 1: Scan
         if progress_callback:
@@ -331,6 +445,20 @@ class AsyncUpdateCoordinator:
             ))
 
         dll_dict = await self.scan_for_games(progress_callback)
+
+        # Checkpoint between phases: if the scan was cancelled (scan_for_games
+        # sets was_cancelled and returns an empty dict), skip the update phase
+        # and report cleanly rather than proceeding.
+        if self.was_cancelled or self._cancel_requested:
+            self.was_cancelled = True
+            self.logger.info("Scan and update cancelled during scan phase")
+            return UpdateResult(
+                updated_games=[],
+                skipped_games=[],
+                errors=[],
+                backup_created=False,
+                total_processed=0
+            )
 
         # Check if any games found
         total_games = sum(len(dlls) for dlls in dll_dict.values())
@@ -383,6 +511,8 @@ class AsyncUpdateCoordinator:
         groups_str = ", ".join(dll_groups) if dll_groups else "all"
         self.logger.info(f"Starting single-game update for: {game_name} (id: {game_id}, groups: {groups_str})")
         self._progress_callback = progress_callback
+        self._cancel_requested = False
+        self.was_cancelled = False
 
         results: dict[str, Any] = {
             'updated': [],
@@ -472,6 +602,16 @@ class AsyncUpdateCoordinator:
 
             # Process each DLL
             for game_dll in game_dlls:
+                # Checkpoint between DLLs — never mid-copy, so no half-written
+                # DLLs result from a cancellation.
+                if self._cancel_requested:
+                    self.was_cancelled = True
+                    self.logger.info(
+                        f"Single-game update cancelled for {game_name} after "
+                        f"{processed} of {total_dlls} DLL(s)"
+                    )
+                    break
+
                 dll_path = Path(game_dll.dll_path)
 
                 # Report progress for current DLL

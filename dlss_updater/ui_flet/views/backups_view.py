@@ -21,6 +21,7 @@ from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.database import db_manager, DLLBackup
 from dlss_updater.models import GameWithBackupCount, GameDLLBackup
 from dlss_updater.backup_manager import restore_dll_from_backup, delete_backup
+from dlss_updater.services.backup_service import restore_orphaned_dll_from_backup
 from dlss_updater.ui_flet.components.backup_group import BackupGroup
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
@@ -657,7 +658,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             color=MD3Colors.get_on_surface_variant(is_dark),
         )
         self._orphan_hint = ft.Text(
-            "No longer in your library — restore unavailable, delete only.",
+            "No longer in your library — restore reinstalls the saved DLL if the game is still installed.",
             size=11,
             italic=True,
             color=MD3Colors.get_text_secondary(is_dark),
@@ -684,9 +685,10 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         """Append the "Unlinked games" header and one delete-only BackupGroup
         per orphan group to the end of the backups list.
 
-        Orphan groups pass on_restore/on_restore_all as None and is_orphan=True,
-        so BackupGroup hides all restore affordances (restore fails for these
-        with "DLL information not found in database"). Delete still works.
+        Orphan groups wire a per-DLL restore handler (restore-by-path via
+        restore_orphaned_dll_from_backup) but pass on_restore_all=None, so
+        BackupGroup shows per-row Restore but no group-level Restore All. Delete
+        still works. is_orphan=True is informational only (see BackupGroup).
         """
         if not orphan_items:
             return
@@ -702,7 +704,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 backups=backups,
                 page=self._page_ref,
                 logger=self.logger,
-                on_restore=None,          # restore unavailable for orphans
+                on_restore=self._on_restore_orphan_from_group,  # restore-by-path
                 on_delete=self._on_delete_backup_from_group,
                 on_restore_all=None,      # no Restore All for orphans
                 art_path=None,            # negative id -> folder-icon fallback
@@ -866,28 +868,43 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             )
             self._page_ref.show_dialog(error_dialog)
 
-    def _on_restore_backup(self, backup: DLLBackup):
-        """Handle restore backup button click"""
+    def _on_restore_backup(self, backup: DLLBackup, orphan: bool = False):
+        """Handle restore backup button click.
+
+        When ``orphan`` is True the backup's owning game has left the library, so
+        restore is performed by path (``restore_orphaned_dll_from_backup``) and
+        the dialog adds a "game must still be installed" note.
+        """
         # Create dialog first without actions
+        content_controls = [
+            ft.Text(f"Game: {backup.game_name}"),
+            ft.Text(f"DLL: {backup.dll_filename}"),
+            ft.Text(f"Backup Version: {backup.original_version or 'Unknown'}"),
+            ft.Divider(),
+            ft.Text(
+                "This will replace the current DLL with the backup version.",
+                color=ft.Colors.ORANGE,
+                size=12,
+            ),
+            ft.Text(
+                "Make sure the game is closed before restoring.",
+                color=ft.Colors.ORANGE,
+                size=12,
+            ),
+        ]
+        if orphan:
+            content_controls.append(
+                ft.Text(
+                    "This game is no longer in your library — it must still be "
+                    "installed at its original location for the restore to succeed.",
+                    color=ft.Colors.ORANGE,
+                    size=12,
+                )
+            )
         dialog = ft.AlertDialog(
             title=ft.Text("Restore DLL Backup?"),
             content=ft.Column(
-                controls=[
-                    ft.Text(f"Game: {backup.game_name}"),
-                    ft.Text(f"DLL: {backup.dll_filename}"),
-                    ft.Text(f"Backup Version: {backup.original_version or 'Unknown'}"),
-                    ft.Divider(),
-                    ft.Text(
-                        "This will replace the current DLL with the backup version.",
-                        color=ft.Colors.ORANGE,
-                        size=12,
-                    ),
-                    ft.Text(
-                        "Make sure the game is closed before restoring.",
-                        color=ft.Colors.ORANGE,
-                        size=12,
-                    ),
-                ],
+                controls=content_controls,
                 tight=True,
                 spacing=8,
             ),
@@ -902,7 +919,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             ),
             ft.ElevatedButton(
                 "Restore",
-                on_click=self._create_restore_handler(backup, dialog),
+                on_click=self._create_restore_handler(backup, dialog, orphan),
                 style=ft.ButtonStyle(
                     bgcolor="#2D6E88",
                     color=ft.Colors.WHITE,
@@ -912,14 +929,19 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
         self._page_ref.show_dialog(dialog)
 
-    def _create_restore_handler(self, backup: DLLBackup, dialog: ft.AlertDialog):
+    def _create_restore_handler(self, backup: DLLBackup, dialog: ft.AlertDialog, orphan: bool = False):
         """Create async restore handler for specific backup"""
         async def handler(e):
-            await self._perform_restore(backup, dialog)
+            await self._perform_restore(backup, dialog, orphan)
         return handler
 
-    async def _perform_restore(self, backup: DLLBackup, dialog: ft.AlertDialog):
-        """Perform the restore operation"""
+    async def _perform_restore(self, backup: DLLBackup, dialog: ft.AlertDialog, orphan: bool = False):
+        """Perform the restore operation.
+
+        ``orphan`` selects the restore-by-path service call for backups whose
+        owning game left the library; both paths share identical progress/result
+        feedback and the same force-refresh on success.
+        """
         self._page_ref.pop_dialog()
 
         # Show progress indicator
@@ -938,8 +960,11 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         self._page_ref.show_dialog(progress_dialog)
 
         try:
-            # Perform restore
-            success, message = await restore_dll_from_backup(backup.id)
+            # Perform restore (orphans go through the restore-by-path service)
+            if orphan:
+                success, message = await restore_orphaned_dll_from_backup(backup.id)
+            else:
+                success, message = await restore_dll_from_backup(backup.id)
 
             # Close progress dialog
             self._page_ref.pop_dialog()
@@ -1086,6 +1111,26 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             is_active=backup.is_active,
         )
         self._on_restore_backup(dll_backup)
+
+    def _on_restore_orphan_from_group(self, backup: GameDLLBackup):
+        """Handle restore callback for an ORPHANED backup from BackupGroup.
+
+        Same conversion as the linked path, but routes through the orphan
+        restore-by-path flow (the owning game is no longer in the DB, so the
+        target DLL path is derived from the backup's stored .dlsss sidecar).
+        """
+        dll_backup = DLLBackup(
+            id=backup.id,
+            game_dll_id=backup.game_dll_id,
+            game_name=backup.game_name,
+            dll_filename=backup.dll_filename,
+            backup_path=backup.backup_path,
+            backup_size=backup.backup_size,
+            original_version=backup.original_version,
+            backup_created_at=backup.backup_created_at,
+            is_active=backup.is_active,
+        )
+        self._on_restore_backup(dll_backup, orphan=True)
 
     def _on_delete_backup_from_group(self, backup: GameDLLBackup):
         """Handle delete callback from BackupGroup component.

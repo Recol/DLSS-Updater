@@ -27,6 +27,14 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         self._registry = get_theme_registry()
         self._theme_priority = 40  # Utility components are mid-low priority
 
+        # Cancellation callback for the current run (set per show(); None hides
+        # the Cancel button for runs that aren't cancellable).
+        self._on_cancel_cb = None
+        # Once the user clicks Cancel, the "Cancelling…" label is pinned so
+        # in-flight progress messages don't overwrite it (the progress bar still
+        # advances as the current atomic unit finishes).
+        self._cancelling = False
+
         # Get theme preference from registry
         is_dark = self._registry.is_dark
 
@@ -67,6 +75,16 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
             value=0,
         )
 
+        # Cancel button — lets the user abort a long scan/update run. Hidden by
+        # default; show() reveals it when the run passes an on_cancel callback.
+        self.cancel_button = ft.OutlinedButton(
+            "Cancel",
+            icon=ft.Icons.CLOSE,
+            on_click=self._on_cancel_click,
+            visible=False,
+            style=ft.ButtonStyle(color=MD3Colors.get_error(is_dark)),
+        )
+
         # Content container with glassmorphism effect
         # In dark mode use dark bg, in light mode use light bg with subtle transparency
         content_bg = "rgba(46, 46, 46, 0.95)" if is_dark else "rgba(255, 255, 255, 0.95)"
@@ -80,6 +98,7 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
                     self.progress_text,
                     self.progress_bar,
                     self.status_text,
+                    self.cancel_button,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -106,17 +125,47 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         # Register for theme updates
         self._register_theme_aware()
 
-    def show(self, page: ft.Page, message: str = "Processing..."):
-        """Show the loading overlay by adding to page.overlay"""
+    def show(self, page: ft.Page, message: str = "Processing...", on_cancel=None):
+        """Show the loading overlay by adding to page.overlay.
+
+        Args:
+            page: Flet page instance.
+            message: Initial status message.
+            on_cancel: Optional zero-arg callable invoked when the user clicks
+                Cancel. When provided, the Cancel button is shown and reset to
+                its enabled state; when None, the button stays hidden.
+        """
+        self._page_ref = page
         self.status_text.value = message
         self._progress_value = 0
         self.progress_bar.value = 0
         self.progress_text.value = "0%"
+        # Reset the Cancel button state for this run (re-enable after a prior
+        # cancellation) and reveal it only when the run is cancellable.
+        self._on_cancel_cb = on_cancel
+        self._cancelling = False
+        self.cancel_button.visible = on_cancel is not None
+        self.cancel_button.disabled = False
         # Add to overlay if not already present (ensures it intercepts input)
         if self not in page.overlay:
             page.overlay.append(self)
         self._is_showing = True
         page.update()
+
+    def _on_cancel_click(self, e):
+        """Handle Cancel click: fire the callback, reflect the pending state,
+        and disable the button to prevent double-clicks."""
+        cb = self._on_cancel_cb
+        if cb is not None:
+            try:
+                cb()
+            except Exception:
+                pass
+        self._cancelling = True
+        self.cancel_button.disabled = True
+        self.status_text.value = "Cancelling…"
+        if self._page_ref:
+            self._page_ref.update()
 
     def hide(self, page: ft.Page):
         """Hide the loading overlay by removing from page.overlay"""
@@ -139,7 +188,8 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         self.progress_bar.value = self._progress_value / 100
         self.progress_text.value = f"{self._progress_value}%"
 
-        if message:
+        # Don't clobber the pinned "Cancelling…" label once cancellation started.
+        if message and not self._cancelling:
             self.status_text.value = message
 
         page.update()
@@ -159,8 +209,9 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         self.progress_bar.value = end / 100
         self._progress_value = end
 
-        # Update message if changed
-        if message and message != self.status_text.value:
+        # Update message if changed (but keep the pinned "Cancelling…" label
+        # once cancellation started).
+        if message and not self._cancelling and message != self.status_text.value:
             self.status_text.value = message
 
         # Single page update for all changes
@@ -198,6 +249,9 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
             # Update overlay background opacity
             overlay_bg = ft.Colors.with_opacity(0.7, ft.Colors.BLACK) if is_dark else ft.Colors.with_opacity(0.5, ft.Colors.BLACK)
             self.bgcolor = overlay_bg
+
+            # Restyle the Cancel button for the active theme
+            self.cancel_button.style = ft.ButtonStyle(color=MD3Colors.get_error(is_dark))
 
             if hasattr(self, 'update'):
                 self.update()

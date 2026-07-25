@@ -64,6 +64,19 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.5.0" date="2026-07-25">
+      <description>
+        <p>Cancellable updates, orphan backup restore, more Streamline DLLs</p>
+        <ul>
+          <li>Scans and batch updates can now be cancelled from the loading overlay — the run stops at the next safe boundary (never mid-file-write) and reports how far it got</li>
+          <li>Pressing Update before scanning now offers "Scan and Update" in one go instead of an error</li>
+          <li>Backups in the "Unlinked games" section can now be restored to their original location, not just deleted</li>
+          <li>Three additional Streamline DLLs are now detected and updated: DirectSR, DLSS Ray Reconstruction (sl.dlss_d) and NIS upscaling</li>
+          <li>Streamline updates are enabled by default on fresh installs</li>
+          <li>Updated the Flet UI framework to 0.86.2 on both platforms</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.4.3" date="2026-07-22">
       <description>
         <p>UI polish and backup fixes</p>

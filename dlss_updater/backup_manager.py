@@ -268,6 +268,129 @@ async def restore_dll_from_backup(backup_id: int) -> tuple[bool, str]:
         return False, f"Unexpected error during restore: {str(e)}"
 
 
+async def restore_orphaned_dll_from_backup(backup_id: int) -> tuple[bool, str]:
+    """
+    Restore an ORPHANED backup by path (owning game no longer in the library).
+
+    Unlike :func:`restore_dll_from_backup`, this does NOT require a ``game_dlls``
+    row. The target DLL path is derived directly from the backup's stored
+    ``.dlsss`` sidecar path — ``Path(backup_path).with_suffix('.dll')`` — which is
+    the same derivation the linked path uses to look up its ``game_dll`` record
+    (see ``updater.create_backup``: the sidecar is ``dll_path.with_suffix('.dlsss')``).
+    The backup file is copied back over that path using the same primitives as the
+    linked restore (:func:`async_copy2`, ``os.chmod``, temp-file rollback).
+
+    On success the record is marked restored, mirroring the linked path
+    (``mark_backup_restored`` -> is_active=0 + restored_at). On ANY failure the
+    record is left untouched so the orphan row remains and the user can retry.
+
+    Args:
+        backup_id: Database ID of the orphaned backup to restore.
+
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
+    try:
+        backup = await db_manager.get_backup_by_id(backup_id)
+
+        if not backup:
+            return False, "Backup not found in database"
+
+        backup_path = Path(backup.backup_path)
+        dll_path = backup_path.with_suffix('.dll')
+
+        # Failure case 1: backup file missing on disk. Leave the record intact
+        # (do NOT mark inactive) so the row survives for a later retry.
+        if not backup_path.exists():
+            logger.warning(f"Orphan backup file not found: {backup_path}")
+            return False, "Backup file not found on disk. It may have been deleted."
+
+        # Failure case 2: target directory gone (game uninstalled/moved).
+        if not dll_path.parent.exists():
+            logger.warning(f"Orphan restore target folder missing: {dll_path.parent}")
+            return False, (
+                f"Target folder no longer exists:\n{dll_path.parent}\n"
+                "The game may have been uninstalled or moved."
+            )
+
+        # Failure case 3: target file locked / game running.
+        from dlss_updater.updater import is_file_in_use_async
+        if dll_path.exists() and await is_file_in_use_async(str(dll_path)):
+            return False, "DLL is currently in use. Please close the game first."
+
+        # Safety copy of the current DLL (only if one is present) for rollback.
+        temp_backup = None
+        if dll_path.exists():
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.dll') as tf:
+                    temp_backup = Path(tf.name)
+                await async_copy2(dll_path, temp_backup)
+                logger.info(f"Created temporary backup: {temp_backup}")
+            except Exception as e:
+                logger.error(f"Failed to create temporary backup: {e}")
+                return False, f"Failed to create safety backup: {e}"
+
+        try:
+            # Remove read-only attribute if the target already exists.
+            if dll_path.exists():
+                await anyio.to_thread.run_sync(
+                    os.chmod, dll_path, stat.S_IWRITE | stat.S_IREAD, limiter=thread_io
+                )
+
+            await async_copy2(backup_path, dll_path)
+
+            if not dll_path.exists():
+                raise Exception("DLL file not found after restore")
+
+            # Mirror the linked path's success semantics: mark restored (is_active=0
+            # + restored_at). Orphans have no game_dlls row, so the linked path's
+            # update_game_dll_version step is intentionally skipped.
+            await db_manager.mark_backup_restored(backup_id)
+
+            if temp_backup and temp_backup.exists():
+                temp_backup.unlink()
+
+            logger.info(f"Successfully restored orphaned backup for {dll_path.name}")
+            return True, f"Successfully restored {dll_path.name} to version {backup.original_version or 'unknown'}"
+
+        except PermissionError as e:
+            logger.error(f"Permission denied during orphan restore: {e}", exc_info=True)
+            if temp_backup and temp_backup.exists():
+                try:
+                    shutil.copy2(temp_backup, dll_path)
+                    logger.info("Rolled back after failed orphan restore")
+                except Exception as rollback_error:
+                    logger.error(f"Failed to rollback: {rollback_error}")
+                try:
+                    temp_backup.unlink()
+                except Exception:
+                    pass
+            return False, (
+                f"Permission denied writing to {dll_path.name}. "
+                "Close the game (and any anti-cheat) and try again."
+            )
+
+        except Exception as e:
+            logger.error(f"Error during orphan restore: {e}", exc_info=True)
+
+            if temp_backup and temp_backup.exists():
+                try:
+                    shutil.copy2(temp_backup, dll_path)
+                    logger.info("Rolled back after failed orphan restore")
+                except Exception as rollback_error:
+                    logger.error(f"Failed to rollback: {rollback_error}")
+                try:
+                    temp_backup.unlink()
+                except Exception:
+                    pass
+
+            return False, f"Restore failed: {str(e)}"
+
+    except Exception as e:
+        logger.error(f"Error in restore_orphaned_dll_from_backup: {e}", exc_info=True)
+        return False, f"Unexpected error during restore: {str(e)}"
+
+
 async def delete_backup(backup_id: int) -> tuple[bool, str]:
     """
     Delete a backup file and mark it inactive in database

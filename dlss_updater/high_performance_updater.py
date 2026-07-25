@@ -927,12 +927,18 @@ class HighPerformanceUpdateManager:
         self._backup_manifest: BackupManifest | None = None
         self._start_time: float = 0.0
         self._peak_memory_mb: float = 0.0
+        self._cancel_check: Callable[[], bool] | None = None
+
+    def _is_cancel_requested(self) -> bool:
+        """True when the caller-supplied cancel_check reports a pending cancel."""
+        return self._cancel_check is not None and self._cancel_check()
 
     async def execute(
         self,
         dll_tasks: list[DLLTask],
         settings: dict[str, Any],
-        progress_callback: Callable[[int, int, str], None] | None = None
+        progress_callback: Callable[[int, int, str], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None
     ) -> BatchUpdateResult:
         """
         Execute the high-performance update pipeline.
@@ -941,6 +947,11 @@ class HighPerformanceUpdateManager:
             dll_tasks: List of DLL update tasks to execute
             settings: Update settings (e.g., CreateBackups preference)
             progress_callback: Optional callback(current, total, message)
+            cancel_check: Optional zero-arg callable polled at phase boundaries
+                and before each queued DLL write. When it returns True the
+                pipeline stops starting new work: not-yet-started DLLs are
+                skipped with reason "Cancelled by user" while in-flight writes
+                complete normally (a write is never interrupted mid-copy).
 
         Returns:
             BatchUpdateResult with pipeline execution results
@@ -963,6 +974,7 @@ class HighPerformanceUpdateManager:
 
         self._start_time = time.monotonic()
         self._peak_memory_mb = 0.0
+        self._cancel_check = cancel_check
         errors: list[dict[str, str]] = []
         detailed_updates: list[dict[str, str]] = []
         detailed_skipped: list[dict[str, str]] = []
@@ -1072,6 +1084,25 @@ class HighPerformanceUpdateManager:
                     detailed_skipped=[]
                 )
 
+            # Cancellation checkpoint: nothing has been written yet, so a cancel
+            # that arrived during load/pre-filter aborts the whole run cleanly.
+            if self._is_cancel_requested():
+                logger.info("[PIPELINE] Cancelled before backup phase - nothing written")
+                duration = time.monotonic() - self._start_time
+                return BatchUpdateResult(
+                    mode_used=mode_used,
+                    backups_created=0,
+                    updates_succeeded=0,
+                    updates_failed=0,
+                    updates_skipped=updates_skipped,
+                    memory_peak_mb=self._peak_memory_mb,
+                    duration_seconds=duration,
+                    errors=[],
+                    detailed_updates=[],
+                    detailed_skipped=[],
+                    was_cancelled=True
+                )
+
             # Update total steps based on filtered count
             # Steps breakdown:
             #   - 3 phase-level calls (backup, update, verify)
@@ -1111,6 +1142,26 @@ class HighPerformanceUpdateManager:
             except MemoryPressureError:
                 mode_used = "fallback"
                 raise
+
+            # Cancellation checkpoint: backups exist but no target has been
+            # written, so a cancel during the backup phase still aborts with
+            # every game untouched (.dlsss sidecars are harmless to leave).
+            if self._is_cancel_requested():
+                logger.info("[PIPELINE] Cancelled after backup phase - no updates written")
+                duration = time.monotonic() - self._start_time
+                return BatchUpdateResult(
+                    mode_used=mode_used,
+                    backups_created=backups_created,
+                    updates_succeeded=0,
+                    updates_failed=0,
+                    updates_skipped=updates_skipped,
+                    memory_peak_mb=self._peak_memory_mb,
+                    duration_seconds=duration,
+                    errors=[],
+                    detailed_updates=[],
+                    detailed_skipped=[],
+                    was_cancelled=True
+                )
 
             # ========== PHASE 2: Parallel Updates ==========
             await _progress("Applying updates...")
@@ -1195,7 +1246,8 @@ class HighPerformanceUpdateManager:
             duration_seconds=duration,
             errors=errors,
             detailed_updates=detailed_updates,
-            detailed_skipped=detailed_skipped
+            detailed_skipped=detailed_skipped,
+            was_cancelled=self._is_cancel_requested()
         )
 
     async def _phase0_load_sources(self, dll_tasks: list[DLLTask]) -> int:
@@ -1558,6 +1610,12 @@ class HighPerformanceUpdateManager:
                 "new_version": new_version or ""
             }
 
+        # Cancellation checkpoint: runs once this task acquires a worker slot,
+        # so queued DLLs are skipped after a cancel while in-flight writes
+        # always complete (never interrupted mid-copy).
+        if self._is_cancel_requested():
+            return make_result(False, "Cancelled by user", skipped=True)
+
         try:
             # Check if target exists
             if not target_path.exists():
@@ -1743,7 +1801,8 @@ class HighPerformanceUpdateManager:
 async def execute_high_performance_update(
     dll_tasks: list[DLLTask],
     settings: dict[str, Any],
-    progress_callback: Callable[[int, int, str], None] | None = None
+    progress_callback: Callable[[int, int, str], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None
 ) -> BatchUpdateResult:
     """
     Execute a high-performance batch DLL update.
@@ -1755,6 +1814,7 @@ async def execute_high_performance_update(
         dll_tasks: List of DLL update tasks
         settings: Update settings
         progress_callback: Optional callback(current, total, message)
+        cancel_check: Optional zero-arg callable; see HighPerformanceUpdateManager.execute
 
         Returns:
         BatchUpdateResult with execution results
@@ -1763,7 +1823,7 @@ async def execute_high_performance_update(
         MemoryPressureError: If memory pressure exceeds critical threshold
     """
     manager = HighPerformanceUpdateManager()
-    return await manager.execute(dll_tasks, settings, progress_callback)
+    return await manager.execute(dll_tasks, settings, progress_callback, cancel_check=cancel_check)
 
 
 def check_memory_for_high_performance_mode() -> tuple[bool, str]:

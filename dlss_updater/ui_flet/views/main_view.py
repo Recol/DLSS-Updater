@@ -1511,8 +1511,12 @@ class MainView(ft.Column):
             self.logger.warning("Scanning before DLL cache initialized - version info may be incomplete")
 
         try:
-            # Show loading overlay
-            self.loading_overlay.show(self._page_ref, "Scanning for games...")
+            # Show loading overlay with a Cancel button wired to the coordinator
+            self.loading_overlay.show(
+                self._page_ref,
+                "Scanning for games...",
+                on_cancel=self.update_coordinator.cancel,
+            )
 
             # Progress callback
             async def on_progress(progress: UpdateProgress):
@@ -1524,6 +1528,13 @@ class MainView(ft.Column):
 
             # Run scan only
             dll_dict = await self.update_coordinator.scan_for_games(on_progress)
+
+            # If the user cancelled during the scan, bail out without touching the
+            # cached scan results or the launcher cards.
+            if self.update_coordinator.was_cancelled:
+                self.loading_overlay.hide(self._page_ref)
+                await self._show_snackbar("Scan cancelled")
+                return
 
             # SAVE SCAN RESULTS FOR LATER UPDATE (both in memory and to disk)
             self.last_scan_results = dll_dict
@@ -1722,21 +1733,29 @@ class MainView(ft.Column):
             self._page_ref.show_dialog(error_dialog)
             return
 
-        # Check if scan has been run
+        # No prior scan: offer to scan-then-update in one go rather than
+        # dead-ending on an error dialog.
         if not self.last_scan_results:
-            self.logger.warning("Update attempted without prior scan")
-            error_dialog = ft.AlertDialog(
+            self.logger.info("Update requested without prior scan — offering scan-and-update")
+
+            async def on_scan_and_update(e):
+                self._page_ref.pop_dialog()
+                await self._run_scan_and_update()
+
+            dialog = ft.AlertDialog(
                 modal=True,
-                title=ft.Text("Scan Required", color=ft.Colors.ORANGE),
-                content=ft.Text("Please run 'Scan for Games' first before updating."),
+                title=ft.Text("No games scanned yet"),
+                content=ft.Text(
+                    "A scan is needed before updating. Run a scan now and then "
+                    "update all discovered games in one go?"
+                ),
                 actions=[
-                    ft.FilledButton(
-                        "OK",
-                        on_click=lambda e: self._page_ref.pop_dialog()
-                    ),
+                    ft.TextButton("Cancel", on_click=lambda e: self._page_ref.pop_dialog()),
+                    ft.FilledButton("Scan and Update", on_click=on_scan_and_update),
                 ],
+                actions_alignment=ft.MainAxisAlignment.END,
             )
-            self._page_ref.show_dialog(error_dialog)
+            self._page_ref.show_dialog(dialog)
             return
 
         # Calculate scan age for logging
@@ -1753,8 +1772,12 @@ class MainView(ft.Column):
             self.logger.info(f"Using scan results from {age_str}")
 
         try:
-            # Show loading overlay
-            self.loading_overlay.show(self._page_ref, "Updating games...")
+            # Show loading overlay with a Cancel button wired to the coordinator
+            self.loading_overlay.show(
+                self._page_ref,
+                "Updating games...",
+                on_cancel=self.update_coordinator.cancel,
+            )
 
             # Progress callback
             async def on_progress(progress: UpdateProgress):
@@ -1773,9 +1796,20 @@ class MainView(ft.Column):
             # Hide loading overlay
             self.loading_overlay.hide(self._page_ref)
 
-            # Show results dialog
-            summary_dialog = UpdateSummaryDialog(self._page_ref, self.logger, result)
-            await summary_dialog.show()
+            # Surface the outcome through the completion path: a cancelled run
+            # reports partial progress via a snackbar; a full run shows the
+            # detailed summary dialog. Badge/backup reconciliation runs for both
+            # since partial updates may have been written before cancellation.
+            if self.update_coordinator.was_cancelled:
+                processed = self.update_coordinator.cancel_processed
+                total = self.update_coordinator.cancel_total
+                unit = self.update_coordinator.cancel_unit
+                await self._show_snackbar(
+                    f"Update cancelled — processed {processed} of {total} {unit}"
+                )
+            else:
+                summary_dialog = UpdateSummaryDialog(self._page_ref, self.logger, result)
+                await summary_dialog.show()
 
             # Refresh game card DLL badges if games view is loaded; otherwise
             # flag it to reconcile from disk the next time it loads. The
@@ -1795,6 +1829,84 @@ class MainView(ft.Column):
 
         except Exception as ex:
             self.logger.error(f"Update failed: {ex}", exc_info=True)
+            self.loading_overlay.hide(self._page_ref)
+
+            # Auto-expand logger on error
+            if self.logger_panel:
+                self.logger_panel.expand_on_error()
+
+            # Show error dialog
+            error_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Update Failed", color=ft.Colors.RED),
+                content=ft.Text(str(ex)),
+                actions=[
+                    ft.FilledButton(
+                        "OK",
+                        on_click=lambda e: self._page_ref.pop_dialog()
+                    ),
+                ],
+            )
+            self._page_ref.show_dialog(error_dialog)
+
+    async def _run_scan_and_update(self):
+        """Scan then update in one operation, sharing the same overlay, progress
+        and Cancel-button UX as a normal update. Invoked when the user presses
+        Update before any scan has been run."""
+        self.logger.info("Running scan-and-update")
+
+        try:
+            # Show loading overlay with a Cancel button wired to the coordinator
+            self.loading_overlay.show(
+                self._page_ref,
+                "Scanning for games...",
+                on_cancel=self.update_coordinator.cancel,
+            )
+
+            # Progress callback
+            async def on_progress(progress: UpdateProgress):
+                await self.loading_overlay.set_progress_async(
+                    progress.percentage,
+                    self._page_ref,
+                    progress.message
+                )
+
+            # Scan then update via the coordinator's convenience method
+            result = await self.update_coordinator.scan_and_update(on_progress)
+
+            # Hide loading overlay
+            self.loading_overlay.hide(self._page_ref)
+
+            # Surface the outcome. Cancellation during the scan phase leaves the
+            # game total at 0 (the update phase never counted games), so fall
+            # back to a plain "Scan cancelled" message in that case.
+            if self.update_coordinator.was_cancelled:
+                processed = self.update_coordinator.cancel_processed
+                total = self.update_coordinator.cancel_total
+                unit = self.update_coordinator.cancel_unit
+                if total:
+                    await self._show_snackbar(
+                        f"Update cancelled — processed {processed} of {total} {unit}"
+                    )
+                else:
+                    await self._show_snackbar("Scan cancelled")
+            else:
+                summary_dialog = UpdateSummaryDialog(self._page_ref, self.logger, result)
+                await summary_dialog.show()
+
+            # Refresh views the same way a normal update does (partial updates
+            # may have been written before a cancellation).
+            if self.games_view:
+                if self.games_view._games_loaded:
+                    await self.games_view.refresh_all_badges()
+                else:
+                    self.games_view.mark_pending_dll_reconcile()
+
+            if self.backups_view:
+                self.backups_view._backups_loaded = False
+
+        except Exception as ex:
+            self.logger.error(f"Scan and update failed: {ex}", exc_info=True)
             self.loading_overlay.hide(self._page_ref)
 
             # Auto-expand logger on error

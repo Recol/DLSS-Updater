@@ -1,3 +1,35 @@
+Version 4.5.0:
+New Features:
+  - Scans and batch updates can now be cancelled: the loading overlay has a
+    Cancel button that stops the run at the next safe boundary (updates
+    finish the DLL currently being written and skip the rest — a file is
+    never left half-written; backups already taken are kept). A snackbar
+    reports how far the run got, e.g. "Update cancelled — processed 12 of
+    40 DLLs".
+  - Pressing Update before any scan no longer dead-ends in a "Scan
+    Required" error — the app now offers "Scan and Update" to run both in
+    one go, with the same progress and Cancel support.
+  - Backups in the "Unlinked games" section (games dropped from the
+    library by a rescan or reset) can now be restored, not just deleted:
+    the saved DLL is copied back to its original location if the game is
+    still installed there, with clear errors when the backup file or the
+    game folder is gone, or the game is running.
+  - Three additional Streamline DLLs are now detected and updated:
+    sl.directsr.dll (DirectSR), sl.dlss_d.dll (DLSS Ray Reconstruction)
+    and sl.nis.dll (NIS upscaling). These were previously downloaded to
+    the local cache but never matched against games.
+  - Streamline updates are now enabled by default on fresh installs
+    (existing installations keep their saved preference).
+
+Other:
+  - Updated the Flet UI framework to 0.86.2 on both platforms (bug-fix
+    release: Flutter 3.44.7, no API changes).
+  - Removed the vestigial high-performance mode setting: the
+    high-performance update pipeline has been the only update path for a
+    while (the old toggle was already non-functional), so the dead
+    setting, its config plumbing and an unused warning dialog are gone.
+    Existing config files with the old key still load fine.
+
 Version 4.4.3:
 UI Polish:
   - Game titles on cards are now prettified for display: names stored

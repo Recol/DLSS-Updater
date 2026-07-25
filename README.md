@@ -132,7 +132,7 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 <details>
 <summary><h3>🔄 DLL Updating</h3></summary>
 
-- **DLSS** Super Resolution, plus **Ray Reconstruction**, **Frame Generation** and **Streamline** (Reflex Low Latency, etc.)
+- **DLSS** Super Resolution, plus **Ray Reconstruction**, **Frame Generation** and **Streamline** (Reflex Low Latency, DirectSR, NIS, etc.)
 - **XeSS / XeSS Frame Generation / XeLL**
 - **FSR**
 - **DirectStorage** (Windows only)
@@ -189,6 +189,7 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 |---|---|
 | DLSS Super Resolution | 4.5 (`3.10.6.0`) |
 | DLSS FG / RR | 4.5 (`3.10.5`) |
+| Streamline (Reflex, DLSS SR/FG/RR, DirectSR, NIS) | `2.12.0.0` |
 | FSR | 4 (`4.0.2.0`) |
 | XeSS | 2.0.2 |
 | XeSS Frame Generation | 1.3.1 |

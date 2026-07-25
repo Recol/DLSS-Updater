@@ -366,7 +366,6 @@ class UpdatePreferencesConfig(msgspec.Struct):
     update_fsr: bool = True
     update_streamline: bool = True
     create_backups: bool = True
-    high_performance_mode: bool = False  # Default OFF - opt-in only
 
 
 class LauncherPathsConfig(msgspec.Struct):
@@ -552,6 +551,9 @@ class BatchUpdateResult(msgspec.Struct):
     # Detailed tracking: list of dicts with game_name, dll_name, old_version, new_version
     detailed_updates: list[dict[str, str]] = msgspec.field(default_factory=list)
     detailed_skipped: list[dict[str, str]] = msgspec.field(default_factory=list)
+    # True when the run was cut short by a user cancel; remaining DLLs are
+    # recorded in detailed_skipped with reason "Cancelled by user".
+    was_cancelled: bool = False
 
 
 # =============================================================================
