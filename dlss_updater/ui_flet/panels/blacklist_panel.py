@@ -70,7 +70,10 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
         """Load blacklisted games when panel opens."""
         try:
             self.blacklisted_games = get_all_blacklisted_games()
-            self.skip_list = set(config_manager.get_all_blacklist_skips())
+            # Config stores skip keys lower-cased (configparser optionxform
+            # legacy) while the whitelist CSV uses canonical casing, so the
+            # panel tracks membership lower-cased throughout.
+            self.skip_list = {g.lower() for g in config_manager.get_all_blacklist_skips()}
             self.filtered_games = self.blacklisted_games.copy()
             self.logger.info(f"Loaded {len(self.blacklisted_games)} blacklisted games")
         except Exception as e:
@@ -144,7 +147,7 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
 
         cards = []
         for game in self.filtered_games:
-            override_enabled = game in self.skip_list
+            override_enabled = game.lower() in self.skip_list
 
             # Create or reuse switch for this game
             if game not in self.game_switches:
@@ -204,9 +207,9 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
         """
         game = e.control.data
         if e.control.value:
-            self.skip_list.add(game)
+            self.skip_list.add(game.lower())
         else:
-            self.skip_list.discard(game)
+            self.skip_list.discard(game.lower())
 
         # Update the card to show the new status
         self._update_games_list()
@@ -305,7 +308,7 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
         self.logger.info(f"Saved {len(new_skip_list)} blacklist overrides")
 
         # Show success feedback
-        self._show_snackbar("Blacklist settings saved")
+        self._show_snackbar("Blacklist settings saved — rescan to apply overrides")
 
         return True
 

@@ -1,4 +1,4 @@
-Version 4.5.0:
+Version 4.5.1:
 New Features:
   - Scans and batch updates can now be cancelled: the loading overlay has a
     Cancel button that stops the run at the next safe boundary (updates
@@ -20,6 +20,15 @@ New Features:
     the local cache but never matched against games.
   - Streamline updates are now enabled by default on fresh installs
     (existing installations keep their saved preference).
+
+Bug Fixes:
+  - Blacklist overrides now actually stick (Issue #253): saving an
+    override worked, but reopening the Blacklist Manager compared the
+    stored (lower-cased) name against the display name, so every toggle
+    showed as off — and saving again from that state silently wiped the
+    override. The panel now compares names case-insensitively, and the
+    save confirmation reminds you to rescan for overridden games to
+    appear in the library.
 
 Other:
   - Updated the Flet UI framework to 0.86.2 on both platforms (bug-fix

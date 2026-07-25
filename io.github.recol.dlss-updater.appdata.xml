@@ -64,7 +64,7 @@
   <content_rating type="oars-1.1" />
 
   <releases>
-    <release version="4.5.0" date="2026-07-25">
+    <release version="4.5.1" date="2026-07-25">
       <description>
         <p>Cancellable updates, orphan backup restore, more Streamline DLLs</p>
         <ul>
@@ -73,6 +73,7 @@
           <li>Backups in the "Unlinked games" section can now be restored to their original location, not just deleted</li>
           <li>Three additional Streamline DLLs are now detected and updated: DirectSR, DLSS Ray Reconstruction (sl.dlss_d) and NIS upscaling</li>
           <li>Streamline updates are enabled by default on fresh installs</li>
+          <li>Fixed blacklist overrides not persisting in the Blacklist Manager — toggles showed as off after reopening and re-saving could wipe saved overrides</li>
           <li>Updated the Flet UI framework to 0.86.2 on both platforms</li>
         </ul>
       </description>
