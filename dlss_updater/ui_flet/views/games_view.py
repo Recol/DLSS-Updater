@@ -12,6 +12,7 @@ PERFORMANCE NOTES:
 import asyncio
 import math
 import time
+from pathlib import Path
 from typing import Callable, Any, TYPE_CHECKING
 import anyio
 import flet as ft
@@ -979,10 +980,13 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 all_cards_for_animation.append(card)
                 initial_card_count += 1
 
-                # Pre-set cached image if available
+                # Pre-set cached image if available (DB row can outlive the
+                # on-disk file, e.g. after a manual cache clear - only trust
+                # a path that still exists, otherwise let it re-fetch below)
                 eff_id = mg.primary_game.effective_steam_app_id
-                if eff_id and eff_id in cached_image_paths:
-                    card.set_image(cached_image_paths[eff_id])
+                cached_path = cached_image_paths.get(eff_id) if eff_id else None
+                if cached_path and Path(cached_path).exists():
+                    card.set_image(cached_path)
                     card._image_loaded = True
 
             # Queue remaining cards for background loading
@@ -1206,10 +1210,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
                     self.game_cards[mg.primary_game.id] = card
                     self.game_card_containers[mg.primary_game.id] = card
 
-                    # Pre-set cached image if available
+                    # Pre-set cached image if available (see existence-check
+                    # note above)
                     eff_id = mg.primary_game.effective_steam_app_id
-                    if eff_id and eff_id in cached_image_paths:
-                        card.set_image(cached_image_paths[eff_id])
+                    cached_path = cached_image_paths.get(eff_id) if eff_id else None
+                    if cached_path and Path(cached_path).exists():
+                        card.set_image(cached_path)
                         card._image_loaded = True
 
                     # Make visible immediately (respect ignored state)
