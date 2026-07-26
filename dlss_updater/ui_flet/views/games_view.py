@@ -119,10 +119,9 @@ class ImageLoadCoordinator:
             start_setup = time.perf_counter()
             for card, image_path in cards_to_update:
                 try:
-                    card.image_widget.src = image_path
                     card.image_container.opacity = 0
                     card.image_container.animate_opacity = ft.Animation(300, ft.AnimationCurve.EASE_IN)
-                    card.image_container.content = card.image_widget
+                    card.set_image(image_path)
                 except Exception as e:
                     if self._logger:
                         self._logger.debug(f"[ImageLoadCoordinator] Error setting up image for card: {e}")
@@ -983,8 +982,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 # Pre-set cached image if available
                 eff_id = mg.primary_game.effective_steam_app_id
                 if eff_id and eff_id in cached_image_paths:
-                    card.image_widget.src = cached_image_paths[eff_id]
-                    card.image_container.content = card.image_widget
+                    card.set_image(cached_image_paths[eff_id])
                     card._image_loaded = True
 
             # Queue remaining cards for background loading
@@ -1105,8 +1103,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             for app_id, path in fetched_paths.items():
                 if path:
                     for card in app_id_to_cards.get(app_id, []):
-                        card.image_widget.src = str(path)
-                        card.image_container.content = card.image_widget  # Replace skeleton
+                        card.set_image(str(path))
                         card._image_loaded = True
                         cards_updated += 1
 
@@ -1212,8 +1209,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                     # Pre-set cached image if available
                     eff_id = mg.primary_game.effective_steam_app_id
                     if eff_id and eff_id in cached_image_paths:
-                        card.image_widget.src = cached_image_paths[eff_id]
-                        card.image_container.content = card.image_widget
+                        card.set_image(cached_image_paths[eff_id])
                         card._image_loaded = True
 
                     # Make visible immediately (respect ignored state)
