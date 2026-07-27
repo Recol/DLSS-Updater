@@ -617,6 +617,10 @@ class GameCard(ThemeAwareMixin, ft.Card):
             # emits enter/exit with boolean e.data. card_body fills the
             # whole card, so the hover area matches the card bounds.
             on_hover=self._on_hover,
+            # Click-through to DLL details (same dialog as the badge tap).
+            # Child buttons/badges/menus each claim the gesture in their own
+            # bounds first, so this only fires on empty banner/artwork space.
+            on_click=lambda e: self._page_ref.run_task(self._show_dll_dialog),
         )
         # Kept for _on_hover: the border glow must target a Container
         # (ft.Card has no border field).
