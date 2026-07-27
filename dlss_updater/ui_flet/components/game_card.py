@@ -48,18 +48,35 @@ BADGE_FULL_WIDTH = 140  # DLL status badge with text (resting) — headroom for
 BADGE_HOVER_WIDTH = 0  # DLL status badge fully collapses on hover — Update/Restore take over
 FOOTER_ANIM_MS = 180  # Width/opacity animation duration for the hover expand/collapse
 
-# ---- Hero art zoom bias ----
+# ---- Hero art crop bias ----
 # Steam's library_hero.jpg banners are composed for their OWN native ~3.1:1 aspect
 # ratio, with a plain/gradient zone in the top third (designed to sit behind Steam's
 # own UI chrome) and the actual character art concentrated lower-center. Our card box
 # is far closer to square (~1.3-1.5:1), so BoxFit.COVER scales by height and shows the
 # ENTIRE source height uncropped — including that plain top zone, which reads as an
-# ugly "black bar" above the art. Applying a modest zoom (scale) + upward shift
-# (offset, fractional units of the image's own rendered size) crops that dead zone
-# away and biases the visible window toward the art-dense lower region, without
-# needing to know the actual box's pixel size (both are resolution-independent).
-HERO_ART_ZOOM = 1.3  # Post-cover zoom-in; overflow is clipped by image_container.
-HERO_ART_OFFSET_Y = -0.12  # Shift up 12% of rendered height (reveals more bottom art).
+# ugly "black bar" above the art. Biasing the crop toward the bottom favors the
+# art-dense lower region instead, without needing to know the actual box's pixel size.
+# Was a child ft.Image scale+offset transform; switched to DecorationImage.alignment
+# (below) since that transform left image_container's bgcolor exposed at the bottom
+# of the card on the native Linux desktop client (not reproducible on flet-web).
+HERO_ART_ALIGNMENT = ft.Alignment(0, 0.6)  # Bias toward the art-dense lower region.
+
+
+def _title_color(is_dark: bool) -> str:
+    """Game title color — pure black in light mode for max contrast over artwork."""
+    return MD3Colors.get_text_primary(True) if is_dark else "#000000"
+
+
+def _title_style(is_dark: bool) -> ft.TextStyle | None:
+    """Light mode: soft white halo behind the dark title so it stays readable over
+    any artwork color, not just the scrim's clear/whitened zone. Dark mode's white
+    text on the dark scrim doesn't need it."""
+    if is_dark:
+        return None
+    return ft.TextStyle(shadow=[
+        ft.BoxShadow(blur_radius=6, color=ft.Colors.with_opacity(0.85, ft.Colors.WHITE)),
+        ft.BoxShadow(blur_radius=2, color=ft.Colors.with_opacity(0.85, ft.Colors.WHITE)),
+    ])
 
 
 class GameCard(ThemeAwareMixin, ft.Card):
@@ -344,24 +361,11 @@ class GameCard(ThemeAwareMixin, ft.Card):
         is_dark = self._registry.is_dark
 
         # ---- Hero artwork (bottom layer, fills the whole stack) ----
-        # expand=True + COVER crops the art to fill its positioned box. The box is
-        # made full-size by positioning image_container left/top/right/bottom=0 in
-        # the FIXED-height stack below, so the image reliably fills the card.
-        self.image_widget = ft.Image(
-            src="/assets/placeholder_game.png",
-            expand=True,  # Fill the positioned fill-box; COVER crops to fit
-            fit=ft.BoxFit.COVER,
-            # Zoom in + shift up post-cover to crop out the source art's plain top
-            # zone (see HERO_ART_ZOOM/HERO_ART_OFFSET_Y above). image_container's
-            # clip_behavior=ANTI_ALIAS clips the resulting overflow.
-            scale=HERO_ART_ZOOM,
-            offset=ft.Offset(0, HERO_ART_OFFSET_Y),
-            error_content=ft.Icon(ft.Icons.VIDEOGAME_ASSET, size=48, color=ft.Colors.GREY),
-        )
-
         # image_container is the swappable host (skeleton -> image) used by
         # load_image()/ImageLoadCoordinator. It expands to fill its positioned
         # fill-box in the stack.
+        # Artwork is painted via image_container.image (DecorationImage), swapped in
+        # by set_image(), rather than a child ft.Image control — see HERO_ART_ALIGNMENT.
         self.image_container = ft.Container(
             content=self._create_skeleton_loader(),  # Start with skeleton
             expand=True,
@@ -386,7 +390,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
             prettify_display_name(self.game.display_name),
             size=16,
             weight=ft.FontWeight.BOLD,
-            color=MD3Colors.get_text_primary(is_dark),
+            color=_title_color(is_dark),
+            style=_title_style(is_dark),
             max_lines=2,
             overflow=ft.TextOverflow.ELLIPSIS,
             tooltip=self._title_tooltip(),  # Full name + path(s) on hover
@@ -612,6 +617,10 @@ class GameCard(ThemeAwareMixin, ft.Card):
             # emits enter/exit with boolean e.data. card_body fills the
             # whole card, so the hover area matches the card bounds.
             on_hover=self._on_hover,
+            # Click-through to DLL details (same dialog as the badge tap).
+            # Child buttons/badges/menus each claim the gesture in their own
+            # bounds first, so this only fires on empty banner/artwork space.
+            on_click=lambda e: self._page_ref.run_task(self._show_dll_dialog),
         )
         # Kept for _on_hover: the border glow must target a Container
         # (ft.Card has no border field).
@@ -1248,6 +1257,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
             # Reset image so it reloads with the new (or cleared) app_id
             self._image_loaded = False
+            self.image_container.image = None
             self.image_container.content = self._create_skeleton_loader()
             self.image_container.opacity = 1.0
 
@@ -1318,6 +1328,15 @@ class GameCard(ThemeAwareMixin, ft.Card):
         """Handle restore request from grouped DLL dialog"""
         if self.on_restore_callback:
             self.on_restore_callback(game, group)
+
+    def set_image(self, image_path: str) -> None:
+        """Swap the banner artwork to `image_path`, replacing the skeleton placeholder."""
+        self.image_container.image = ft.DecorationImage(
+            src=image_path,
+            fit=ft.BoxFit.COVER,
+            alignment=HERO_ART_ALIGNMENT,
+        )
+        self.image_container.content = None
 
     async def load_image(self, prefetched_path: str | None = None, coordinator: Any | None = None):
         """Async load Steam image with fade-in animation.
@@ -1398,10 +1417,9 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 return
 
             # Update image source and prepare fade-in animation
-            self.image_widget.src = image_path
             self.image_container.opacity = 0
             self.image_container.animate_opacity = ft.Animation(300, ft.AnimationCurve.EASE_IN)
-            self.image_container.content = self.image_widget
+            self.set_image(image_path)
 
         # Single wait for control to be added to page (Flet 0.80.4 is faster)
         await anyio.sleep(0.1)
@@ -1657,9 +1675,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 self._build_scrim_gradient(False),
             ),
             # Text overlaid on the scrim — flips with it to stay legible.
-            "game_name_text.color": (
-                MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)
-            ),
+            "game_name_text.color": (_title_color(True), _title_color(False)),
+            "game_name_text.style": (_title_style(True), _title_style(False)),
             "launcher_text.color": (
                 MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)
             ),
