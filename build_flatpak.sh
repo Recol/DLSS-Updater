@@ -14,6 +14,43 @@ NC='\033[0m' # No Color
 VERSION=$(grep -oP '__version__\s*=\s*"\K[^"]+' dlss_updater/version.py)
 echo -e "${GREEN}Building DLSS Updater v${VERSION} Flatpak${NC}"
 
+# Application ID for the GitHub-release bundle channel. The Flathub build uses a
+# DIFFERENT id (io.github.recol.dlss_updater, underscore) and Flathub's own
+# infrastructure - it never touches the repository below.
+APP_ID="io.github.recol.dlss-updater"
+
+# Origin remote baked into the bundle. `flatpak build-bundle --repo-url` makes
+# installing the bundle configure this remote automatically, which is what gives
+# `flatpak update` (and GNOME Software / KDE Discover background updates) a
+# newer version to find. Without it an installed bundle has no origin at all and
+# can never be updated in place - the user has to fetch each release by hand.
+# Published from this repo by publish_flatpak_repo.sh; see
+# https://github.com/Recol/dlss-updater-flatpak
+FLATPAK_REPO_URL="${FLATPAK_REPO_URL:-https://recol.github.io/dlss-updater-flatpak/}"
+
+# Where clients get the runtime the app depends on.
+FLATPAK_RUNTIME_REPO="${FLATPAK_RUNTIME_REPO:-https://dl.flathub.org/repo/flathub.flatpakrepo}"
+
+# GPG key id used to sign the repo, and embedded in the bundle so clients verify
+# every update. Falls back to .flatpak_gpg_key (untracked, written when the key
+# was generated) so a build can't silently produce an unsigned repo just because
+# an env var wasn't exported - publishing unsigned over a signed channel breaks
+# `flatpak update` for everyone who already verified against the key.
+FLATPAK_GPG_KEY="${FLATPAK_GPG_KEY:-}"
+if [ -z "$FLATPAK_GPG_KEY" ] && [ -f .flatpak_gpg_key ]; then
+    FLATPAK_GPG_KEY=$(tr -d '[:space:]' < .flatpak_gpg_key)
+fi
+if [ -n "$FLATPAK_GPG_KEY" ]; then
+    if ! gpg --list-secret-keys "$FLATPAK_GPG_KEY" >/dev/null 2>&1; then
+        echo -e "${RED}Signing key ${FLATPAK_GPG_KEY} is configured but not in this keyring${NC}"
+        echo -e "Import it, or unset FLATPAK_GPG_KEY / remove .flatpak_gpg_key to build unsigned."
+        exit 1
+    fi
+    echo -e "${GREEN}Signing with GPG key ${FLATPAK_GPG_KEY}${NC}"
+else
+    echo -e "${YELLOW}No signing key - repo will be unsigned (clients get gpg-verify=false)${NC}"
+fi
+
 # =============================================================================
 # Step 1: Check and install system dependencies
 # =============================================================================
@@ -195,16 +232,89 @@ flatpak build-finish build-dir \
     --talk-name=org.freedesktop.portal.FileChooser \
     --command=dlss-updater
 
+# =============================================================================
+# Generate the AppStream catalogue
+# =============================================================================
+# `flatpak build-export` publishes /files/share/app-info into the repo's
+# appstream branch, and that is what software centres (GNOME Software, KDE
+# Discover) read to show the app's name, description and per-release notes from
+# io.github.recol.dlss-updater.appdata.xml. Without it the export logs
+# "No appstream data ... /files/share/app-info" and the published channel
+# carries no metadata at all - `flatpak update` still works, but the app looks
+# blank in a software centre.
+#
+# flatpak-builder's finish phase would normally generate this, but it invokes the
+# legacy `appstream-compose` binary that AppStream 1.x removed - which is exactly
+# why --build-only is used above. appstreamcli's `compose` subcommand is the
+# current equivalent (verified against AppStream 1.0.6 in the 25.08 SDK).
+#
+# Argument notes, each learned the hard way:
+#   --origin=$APP_ID   appstreamcli names the output file after the origin, and
+#                      build-update-repo looks for exactly
+#                      files/share/app-info/xmls/<APP-ID>.xml.gz. With any other
+#                      origin the file is generated but silently ignored. (This
+#                      is the job the legacy tool's --basename flag did.)
+#   --prefix=/         prefix is relative to the SOURCE root, so /app would make
+#                      it look in /app/app/share and find nothing.
+#   --icons-dir .../flatpak  literally "flatpak", regardless of origin - that is
+#                      the icon directory flatpak itself reads.
+#   no --media-dir     it demands --media-baseurl, which only applies when media
+#                      is served separately from the repo.
+#   no --no-partial-urls  likewise requires a base URL; partial (shared-prefix)
+#                      URLs are what flatpak expects.
+if flatpak build build-dir sh -c 'command -v appstreamcli' >/dev/null 2>&1; then
+    echo -e "\n${YELLOW}Generating AppStream catalogue...${NC}"
+    flatpak build build-dir appstreamcli compose \
+        --origin="$APP_ID" \
+        --prefix=/ \
+        --result-root=/app \
+        --data-dir=/app/share/app-info/xmls \
+        --icons-dir=/app/share/app-info/icons/flatpak \
+        --no-net \
+        /app
+    if [ -f "build-dir/files/share/app-info/xmls/${APP_ID}.xml.gz" ]; then
+        echo -e "${GREEN}AppStream catalogue generated${NC}"
+    else
+        echo -e "${RED}appstreamcli reported success but produced no catalogue${NC}"
+        echo -e "${RED}(expected build-dir/files/share/app-info/xmls/${APP_ID}.xml.gz)${NC}"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}appstreamcli not in the SDK - repo will have no appstream branch${NC}"
+    echo -e "${YELLOW}(updates still work; software centres will show no metadata)${NC}"
+fi
+
 # Export to local repo
-flatpak build-export repo build-dir
+GPG_ARGS=()
+if [ -n "$FLATPAK_GPG_KEY" ]; then
+    GPG_ARGS=(--gpg-sign="$FLATPAK_GPG_KEY")
+fi
+flatpak build-export "${GPG_ARGS[@]}" repo build-dir
+
+# Regenerate the repo summary so clients can see the new commit, prune old
+# history, and generate static deltas so an update downloads only what changed
+# rather than the whole ~36MB bundle again.
+flatpak build-update-repo \
+    "${GPG_ARGS[@]}" \
+    --generate-static-deltas \
+    --prune \
+    --prune-depth=3 \
+    repo
 
 # =============================================================================
 # Step 6: Create distributable bundle
 # =============================================================================
 echo -e "\n${YELLOW}[6/6] Creating Flatpak bundle...${NC}"
 
+BUNDLE_ARGS=(--repo-url="$FLATPAK_REPO_URL" --runtime-repo="$FLATPAK_RUNTIME_REPO")
+if [ -n "$FLATPAK_GPG_KEY" ]; then
+    # Export the public key so the configured remote can verify updates.
+    gpg --export "$FLATPAK_GPG_KEY" > repo-key.gpg
+    BUNDLE_ARGS+=(--gpg-keys=repo-key.gpg)
+fi
+
 FLATPAK_NAME="DLSS_Updater-${VERSION}.flatpak"
-flatpak build-bundle repo "${FLATPAK_NAME}" io.github.recol.dlss-updater
+flatpak build-bundle "${BUNDLE_ARGS[@]}" repo "${FLATPAK_NAME}" "$APP_ID"
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}Build complete!${NC}"

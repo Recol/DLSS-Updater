@@ -102,6 +102,12 @@ understands games from every major launcher.
       Skip (or force) any title with your own per-game blacklist, layered on top of the community list.
     </td>
   </tr>
+  <tr>
+    <td colspan="3" valign="top">
+      <h3>⬆️ Updates Itself</h3>
+      When a new release lands, the version badge beside the title becomes an update button. On <strong>Windows</strong> it downloads, verifies and installs the new version, then restarts itself. On <strong>Linux</strong> it downloads the Flatpak bundle — a sandboxed app can't install packages itself — though Flatpak users can simply take updates through <code>flatpak update</code> or their software centre instead.
+    </td>
+  </tr>
 </table>
 
 <details>
@@ -221,6 +227,18 @@ scoop install dlss-updater
 
 **Direct download** — grab `DLSS.Updater.X.Y.Z.msi` from the [Releases](https://github.com/Recol/DLSS-Updater/releases) page and run it.
 
+**Updating**
+
+From 4.6.0 onwards the app updates itself. When a release is available the version badge
+beside the title becomes an update button; clicking it downloads the installer, verifies it
+against the SHA-256 digest GitHub publishes, installs it and restarts. Both the launch check
+and automatic downloading are configurable under **UI Preferences → Application Updates**.
+
+If you installed through a package manager you can keep using it instead — `winget upgrade`
+or `choco upgrade dlss-updater`. One exception: **Scoop** installs are portable, so let Scoop
+update them (`scoop update dlss-updater`). The in-app updater runs the MSI, which installs to
+Program Files and would leave you with two copies.
+
 ### Linux
 
 The **Flatpak** is the recommended way to install on Linux.
@@ -246,6 +264,28 @@ flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.f
 # Download DLSS_Updater-X.Y.Z.flatpak from the Releases page, then:
 flatpak install --user DLSS_Updater-X.Y.Z.flatpak
 flatpak run io.github.recol.dlss-updater
+```
+
+**Updating**
+
+Bundles from 4.6.0 onwards register an update remote when you install them, so
+later releases arrive through your software centre or:
+```sh
+flatpak update --user io.github.recol.dlss-updater
+```
+
+If you installed an earlier bundle, add the remote once to get updates from then on:
+```sh
+flatpak remote-add --user --if-not-exists \
+    dlss-updater https://recol.github.io/dlss-updater-flatpak/dlss-updater.flatpakrepo
+```
+
+The repository is GPG signed, and both routes above set up verification for you — updates
+that aren't signed with the key below are refused. Nothing to configure; the key travels
+inside the bundle and in the `.flatpakrepo`. To check it yourself:
+
+```
+4AD3 8790 6BC2 7C4B 8BFC  B2D4 A613 C3A8 B1F1 B430
 ```
 
 **Uninstall**

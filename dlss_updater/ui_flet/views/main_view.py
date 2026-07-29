@@ -85,6 +85,8 @@ from dlss_updater.ui_flet.dialogs.update_summary_dialog import UpdateSummaryDial
 from dlss_updater.ui_flet.components.slide_panel import PanelManager
 from dlss_updater.ui_flet.panels import PreferencesPanel, ReleaseNotesPanel, BlacklistPanel, UIPreferencesPanel, ProtonUpscalerPanel, WindowsDLSSPresetsPanel, IgnoreListPanel
 from dlss_updater.ui_flet.dialogs.app_update_dialog import AppUpdateDialog
+from dlss_updater.ui_flet.components.version_pill import UpdateBadgeState, VersionPill
+from dlss_updater.self_update import SelfUpdater, SelfUpdateStage
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
 from dlss_updater.platform_utils import FEATURES, IS_LINUX, IS_WINDOWS
@@ -155,6 +157,15 @@ class MainView(ft.Column):
         # Popup menu components (created in _create_app_bar)
         self.community_menu: CommunityMenu | None = None
         self.application_menu = None  # Removed - Check for Updates moved to Settings
+
+        # Application self-update. The state lives HERE rather than on the pill
+        # because _rebuild_app_bar_for_theme() discards and reconstructs the
+        # whole bar (and with it the pill) on every theme toggle - state held on
+        # the widget would reset an in-flight download to idle. Each new pill is
+        # handed this same object by reference and renders from it.
+        self._updater = SelfUpdater()
+        self._update_state = UpdateBadgeState()
+        self._update_lock = asyncio.Lock()
 
         # Discord banner
         self.discord_banner: ft.Banner | None = None
@@ -246,7 +257,22 @@ class MainView(ft.Column):
             from dlss_updater.task_registry import register_task
             register_task(asyncio.create_task(self.hub_view.load_stats()), "load_hub_stats")
 
+        # Check for an application update off the startup critical path. Failures
+        # are swallowed inside the coroutine - a missed check must never surface
+        # as a startup error.
+        _register_task(
+            asyncio.create_task(self._check_for_app_update_on_launch_safe()),
+            "check_app_update",
+        )
+
         self.logger.info("Main view initialized")
+
+    async def _check_for_app_update_on_launch_safe(self) -> None:
+        """Launch update check that can never propagate an exception."""
+        try:
+            await self.check_for_app_update_on_launch()
+        except Exception as e:
+            self.logger.warning(f"Launch update check failed: {e}")
 
     async def _build_ui(self):
         """Build the main UI structure with hub-based navigation"""
@@ -820,12 +846,233 @@ class MainView(ft.Column):
         return self.app_bar_container
 
     def _build_version_pill(self, is_dark: bool) -> ft.Container:
-        """Build the compact, surface-tinted version pill shown in the app bar."""
-        return build_pill(
-            f"v{__version__}",
-            bgcolor=MD3Colors.get_surface_container(is_dark),
-            text_color=MD3Colors.get_on_surface_variant(is_dark),
+        """Build the version pill, which doubles as the update affordance.
+
+        Rendered from self._update_state, so a pill constructed by an app bar
+        rebuild (theme toggle) resumes showing whatever the update flow had
+        reached rather than snapping back to idle.
+        """
+        return VersionPill(
+            self._update_state,
+            is_dark,
+            on_action=self._on_update_pill_action,
+            on_dismiss=self._on_update_pill_dismiss,
+            on_show_release_notes=lambda: self._on_release_notes_clicked(None),
+            supported=SelfUpdater.is_supported(),
+            applies_in_place=self._updater.applies_in_place,
         )
+
+    # =========================================================================
+    # Application self-update
+    # =========================================================================
+
+    async def _refresh_update_pill(self, *, animate_in: bool = False) -> None:
+        """Push the current update state into the live pill, if there is one."""
+        pill = getattr(self, "_app_version_pill", None)
+        if isinstance(pill, VersionPill):
+            try:
+                await pill.refresh(animate_in=animate_in)
+            except Exception as e:
+                self.logger.warning(f"Could not refresh the version pill: {e}")
+
+    async def check_for_app_update_on_launch(self) -> None:
+        """Check for an application update in the background at launch.
+
+        Silent by design: a failed check, an unsupported build or an
+        already-dismissed version all leave the pill idle rather than
+        interrupting startup with a dialog.
+        """
+        if not SelfUpdater.is_supported():
+            return
+        if not config_manager.get_update_check_on_launch():
+            self.logger.debug("Launch update check disabled by preference")
+            return
+
+        info = await self._updater.check()
+        if info is None:
+            return
+
+        if info.latest_version == config_manager.get_dismissed_update_version():
+            self.logger.info(
+                f"Update {info.latest_version} available but dismissed by the user"
+            )
+            return
+
+        self._update_state.stage = SelfUpdateStage.AVAILABLE
+        self._update_state.info = info
+        await self._refresh_update_pill(animate_in=True)
+
+        if config_manager.get_update_auto_download():
+            await self._start_update_download()
+
+    async def _on_update_pill_action(self) -> None:
+        """Handle a click on the pill while an update is pending."""
+        stage = self._update_state.stage
+
+        if stage is SelfUpdateStage.READY and self._update_state.downloaded_path:
+            await self._apply_downloaded_update()
+        elif stage is SelfUpdateStage.FAILED:
+            # Retry from the top - the previous partial download was removed.
+            self._update_state.stage = SelfUpdateStage.AVAILABLE
+            self._update_state.fraction = 0.0
+            self._update_state.message = ""
+            await self._refresh_update_pill()
+            await self._start_update_download()
+        else:
+            await self._start_update_download()
+
+    async def _on_update_pill_dismiss(self) -> None:
+        """Hide the badge for this version until a newer one appears."""
+        info = self._update_state.info
+        if info is not None:
+            config_manager.set_dismissed_update_version(info.latest_version)
+            self.logger.info(f"Update {info.latest_version} dismissed")
+
+        self._update_state.stage = SelfUpdateStage.IDLE
+        self._update_state.fraction = 0.0
+        self._update_state.message = ""
+        self._update_state.announced = False
+        await self._refresh_update_pill()
+
+    async def _start_update_download(self) -> None:
+        """Download the pending update, reporting progress through the pill."""
+        info = self._update_state.info
+        if info is None:
+            return
+
+        # Serialise: the pill guards against double clicks visually, but an
+        # auto-download racing a manual click would otherwise fetch twice.
+        if self._update_lock.locked():
+            self.logger.debug("Update download already in progress")
+            return
+
+        async with self._update_lock:
+            self._update_state.stage = SelfUpdateStage.DOWNLOADING
+            self._update_state.fraction = 0.0
+            await self._refresh_update_pill()
+
+            async def on_progress(progress) -> None:
+                self._update_state.stage = progress.stage
+                self._update_state.fraction = progress.fraction
+                self._update_state.message = progress.message
+                await self._refresh_update_pill()
+
+            try:
+                path = await self._updater.download(info, on_progress)
+            except Exception as e:
+                self.logger.error(f"Update download failed: {e}", exc_info=True)
+                self._update_state.stage = SelfUpdateStage.FAILED
+                self._update_state.message = f"Update failed: {e}"
+                await self._refresh_update_pill()
+                return
+
+            self._update_state.downloaded_path = path
+            self._update_state.stage = SelfUpdateStage.READY
+            self._update_state.fraction = 1.0
+            await self._refresh_update_pill()
+
+            # On Linux nothing can install this for the user, so surface the
+            # command they need rather than leaving them with a bare file.
+            if not self._updater.applies_in_place:
+                await self._show_linux_update_downloaded(path)
+
+    async def _apply_downloaded_update(self) -> None:
+        """Hand the downloaded update to the installer and shut down.
+
+        On Windows the helper spawned by apply() waits for THIS process to exit
+        before running msiexec, so the window closing is a required step, not a
+        courtesy.
+        """
+        info = self._update_state.info
+        path = self._update_state.downloaded_path
+        if info is None or path is None:
+            return
+
+        self._update_state.stage = SelfUpdateStage.INSTALLING
+        await self._refresh_update_pill()
+
+        try:
+            await self._updater.apply(path, info)
+        except Exception as e:
+            self.logger.error(f"Could not start the installer: {e}", exc_info=True)
+            self._update_state.stage = SelfUpdateStage.FAILED
+            self._update_state.message = f"Could not start the installer: {e}"
+            await self._refresh_update_pill()
+            return
+
+        if not self._updater.applies_in_place:
+            # Linux: apply() only revealed the file; there is nothing to restart.
+            self._update_state.stage = SelfUpdateStage.READY
+            await self._refresh_update_pill()
+            return
+
+        self.logger.info("Installer launched - closing so the upgrade can proceed")
+        try:
+            self._page_ref.window.destroy()
+        except Exception as e:
+            self.logger.warning(f"Window destroy failed, exiting directly: {e}")
+            import os
+            os._exit(0)
+
+    async def _show_linux_update_downloaded(self, path) -> None:
+        """Tell the Linux user where the bundle went and how to install it.
+
+        The Flatpak sandbox cannot install this for them - doing so would need
+        host D-Bus access amounting to a sandbox escape - so the honest UI is a
+        copyable command.
+        """
+        is_dark = self.theme_manager.is_dark
+        command = SelfUpdater.install_command(path)
+
+        async def copy_command(e):
+            # Flet 0.86 exposes the clipboard as a Service, not a page method.
+            try:
+                await ft.Clipboard().set(command)
+            except Exception as ex:
+                self.logger.warning(f"Could not copy the install command: {ex}")
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Update downloaded", color=MD3Colors.get_text_primary(is_dark)),
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Text(
+                            f"Saved to {path}",
+                            size=13,
+                            color=MD3Colors.get_text_primary(is_dark),
+                        ),
+                        ft.Text(
+                            "Flatpak apps can't install updates from inside their "
+                            "sandbox, so finish up with:",
+                            size=13,
+                            color=MD3Colors.get_text_secondary(is_dark),
+                        ),
+                        ft.Container(
+                            content=ft.Text(
+                                command,
+                                size=12,
+                                selectable=True,
+                                color=MD3Colors.get_text_primary(is_dark),
+                            ),
+                            bgcolor=MD3Colors.get_surface_container(is_dark),
+                            padding=ft.Padding.all(10),
+                            border_radius=6,
+                        ),
+                    ],
+                    spacing=10,
+                    tight=True,
+                ),
+                width=460,
+            ),
+            bgcolor=MD3Colors.get_surface(is_dark),
+            actions=[
+                ft.TextButton("Copy command", on_click=copy_command),
+                ft.FilledButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
+            ],
+        )
+        self._page_ref.show_dialog(dialog)
+        self._page_ref.update()
 
     async def _toggle_theme_from_menu(self, e):
         """Handle theme toggle from menu with cascade animation.
@@ -1423,9 +1670,57 @@ class MainView(ft.Column):
         await panel_manager.show_content(panel)
 
     async def _on_check_updates_clicked(self, e):
-        """Handle check for updates button click"""
-        dialog = AppUpdateDialog(self._page_ref, self.logger)
-        await dialog.check_and_show()
+        """Handle an explicit "check for updates" request.
+
+        Drives the same self._update_state as the launch check, so the menu and
+        the pill can never disagree about what is pending. Only the outcomes that
+        need acknowledging (up to date, unreachable, store-managed build) get a
+        dialog; a found update is handed to the pill.
+        """
+        # The Flathub build must not offer out-of-band downloads - that dialog
+        # already carries the right messaging.
+        if not SelfUpdater.is_supported():
+            dialog = AppUpdateDialog(self._page_ref, self.logger)
+            await dialog.check_and_show()
+            return
+
+        # An explicit check is an explicit override of an earlier dismissal.
+        config_manager.set_dismissed_update_version("")
+
+        info = await self._updater.check()
+        if info is None:
+            self._show_update_notice(
+                "No updates available",
+                f"You are running the latest version ({__version__}).",
+            )
+            return
+
+        self._update_state.stage = SelfUpdateStage.AVAILABLE
+        self._update_state.info = info
+        self._update_state.announced = False
+        await self._refresh_update_pill(animate_in=True)
+
+        verb = "install" if self._updater.applies_in_place else "download"
+        self._show_update_notice(
+            f"Version {info.latest_version} available",
+            f"You are on {__version__}. Use the version badge next to the title "
+            f"to {verb} it.",
+        )
+
+    def _show_update_notice(self, title: str, body: str) -> None:
+        """Small acknowledgement dialog for update-check outcomes."""
+        is_dark = self.theme_manager.is_dark
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(title, color=MD3Colors.get_text_primary(is_dark)),
+            content=ft.Text(body, size=14, color=MD3Colors.get_text_primary(is_dark)),
+            bgcolor=MD3Colors.get_surface(is_dark),
+            actions=[
+                ft.FilledButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
+            ],
+        )
+        self._page_ref.show_dialog(dialog)
+        self._page_ref.update()
 
     async def _on_blacklist_clicked(self, e):
         """Handle blacklist button click"""

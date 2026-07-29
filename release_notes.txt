@@ -1,3 +1,50 @@
+Version 4.6.0:
+New Features:
+  - The app can now update itself (Issue #254). The version badge beside the
+    title becomes an "update available" button when a new release exists:
+    on Windows it downloads the installer, verifies it, and installs it on
+    your click, relaunching when it is done — no visit to the releases page.
+    The badge shows live download progress, and can be dismissed to stay
+    hidden until the next release.
+  - Two new preferences under UI Preferences → Application Updates: check
+    for updates on launch (on by default), and download updates
+    automatically in the background (off by default).
+  - Downloads are verified against the SHA-256 digest GitHub publishes for
+    each release asset, and a download that fails verification is deleted
+    rather than kept.
+
+Bug Fixes:
+  - Linux update checks pointed at the wrong file. The check looked for a
+    "DLSS_Updater_Linux" tarball that releases stopped shipping before
+    4.3.1, so every Linux user was sent to the generic releases page
+    instead of the actual Flatpak bundle. It now finds the .flatpak asset.
+  - Flatpak bundles installed from GitHub releases had no update channel
+    at all: they were built without an origin remote, so "flatpak update"
+    could never find a newer version and the only way to upgrade was to
+    download each bundle by hand. Bundles now register
+    https://recol.github.io/dlss-updater-flatpak/ at install time, so
+    "flatpak update" and desktop software centres (GNOME Software, KDE
+    Discover) pick up new releases on their own.
+
+Other:
+  - Updated the Flet UI framework to 0.86.4 on both platforms (bug-fix
+    releases: embedded-app service registration and an in-process
+    transport option, no API changes). The previous 0.86.2 -> 0.86.4 pin
+    bump had not taken effect because the lockfile was never regenerated,
+    and flet-desktop was left a version behind at 0.86.3; both are now
+    pinned and locked at 0.86.4.
+  - Linux self-updates stop at the download. A Flatpak cannot install
+    packages from inside its own sandbox without host D-Bus access that
+    amounts to a sandbox escape, so on Linux the badge saves the bundle to
+    your Downloads folder and shows the one-line install command. The
+    Flathub build does not offer downloads at all — its updates come
+    through Flathub.
+  - The Flatpak update channel keeps recent versions and ships static
+    deltas between them, so from the next release onwards an update
+    downloads only the changed objects rather than the whole bundle. This
+    release seeds the channel, so it has no earlier version to diff
+    against yet.
+
 Version 4.5.1:
 New Features:
   - Scans and batch updates can now be cancelled: the loading overlay has a

@@ -64,6 +64,21 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.6.0" date="2026-07-29">
+      <description>
+        <p>Built-in application updates, and a working update channel for Linux</p>
+        <ul>
+          <li>The version badge beside the title now becomes an update button when a new release is available, with live download progress, and can be dismissed until the next release</li>
+          <li>New preferences under UI Preferences: check for updates on launch, and download updates automatically</li>
+          <li>Downloads are verified against the SHA-256 digest GitHub publishes for each release asset</li>
+          <li>Flatpak bundles from GitHub releases now register an update remote at install time, so "flatpak update" and desktop software centres finally see new releases — previously the only way to upgrade was downloading each bundle by hand</li>
+          <li>Fixed Linux update checks looking for a tarball that releases stopped shipping before 4.3.1, which sent Linux users to the generic releases page instead of the Flatpak bundle</li>
+          <li>The Flatpak update channel keeps recent versions and ships static deltas between them, so from the next release onwards an update downloads only the changed objects</li>
+          <li>On Linux the in-app update stops at the download and shows the install command: a Flatpak cannot install packages from inside its own sandbox. The Flathub build continues to update through Flathub</li>
+          <li>Updated the Flet UI framework to 0.86.4 on both platforms</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.5.1" date="2026-07-25">
       <description>
         <p>Cancellable updates, orphan backup restore, more Streamline DLLs</p>

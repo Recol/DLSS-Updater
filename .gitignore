@@ -22,7 +22,12 @@ dist/
 # Flatpak build artifacts
 .flatpak-builder/
 build-dir/
-repo/ n
+repo/
 *.flatpak
 
 nudge_releases.ps1
+
+# Flatpak repository signing: local key id and exported public key.
+# The private key lives in ~/.gnupg and must never be committed.
+.flatpak_gpg_key
+repo-key.gpg

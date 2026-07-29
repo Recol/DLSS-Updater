@@ -11,6 +11,7 @@ import msgspec.toml
 from .logger import setup_logger
 from .models import (
     MAX_PATHS_PER_LAUNCHER,
+    AppUpdatesConfig,
     DiscordBannerConfig,
     ImageCacheConfig,
     LauncherPathsConfig,
@@ -275,6 +276,7 @@ class AppConfig(msgspec.Struct):
     ui_preferences: UIPreferencesConfig = msgspec.field(default_factory=UIPreferencesConfig)
     discord_banner: DiscordBannerConfig = msgspec.field(default_factory=DiscordBannerConfig)
     image_cache: ImageCacheConfig = msgspec.field(default_factory=ImageCacheConfig)
+    app_updates: AppUpdatesConfig = msgspec.field(default_factory=AppUpdatesConfig)
     linux_dlss: LinuxDLSSConfig = msgspec.field(default_factory=LinuxDLSSConfig)
     windows_dlss: WindowsDLSSConfig = msgspec.field(default_factory=WindowsDLSSConfig)
     steam_api: SteamAPIConfig = msgspec.field(default_factory=SteamAPIConfig)
@@ -842,6 +844,50 @@ class ConfigManager:
         """Set the Discord invite banner dismissed state"""
         with _config_lock:
             self._config.discord_banner.dismissed = bool(dismissed)
+            self._save_unlocked()
+
+    # =========================================================================
+    # Application self-update
+    # =========================================================================
+
+    def get_dismissed_update_version(self) -> str:
+        """Get the release version the user dismissed the update badge for.
+
+        Empty string means nothing has been dismissed.
+        """
+        with _config_lock:
+            return self._config.app_updates.dismissed_version
+
+    def set_dismissed_update_version(self, version: str):
+        """Remember that the user dismissed the badge for ``version``.
+
+        Only this exact version stays hidden - a later release shows the badge
+        again.
+        """
+        with _config_lock:
+            self._config.app_updates.dismissed_version = str(version or "")
+            self._save_unlocked()
+
+    def get_update_check_on_launch(self) -> bool:
+        """Get whether to check for application updates at launch (default: on)."""
+        with _config_lock:
+            return self._config.app_updates.check_on_launch
+
+    def set_update_check_on_launch(self, enabled: bool):
+        """Set whether to check for application updates at launch."""
+        with _config_lock:
+            self._config.app_updates.check_on_launch = bool(enabled)
+            self._save_unlocked()
+
+    def get_update_auto_download(self) -> bool:
+        """Get whether to download an available update without asking (default: off)."""
+        with _config_lock:
+            return self._config.app_updates.auto_download
+
+    def set_update_auto_download(self, enabled: bool):
+        """Set whether to download an available update without asking."""
+        with _config_lock:
+            self._config.app_updates.auto_download = bool(enabled)
             self._save_unlocked()
 
     # =========================================================================

@@ -424,6 +424,20 @@ class ImageCacheConfig(msgspec.Struct):
     version: int = 0
 
 
+class AppUpdatesConfig(msgspec.Struct):
+    """
+    Application self-update preferences ([app_updates]).
+
+    ``dismissed_version`` records the release the user waved away from the
+    version pill, so the badge stays hidden for that version but reappears for
+    the NEXT one. Empty string means "nothing dismissed" - TOML has no null
+    type, matching the convention in ``SteamAPIConfig``.
+    """
+    dismissed_version: str = ""
+    check_on_launch: bool = True
+    auto_download: bool = False
+
+
 class SteamAPIConfig(msgspec.Struct):
     """
     Steam Web API credentials ([steam_api]).
