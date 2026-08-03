@@ -52,7 +52,7 @@ frame-generation DLLs they ship with, and replaces them with newer versions — 
 understands games from every major launcher.
 
 <div align="center">
-<img width="1084" alt="DLSS Updater - Homepage" src="https://github.com/user-attachments/assets/8550f0db-e6c4-4083-91f8-087d64e9c225" />
+<img width="1084" alt="DLSS Updater - Homepage" src="https://github.com/user-attachments/assets/489cefc9-cb4a-474c-9a36-15a45deb10c4" />
 
 </div>
 
