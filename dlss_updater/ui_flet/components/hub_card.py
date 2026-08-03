@@ -14,9 +14,13 @@ Two cards live here:
   bottom-weighted scrim, with the identity block + stat pills overlaid.
   Falls back to the same brand-wash + watermark treatment as ``HubCard``
   when too little cached art exists (e.g. a fresh install).
+- ``HubActionCard`` — the hub's primary call-to-action band, sitting under
+  the Games hero. Same wash + watermark language, but it is an ACTION
+  surface rather than a navigation target: the card itself has no
+  ``on_click`` and hosts its own primary/secondary buttons.
 
-Both share the "hero surface" primitives (gradients/watermark/pills) from
-``hero_surface.py`` rather than duplicating them.
+All three share the "hero surface" primitives (gradients/watermark/pills)
+from ``hero_surface.py`` rather than duplicating them.
 """
 
 import itertools
@@ -24,7 +28,7 @@ import itertools
 import anyio
 import flet as ft
 
-from dlss_updater.ui_flet.theme.colors import MD3Colors, Shadows
+from dlss_updater.ui_flet.theme.colors import MD3Colors, Shadows, TabColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.components.hero_surface import (
     WATERMARK_OPACITY_DARK,
@@ -45,6 +49,22 @@ IDENTITY_ICON_SIZE = 22
 # default of 110 is tuned for the larger Games hero card).
 _SIDE_WATERMARK_MIN = 96
 _SIDE_WATERMARK_MAX = 110
+
+# Height of the hub's call-to-action band (see HubActionCard). Deliberately
+# short: it sits under the Games hero and must not compete with it.
+ACTION_CARD_HEIGHT = 96
+
+
+def _on_accent(is_dark: bool) -> str:
+    """Legible foreground for text/icons on a FILLED warning/success accent.
+
+    Those two roles invert across themes (warning is a light amber #FFB74D in
+    dark mode and a dark amber #7A5800 in light mode, success likewise), so a
+    fixed white foreground is unreadable on the dark-mode fill. Only used for
+    solid accent fills — outlined/tinted surfaces keep the normal on-surface
+    colors.
+    """
+    return ft.Colors.BLACK87 if is_dark else ft.Colors.WHITE
 
 
 class HubCard(ThemeAwareMixin, ft.Container):
@@ -517,6 +537,302 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         self._icon_widget.color = MD3Colors.get_text_primary(is_dark)
         self._title_text.color = MD3Colors.get_text_primary(is_dark)
         self._subtitle_text.color = MD3Colors.get_on_surface_variant(is_dark)
+
+        try:
+            self.update()
+        except Exception:
+            pass
+
+
+class HubActionCard(ThemeAwareMixin, ft.Container):
+    """
+    The hub's primary call-to-action band (sits directly under the Games hero).
+
+    Until 4.6.0 the two primary actions of the whole application ("Scan for
+    Games" / "Start Update") existed ONLY in the Launchers action bar, so the
+    landing screen reported state ("16 games found · 8 backups") and offered
+    nothing to do about it. This card is that missing action surface.
+
+    Three states, driven entirely by ``set_state()``:
+
+    * **nothing scanned yet** — accent = GAMES blue, primary = "Scan for games"
+    * **N outdated** — accent = WARNING amber, primary = "Update all (N)",
+      plus a "Rescan" affordance when the scan cache is stale
+    * **nothing outdated** — accent = SUCCESS green, a calm "Everything is up
+      to date" with NO primary button. A greyed-out button would read as
+      something broken; the absence of one reads as "nothing to do".
+
+    Visually it reuses HubCard's language (opaque brand wash + oversized
+    watermark glyph + bottom-anchored identity), but unlike the navigation
+    cards it is NOT clickable as a whole — its buttons own every tap, so
+    there is no ambiguity between "navigate" and "start a 5-minute update".
+    """
+
+    _theme_priority = 15
+
+    def __init__(
+        self,
+        page: ft.Page | None = None,
+        on_update_all=None,
+        on_scan=None,
+    ):
+        self._page_ref = page
+        self._on_update_all = on_update_all
+        self._on_scan = on_scan
+
+        # State (populated by set_state(); the defaults describe a fresh install)
+        self._needs_update = 0
+        self._game_count = 0
+        self._has_scan = False
+        self._scan_stale = False
+        self._scan_age: str | None = None
+
+        # Read from the ThemeRegistry singleton (see HubCard.__init__ for why
+        # this rather than page.theme_mode).
+        is_dark = get_theme_registry().is_dark
+
+        # ---- Leading badge (state glyph in a tinted circle) ----
+        self._badge_icon = ft.Icon(ft.Icons.SEARCH, size=22)
+        self._badge = ft.Container(
+            content=self._badge_icon,
+            width=44,
+            height=44,
+            border_radius=22,
+            alignment=ft.Alignment.CENTER,
+        )
+
+        # ---- Identity block (headline + supporting line) ----
+        self._title_text = ft.Text(
+            "",
+            size=16,
+            weight=ft.FontWeight.W_600,
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        )
+        self._subtitle_text = ft.Text(
+            "",
+            size=12,
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        )
+
+        # ---- Primary action (filled accent) ----
+        self._primary_icon = ft.Icon(ft.Icons.DOWNLOAD, size=18)
+        self._primary_label = ft.Text("", size=13, weight=ft.FontWeight.W_600)
+        self._primary_button = ft.Container(
+            content=ft.Row(
+                controls=[self._primary_icon, self._primary_label],
+                spacing=8,
+                tight=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            height=40,
+            padding=ft.Padding.symmetric(horizontal=18),
+            border_radius=20,
+            alignment=ft.Alignment.CENTER,
+            ink=True,
+            on_click=self._on_primary_click,
+            on_hover=self._on_button_hover,
+            animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+            scale=1.0,
+        )
+
+        # ---- Secondary action (outlined "Rescan") ----
+        self._secondary_icon = ft.Icon(ft.Icons.REFRESH, size=16)
+        self._secondary_label = ft.Text("Rescan", size=12, weight=ft.FontWeight.W_500)
+        self._secondary_button = ft.Container(
+            content=ft.Row(
+                controls=[self._secondary_icon, self._secondary_label],
+                spacing=6,
+                tight=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            height=36,
+            padding=ft.Padding.symmetric(horizontal=14),
+            border_radius=18,
+            alignment=ft.Alignment.CENTER,
+            ink=True,
+            on_click=self._on_secondary_click,
+            visible=False,
+            tooltip="Rescan your launchers for games",
+        )
+
+        # ---- Decorative watermark (never intercepts input) ----
+        self._watermark = build_watermark_icon(ft.Icons.BOLT, is_dark, size=84)
+        self._watermark.right = -16
+        self._watermark.bottom = -22
+
+        content_row = ft.Row(
+            controls=[
+                self._badge,
+                ft.Column(
+                    controls=[self._title_text, self._subtitle_text],
+                    spacing=2,
+                    tight=True,
+                    expand=True,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                self._secondary_button,
+                self._primary_button,
+            ],
+            spacing=14,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        super().__init__(
+            content=ft.Stack(
+                controls=[
+                    self._watermark,
+                    ft.Container(
+                        content=content_row,
+                        padding=ft.Padding.symmetric(horizontal=20, vertical=14),
+                        expand=True,
+                    ),
+                ],
+                expand=True,
+            ),
+            height=ACTION_CARD_HEIGHT,
+            padding=ft.Padding.all(0),
+            border_radius=20,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            shadow=Shadows.LEVEL_2,
+        )
+
+        # Paints bgcolor/gradient/labels for the initial (empty) state.
+        self._apply_state(is_dark)
+
+        self._register_theme_aware()
+
+    # ===== State =====
+
+    def set_state(
+        self,
+        *,
+        needs_update: int,
+        game_count: int,
+        has_scan: bool,
+        scan_stale: bool,
+        scan_age: str | None,
+    ) -> None:
+        """Set the card's state from the hub's freshly loaded stats.
+
+        Does NOT call update() — the caller (hub_view.load_stats) owns the
+        single page.update() for the whole stats batch.
+        """
+        self._needs_update = max(0, int(needs_update or 0))
+        self._game_count = max(0, int(game_count or 0))
+        self._has_scan = bool(has_scan)
+        self._scan_stale = bool(scan_stale)
+        self._scan_age = scan_age
+        self._apply_state(get_theme_registry().is_dark)
+
+    def _apply_state(self, is_dark: bool) -> None:
+        """Repaint every state-dependent property (also the theme entry point).
+
+        The accent drives the card wash, the badge tint and the primary
+        button fill together, so state and theme changes both funnel here
+        rather than duplicating the mapping in apply_theme().
+        """
+        n = self._needs_update
+
+        if n > 0:
+            accent = MD3Colors.get_warning(is_dark)
+            badge_icon = ft.Icons.SYSTEM_UPDATE_ALT
+            title = "1 game needs an update" if n == 1 else f"{n} games need updates"
+            subtitle = "Update every outdated DLSS, FSR and XeSS DLL in one pass"
+            primary = (f"Update all ({n})", ft.Icons.DOWNLOAD)
+            primary_tooltip = "Update every outdated DLL across your library"
+        elif not self._has_scan or self._game_count == 0:
+            accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
+            badge_icon = ft.Icons.SEARCH
+            title = "No games scanned yet"
+            subtitle = "Scan your launchers to find upgradeable DLLs"
+            primary = ("Scan for games", ft.Icons.SEARCH)
+            primary_tooltip = "Scan every configured launcher for games"
+        else:
+            accent = MD3Colors.get_success(is_dark)
+            badge_icon = ft.Icons.TASK_ALT
+            title = "Everything is up to date"
+            subtitle = self._scan_age or "Every detected DLL is on the latest version"
+            primary = None
+            primary_tooltip = None
+
+        # Card surface: opaque pre-blended wash (CLAUDE.md pitfall #1 — this
+        # Container has a shadow, so the gradient must carry no alpha).
+        self.bgcolor = MD3Colors.get_surface(is_dark)
+        self.gradient = build_brand_wash(accent, is_dark)
+
+        self._badge.bgcolor = ft.Colors.with_opacity(0.16, accent)
+        self._badge_icon.name = badge_icon
+        self._badge_icon.color = accent
+
+        self._title_text.value = title
+        self._title_text.color = MD3Colors.get_on_surface(is_dark)
+        self._subtitle_text.value = subtitle
+        self._subtitle_text.color = MD3Colors.get_on_surface_variant(is_dark)
+
+        if primary is not None:
+            label, icon = primary
+            fg = _on_accent(is_dark)
+            self._primary_button.visible = True
+            self._primary_button.bgcolor = accent
+            self._primary_button.tooltip = primary_tooltip
+            self._primary_icon.name = icon
+            self._primary_icon.color = fg
+            self._primary_label.value = label
+            self._primary_label.color = fg
+        else:
+            self._primary_button.visible = False
+
+        # Rescan stays available whenever a scan exists AND it either went
+        # stale or there is nothing to update (the calm state's only action).
+        self._secondary_button.visible = self._has_scan and (
+            self._scan_stale or n == 0
+        )
+        self._secondary_button.border = ft.Border.all(1, MD3Colors.get_outline(is_dark))
+        self._secondary_icon.color = MD3Colors.get_on_surface_variant(is_dark)
+        self._secondary_label.color = MD3Colors.get_on_surface_variant(is_dark)
+
+        self._watermark.opacity = WATERMARK_OPACITY_DARK if is_dark else WATERMARK_OPACITY_LIGHT
+
+    # ===== Interaction =====
+
+    def _on_primary_click(self, e):
+        """Run the state's primary action (update when outdated, else scan)."""
+        handler = self._on_update_all if self._needs_update > 0 else self._on_scan
+        if handler and self._page_ref:
+            self._page_ref.run_task(handler)
+
+    def _on_secondary_click(self, e):
+        if self._on_scan and self._page_ref:
+            self._page_ref.run_task(self._on_scan)
+
+    def _on_button_hover(self, e):
+        """Subtle lift on the primary button (e.data is a bool in Flet 0.86)."""
+        self._primary_button.scale = 1.03 if (e.data is True or e.data == "true") else 1.0
+        if self._page_ref:
+            try:
+                self._primary_button.update()
+            except Exception:
+                pass
+
+    # ===== Lifecycle =====
+
+    def did_mount(self):
+        """Defensive theme re-sync on every (re)mount - see HubCard.did_mount()."""
+        page = self._page_ref
+        if page is not None and hasattr(page, "run_task"):
+            try:
+                page.run_task(self.apply_theme, get_theme_registry().is_dark)
+            except Exception:
+                pass
+
+    async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
+        """Re-derive every themed property (state mapping owns them all)."""
+        if delay_ms > 0:
+            await anyio.sleep(delay_ms / 1000)
+
+        self._apply_state(is_dark)
 
         try:
             self.update()

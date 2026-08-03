@@ -64,6 +64,23 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.6.1" date="2026-08-03">
+      <description>
+        <p>The hub now tells you whether there is anything to update, plus sorting and a batch of layout fixes</p>
+        <ul>
+          <li>The hub leads with "N games need updates" and offers Update all and Rescan directly, rather than only reporting how many games and backups exist — previously Scan and Start Update existed solely at the bottom of the Launchers screen</li>
+          <li>The Games library gained a matching "Update all (N)" button</li>
+          <li>Games can be sorted by name, DLL count, or outdated first, and the choice is remembered</li>
+          <li>Fixed launcher cards showing "0 games" after every restart despite a full library and a saved scan on disk</li>
+          <li>Fixed the hub and the Games library disagreeing about how many games need updates — the hub counted before the DLL cache had replaced the built-in fallback version table, so it compared against stale "latest" versions</li>
+          <li>Fixed "Scan and Update" discarding the scan it had just performed, leaving the app believing no scan had ever run</li>
+          <li>Fixed the last backup group sitting underneath the floating navigation bar with no way to scroll it clear</li>
+          <li>Fixed the Games header clipping its refresh button, and the hub cutting off its card titles, at small window sizes — the hub now scrolls rather than clipping</li>
+          <li>Dark mode had no elevation hierarchy: page background, panel surfaces and header bands were all the same grey, making the Backups and Games header bands invisible. The dark palette has been re-based; light mode is unchanged</li>
+          <li>Database connections now consistently enforce foreign keys and a busy timeout, fixing cascading deletes that silently never happened — the source of the stranded backup records worked around in the previous release</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.6.0" date="2026-07-29">
       <description>
         <p>Built-in application updates, and a working update channel for Linux</p>

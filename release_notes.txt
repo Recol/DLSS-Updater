@@ -1,3 +1,57 @@
+Version 4.6.1:
+New Features:
+  - The hub now tells you whether there is anything to do. It leads with
+    "N games need updates" and offers Update all and Rescan right there,
+    instead of only reporting how many games and backups exist. Previously
+    the app's two primary actions, Scan and Start Update, existed solely at
+    the bottom of the Launchers screen.
+  - The Games library gained a matching "Update all (N)" button, next to the
+    count that was already shown there.
+  - Games can now be sorted: Name (A-Z), Name (Z-A), Most DLLs, and Outdated
+    first. The choice is remembered between sessions. The preference already
+    existed in the config file but nothing read it and there was no way to
+    set it.
+
+Bug Fixes:
+  - Launcher cards showed "0 games" after every restart, even with a full
+    library and a saved scan on disk. The counts lived only on the cards
+    themselves and were filled in solely by a fresh scan, so they were empty
+    until you scanned again. They are now restored from the saved scan.
+  - The hub and the Games library disagreed about how many games needed
+    updates - the hub could report 2 where Games reported 12. The hub
+    computes its count at startup, before the DLL cache finishes downloading
+    and replaces the built-in fallback version table, so it was comparing
+    installed DLLs against stale "latest" versions. Every surface that
+    depends on those versions is now re-derived once the cache is ready.
+  - "Scan and Update" discarded the scan it had just performed. The app kept
+    believing no scan had ever run: a stale "no scan performed yet" line,
+    empty launcher game counts, and a hub still asking you to scan, all
+    immediately after a successful scan-and-update.
+  - In the Backups list the last game group could sit underneath the
+    floating navigation bar with no way to scroll it clear. The Games and
+    Settings views already reserved that space.
+  - The Games header clipped its refresh button at narrow window widths. The
+    header now yields the subtitle (whose counts the filter chips restate)
+    rather than pushing controls off-screen.
+  - The hub cut off its card titles at short window heights - the Settings
+    card and the update button could be completely unreachable at the
+    minimum window size. The hub now scrolls instead of clipping, and is
+    unchanged on a normal-sized window.
+
+Other:
+  - Dark mode had no elevation hierarchy: the page background, panel
+    surfaces and header bands were all the same grey, so the Backups and
+    Games header bands were invisible against the page behind them. The dark
+    surface palette has been re-based so raised surfaces actually read as
+    raised. Light mode is unchanged, and every accent wash renders exactly as
+    before.
+  - Database connections now consistently enforce foreign keys and a busy
+    timeout. Only a handful of the three dozen connection sites did, which
+    meant cascading deletes silently did not happen - the source of the
+    stranded backup records the previous release worked around. Post-scan
+    cleanup also no longer discards DLL records that still hold a restorable
+    backup.
+
 Version 4.6.0:
 New Features:
   - The app can now update itself (Issue #254). The version badge beside the

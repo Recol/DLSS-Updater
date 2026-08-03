@@ -23,6 +23,7 @@ from dlss_updater.models import GameWithBackupCount, GameDLLBackup
 from dlss_updater.backup_manager import restore_dll_from_backup, delete_backup
 from dlss_updater.services.backup_service import restore_orphaned_dll_from_backup
 from dlss_updater.ui_flet.components.backup_group import BackupGroup
+from dlss_updater.ui_flet.components.floating_pill import PILL_CLEARANCE
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask
@@ -275,7 +276,10 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         # ListView provides virtualization for performance with many groups
         self.backups_list = ft.ListView(
             controls=[],
-            padding=16,
+            # Bottom padding lets the last group scroll clear of the floating
+            # pill, which sits bottom-left over this list (games/settings
+            # already reserve the same clearance).
+            padding=ft.Padding.only(left=16, right=16, top=16, bottom=PILL_CLEARANCE),
             spacing=8,
             expand=True,
             auto_scroll=False,  # Maintain scroll position

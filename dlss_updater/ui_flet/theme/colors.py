@@ -28,12 +28,32 @@ class MD3Colors:
     ON_SECONDARY_CONTAINER = "#0C1E27"
 
     # ==================== SURFACE COLORS ====================
-    # Dark mode surfaces
-    SURFACE = "#1E1E1E"
-    SURFACE_VARIANT = "#2E2E2E"
-    SURFACE_CONTAINER = "#2E2E2E"
-    SURFACE_DIM = "#141414"
-    SURFACE_BRIGHT = "#3A3A3A"
+    # Dark mode surfaces — MD3 elevation ladder (higher elevation = lighter).
+    #
+    # Ordered by CIE L* so every rung is perceptibly distinct from its
+    # neighbours (ΔL* >= 4 for adjacent rungs; ~2-3 is the noticeable floor for
+    # large flat fills). Contrast figures are against ON_SURFACE #E4E2E0 /
+    # ON_SURFACE_VARIANT #C4C7CA respectively — all far above WCAG AA 4.5:1.
+    #
+    #   SURFACE_DIM        L*  4.3   recessed wells
+    #   BACKGROUND         L*  6.3   page canvas                  (dL* +2.0)
+    #   SURFACE            L* 11.3   cards / dialogs / app bar     (dL* +4.9)
+    #   SURFACE_CONTAINER  L* 17.1   pills & fields ON a surface   (dL* +5.8)
+    #   SURFACE_VARIANT    L* 21.3   header bands / panel chrome   (dL* +4.2)
+    #   SURFACE_BRIGHT     L* 26.2   topmost chrome                (dL* +5.0)
+    #
+    # Before Jan 2026 this ladder was collapsed and inverted: VARIANT ==
+    # CONTAINER == BACKGROUND == #2E2E2E with SURFACE *darker* at #1E1E1E, so
+    # cards read as holes and the Games/Backups header bands were invisible
+    # against the page. SURFACE itself is deliberately unchanged — it is the
+    # pre-blend base for every hero wash/scrim (hero_surface.build_brand_wash),
+    # so holding it fixed leaves all washed surfaces byte-identical while the
+    # canvas drops away beneath them.
+    SURFACE = "#1E1E1E"            # 12.9:1 on-surface / 9.8:1 on-surface-variant
+    SURFACE_VARIANT = "#333333"    #  9.8:1 on-surface / 7.4:1 on-surface-variant
+    SURFACE_CONTAINER = "#2A2A2A"  # 11.1:1 on-surface / 8.5:1 on-surface-variant
+    SURFACE_DIM = "#0F0F0F"        # 14.8:1 on-surface — recessed well
+    SURFACE_BRIGHT = "#3E3E3E"     #  8.3:1 on-surface / 6.3:1 on-surface-variant
 
     # Light mode surfaces
     SURFACE_LIGHT = "#FFFFFF"
@@ -47,7 +67,11 @@ class MD3Colors:
     ON_SURFACE_VARIANT_LIGHT = "#49454F"  # 7.8:1 contrast
 
     # ==================== BACKGROUND COLORS ====================
-    BACKGROUND = "#2E2E2E"
+    # Page canvas. Sits BELOW SURFACE (see the dark ladder above) so cards,
+    # dialogs, the app bar and the view header bands read as elevated rather
+    # than as cut-outs. 14.3:1 with ON_BACKGROUND #E4E2E0, 10.9:1 with
+    # ON_SURFACE_VARIANT #C4C7CA (both improved by the drop from #2E2E2E).
+    BACKGROUND = "#141414"
     BACKGROUND_LIGHT = "#FAFBFC"
     ON_BACKGROUND = "#E4E2E0"
     ON_BACKGROUND_LIGHT = "#1C1B1F"
@@ -100,19 +124,21 @@ class MD3Colors:
         "on_primary": ("#FFFFFF", "#FFFFFF"),
         "primary_container": ("#C2E7FF", "#C2E7FF"),
 
-        # Surfaces
+        # Surfaces — dark values must stay in lockstep with the SURFACE_*
+        # constants and the get_surface*() helpers below (three copies by
+        # design: constants, THEMED pairs, and getters are all consumed).
         "surface": ("#1E1E1E", "#FFFFFF"),
-        "surface_variant": ("#2E2E2E", "#F5F5F5"),
-        "surface_container": ("#2E2E2E", "#F0F0F0"),
-        "surface_dim": ("#141414", "#DED8E1"),
-        "surface_bright": ("#3A3A3A", "#FFFFFF"),
+        "surface_variant": ("#333333", "#F5F5F5"),
+        "surface_container": ("#2A2A2A", "#F0F0F0"),
+        "surface_dim": ("#0F0F0F", "#DED8E1"),
+        "surface_bright": ("#3E3E3E", "#FFFFFF"),
 
         # On-surfaces
         "on_surface": ("#E4E2E0", "#1C1B1F"),
         "on_surface_variant": ("#C4C7CA", "#49454F"),
 
         # Background
-        "background": ("#2E2E2E", "#FAFBFC"),
+        "background": ("#141414", "#FAFBFC"),
         "on_background": ("#E4E2E0", "#1C1B1F"),
 
         # Status
@@ -190,11 +216,13 @@ class MD3Colors:
 
     @staticmethod
     def get_surface_variant(is_dark: bool = True) -> str:
-        return "#2E2E2E" if is_dark else "#F5F5F5"
+        # Elevation 3 — header bands, panel chrome, filled fields.
+        return "#333333" if is_dark else "#F5F5F5"
 
     @staticmethod
     def get_surface_container(is_dark: bool = True) -> str:
-        return "#2E2E2E" if is_dark else "#F0F0F0"
+        # Elevation 2 — pills/chips/rows resting ON a surface-level parent.
+        return "#2A2A2A" if is_dark else "#F0F0F0"
 
     @staticmethod
     def get_on_surface(is_dark: bool = True) -> str:
@@ -210,7 +238,8 @@ class MD3Colors:
 
     @staticmethod
     def get_background(is_dark: bool = True) -> str:
-        return "#2E2E2E" if is_dark else "#FAFBFC"
+        # Page canvas — the BOTTOM of the dark ladder, below get_surface().
+        return "#141414" if is_dark else "#FAFBFC"
 
     @staticmethod
     def get_primary(is_dark: bool = True) -> str:

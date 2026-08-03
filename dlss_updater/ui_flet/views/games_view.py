@@ -46,6 +46,61 @@ GAMES_BACKGROUND_BATCH_SIZE = 24  # Cards per background batch
 # never clipped and there is never a grey gap, because it always fills the cell exactly.
 GRID_DENSITY_DEFAULT = (320, 1.25, 140)
 
+# ==================== SORTING ====================
+# Menu order == display order. Modes match config.toml's
+# [ui_preferences].sort_preference vocabulary exactly (see
+# config_manager.get/set_sort_preference and models.UIPreferencesConfig).
+SORT_MODES: tuple[tuple[str, str, str], ...] = (
+    ("name_asc", "Name (A-Z)", ft.Icons.SORT_BY_ALPHA),
+    ("name_desc", "Name (Z-A)", ft.Icons.SORT_BY_ALPHA),
+    ("dll_count", "Most DLLs", ft.Icons.LAYERS),
+    ("outdated_first", "Outdated first", ft.Icons.ARROW_UPWARD),
+)
+DEFAULT_SORT = "name_asc"
+
+
+def count_outdated_dlls(dlls: list[GameDLL]) -> int:
+    """Count DLLs whose installed version is behind the bundled latest.
+
+    Single source of truth for what "needs an update" means outside a built
+    card: the grid's ``outdated_first`` sort (which has to order games whose
+    cards don't exist yet, during progressive loading) and the hub's
+    "N need updates" pill/CTA both call this.
+
+    Mirrors ``GameCard._get_update_counts()``'s outdated branch exactly - that
+    one caches per card and is unusable before the cards exist, so the logic
+    is stated once here and referenced from there.
+    """
+    from dlss_updater.config import LATEST_DLL_VERSIONS
+    from dlss_updater.updater import parse_version
+
+    outdated = 0
+    for dll in dlls:
+        if not dll.current_version or not dll.dll_filename:
+            continue
+        latest = LATEST_DLL_VERSIONS.get(dll.dll_filename.lower())
+        if not latest:
+            continue
+        try:
+            if parse_version(dll.current_version) < parse_version(latest):
+                outdated += 1
+        except Exception:
+            continue
+    return outdated
+
+
+def _on_accent(is_dark: bool) -> str:
+    """Legible foreground for text/icons on a FILLED warning accent.
+
+    WARNING is a light amber (#FFB74D) in dark mode and a dark amber
+    (#7A5800) in light mode, so a fixed white foreground is unreadable on the
+    dark-mode fill. Same helper as hub_card._on_accent (duplicated rather
+    than cross-imported: a view importing a hub component for a color rule
+    would be worse coupling than four lines).
+    """
+    return ft.Colors.BLACK87 if is_dark else ft.Colors.WHITE
+
+
 if TYPE_CHECKING:
     from dlss_updater.ui_flet.components.game_card import GameCard
 
@@ -189,10 +244,14 @@ class GamesView(ThemeAwareMixin, ft.Column):
     page.update() cost is only incurred on nav-to-games.
     """
 
-    def __init__(self, page: ft.Page, logger):
+    def __init__(self, page: ft.Page, logger, on_update_all=None):
         super().__init__()
         self._page_ref = page
         self.logger = logger
+        # MainView.run_bulk_update - the header's "Update all (N)" CTA goes
+        # through the exact same pipeline as the Launchers action bar rather
+        # than reaching into MainView internals from here.
+        self._on_update_all = on_update_all
         self.expand = True
         self.spacing = 0
 
@@ -226,6 +285,20 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self.options_menu: ft.PopupMenuButton | None = None
         self._options_icon: ft.Icon | None = None
         self._delete_menu_item: ft.PopupMenuItem | None = None
+
+        # Sort state. The persisted preference (config.toml
+        # [ui_preferences].sort_preference) is read once here; every later
+        # change is written back by _on_sort_selected(). _grids_by_launcher is
+        # kept so a sort change can reorder the live grids without a reload,
+        # and _sort_applied_at_build catches a sort chosen WHILE progressive
+        # loading is still appending cards in the previous order.
+        self.sort_menu: ft.PopupMenuButton | None = None
+        self._grids_by_launcher: dict[str, ft.GridView] = {}
+        self._sort_applied_at_build: str = DEFAULT_SORT
+        try:
+            self._sort_preference: str = config_manager.get_sort_preference() or DEFAULT_SORT
+        except Exception:
+            self._sort_preference = DEFAULT_SORT
 
         # PERFORMANCE: Track if games are already loaded to prevent redundant rebuilds
         # on tab switching. Only reload on explicit refresh or when forced=True
@@ -283,6 +356,146 @@ class GamesView(ThemeAwareMixin, ft.Column):
             self._delete_menu_item,
         ]
 
+    # ===== Sorting =====
+
+    def _build_sort_menu_items(self) -> list[ft.PopupMenuItem]:
+        """Build the sort popup's items, check-marking the active mode.
+
+        Populated upfront and rebuilt after a selection / on theme change -
+        NEVER lazily via on_open, which fires after the menu has rendered
+        (see CLAUDE.md's PopupMenuButton note).
+        """
+        is_dark = self._get_is_dark()
+        on_surface = MD3Colors.get_on_surface(is_dark)
+        icon_default = MD3Colors.get_themed("icon_default", is_dark)
+        accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
+
+        items: list[ft.PopupMenuItem] = []
+        for mode, label, icon in SORT_MODES:
+            active = mode == self._sort_preference
+            items.append(
+                ft.PopupMenuItem(
+                    content=ft.Row([
+                        ft.Icon(
+                            ft.Icons.CHECK if active else icon,
+                            size=18,
+                            color=accent if active else icon_default,
+                        ),
+                        ft.Text(
+                            label,
+                            size=14,
+                            color=accent if active else on_surface,
+                            weight=ft.FontWeight.W_600 if active else ft.FontWeight.NORMAL,
+                        ),
+                    ], spacing=8),
+                    data=mode,
+                    on_click=self._on_sort_selected,
+                )
+            )
+        return items
+
+    def _entry_sort_fields(self, entry: tuple) -> tuple[str, int, int]:
+        """(name, dll_count, outdated) for a raw (MergedGame, dlls, backups) tuple."""
+        merged, dlls, _ = entry
+        # display_name is a property on Game (override -> folder-derived name),
+        # not on MergedGame; the merged entry exposes it via primary_game.
+        return merged.primary_game.display_name, len(dlls), count_outdated_dlls(dlls)
+
+    @staticmethod
+    def _card_sort_fields(card: 'GameCard') -> tuple[str, int, int]:
+        """(name, dll_count, outdated) for a live card (counts are card-cached)."""
+        return card.game.display_name, len(card.dlls), card._get_update_counts()[0]
+
+    def _sort_entries(self, entries: list, extract) -> list:
+        """Order ``entries`` by the active sort preference.
+
+        ``extract`` maps an entry to (display_name, dll_count, outdated_count),
+        so the same ordering serves both raw merged-game tuples at build time
+        (before any card exists) and live GameCards when the user changes the
+        preference. Decorate-sort-undecorate: ``extract`` runs once per entry,
+        not once per comparison, since the outdated count parses versions.
+        """
+        mode = self._sort_preference
+        decorated = [(extract(entry), entry) for entry in entries]
+
+        if mode == "name_desc":
+            decorated.sort(key=lambda d: d[0][0].lower(), reverse=True)
+        elif mode == "dll_count":
+            decorated.sort(key=lambda d: (-d[0][1], d[0][0].lower()))
+        elif mode == "outdated_first":
+            # Most outdated DLLs first - the mode users actually reach for.
+            decorated.sort(key=lambda d: (-d[0][2], d[0][0].lower()))
+        else:  # name_asc (default)
+            decorated.sort(key=lambda d: d[0][0].lower())
+
+        return [entry for _, entry in decorated]
+
+    def _apply_sort_to_grids(self) -> bool:
+        """Reorder every launcher grid's cards to the active preference.
+
+        Two-phase swap (clear -> flush -> reassign -> flush): re-ordering
+        same-class children in place is exactly the positional merge diff the
+        client can silently drop (CLAUDE.md rendering pitfall #3). The cards
+        keep their Python identity across the swap, so artwork, badges,
+        ignore state and visibility all survive.
+
+        Returns False when there is nothing to reorder (caller then owns the
+        single update() needed to flush the menu's new check-mark).
+        """
+        if not self._grids_by_launcher:
+            return False
+
+        ordered: dict[str, list] = {}
+        for launcher, grid in self._grids_by_launcher.items():
+            ordered[launcher] = self._sort_entries(list(grid.controls), self._card_sort_fields)
+            grid.controls = []
+
+        # Detached view (progressive-loading tail after a nav-away): the
+        # reordered controls are still applied below and render on re-attach.
+        try:
+            self.update()
+        except Exception:
+            pass
+
+        for launcher, grid in self._grids_by_launcher.items():
+            grid.controls = ordered[launcher]
+
+        try:
+            self.update()
+        except Exception:
+            pass
+
+        self._sort_applied_at_build = self._sort_preference
+        return True
+
+    async def _on_sort_selected(self, e):
+        """Persist the chosen sort mode and reorder the live grids."""
+        mode = getattr(e.control, "data", None)
+        if not mode or mode == self._sort_preference:
+            return
+
+        self._sort_preference = mode
+        if self.sort_menu:
+            self.sort_menu.items = self._build_sort_menu_items()
+
+        if not self._apply_sort_to_grids():
+            # No grids yet (empty library) - still flush the new check-mark.
+            try:
+                self.update()
+            except Exception:
+                pass
+
+        # Persist off the event loop: set_sort_preference takes _config_lock
+        # and rewrites config.toml (blocking I/O).
+        try:
+            await anyio.to_thread.run_sync(
+                config_manager.set_sort_preference, mode, limiter=thread_io
+            )
+        except Exception as ex:
+            self.logger.debug(f"Failed to persist sort preference: {ex}")
+
+        self.logger.debug(f"Games sort preference set to '{mode}'")
+
     def _update_delete_button_state(self, has_games: bool):
         """Update delete menu item enabled/disabled state."""
         self._has_games = has_games
@@ -324,6 +537,11 @@ class GamesView(ThemeAwareMixin, ft.Column):
             size=12,
             color=MD3Colors.get_on_surface_variant(is_dark),
             italic=True,
+            # Truncate rather than wrap to a second line: this sits in the
+            # expanding slot of the header row (see header_foreground), so at
+            # the 820px minimum width it must give way to the action cluster.
+            no_wrap=True,
+            overflow=ft.TextOverflow.ELLIPSIS,
         )
 
         self.loading_text = ft.Text(
@@ -349,6 +567,30 @@ class GamesView(ThemeAwareMixin, ft.Column):
             ),
             items=self._build_options_menu_items(),
         )
+
+        # Sort popup - same idiom as the options menu above (custom content +
+        # items built upfront). Reflects/persists [ui_preferences].sort_preference.
+        self._sort_icon = ft.Icon(
+            ft.Icons.SORT,
+            size=20,
+        )
+        self.sort_menu = ft.PopupMenuButton(
+            content=ft.Container(
+                content=self._sort_icon,
+                width=40,
+                height=40,
+                border_radius=8,
+                alignment=ft.Alignment.CENTER,
+                tooltip="Sort games",
+            ),
+            items=self._build_sort_menu_items(),
+        )
+
+        # Primary bulk-update CTA. Sits with the "N need updates" count in the
+        # header and delegates to MainView's existing update pipeline
+        # (cancellable overlay, "Scan and Update" fallback, summary dialog).
+        # Hidden until _update_games_subtitle() sees something outdated.
+        self.update_all_button = self._build_update_all_button(is_dark)
 
         # Steam API card — built BEFORE the header pill below so the pill can
         # read its real initial _api_key_valid state (existing key -> success)
@@ -429,10 +671,26 @@ class GamesView(ThemeAwareMixin, ft.Column):
                     ft.Row(
                         controls=[
                             self.header_title,
-                            self.games_subtitle_text,
-                            ft.Container(expand=True),  # Spacer
+                            # The subtitle is the row's ONLY flexible child, so
+                            # it doubles as the spacer: at comfortable widths it
+                            # expands and pushes the action cluster right (what
+                            # a rigid Container(expand=True) spacer used to do),
+                            # and as the window narrows it shrinks and ellipsizes
+                            # instead of shoving the trailing controls off-screen.
+                            # A rigid spacer can only absorb SURPLUS width - once
+                            # the fixed children outgrew the row, the refresh
+                            # button was clipped at the 820px minimum width.
+                            # The subtitle is the safe thing to sacrifice: the
+                            # filter chips directly below restate its counts.
+                            ft.Container(
+                                content=self.games_subtitle_text,
+                                expand=True,
+                                padding=ft.Padding.only(right=8),
+                            ),
+                            self.update_all_button,
                             self.search_bar,
                             self.steam_api_pill,
+                            self.sort_menu,
                             self.options_menu,
                             ft.IconButton(
                                 icon=ft.Icons.REFRESH,
@@ -523,6 +781,74 @@ class GamesView(ThemeAwareMixin, ft.Column):
         if self._page_ref and self._page_ref.session.contains_key("is_dark_theme"):
             return self._page_ref.session.get("is_dark_theme")
         return True
+
+    # ===== Bulk update CTA (header) =====
+
+    def _build_update_all_button(self, is_dark: bool) -> ft.Container:
+        """Build the header's "Update all (N)" action.
+
+        A slightly taller build_pill() rather than a Material button so it
+        sits in the same badge language as the Steam API pill beside it -
+        filled with the WARNING accent (matching the "Needs update" filter
+        chip) so the count and the action read as the same idea.
+        """
+        accent = MD3Colors.get_warning(is_dark)
+        fg = _on_accent(is_dark)
+        button = build_pill(
+            "Update all",
+            icon=ft.Icons.DOWNLOAD,
+            bgcolor=accent,
+            text_color=fg,
+            icon_color=fg,
+            text_size=12,
+            icon_size=16,
+        )
+        # build_pill's content is a tight Row([Icon, Text]) - keep refs so the
+        # count and themed colors can be patched in place.
+        row = button.content
+        self._update_all_icon: ft.Icon = row.controls[0]
+        self._update_all_text: ft.Text = row.controls[1]
+        button.height = 32
+        button.padding = ft.Padding.symmetric(horizontal=12, vertical=6)
+        button.on_click = self._on_update_all_clicked
+        button.ink = True
+        button.tooltip = "Update every outdated DLL in your library"
+        button.visible = False
+        return button
+
+    def _set_update_all_state(self, needs_update: int) -> None:
+        """Show/label the bulk-update CTA from the live outdated count.
+
+        Hidden entirely when nothing is outdated (or no callback was wired) -
+        a greyed-out button next to "all up to date" would just be noise.
+        """
+        button = getattr(self, "update_all_button", None)
+        if button is None:
+            return
+
+        if needs_update > 0 and self._on_update_all is not None:
+            self._update_all_text.value = f"Update all ({needs_update})"
+            button.visible = True
+        else:
+            button.visible = False
+
+    def _refresh_update_all_button(self, is_dark: bool) -> None:
+        """Repaint the CTA for the active theme (fill AND foreground invert)."""
+        button = getattr(self, "update_all_button", None)
+        if button is None:
+            return
+        accent = MD3Colors.get_warning(is_dark)
+        fg = _on_accent(is_dark)
+        button.bgcolor = accent
+        self._update_all_icon.color = fg
+        self._update_all_text.color = fg
+
+    async def _on_update_all_clicked(self, e) -> None:
+        """Run the library-wide update through MainView's existing pipeline."""
+        if not self._on_update_all:
+            return
+        self.logger.info("Bulk update requested from the Games header")
+        await self._on_update_all()
 
     # ===== Steam API status pill (header) =====
 
@@ -679,6 +1005,17 @@ class GamesView(ThemeAwareMixin, ft.Column):
             except Exception:
                 pass
 
+        # Same for the sort menu (its check-mark uses the GAMES accent).
+        if self.sort_menu:
+            self.sort_menu.items = self._build_sort_menu_items()
+            try:
+                self.sort_menu.update()
+            except Exception:
+                pass
+
+        # Bulk-update CTA: both the WARNING fill and its foreground invert.
+        self._refresh_update_all_button(is_dark)
+
         # Header brand wash — rebuild the diagonal GAMES-blue gradient at the
         # new theme's opacity/accent.
         if getattr(self, "_header_wash", None):
@@ -830,6 +1167,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Clear existing game cards tracking
         self.game_cards.clear()
         self.game_card_containers.clear()
+        self._grids_by_launcher = {}
 
         # Launcher icons mapping
         launcher_icons = {
@@ -935,6 +1273,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
             )
             card.opacity = 0 if not is_ignored else 0.5
             card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
+            # Stable key so Flet's list differ reconciles a re-ordered grid by
+            # identity (a keyed move) rather than positionally merging one
+            # card's subtree onto another's - see _apply_sort_to_grids().
+            card.key = f"gc-{merged.primary_game.id}"
             return card
 
         # ========== PHASE 4: Progressive card creation ==========
@@ -949,7 +1291,13 @@ class GamesView(ThemeAwareMixin, ft.Column):
             if launcher not in games_by_launcher_merged:
                 continue
 
-            merged_data = games_by_launcher_merged[launcher]
+            # Order BEFORE the progressive split so the first (immediately
+            # visible) batch really is the top of the sort and the background
+            # batches append in order - sorting after the fact would make the
+            # initial paint show an arbitrary 16 games.
+            merged_data = self._sort_entries(
+                games_by_launcher_merged[launcher], self._entry_sort_fields
+            )
             game_count = len(self.games_by_launcher[launcher])
 
             # Create GridView first (will be populated progressively)
@@ -997,6 +1345,11 @@ class GamesView(ThemeAwareMixin, ft.Column):
             tabs.append(tab_header)
             tab_contents.append(game_grid)
             self._tab_launchers.append(launcher)
+
+        # Keep the grids reachable so a later sort change can reorder them
+        # in place instead of forcing a full reload.
+        self._grids_by_launcher = grids_by_launcher
+        self._sort_applied_at_build = self._sort_preference
 
         cards_ms = (time.perf_counter() - start_cards) * 1000
         self.logger.debug(f"[PERF] Initial card creation ({initial_card_count} cards): {cards_ms:.1f}ms")
@@ -1253,6 +1606,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         self.logger.debug(f"[PERF] Progressive loading complete: {loaded} additional cards")
 
+        # A sort chosen WHILE these batches were landing reordered only the
+        # cards that existed at that moment; the rest appended in the old
+        # order. Re-apply once, now that the dataset is complete.
+        if self._sort_preference != self._sort_applied_at_build:
+            self._apply_sort_to_grids()
+
         # Final, complete-dataset recount now that every card has loaded.
         self._update_filter_chip_counts()
         try:
@@ -1334,6 +1693,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         total = self._total_games or len(self.game_cards)
         if total == 0:
             self.games_subtitle_text.value = ""
+            self._set_update_all_state(0)
             return
 
         parts = [f"{total} game{'s' if total != 1 else ''}"]
@@ -1349,6 +1709,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
             parts.append(age)
 
         self.games_subtitle_text.value = " · ".join(parts)
+
+        # The bulk-update CTA shows the same count this line just reported.
+        self._set_update_all_state(needs_update)
 
     async def _on_reresolution_complete(self):
         """Called after re-resolution updates game app IDs.
@@ -2268,6 +2631,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Clear game card references to allow garbage collection
         self.game_cards.clear()
         self.game_card_containers.clear()
+        self._grids_by_launcher = {}
 
         # Cancel update coordinator if exists
         if self.update_coordinator:

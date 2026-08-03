@@ -120,6 +120,17 @@ git clone --depth 1 --branch "$PAGES_BRANCH" "$PAGES_REPO" "$WORKDIR/pages"
 
 cd "$WORKDIR/pages"
 
+# git does not track empty directories, so cloning gh-pages silently drops the
+# empty refs/{heads,mirrors,remotes} and tmp/ that every OSTree repo carries.
+# build-commit-from survives that (it creates refs/heads as it writes), but
+# build-update-repo enumerates ALL ref directories and dies with:
+#   error: Listing refs: opendir(refs/remotes): No such file or directory
+#
+# This only bites on the merge path: the first-publish branch below seeds the
+# channel with `cp -a` from the local repo, which still has the directories. So
+# it stayed hidden until the second publish into an existing channel.
+mkdir -p refs/heads refs/mirrors refs/remotes tmp
+
 
 # Preserve the hand-maintained files that live alongside the OSTree repo.
 echo -e "\n${YELLOW}[2/4] Preserving landing page and repo definition...${NC}"

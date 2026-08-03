@@ -170,6 +170,12 @@ class MainView(ft.Column):
         # Discord banner
         self.discord_banner: ft.Banner | None = None
 
+        # Re-entrancy guard for the primary operations. Three surfaces can now
+        # start them (Launchers action bar, hub CTA, Games header), and while
+        # the loading overlay does cover the page, a second concurrent run
+        # against the same DLL files is not something to leave to layering.
+        self._bulk_run_active = False
+
         # Scan state management - store last scan results for update operations
         self.last_scan_results: dict | None = None
         self.last_scan_timestamp: str | None = None
@@ -284,8 +290,11 @@ class MainView(ft.Column):
         # off the startup critical path — see _populate_launcher_paths_deferred.
         self.launchers_view = await self._create_launchers_view(defer_paths=True)
 
-        # Create games view
-        self.games_view = GamesView(self._page_ref, self.logger)
+        # Create games view. on_update_all wires its header CTA to the same
+        # bulk-update pipeline the Launchers action bar uses.
+        self.games_view = GamesView(
+            self._page_ref, self.logger, on_update_all=self.run_bulk_update
+        )
 
         # Create backups view
         self.backups_view = BackupsView(self._page_ref, self.logger)
@@ -304,12 +313,15 @@ class MainView(ft.Column):
             on_check_updates=self._on_check_updates_clicked,
         )
 
-        # Create hub view
+        # Create hub view. on_update_all / on_scan give the landing screen's
+        # CTA band the same two primary actions the Launchers bar exposes.
         self.hub_view = HubView(
             page=self._page_ref,
             logger=self.logger,
             on_navigate=self._on_hub_navigate,
             on_open_dlss_settings=self._on_dlss_settings_clicked,
+            on_update_all=self.run_bulk_update,
+            on_scan=self.run_scan,
         )
 
         # Create navigation controller (replaces tab bar)
@@ -450,7 +462,7 @@ class MainView(ft.Column):
                     for card in (
                         old_hub._launchers_card, old_hub._dlss_settings_card,
                         old_hub._backups_card, old_hub._settings_card,
-                        old_hub._games_card,
+                        old_hub._games_card, old_hub._action_card,
                     ):
                         if card is not None:
                             card._unregister_theme_aware()
@@ -461,6 +473,8 @@ class MainView(ft.Column):
                         logger=self.logger,
                         on_navigate=self._on_hub_navigate,
                         on_open_dlss_settings=self._on_dlss_settings_clicked,
+                        on_update_all=self.run_bulk_update,
+                        on_scan=self.run_scan,
                     )
                     # Unique key so Flet's list differ treats this as a
                     # keyed ADD (full serialization) instead of a same-class
@@ -1503,19 +1517,29 @@ class MainView(ft.Column):
         """
         deferred = self._deferred_launcher_paths
         self._deferred_launcher_paths = {}
-        if not deferred:
-            return
-        for enum, paths in deferred.items():
-            card = self.launcher_cards.get(enum)
-            if not card:
-                continue
+        if deferred:
+            for enum, paths in deferred.items():
+                card = self.launcher_cards.get(enum)
+                if not card:
+                    continue
+                try:
+                    await card.set_paths(paths)
+                except Exception as e:
+                    self.logger.debug(f"Deferred launcher set_paths failed for {enum}: {e}")
+            # Restyle/refresh the header "N configured" pill (count already correct
+            # from the seed; this keeps it in sync after the deferred population).
+            self._update_launchers_configured_pill()
+
+        # Seed the per-card "N games" pills from the cached scan results loaded
+        # by _load_scan_cache(). games_data lives only on the cards themselves,
+        # so without this every launcher reads "0 games" after a restart even
+        # though the library and the on-disk scan cache are both populated -
+        # the counts only appeared once the user ran a fresh scan.
+        if self.last_scan_results:
             try:
-                await card.set_paths(paths)
+                await self._populate_launcher_cards(self.last_scan_results)
             except Exception as e:
-                self.logger.debug(f"Deferred launcher set_paths failed for {enum}: {e}")
-        # Restyle/refresh the header "N configured" pill (count already correct
-        # from the seed; this keeps it in sync after the deferred population).
-        self._update_launchers_configured_pill()
+                self.logger.debug(f"Deferred launcher game-count seed failed: {e}")
 
     async def _handle_folder_selected(self, path: str, launcher: LauncherPathName, is_adding: bool = False):
         """Handle folder selection result (Flet 0.80.4+ direct call pattern)"""
@@ -1796,6 +1820,111 @@ class MainView(ft.Column):
         panel = UIPreferencesPanel(self._page_ref, self.logger)
         await panel_manager.show_content(panel)
 
+    # ===== Public entry points for the Hub / Games CTAs =====
+    #
+    # The two primary actions used to exist ONLY as handlers bound to the
+    # Launchers action bar's buttons. The hub CTA band and the Games header's
+    # "Update all (N)" now start the same operations, so they get named
+    # coroutines to call instead of reaching into MainView internals (or
+    # duplicating the DLL-cache guard / scan fallback / summary dialog).
+
+    async def run_bulk_update(self) -> None:
+        """Start a library-wide DLL update.
+
+        Delegates to the Launchers bar's own handler so every caller shares
+        one pipeline: the DLL-cache readiness guard, the "Scan and Update"
+        prompt when no scan cache exists, the cancellable loading overlay and
+        the summary dialog.
+        """
+        if self._bulk_run_active:
+            await self._show_snackbar("An update or scan is already running")
+            return
+        self._bulk_run_active = True
+        try:
+            await self._on_update_clicked(None)
+        finally:
+            self._bulk_run_active = False
+
+    async def run_scan(self) -> None:
+        """Start a launcher scan (same handler as the Launchers bar button)."""
+        if self._bulk_run_active:
+            await self._show_snackbar("An update or scan is already running")
+            return
+        self._bulk_run_active = True
+        try:
+            await self._on_scan_clicked(None)
+        finally:
+            self._bulk_run_active = False
+
+    async def _refresh_after_bulk_run(self, *, rescanned: bool = False) -> None:
+        """Re-sync every surface that displays update/scan state.
+
+        When the Launchers bar was the only trigger, a stale hub pill or
+        launcher game-count was invisible - the user was already looking at
+        the view that had just refreshed. Now that the hub and the Games
+        header can start the same run, all three have to converge afterwards.
+
+        The Games grid is NOT refreshed here: both callers already reconcile
+        its badges (refresh_all_badges / mark_pending_dll_reconcile), which
+        re-runs the filter recount and with it the header CTA.
+
+        Args:
+            rescanned: True when a fresh scan ran as part of this operation,
+                so the launcher cards and the "last scan" line are re-derived
+                from the new results.
+        """
+        if rescanned and self.last_scan_results:
+            self._update_scan_info_text()
+            try:
+                await self._populate_launcher_cards(self.last_scan_results)
+            except Exception as e:
+                self.logger.debug(f"Post-run launcher card refresh failed: {e}")
+
+        # Hub stats (game count, "N need updates" pill, CTA state, scan age).
+        # Cheap - the same hyper-parallel batch used at startup. Best-effort
+        # when the hub is detached; returning to it re-runs load_stats anyway
+        # (see _on_view_hidden), and it IS attached when the hub started the run.
+        if self.hub_view:
+            try:
+                await self.hub_view.load_stats()
+            except Exception as e:
+                self.logger.debug(f"Post-run hub stats refresh failed: {e}")
+
+    async def refresh_after_dll_cache_ready(self) -> None:
+        """Re-derive update state once the DLL cache has finished initialising.
+
+        LATEST_DLL_VERSIONS starts out as the hardcoded fallback table in
+        config.py and is only replaced with the real cached-DLL versions by
+        update_latest_dll_versions_from_cache(), which runs at the END of
+        initialize_dll_cache_async(). Anything that compared installed
+        versions against "latest" before that point measured against stale
+        fallbacks and under-reported: the hub's "N need updates" pill and CTA
+        load at startup and were showing 2 where the Games view later showed
+        12.
+
+        Called from main.py once the cache init task succeeds.
+        """
+        # Hub pill + CTA: a plain recount, same batch used at startup.
+        if self.hub_view:
+            try:
+                await self.hub_view.load_stats()
+            except Exception as e:
+                self.logger.debug(f"Post-cache-init hub stats refresh failed: {e}")
+
+        # The Games view is normally still unbuilt here (the hub is the landing
+        # view), but a user who navigated straight to it raced the cache init
+        # and holds cards whose cached counts - and the badges painted from
+        # them - were computed against the fallback table. A forced reload is
+        # heavier than a recount, but it repaints the badges too; a bare
+        # _update_filter_chip_counts() would fix the chips and leave every
+        # card reading the old "N/M outdated".
+        games_view = self.games_view
+        if games_view is not None and getattr(games_view, "_games_loaded", False):
+            try:
+                await games_view.load_games(force=True)
+            except Exception as e:
+                self.logger.debug(f"Post-cache-init games refresh failed: {e}")
+
     async def _on_scan_clicked(self, e):
         """Handle scan button click - scans for games and populates cards"""
         self.logger.info("Scan button clicked")
@@ -1856,6 +1985,10 @@ class MainView(ft.Column):
             total_games = len(unique_games)
             total_dlls = sum(len(dlls) for dlls in dll_dict.values())
             await self._show_snackbar(f"Scan complete: {total_games} games, {total_dlls} DLLs found, you can now find them in the Games tab",)
+
+            # The hub's CTA/pills are derived from the library + scan cache
+            # that just changed (this scan may have been started FROM the hub).
+            await self._refresh_after_bulk_run()
 
         except Exception as ex:
             self.logger.error(f"Scan failed: {ex}", exc_info=True)
@@ -2122,6 +2255,9 @@ class MainView(ft.Column):
             if self.backups_view:
                 self.backups_view._backups_loaded = False
 
+            # Hub pills/CTA (this run may have been started from the hub).
+            await self._refresh_after_bulk_run()
+
         except Exception as ex:
             self.logger.error(f"Update failed: {ex}", exc_info=True)
             self.loading_overlay.hide(self._page_ref)
@@ -2166,15 +2302,44 @@ class MainView(ft.Column):
                     progress.message
                 )
 
-            # Scan then update via the coordinator's convenience method
-            result = await self.update_coordinator.scan_and_update(on_progress)
+            # Scan then update as the coordinator's two explicit phases, so the
+            # scan's dll_dict is kept and persisted below. There used to be a
+            # scan_and_update() convenience wrapper here; it returned only the
+            # UpdateResult, so the dll_dict was discarded and this path left
+            # last_scan_results/scan_cache.json empty - after a successful
+            # scan-and-update the app still believed no scan had ever run
+            # (stale "No scan performed yet" line, empty launcher game-count
+            # pills, and the hub CTA still asking for a scan). The wrapper has
+            # since been removed rather than fixed, so it can't reintroduce it.
+            dll_dict = await self.update_coordinator.scan_for_games(on_progress)
+
+            # Checkpoint between phases: a cancel during the scan skips the
+            # update entirely (scan_for_games returns an empty dict).
+            if self.update_coordinator.was_cancelled:
+                self.loading_overlay.hide(self._page_ref)
+                await self._show_snackbar("Scan cancelled")
+                return
+
+            # Persist exactly like _on_scan_clicked does, so the results are
+            # reusable by every later update and survive a restart.
+            self.last_scan_results = dll_dict
+            await self._save_scan_cache()
+
+            if not sum(len(dlls) for dlls in dll_dict.values()):
+                self.logger.warning("No games found to update")
+                self.loading_overlay.hide(self._page_ref)
+                await self._show_snackbar("Scan complete - no games found to update")
+                await self._refresh_after_bulk_run(rescanned=True)
+                return
+
+            result = await self.update_coordinator.update_games(dll_dict, on_progress)
 
             # Hide loading overlay
             self.loading_overlay.hide(self._page_ref)
 
-            # Surface the outcome. Cancellation during the scan phase leaves the
-            # game total at 0 (the update phase never counted games), so fall
-            # back to a plain "Scan cancelled" message in that case.
+            # Surface the outcome. A cancel during the SCAN phase already
+            # returned above; this covers the update phase, and still falls
+            # back to a plain message if it stopped before counting games.
             if self.update_coordinator.was_cancelled:
                 processed = self.update_coordinator.cancel_processed
                 total = self.update_coordinator.cancel_total
@@ -2199,6 +2364,10 @@ class MainView(ft.Column):
 
             if self.backups_view:
                 self.backups_view._backups_loaded = False
+
+            # A scan ran here, so the launcher cards and "last scan" line are
+            # re-derived too - not just the hub pills/CTA.
+            await self._refresh_after_bulk_run(rescanned=True)
 
         except Exception as ex:
             self.logger.error(f"Scan and update failed: {ex}", exc_info=True)

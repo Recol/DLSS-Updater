@@ -168,7 +168,12 @@ async def main(page: ft.Page):
 
     # Set theme based on detection
     page.theme_mode = ft.ThemeMode.DARK if is_dark else ft.ThemeMode.LIGHT
-    page.bgcolor = "#2E2E2E" if is_dark else "#FAFBFC"
+    # Read the canvas colour from the palette rather than duplicating hexes -
+    # these literals silently went stale when the dark surface ladder was
+    # re-based, and a mismatch flashes the old colour before ThemeManager
+    # overwrites it on first toggle.
+    from dlss_updater.ui_flet.theme.colors import MD3Colors as _MD3Colors
+    page.bgcolor = _MD3Colors.get_background(is_dark)
     page.decoration = _build_window_decoration(is_dark)
 
     # Material 3 themes (light + dark) built from the shared helper so the
@@ -264,6 +269,12 @@ async def main(page: ft.Page):
 
             logger.info("DLL cache initialized successfully")
             await snackbar.show_complete()
+
+            # Only now does LATEST_DLL_VERSIONS hold the real cached-DLL
+            # versions rather than config.py's fallbacks, so every surface that
+            # compares against "latest" has to be re-derived - the hub's
+            # "N need updates" pill and CTA were computed at startup.
+            await main_view.refresh_after_dll_cache_ready()
 
         except anyio.get_cancelled_exc_class():
             logger.info("DLL cache initialization cancelled")

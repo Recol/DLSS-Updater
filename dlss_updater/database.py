@@ -407,16 +407,33 @@ class DatabaseManager:
                         pass
             self._pool_semaphore.release()
 
+    def _new_connection(self) -> sqlite3.Connection:
+        """
+        Open a fresh sync connection with the shared pragma set already applied.
+
+        EVERY sync connection in this module must be opened through here. SQLite
+        defaults ``foreign_keys`` OFF *per connection*, so a bare ``sqlite3.connect``
+        silently skips every ``ON DELETE CASCADE`` in the schema — that is exactly
+        how orphaned ``dll_backups`` / ``update_history`` rows were produced — and
+        also gets ``busy_timeout=0``, i.e. an instant SQLITE_BUSY the moment a
+        genuine concurrent writer holds the lock (free-threaded Python 3.14).
+
+        Deliberately does NOT set ``row_factory``: callers index rows positionally,
+        so the default tuple factory is kept and only the paths that want
+        ``sqlite3.Row`` opt in themselves.
+        """
+        conn = sqlite3.connect(str(self.db_path))
+        _apply_connection_pragmas(conn)
+        return conn
+
     def _get_thread_connection(self) -> sqlite3.Connection:
         """
         Get a thread-local reusable connection for sync operations.
         Reuses connection within the same thread to reduce overhead.
         """
         if not hasattr(self._thread_local, 'connection') or self._thread_local.connection is None:
-            self._thread_local.connection = sqlite3.connect(str(self.db_path))
+            self._thread_local.connection = self._new_connection()
             self._thread_local.connection.row_factory = sqlite3.Row
-            # Apply the shared pragma set (foreign_keys, busy_timeout, WAL tuning).
-            _apply_connection_pragmas(self._thread_local.connection)
         return self._thread_local.connection
 
     def _close_thread_connection(self):
@@ -470,15 +487,14 @@ class DatabaseManager:
 
     def _create_schema(self):
         """Create database schema (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))  # New connection for schema setup
+        conn = self._new_connection()  # New connection for schema setup
         cursor = conn.cursor()
 
         try:
             # Enable WAL mode for better write performance. journal_mode is a
             # persistent DB-file setting, so it is set here once (not in the
-            # shared pragma helper). The rest of the tuning comes from the helper.
+            # shared pragma helper, which _new_connection has already applied).
             cursor.execute("PRAGMA journal_mode=WAL")
-            _apply_connection_pragmas(conn)
 
             # Games table
             cursor.execute("""
@@ -1150,10 +1166,8 @@ class DatabaseManager:
 
     def _delete_all_games(self):
         """Delete all games (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
-        # Enforce ON DELETE CASCADE (off by default in SQLite, per-connection).
-        cursor.execute("PRAGMA foreign_keys=ON")
 
         try:
             # Count games before deletion
@@ -1186,7 +1200,7 @@ class DatabaseManager:
 
     def _cleanup_duplicate_games(self):
         """Cleanup duplicate games (runs in thread) - optimized with batched SQL"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -1285,10 +1299,8 @@ class DatabaseManager:
         """Remove games not in valid_game_paths and not on filesystem (runs in thread)"""
         import os
 
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
-        # Enforce ON DELETE CASCADE (off by default in SQLite, per-connection).
-        cursor.execute("PRAGMA foreign_keys=ON")
 
         try:
             # Get all game paths from database
@@ -1344,6 +1356,10 @@ class DatabaseManager:
         from the current scan and the actual filesystem. DLLs are deleted if:
         1. Their path is not in the valid_dll_paths set (not found in current scan)
         2. AND the path no longer exists on the filesystem
+        3. AND they hold no active backup — a DLL record whose file is gone is
+           still kept alive while it is the parent of a restorable backup, since
+           deleting it would CASCADE that backup away while its .dlsss file stays
+           on disk, unreachable.
 
         Args:
             valid_dll_paths: Set of DLL paths found in the current scan
@@ -1354,15 +1370,48 @@ class DatabaseManager:
         return await anyio.to_thread.run_sync(self._cleanup_orphan_dlls, valid_dll_paths, limiter=thread_io)
 
     def _cleanup_orphan_dlls(self, valid_dll_paths: set[str]) -> int:
-        """Remove DLL records not in valid_dll_paths and not on filesystem (runs in thread)"""
+        """Remove DLL records not in valid_dll_paths, not on filesystem, and
+        holding no active backup (runs in thread)"""
         import os
 
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
-            # Get all DLL paths from database
-            cursor.execute("SELECT id, dll_path FROM game_dlls")
+            # Get candidate DLL paths, EXCLUDING any that still hold a backup the
+            # user could restore. This runs on every scan (scanner.py ->
+            # perform_post_scan_cleanup) and the DELETE below cascades, so the
+            # exclusion is what keeps that cascade from destroying restorable
+            # backups — see the comment on the delete itself.
+            #
+            # "Restorable" means is_active = 1, established from the queries
+            # rather than assumed: every listing/aggregate query that can put a
+            # backup in front of the user filters b.is_active = 1, and
+            # get_backup_by_id (the restore/delete entry point) is only ever
+            # reached with an id those listings handed out. is_active = 0 rows
+            # are read by exactly one query, get_flagged_dll_versions, and that
+            # INNER JOINs game_dlls — so for a DLL being pruned here they are
+            # already invisible to it either way, making their cascade pure
+            # cleanup rather than a loss.
+            #
+            # Whether the .dlsss file is still on disk is deliberately NOT a
+            # criterion. It would be per-row filesystem I/O on a hot path, and
+            # worse, it makes a destructive decision from transient state: a
+            # removable or network drive that is merely offline would look like
+            # every backup had vanished and take the records with it. The row is
+            # the only handle on a backup — a stale row is harmless (restore
+            # reports the missing file), a wrongly deleted one is unrecoverable.
+            #
+            # NOT EXISTS rather than NOT IN so this rides the composite
+            # idx_dll_backups_game_dll_active index; one set-based query, no N+1.
+            cursor.execute("""
+                SELECT gd.id, gd.dll_path
+                FROM game_dlls gd
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM dll_backups b
+                    WHERE b.game_dll_id = gd.id AND b.is_active = 1
+                )
+            """)
             all_dlls = cursor.fetchall()
 
             # Normalize valid paths for comparison
@@ -1383,7 +1432,22 @@ class DatabaseManager:
                 logger.info("No orphan DLLs found")
                 return 0
 
-            # Batch delete orphan DLLs (CASCADE handles backups and history)
+            # Batch delete orphan DLLs. CASCADE now genuinely fires here (the
+            # connection comes from _new_connection, so foreign_keys is ON; the
+            # old pragma-less connection meant this comment used to be a lie and
+            # every delete left dll_backups / update_history rows stranded).
+            #
+            # That cascade is safe by construction: the candidate query above
+            # already excluded every DLL still holding a restorable backup, so
+            # the only dll_backups rows reachable from here are soft-deleted ones
+            # nothing surfaces. Their update_history rows go with them, which is
+            # the point — those were the stranded rows.
+            #
+            # Pre-existing orphans from the historical foreign_keys-OFF deletes
+            # are untouched: their game_dll_id points at a row that no longer
+            # exists, so no cascade can reach them, and game_dlls.id is
+            # AUTOINCREMENT so a future insert can never reissue that id. They
+            # keep showing up in get_orphaned_backups_grouped_sync as restorable.
             placeholders = ','.join('?' * len(dlls_to_delete))
             cursor.execute(f"DELETE FROM game_dlls WHERE id IN ({placeholders})", dlls_to_delete)
 
@@ -1486,7 +1550,7 @@ class DatabaseManager:
 
     def _get_game_dlss_presets(self, game_id: int) -> GameDLSSPresets | None:
         """Get per-game DLSS presets (runs in thread)."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -1553,7 +1617,7 @@ class DatabaseManager:
         profile_name: str | None,
     ) -> None:
         """Upsert per-game DLSS presets (runs in thread)."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -1587,7 +1651,7 @@ class DatabaseManager:
 
     def _delete_game_dlss_presets(self, game_id: int) -> None:
         """Delete per-game DLSS presets (runs in thread)."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -1645,7 +1709,7 @@ class DatabaseManager:
 
     def _upsert_game_dll(self, dll_data: dict[str, Any]) -> GameDLL | None:
         """Upsert game DLL (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -1695,7 +1759,7 @@ class DatabaseManager:
 
     def _get_game_dll_by_path(self, dll_path: str) -> GameDLL | None:
         """Get game DLL by path (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -1730,7 +1794,7 @@ class DatabaseManager:
 
     def _get_dlls_for_game(self, game_id: int) -> list[GameDLL]:
         """Get DLLs for game (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -1766,7 +1830,7 @@ class DatabaseManager:
 
     def _update_game_dll_version(self, dll_id: int, new_version: str):
         """Update DLL version (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -1808,7 +1872,7 @@ class DatabaseManager:
         import os
         from dlss_updater.updater import get_dll_version
 
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2494,7 +2558,7 @@ class DatabaseManager:
 
     def _insert_backup(self, backup_data: dict[str, Any]) -> int | None:
         """Insert backup (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2526,7 +2590,7 @@ class DatabaseManager:
 
     def _get_all_backups(self) -> list[DLLBackup]:
         """Get all backups (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2570,7 +2634,7 @@ class DatabaseManager:
 
     def _get_backup_by_id(self, backup_id: int) -> DLLBackup | None:
         """Get backup by ID (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2621,7 +2685,7 @@ class DatabaseManager:
 
     def _mark_backup_inactive(self, backup_id: int):
         """Mark backup inactive (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2645,7 +2709,7 @@ class DatabaseManager:
 
     def _mark_old_backups_inactive(self, game_dll_id: int):
         """Mark old backups inactive (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2677,7 +2741,7 @@ class DatabaseManager:
 
     def _mark_backup_restored(self, backup_id: int):
         """Mark backup restored (runs in thread)."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2713,7 +2777,7 @@ class DatabaseManager:
         """
         if not post_update_version:
             return
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2832,7 +2896,7 @@ class DatabaseManager:
 
     def _cleanup_duplicate_backups(self):
         """Cleanup duplicate backups (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2880,7 +2944,7 @@ class DatabaseManager:
 
     def _delete_all_backups(self):
         """Delete all backups (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2912,7 +2976,7 @@ class DatabaseManager:
 
     def _record_update_history(self, history_data: dict[str, Any]):
         """Record update history (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2942,7 +3006,7 @@ class DatabaseManager:
 
     def _upsert_steam_app(self, app_id: int, name: str):
         """Upsert Steam app (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -2968,7 +3032,7 @@ class DatabaseManager:
 
     def _find_steam_app_by_name(self, game_name: str) -> int | None:
         """Find Steam app by name (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -3011,7 +3075,7 @@ class DatabaseManager:
 
     def _get_steam_app_list_timestamp(self) -> datetime | None:
         """Get Steam app list timestamp (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -3036,7 +3100,7 @@ class DatabaseManager:
 
     def _cache_steam_image(self, app_id: int, local_path: str):
         """Cache Steam image (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -3302,8 +3366,7 @@ class DatabaseManager:
         multi-batch write with its own commit cadence does not interfere with
         the reusable read connection's transaction state.
         """
-        conn = sqlite3.connect(str(self.db_path))
-        _apply_connection_pragmas(conn)
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -3495,8 +3558,7 @@ class DatabaseManager:
         Keeps a DEDICATED connection (bulk delete cascades through the FTS5
         triggers); the shared pragma init is applied for consistency.
         """
-        conn = sqlite3.connect(str(self.db_path))
-        _apply_connection_pragmas(conn)
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -3525,7 +3587,7 @@ class DatabaseManager:
 
     def _get_backups_for_game(self, game_id: int) -> list[GameDLLBackup]:
         """Get backups for game (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -3581,7 +3643,7 @@ class DatabaseManager:
 
     def _game_has_backups(self, game_id: int) -> bool:
         """Check if game has backups (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -3620,7 +3682,7 @@ class DatabaseManager:
 
     def _get_game_backup_summary(self, game_id: int) -> GameBackupSummary | None:
         """Get game backup summary (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -3687,7 +3749,7 @@ class DatabaseManager:
 
     def _get_backups_grouped_by_dll_type(self, game_id: int) -> dict[str, list[DLLBackup]]:
         """Get backups grouped by DLL type (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -4048,7 +4110,7 @@ class DatabaseManager:
         result_count: int
     ):
         """Add search history (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -4160,7 +4222,7 @@ class DatabaseManager:
 
     def _get_search_history(self, limit: int) -> list[dict[str, Any]]:
         """Get search history (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
@@ -4194,7 +4256,7 @@ class DatabaseManager:
 
     def _clear_search_history(self):
         """Clear search history (runs in thread)"""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._new_connection()
         cursor = conn.cursor()
 
         try:

@@ -11,7 +11,7 @@ import flet as ft
 
 from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin
-from dlss_updater.ui_flet.components.hub_card import HubCard, GamesHeroCard
+from dlss_updater.ui_flet.components.hub_card import HubCard, GamesHeroCard, HubActionCard
 from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask
 
 
@@ -25,6 +25,30 @@ from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, Load
 # every other tile keeps hero_surface's defaults untouched.
 LAUNCHERS_WASH_OPACITY_DARK = 0.34
 LAUNCHERS_WASH_OPACITY_LIGHT = 0.24
+
+# Scans older than this get a "rescan" affordance on the hub CTA. Mirrors
+# MainView.STALE_SCAN_DAYS (the Launchers action bar's "rescan recommended"
+# threshold) so the two surfaces never disagree about what "stale" means.
+STALE_SCAN_DAYS = 7
+
+# Height (px) the staggered layout needs before its cards start clipping their
+# own contents. The left column is the binding constraint: up to four stacked
+# HubCards (Launchers, DLSS Settings, Backups, Settings) at 16px spacing, each
+# needing ~120px for icon + title + two-line subtitle + stat pill.
+#
+# The cards use expand=True to share the column's height, so they shrink
+# happily but their CONTENT does not - below this the titles get cut off. At
+# the app's 560px minimum window height there is nowhere near enough room, so
+# the hub scrolls instead of clipping.
+HUB_MIN_CONTENT_HEIGHT = 520
+
+# Vertical space owned by chrome outside the hub's own layout: the app bar,
+# the collapsed Application Logs bar, and _build_layout's 24px padding top and
+# bottom. Subtracted from page.height to get the hub's usable height. Only
+# needs to be close - erring high just means the hub stops a few px short of
+# the logs bar, which is invisible against the canvas, whereas erring low
+# would introduce a permanent scrollbar on a tall window.
+HUB_CHROME_ALLOWANCE = 180
 
 
 class HubView(ThemeAwareMixin, ft.Column):
@@ -44,12 +68,20 @@ class HubView(ThemeAwareMixin, ft.Column):
         logger: logging.Logger,
         on_navigate=None,
         on_open_dlss_settings=None,
+        on_update_all=None,
+        on_scan=None,
     ):
         super().__init__()
         self._page_ref = page
         self.logger = logger
         self._on_navigate = on_navigate
         self._on_open_dlss_settings = on_open_dlss_settings
+        # Primary actions surfaced by the hub CTA band. Both are MainView
+        # coroutines (run_bulk_update / run_scan) so the hub goes through the
+        # exact same pipeline as the Launchers action bar - cancellable
+        # overlay, "Scan and Update" fallback, summary dialog.
+        self._on_update_all = on_update_all
+        self._on_scan = on_scan
         self.expand = True
         self.alignment = ft.MainAxisAlignment.CENTER
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
@@ -62,8 +94,18 @@ class HubView(ThemeAwareMixin, ft.Column):
         self._settings_card: HubCard | None = None
         self._dlss_settings_card: HubCard | None = None
         self._backups_card: HubCard | None = None
+        self._action_card: HubActionCard | None = None
+        self._layout_host: ft.Container | None = None
+        self._hub_scroller: ft.Column | None = None
 
         self.controls = [self._build_layout()]
+
+        # Register the resize hook ONCE here, not in _build_layout() -
+        # rebuild_for_theme() calls that again and would otherwise chain the
+        # handler to itself on every theme toggle. It reads self._layout_host
+        # live, so it keeps working against the rebuilt instances.
+        self._prev_page_on_resize = getattr(page, "on_resize", None)
+        page.on_resize = self._on_page_resize
 
         self._register_theme_aware()
 
@@ -161,9 +203,21 @@ class HubView(ThemeAwareMixin, ft.Column):
             width=280,
         )
 
-        # Right: Games card (full height)
+        # Primary call-to-action band. Lives UNDER the Games hero rather than
+        # inside it: the hero is itself a click target (navigate to Games), and
+        # nesting a "start a multi-minute update" button inside a navigation
+        # surface makes the tap target ambiguous. Same wash/watermark language,
+        # so it still reads as part of the hero column.
+        self._action_card = HubActionCard(
+            page=page,
+            on_update_all=self._on_update_all,
+            on_scan=self._on_scan,
+        )
+
+        # Right: Games card (full height) + the action band beneath it
         right_column = ft.Column(
-            controls=[self._games_card],
+            controls=[self._games_card, self._action_card],
+            spacing=16,
             expand=True,
         )
 
@@ -178,13 +232,66 @@ class HubView(ThemeAwareMixin, ft.Column):
             vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
+        # The staggered layout gets an explicit height rather than expand=True,
+        # so it can be parked inside a scroller: a scrolling Column gives its
+        # children unbounded height, and an expand=True child of one is not a
+        # meaningful constraint. _sync_layout_height() keeps this equal to the
+        # available viewport on a normal window (identical to the old
+        # expand=True behaviour - the cards still stretch to fill) and pins it
+        # to HUB_MIN_CONTENT_HEIGHT once the window gets too short, at which
+        # point the scroller takes over instead of the cards clipping.
+        self._layout_host = ft.Container(content=hub_layout)
+        self._sync_layout_height()
+
+        self._hub_scroller = ft.Column(
+            controls=[self._layout_host],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+        )
+
         # Wrap in centered container with padding
         return ft.Container(
-            content=hub_layout,
+            content=self._hub_scroller,
             expand=True,
             padding=ft.Padding.all(24),
             alignment=ft.Alignment.CENTER,
         )
+
+    def _sync_layout_height(self) -> None:
+        """Size the staggered layout to the viewport, with a floor.
+
+        Above the floor this reproduces the previous expand=True behaviour
+        exactly; below it the hub scrolls rather than clipping its cards.
+        """
+        host = getattr(self, "_layout_host", None)
+        if host is None:
+            return
+        page_height = getattr(self._page_ref, "height", None) or 0
+        host.height = max(page_height - HUB_CHROME_ALLOWANCE, HUB_MIN_CONTENT_HEIGHT)
+
+    def _on_page_resize(self, e) -> None:
+        """Re-evaluate the layout height on window resize.
+
+        Chains to whatever handler was already installed - page.on_resize is a
+        single slot, and silently stealing it from another component would be
+        an easy bug to miss. (Note it is on_resize in Flet 0.86, not the
+        on_resized name used by some earlier examples; assigning the wrong one
+        binds a field Flet accepts but never calls.)
+        """
+        try:
+            self._sync_layout_height()
+            host = self._layout_host
+            if host is not None and host.page is not None:
+                host.update()
+        except Exception as ex:
+            self.logger.debug(f"Hub resize sync failed: {ex}")
+
+        prev = getattr(self, "_prev_page_on_resize", None)
+        if prev is not None and prev is not self._on_page_resize:
+            try:
+                prev(e)
+            except Exception as ex:
+                self.logger.debug(f"Chained page.on_resize handler failed: {ex}")
 
     def rebuild_for_theme(self) -> None:
         """Rebuild all hub cards as fresh instances reflecting the current
@@ -208,6 +315,7 @@ class HubView(ThemeAwareMixin, ft.Column):
             c for c in (
                 self._launchers_card, self._dlss_settings_card,
                 self._backups_card, self._settings_card, self._games_card,
+                self._action_card,
             ) if c is not None
         ]
         for card in old_cards:
@@ -241,8 +349,12 @@ class HubView(ThemeAwareMixin, ft.Column):
         return f"{total_size / (1024 * 1024 * 1024):.1f} GB"
 
     @staticmethod
-    def _read_scan_age_str() -> str | None:
-        """Read the scan cache timestamp and return a compact age string.
+    def _read_scan_state() -> tuple[str | None, bool]:
+        """Read the scan cache and return ``(age_string, is_stale)``.
+
+        ``age_string`` is None when no usable scan cache exists at all - the
+        CTA band uses that to switch to its "No games scanned yet" state, so
+        the two facts are read together in one file hit rather than twice.
 
         Runs inside the HyperParallelLoader thread pool (blocking file I/O).
         """
@@ -254,19 +366,62 @@ class HubView(ThemeAwareMixin, ft.Column):
 
             cache_path = Path(get_config_path()).parent / "scan_cache.json"
             if not cache_path.exists():
-                return None
+                return None, False
             cache = decode_json(cache_path.read_bytes(), type=ScanCacheData)
             if not cache.timestamp:
-                return None
+                return None, False
             age = datetime.now() - datetime.fromisoformat(cache.timestamp)
             hours = age.total_seconds() / 3600
+            stale = hours >= STALE_SCAN_DAYS * 24
             if hours < 1:
-                return f"scanned {int(age.total_seconds() / 60)}m ago"
+                return f"scanned {int(age.total_seconds() / 60)}m ago", stale
             if hours < 24:
-                return f"scanned {int(hours)}h ago"
-            return f"scanned {int(hours / 24)}d ago"
+                return f"scanned {int(hours)}h ago", stale
+            return f"scanned {int(hours / 24)}d ago", stale
         except Exception:
-            return None
+            return None, False
+
+    @staticmethod
+    def _count_games_needing_update() -> int:
+        """Count library games with at least one outdated DLL.
+
+        Runs inside the HyperParallelLoader thread pool (blocking DB I/O) as
+        two batch queries: all games, then all their DLLs in one go.
+
+        Games are merged by name and their DLLs aggregated across the merged
+        ids exactly the way GamesView builds its cards, and the per-DLL
+        comparison is the shared ``count_outdated_dlls`` helper - so the hub
+        pill/CTA and the Games view's "N need updates" can never disagree.
+        """
+        from dlss_updater.database import db_manager, merge_games_by_name
+        from dlss_updater.ui_flet.views.games_view import count_outdated_dlls
+
+        try:
+            games_by_launcher = db_manager._get_all_games_by_launcher()
+        except Exception:
+            return 0
+
+        merged_games = []
+        all_game_ids: list[int] = []
+        for games in games_by_launcher.values():
+            for merged in merge_games_by_name(games):
+                merged_games.append(merged)
+                all_game_ids.extend(merged.all_game_ids)
+
+        if not all_game_ids:
+            return 0
+
+        try:
+            dlls_by_game = db_manager.batch_get_dlls_for_games_sync(all_game_ids)
+        except Exception:
+            return 0
+
+        needing = 0
+        for merged in merged_games:
+            dlls = [d for gid in merged.all_game_ids for d in dlls_by_game.get(gid, [])]
+            if count_outdated_dlls(dlls):
+                needing += 1
+        return needing
 
     @staticmethod
     def _load_mosaic_art_paths() -> list[str]:
@@ -306,15 +461,17 @@ class HubView(ThemeAwareMixin, ft.Column):
                 LoadTask("game_count", lambda: db_manager.get_game_count_sync()),
                 LoadTask("launcher_count", lambda: db_manager.get_configured_launchers_count_sync()),
                 LoadTask("backup_stats", lambda: db_manager.get_backup_summary_stats_sync()),
-                LoadTask("scan_age", self._read_scan_age_str),
+                LoadTask("scan_state", self._read_scan_state),
                 LoadTask("mosaic_paths", self._load_mosaic_art_paths),
+                LoadTask("needs_update", self._count_games_needing_update),
             ])
 
             game_count = results.get("game_count", 0)
             launcher_count = results.get("launcher_count", 0)
             backup_stats = results.get("backup_stats", (0, 0))
-            scan_age = results.get("scan_age", None)
+            scan_state = results.get("scan_state", (None, False))
             mosaic_paths = results.get("mosaic_paths", [])
+            needs_update = results.get("needs_update", 0)
 
             # Handle exceptions from failed tasks
             if isinstance(game_count, Exception):
@@ -323,10 +480,14 @@ class HubView(ThemeAwareMixin, ft.Column):
                 launcher_count = 0
             if isinstance(backup_stats, Exception) or not backup_stats:
                 backup_stats = (0, 0)
-            if isinstance(scan_age, Exception):
-                scan_age = None
+            if isinstance(scan_state, Exception) or not scan_state:
+                scan_state = (None, False)
             if isinstance(mosaic_paths, Exception):
                 mosaic_paths = []
+            if isinstance(needs_update, Exception):
+                needs_update = 0
+
+            scan_age, scan_stale = scan_state
 
             # Populate the Games hero mosaic (no-ops -> brand-wash fallback
             # when fewer than 2 cached art paths are available).
@@ -350,6 +511,12 @@ class HubView(ThemeAwareMixin, ft.Column):
             pills: list[tuple[str, str | None]] = []
             if game_count > 0:
                 pills.append((f"{game_count} games found", ft.Icons.SPORTS_ESPORTS))
+            if needs_update > 0:
+                pills.append((
+                    f"{needs_update} need{'s' if needs_update == 1 else ''} update"
+                    f"{'' if needs_update == 1 else 's'}",
+                    ft.Icons.ARROW_UPWARD,
+                ))
             if backup_count > 0:
                 pills.append((
                     f"{backup_count} backup{'s' if backup_count != 1 else ''}"
@@ -360,6 +527,16 @@ class HubView(ThemeAwareMixin, ft.Column):
                 pills.append((scan_age, ft.Icons.SCHEDULE))
             if pills:
                 self._games_card.set_pills(pills)
+
+            # Primary CTA band: scan / update-all / calm "up to date".
+            if self._action_card:
+                self._action_card.set_state(
+                    needs_update=needs_update,
+                    game_count=game_count,
+                    has_scan=scan_age is not None,
+                    scan_stale=scan_stale,
+                    scan_age=scan_age,
+                )
 
             if self._page_ref:
                 self._page_ref.update()
