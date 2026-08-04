@@ -51,6 +51,18 @@ if (-not $SkipDeps) {
     Write-Host "`nSkipping dependency install (--SkipDeps)" -ForegroundColor Yellow
 }
 
+# Step 2b: Ensure the Flet desktop client archive is cached for bundling.
+# flet_desktop ships no client binary, so without this the app downloads ~40MB
+# on first launch and dies on any machine that can't verify GitHub's cert
+# (issue #265). Cached outside build/ so the clean step doesn't refetch it.
+Write-Step "Ensuring Flet desktop client is available to bundle"
+uv run python build_support.py
+if ($LASTEXITCODE -ne 0) {
+    Write-Fail "Could not obtain the Flet desktop client archive"
+    exit 1
+}
+Write-Success "Flet client ready"
+
 # Step 3: Build with PyInstaller (onedir, no UPX)
 Write-Step "Building with PyInstaller (onedir mode, UPX disabled)"
 $env:PYTHON_GIL = "0"

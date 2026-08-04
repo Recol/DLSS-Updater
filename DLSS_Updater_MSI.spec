@@ -5,7 +5,11 @@
 # Then run: briefcase package windows --no-input
 
 import os
+import sys
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+
+sys.path.insert(0, os.path.abspath(SPECPATH))
+from build_support import flet_client_datas
 
 block_cipher = None
 
@@ -13,9 +17,24 @@ block_cipher = None
 dlss_updater_imports = collect_submodules('dlss_updater')
 dlss_updater_datas = collect_data_files('dlss_updater')
 
-# Collect Flet framework data files (includes flet.exe runtime)
+# Collect Flet framework data files.
+# NOTE: contrary to the old comment here, these collect NO client runtime -
+# the flet_desktop wheel is two .py files. The actual client is bundled by
+# flet_client_datas() below; see build_support.py for why (issue #265).
 flet_datas = collect_data_files('flet')
 flet_desktop_datas = collect_data_files('flet_desktop')
+
+# The Flet desktop client archive, placed where ensure_client_cached() looks
+# for it so the app never downloads it at first launch. Fails the build if
+# absent rather than silently shipping a binary that only breaks on a clean
+# machine.
+flet_client = flet_client_datas()
+
+# certifi's CA bundle. Without it every HTTPS call in the frozen app (DLL
+# manifest, update check, Steam API, and flet's own client fetch) depends on
+# the user's Windows root store being complete and up to date - which on a
+# fresh Windows 11 install it may not be. main.py points SSL_CERT_FILE here.
+certifi_datas = collect_data_files('certifi')
 
 # Note: msgspec is handled by custom hook in pyinstaller_hooks/hook-msgspec.py
 # The hook properly collects the free-threaded Python C extension (.cp314t-*.pyd)
@@ -28,13 +47,14 @@ a = Analysis(
         ('dlss_updater', 'dlss_updater'),
         ('release_notes.txt', '.'),
         ('dlss_updater/icons', 'icons'),
-    ] + flet_datas + flet_desktop_datas + dlss_updater_datas,
+    ] + flet_datas + flet_desktop_datas + dlss_updater_datas + flet_client + certifi_datas,
     hiddenimports=[
         # Only truly dynamic imports that PyInstaller can't detect:
         'winloop',           # Conditionally imported in main.py with try/except
         'importlib.metadata',  # Imported inside function in utils.py
         'flet_desktop',      # Internal runtime used by flet (never directly imported)
         'tomli_w',           # Imported lazily by msgspec.toml.encode() for config.toml persistence
+        'certifi',           # Imported early in main.py to pin SSL_CERT_FILE
     ] + dlss_updater_imports,
     hookspath=['pyinstaller_hooks'],  # Custom hooks directory for msgspec
     hooksconfig={},

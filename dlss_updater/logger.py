@@ -40,6 +40,16 @@ def _get_log_directory() -> Path:
         return Path(__file__).parent
 
 
+def get_log_file_path(log_file_name: str = "dlss_updater.log") -> Path:
+    """Absolute path of the log file.
+
+    Public counterpart to ``_get_log_directory()`` so callers outside this
+    module (e.g. the startup-failure dialog in main.py) can tell the user
+    where to look without reaching into a private helper.
+    """
+    return _get_log_directory() / log_file_name
+
+
 def setup_logger(log_file_name="dlss_updater.log"):
     """
     Setups the initial logger.

@@ -31,3 +31,8 @@ nudge_releases.ps1
 # The private key lives in ~/.gnupg and must never be committed.
 .flatpak_gpg_key
 repo-key.gpg
+
+# Build-time cache for the bundled Flet desktop client (~40MB archive).
+# Deliberately outside build/ so the clean step doesn't refetch it; must stay
+# untracked because the release commit stages the whole working tree.
+.build_cache/

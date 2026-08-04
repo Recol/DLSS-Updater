@@ -23,6 +23,29 @@ if _is_free_threaded:
         category=RuntimeWarning
     )
 
+# Pin OpenSSL's trust store to certifi's CA bundle, before ANY TLS happens.
+#
+# A frozen build otherwise relies entirely on the machine's own root store.
+# Windows fetches missing roots on demand, so a fresh install that hasn't done
+# that yet - or one behind TLS inspection - fails every HTTPS call with
+# "unable to get local issuer certificate". That killed startup outright in
+# issue #265, because flet_desktop downloads its client over urllib before the
+# window exists, and it would equally break the DLL manifest, the update check
+# and the Steam API.
+#
+# ssl.SSLContext.set_default_verify_paths() (reached from the default context
+# every one of aiohttp/requests/urllib builds) honours SSL_CERT_FILE, so this
+# one env var covers all of them. setdefault, so an explicit override still wins.
+try:
+    import certifi as _certifi
+
+    os.environ.setdefault("SSL_CERT_FILE", _certifi.where())
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", _certifi.where())
+except Exception:
+    # Never let trust-store setup stop the app booting - the system store may
+    # well be fine, and failing here would be worse than the problem.
+    pass
+
 # Install faster event loop based on platform (must be done before any asyncio usage)
 if sys.platform == 'win32':
     try:
@@ -444,6 +467,11 @@ async def main(page: ft.Page):
             except Exception:
                 pass  # Page may be closing
 
+    # Capture whatever is already bound before replacing it: HubView installs
+    # its own on_resize during MainView construction (above) to re-flow the hub
+    # at small window sizes, and on_resize is a single slot.
+    _prev_on_resize = getattr(page, "on_resize", None)
+
     def on_page_resized(e):
         """Debounced resize handler - prevents excessive updates during rapid resizing."""
         nonlocal _resize_task
@@ -456,7 +484,17 @@ async def main(page: ft.Page):
             "resize_debounce"
         )
 
-    page.on_resized = on_page_resized
+        if _prev_on_resize is not None and _prev_on_resize is not on_page_resized:
+            try:
+                _prev_on_resize(e)
+            except Exception as resize_error:
+                logger.debug(f"Chained on_resize handler failed: {resize_error}")
+
+    # page.on_resize, NOT page.on_resized: Flet 0.86's Page has no on_resized
+    # field, and Flet controls accept arbitrary attribute writes silently - so
+    # the old spelling bound a handler that could never fire. This debounce had
+    # been dead since it was written.
+    page.on_resize = on_page_resized
 
     logger.info("UI initialized successfully")
 
@@ -520,4 +558,40 @@ if __name__ == "__main__":
             pass
 
     # Launch Flet app with async main - uses ft.run() for Flet 0.80.4+
-    ft.run(main)
+    #
+    # Anything that escapes here happened before or during UI startup, so there
+    # is no window to report it in and a windowed build has nowhere to print a
+    # traceback - the user just sees nothing happen. Issue #265 surfaced this:
+    # the Flet client download failed on a fresh machine and the app died
+    # silently. Log it, then say so in a dialog the user can actually read.
+    try:
+        ft.run(main)
+    except Exception as startup_error:
+        # setup_logger() has already run in check_prerequisites(), so this
+        # resolves to the configured logger. Fetched here rather than relying
+        # on a module-level name, because main.py has none - every `logger` in
+        # this file is a local.
+        _startup_logger = logging.getLogger("DLSSUpdater")
+        _startup_logger.critical(f"Startup failed: {startup_error}", exc_info=True)
+
+        if IS_WINDOWS:
+            try:
+                import ctypes as _ctypes
+                from dlss_updater.logger import get_log_file_path
+
+                _ctypes.windll.user32.MessageBoxW(
+                    None,
+                    "DLSS Updater could not start.\n\n"
+                    f"{type(startup_error).__name__}: {startup_error}\n\n"
+                    "The full error has been written to:\n"
+                    f"{get_log_file_path()}\n\n"
+                    "If this persists, please open an issue at\n"
+                    "https://github.com/Recol/DLSS-Updater/issues",
+                    "DLSS Updater - startup failed",
+                    0x10,  # MB_ICONERROR
+                )
+            except Exception:
+                # A failure to *report* the failure must not replace the real
+                # traceback with a less useful one.
+                pass
+        raise

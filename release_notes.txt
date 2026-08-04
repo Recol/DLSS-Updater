@@ -1,3 +1,33 @@
+Version 4.6.2:
+Bug Fixes:
+  - Fixed the app failing to start on a clean Windows install (Issue #265).
+    The installer never actually shipped the Flet UI client: the flet-desktop
+    package contains no client binary, so on first launch the app downloaded
+    a ~40MB archive from GitHub before it could open a window. On a machine
+    whose certificate store could not verify GitHub - a fresh Windows 11
+    install that has not yet fetched its root certificates, or anything
+    behind TLS inspection - that download failed and the app died with an
+    SSL error and no window at all.
+
+    Existing installs never hit this because the client had already been
+    cached by an earlier successful launch. Only genuinely new installs were
+    affected. The client is now bundled inside the installer, so first launch
+    needs no download at all and is faster besides.
+  - The certificate bundle is now shipped with the app rather than relying on
+    the machine's own certificate store, so DLL downloads, update checks and
+    Steam artwork keep working on systems with an incomplete or out-of-date
+    root store.
+  - A failure during startup now shows an error dialog naming the problem and
+    the log file, instead of the app silently not appearing.
+  - The window-resize handler had never run: it was registered under a name
+    Flet does not use, and Flet accepts unknown handler names without
+    complaint. Resizing now redraws as intended.
+
+Other:
+  - The build now fails loudly if the UI client is missing, rather than
+    producing an installer that works on the build machine and breaks on a
+    clean one.
+
 Version 4.6.1:
 New Features:
   - The hub now tells you whether there is anything to do. It leads with
