@@ -83,6 +83,59 @@ def build_scrim_gradient(is_dark: bool) -> ft.LinearGradient:
     )
 
 
+# ==================== ART MOSAIC OVERLAYS ====================
+# Overlays for hero surfaces built out of the user's OWN artwork (the hub's
+# Games mosaic). These deliberately do NOT reuse build_scrim_gradient: that one
+# fades toward the themed surface because a game card's artwork meets an opaque
+# themed footer directly below it. A mosaic has no themed surface below it at
+# all, so in light mode a white-fading ramp only hazes the art instead of
+# anchoring the caption. These fade toward BLACK in both themes, and the caller
+# switches its caption to light-on-dark text while the mosaic is live.
+#
+# Both are intended for shadow-LESS Containers inside the hero's Stack.
+# CLAUDE.md rendering pitfall #1: an alpha-carrying gradient on a Container
+# that ALSO has a box-shadow renders near-black, because the shadow is painted
+# directly behind the box and shows through every transparent region.
+_ART_SCRIM_STOPS = [0.0, 0.55, 0.80, 1.0]
+_ART_SCRIM_ALPHA_DARK = [0.0, 0.10, 0.55, 0.88]
+_ART_SCRIM_ALPHA_LIGHT = [0.0, 0.08, 0.46, 0.78]
+
+# Flat unifying tint laid over EVERY mosaic tile. Cached cover art ranges from
+# near-black to near-white, so without it a single bright cover blows the
+# mosaic out and the scrim's contrast becomes unpredictable. Light mode leans
+# on it slightly less: the tint is also what keeps a bright tile from merging
+# into the near-white light canvas, but the hairline outline carries part of
+# that job there.
+ART_TINT_DARK = 0.26
+ART_TINT_LIGHT = 0.20
+
+
+def build_art_scrim_gradient(is_dark: bool) -> ft.LinearGradient:
+    """Bottom-weighted BLACK scrim for captions over arbitrary user artwork.
+
+    Clear through the top ~55% so the art reads unobstructed, then ramps to a
+    near-opaque black ground under the caption band. See the _ART_SCRIM_*
+    constants for why this is black rather than the themed surface.
+    """
+    alphas = _ART_SCRIM_ALPHA_DARK if is_dark else _ART_SCRIM_ALPHA_LIGHT
+    return ft.LinearGradient(
+        begin=ft.Alignment.TOP_CENTER,
+        end=ft.Alignment.BOTTOM_CENTER,
+        colors=[
+            ft.Colors.TRANSPARENT if a <= 0 else ft.Colors.with_opacity(a, ft.Colors.BLACK)
+            for a in alphas
+        ],
+        stops=_ART_SCRIM_STOPS,
+    )
+
+
+def art_tint_color(is_dark: bool) -> str:
+    """Flat low-alpha black that unifies mosaic tiles of wildly varying brightness."""
+    return ft.Colors.with_opacity(
+        ART_TINT_DARK if is_dark else ART_TINT_LIGHT, ft.Colors.BLACK
+    )
+
+
 def _blend_hex(base: str, tint: str, alpha: float) -> str:
     """Alpha-blend opaque ``tint`` over opaque ``base`` (both ``#RRGGBB``),
     returning an opaque ``#RRGGBB``. Used to pre-compose wash gradients so

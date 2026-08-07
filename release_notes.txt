@@ -1,3 +1,45 @@
+Version 4.6.3:
+UI Improvements:
+  - The hub's Games hero now keeps its caption legible over any artwork: a
+    proper bottom scrim sits behind the title and stat chips (the old one
+    never actually rendered), a subtle unifying tint stops one bright cover
+    from blowing out the mosaic, and a hairline outline keeps the hero's
+    edge visible in light mode, where bright artwork used to merge into the
+    page background.
+  - The Backups view now opens with summary tiles - total backups, disk
+    space used, and most recent backup - instead of a mostly blank page.
+    Unlinked games show their real artwork when it is still cached, rather
+    than a generic folder icon. "Clear All Backups" is no longer the most
+    prominent control on the screen: it is outlined at rest and only fills
+    red on hover.
+  - The app bar now shows an "N updates available" pill on the views that
+    don't already display the count (Launchers, Backups, Settings); clicking
+    it jumps to the Games library. On the hub and in Games, which lead with
+    the same number themselves, it stays hidden. It uses the same count as
+    those surfaces, refreshed once the DLL cache is ready and after every
+    update run. The heart button no longer competes with it: it rests as a
+    quiet outline and fills pink on hover.
+  - Custom Folder launcher tiles no longer carry a teal outline that read as
+    a keyboard-focus ring; they now use the same wash treatment as branded
+    tiles, in a neutral steel tone. The launcher grid also gained bottom
+    breathing room so the last row can scroll clear of the action bar
+    instead of being clipped behind it.
+  - Settings tile watermark icons no longer clip off the card edge
+    underneath the chevron; they sit wholly inside the tile, clear of the
+    trailing controls.
+  - The floating navigation pill no longer looks stamped onto the page in
+    light mode: it is a white surface with a soft drop shadow instead of a
+    near-invisible fill ringed by a dark outline and a heavy hover-grade
+    shadow. Dark mode is unchanged.
+  - Long game titles ("Ghost of Tsushima DIRECTOR'S CUT") no longer wrap to
+    a second line and eat into the card artwork; they truncate with an
+    ellipsis, with the full name still available in the hover tooltip.
+
+Bug Fixes:
+  - Launcher cards' path-status icon never changed: it was assigned through
+    a field name Flet does not have, which Flet accepts silently. The green
+    check / amber warning for valid / inaccessible paths now actually shows.
+
 Version 4.6.2:
 Bug Fixes:
   - Fixed the app failing to start on a clean Windows install (Issue #265).

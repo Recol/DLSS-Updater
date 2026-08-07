@@ -8,6 +8,8 @@ PERFORMANCE NOTES:
 - Batch UI updates minimize page.update() calls
 - BackupGroup uses native ExpansionTile for GPU-accelerated expand/collapse
 - Collapsed groups show ~6 controls, expanded shows ~8 per backup row
+- Header summary tiles are aggregated from the already-loaded backup rows,
+  so they add zero queries (the old summary-stats LoadTask was dropped)
 """
 
 import asyncio
@@ -20,6 +22,7 @@ import flet as ft
 from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.database import db_manager, DLLBackup
 from dlss_updater.models import GameWithBackupCount, GameDLLBackup
+from dlss_updater.name_normalize import normalize_search_name_spaceless
 from dlss_updater.backup_manager import restore_dll_from_backup, delete_backup
 from dlss_updater.services.backup_service import restore_orphaned_dll_from_backup
 from dlss_updater.ui_flet.components.backup_group import BackupGroup
@@ -33,6 +36,121 @@ from dlss_updater.task_registry import register_task
 INITIAL_BATCH_SIZE = 8
 # Number of groups per background batch
 BACKGROUND_BATCH_SIZE = 12
+
+
+def _resolve_orphan_app_ids_sync(labels_by_group_id: dict[int, str]) -> dict[int, int]:
+    """Map orphan group id -> Steam app id by NAME, in a single thread hop.
+
+    Unlinked ("orphaned") groups have no ``games`` row, so the linked path's
+    ``game_id -> steam_app_id`` query cannot reach them — their only surviving
+    identity is the display label recovered from the backup path. That label is
+    normalized the same way the Steam app index is built (single source of
+    truth: ``name_normalize``) and looked up against the indexed
+    ``steam_apps.name_normalized`` column, which is an O(log n) point lookup.
+
+    Called once per load with a handful of groups, so the loop runs inside ONE
+    ``anyio.to_thread.run_sync`` hop reusing the thread-local connection rather
+    than paying a hop per group. Misses simply produce no entry (the caller then
+    falls back to the folder icon); this NEVER hits the network.
+
+    Args:
+        labels_by_group_id: Synthetic (negative) orphan group id -> game label.
+
+    Returns:
+        Dict of orphan group id -> steam app id for the labels that matched.
+    """
+    resolved: dict[int, int] = {}
+    for group_id, label in labels_by_group_id.items():
+        normalized = normalize_search_name_spaceless(label)
+        if not normalized:
+            continue
+        app_id = db_manager._get_steam_app_by_name(normalized)
+        if app_id:
+            resolved[group_id] = app_id
+    return resolved
+
+
+class _StatTile(ft.Container):
+    """Compact summary stat tile for the backups header band.
+
+    Container-based rather than a Card (see CLAUDE.md "Container-based Badge
+    Pattern"): ~7 controls each and no elevation, so the three tiles add ~21
+    controls to the header. Colors are re-applied IN PLACE by
+    ``apply_colors()`` during a theme cascade — tiles are never rebuilt, so no
+    same-class child swap is involved.
+    """
+
+    def __init__(self, icon: ft.IconData, label: str, accent_key: str, is_dark: bool):
+        # Accent key indexes MD3Colors.THEMED so the tile re-resolves its own
+        # tint on a theme change without the view knowing the palette.
+        self._accent_key = accent_key
+        accent = MD3Colors.get_themed(accent_key, is_dark)
+
+        self._icon = ft.Icon(icon, size=16, color=accent)
+        # Tinted icon well. Alpha on a plain Container bgcolor is safe — the
+        # black-through-gradient pitfall only applies to gradients on shadowed
+        # containers, and this tile has neither.
+        self._icon_well = ft.Container(
+            content=self._icon,
+            width=30,
+            height=30,
+            border_radius=15,
+            bgcolor=ft.Colors.with_opacity(0.14, accent),
+            alignment=ft.Alignment.CENTER,
+        )
+        self._value_text = ft.Text(
+            "—",
+            size=16,
+            weight=ft.FontWeight.W_600,
+            color=MD3Colors.get_text_primary(is_dark),
+            no_wrap=True,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        )
+        self._label_text = ft.Text(
+            label,
+            size=11,
+            color=MD3Colors.get_on_surface_variant(is_dark),
+            no_wrap=True,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        )
+
+        super().__init__(
+            content=ft.Row(
+                controls=[
+                    self._icon_well,
+                    # The text column is the flexible element so long values
+                    # ellipsize instead of clipping the tile.
+                    ft.Column(
+                        controls=[self._value_text, self._label_text],
+                        spacing=0,
+                        tight=True,
+                        expand=True,
+                    ),
+                ],
+                spacing=10,
+                tight=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            bgcolor=MD3Colors.get_surface(is_dark),
+            border=ft.Border.all(1, MD3Colors.get_themed("outline_variant", is_dark)),
+            border_radius=12,
+            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+            expand=True,
+        )
+
+    def set_value(self, value: str) -> None:
+        """Set the tile's headline value (no update() — the view batches)."""
+        self._value_text.value = value
+
+    def apply_colors(self, is_dark: bool) -> None:
+        """Re-resolve every themed color in place (no rebuild, no update())."""
+        accent = MD3Colors.get_themed(self._accent_key, is_dark)
+        self._icon.color = accent
+        self._icon_well.bgcolor = ft.Colors.with_opacity(0.14, accent)
+        self._value_text.color = MD3Colors.get_text_primary(is_dark)
+        self._label_text.color = MD3Colors.get_on_surface_variant(is_dark)
+        self.bgcolor = MD3Colors.get_surface(is_dark)
+        self.border = ft.Border.all(1, MD3Colors.get_themed("outline_variant", is_dark))
 
 
 class BackupsView(ThemeAwareMixin, ft.Column):
@@ -51,7 +169,13 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         self.refresh_button_ref = ft.Ref[ft.IconButton]()
 
         # Button references for state management
-        self.clear_all_button: ft.ElevatedButton | None = None
+        self.clear_all_button: ft.OutlinedButton | None = None
+
+        # Summary stat tiles (total backups / total size / most recent). Built
+        # once in _build_ui and updated in place; the row is only revealed when
+        # there is at least one backup so the empty state stays uncluttered.
+        self._stat_tiles: list[_StatTile] = []
+        self.stats_row: ft.Row | None = None
 
         # Game filter state
         self.selected_game_id: int | None = None
@@ -83,17 +207,63 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         # Register with theme system after UI is built
         self._register_theme_aware()
 
-    def _create_clear_all_button(self) -> ft.ElevatedButton:
-        """Create and store reference to Clear All Backups button"""
-        self.clear_all_button = ft.ElevatedButton(
+    def _clear_all_button_style(self, is_dark: bool) -> ft.ButtonStyle:
+        """Outlined/tonal treatment for the destructive Clear All action.
+
+        The page's most destructive control must not be its most dominant one:
+        at rest it is red TEXT + red BORDER on a transparent surface, and it
+        fills solid red only on hover. Hover / disabled are resolved natively by
+        the client from these ControlState maps, so there is no on_hover round
+        trip (and no exposure to the ``e.data == "true"`` trap — hover data is a
+        boolean in 0.86).
+
+        Hover foreground follows MD3's on-error convention: dark text on the
+        light-red dark-theme error color, white on the deep light-theme red —
+        both clear AA at the button's 14px label.
+        """
+        danger = MD3Colors.get_error(is_dark)
+        muted = MD3Colors.get_themed("text_disabled", is_dark)
+        on_danger = ft.Colors.BLACK if is_dark else ft.Colors.WHITE
+        foreground = {
+            ft.ControlState.DEFAULT: danger,
+            ft.ControlState.HOVERED: on_danger,
+            ft.ControlState.PRESSED: on_danger,
+            ft.ControlState.DISABLED: muted,
+        }
+        return ft.ButtonStyle(
+            color=foreground,
+            icon_color=foreground,
+            bgcolor={
+                ft.ControlState.DEFAULT: ft.Colors.TRANSPARENT,
+                ft.ControlState.HOVERED: danger,
+                ft.ControlState.PRESSED: danger,
+                ft.ControlState.DISABLED: ft.Colors.TRANSPARENT,
+            },
+            # The default outlined-button ink overlay would tint the hover fill;
+            # let the bgcolor map own it outright.
+            overlay_color={ft.ControlState.DEFAULT: ft.Colors.TRANSPARENT},
+            side={
+                ft.ControlState.DEFAULT: ft.BorderSide(1, danger),
+                ft.ControlState.HOVERED: ft.BorderSide(1, danger),
+                ft.ControlState.DISABLED: ft.BorderSide(1, muted),
+            },
+            shape=ft.RoundedRectangleBorder(radius=20),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+        )
+
+    def _create_clear_all_button(self) -> ft.OutlinedButton:
+        """Create and store reference to Clear All Backups button.
+
+        OutlinedButton (not ElevatedButton): no elevation/shadow to compete
+        with the primary actions, and its border is driven by the ButtonStyle
+        ``side`` map. The confirmation dialog wiring is unchanged.
+        """
+        self.clear_all_button = ft.OutlinedButton(
             "Clear All Backups",
             icon=ft.Icons.DELETE_SWEEP,
             on_click=self._on_clear_all_clicked,
             disabled=True,  # Initially disabled until backups are loaded
-            style=ft.ButtonStyle(
-                bgcolor=ft.Colors.RED_400,
-                color=ft.Colors.WHITE,
-            ),
+            style=self._clear_all_button_style(self._get_is_dark()),
         )
         return self.clear_all_button
 
@@ -193,11 +363,15 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             color=MD3Colors.get_text_primary(is_dark),
         )
 
-        self.backup_stats_text = ft.Text(
-            "",  # Initially empty, populated after loading
-            size=13,
+        # One-line context under the title. The count/size/date it used to
+        # carry inline now live in the summary tiles below, so this stays a
+        # static description instead of duplicating them.
+        self.header_subtitle = ft.Text(
+            "Saved copies of every DLL replaced by an update — restore any of them at any time.",
+            size=12,
             color=MD3Colors.get_on_surface_variant(is_dark),
-            italic=True,
+            no_wrap=True,
+            overflow=ft.TextOverflow.ELLIPSIS,
         )
 
         self.loading_text = ft.Text(
@@ -207,52 +381,101 @@ class BackupsView(ThemeAwareMixin, ft.Column):
 
         self.divider = ft.Divider(height=1, color=MD3Colors.get_outline(is_dark))
 
-        # Header with game filter
+        # Summary stat tiles — the numbers are aggregated from the SAME backup
+        # data the groups are built from (see _update_summary), so they cost no
+        # extra query. Hidden until a load reports at least one backup.
+        self._stat_tiles = [
+            _StatTile(ft.Icons.INVENTORY_2, "Total backups", "primary", is_dark),
+            _StatTile(ft.Icons.SD_STORAGE, "Disk space used", "info", is_dark),
+            _StatTile(ft.Icons.SCHEDULE, "Most recent", "success", is_dark),
+        ]
+        self.stats_row = ft.Row(
+            controls=list(self._stat_tiles),
+            spacing=12,
+            visible=False,
+        )
+
+        # Header with game filter. The title/subtitle column is the FLEXIBLE
+        # element (expand + ellipsis) rather than a rigid Container spacer, so
+        # the trailing controls compress instead of being clipped off-screen at
+        # narrow widths (see CLAUDE.md "Rigid spacers can't shrink").
         self.header = ft.Container(
-            content=ft.Row(
+            content=ft.Column(
                 controls=[
-                    self.header_title,
-                    self.backup_stats_text,
-                    ft.Container(expand=True),  # Spacer
-                    self._create_game_filter_dropdown(),
-                    self._create_clear_all_button(),
-                    ft.IconButton(
-                        icon=ft.Icons.REFRESH,
-                        tooltip="Refresh Backups",
-                        on_click=self._on_refresh_clicked,
-                        animate_rotation=ft.Animation(400, ft.AnimationCurve.EASE_IN_OUT),
-                        rotate=0,
-                        ref=self.refresh_button_ref,
+                    ft.Row(
+                        controls=[
+                            ft.Column(
+                                controls=[self.header_title, self.header_subtitle],
+                                spacing=2,
+                                tight=True,
+                                expand=True,
+                            ),
+                            self._create_game_filter_dropdown(),
+                            self._create_clear_all_button(),
+                            ft.IconButton(
+                                icon=ft.Icons.REFRESH,
+                                tooltip="Refresh Backups",
+                                on_click=self._on_refresh_clicked,
+                                animate_rotation=ft.Animation(400, ft.AnimationCurve.EASE_IN_OUT),
+                                rotate=0,
+                                ref=self.refresh_button_ref,
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.START,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=8,
                     ),
+                    self.stats_row,
                 ],
-                alignment=ft.MainAxisAlignment.START,
-                spacing=8,
+                spacing=12,
+                tight=True,
             ),
             padding=16,
             bgcolor=MD3Colors.get_surface_variant(is_dark),
         )
 
-        # Empty state
+        # Empty state — themed (the old flat greys read as disabled chrome in
+        # light mode) and centered: tinted icon well, headline, one-line reason.
+        self._empty_icon = ft.Icon(
+            ft.Icons.RESTORE_FROM_TRASH,
+            size=40,
+            color=MD3Colors.get_primary(is_dark),
+        )
+        self._empty_icon_well = ft.Container(
+            content=self._empty_icon,
+            width=88,
+            height=88,
+            border_radius=44,
+            bgcolor=ft.Colors.with_opacity(0.12, MD3Colors.get_primary(is_dark)),
+            alignment=ft.Alignment.CENTER,
+        )
+        self._empty_title = ft.Text(
+            "No backups yet",
+            size=18,
+            weight=ft.FontWeight.W_600,
+            color=MD3Colors.get_text_primary(is_dark),
+            text_align=ft.TextAlign.CENTER,
+        )
+        self._empty_hint = ft.Text(
+            "A copy of each DLL is saved here automatically the first time an update replaces it.",
+            size=13,
+            color=MD3Colors.get_on_surface_variant(is_dark),
+            text_align=ft.TextAlign.CENTER,
+        )
         self.empty_state = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Icon(ft.Icons.RESTORE_FROM_TRASH, size=64, color=ft.Colors.GREY),
-                    ft.Text(
-                        "No backups found",
-                        size=20,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.GREY,
-                    ),
-                    ft.Text(
-                        "Backups will appear here after updating DLLs",
-                        size=14,
-                        color=ft.Colors.GREY,
-                    ),
+                    self._empty_icon_well,
+                    self._empty_title,
+                    self._empty_hint,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                alignment=ft.MainAxisAlignment.CENTER,
                 spacing=12,
+                tight=True,
             ),
             alignment=ft.Alignment.CENTER,
+            padding=ft.Padding.symmetric(horizontal=40, vertical=24),
             expand=True,
         )
 
@@ -325,7 +548,12 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             "game_filter_dropdown.bgcolor": (MD3Colors.get_surface_container(True), MD3Colors.get_surface_container(False)),
             "game_filter_dropdown.fill_color": (MD3Colors.get_surface_container(True), MD3Colors.get_surface_container(False)),
             "game_filter_dropdown.color": (MD3Colors.get_on_surface(True), MD3Colors.get_on_surface(False)),
-            "backup_stats_text.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
+            "header_subtitle.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
+            # Empty state (the tinted icon well's alpha bgcolor is computed, so
+            # it is refreshed in apply_theme rather than mapped here).
+            "_empty_icon.color": MD3Colors.get_themed_pair("primary"),
+            "_empty_title.color": (MD3Colors.get_text_primary(True), MD3Colors.get_text_primary(False)),
+            "_empty_hint.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
             # Orphan ("Unlinked games") section header — controls only exist
             # while an orphan section is rendered; _set_nested_property skips
             # missing paths, so these are safe no-ops otherwise.
@@ -334,6 +562,31 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             "_orphan_label.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
             "_orphan_hint.color": (MD3Colors.get_text_secondary(True), MD3Colors.get_text_secondary(False)),
         }
+
+    async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
+        """Re-theme the composed pieces the declarative map cannot express.
+
+        ``get_themed_properties`` only carries flat color assignments; the stat
+        tiles' tinted wells, the Clear All ControlState style and the empty
+        state's tinted well are COMPUTED values. They are refreshed here before
+        delegating, so the base implementation's cascade delay and its single
+        self.update() still flush everything in one pass.
+        """
+        try:
+            for tile in self._stat_tiles:
+                tile.apply_colors(is_dark)
+
+            if self.clear_all_button is not None:
+                self.clear_all_button.style = self._clear_all_button_style(is_dark)
+
+            if getattr(self, "_empty_icon_well", None) is not None:
+                self._empty_icon_well.bgcolor = ft.Colors.with_opacity(
+                    0.12, MD3Colors.get_primary(is_dark)
+                )
+        except Exception:
+            pass  # Never let decorative re-theming abort the cascade
+
+        await super().apply_theme(is_dark, delay_ms)
 
     def _format_size(self, size_bytes: int) -> str:
         """Format bytes to human-readable string"""
@@ -346,13 +599,34 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         else:
             return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
-    def _update_backup_stats(self, count: int, total_size: int):
-        """Update the backup stats display text"""
+    def _update_summary(self, backups: list[GameDLLBackup]):
+        """Populate the summary stat tiles from the backups being displayed.
+
+        Aggregated IN PLACE from the same list the groups are built from — no
+        extra query. With no game filter that list is every active backup
+        (linked groups plus the unlinked section are the exact complement of one
+        another), so the totals match the whole library; under an active filter
+        the tiles describe what is actually on screen, which is what the user is
+        looking at.
+
+        The row is hidden at zero so the empty state reads as a clean, centered
+        message rather than a wall of zeroes.
+        """
+        count = len(backups)
+        if self.stats_row is not None:
+            self.stats_row.visible = count > 0
         if count == 0:
-            self.backup_stats_text.value = ""
-        else:
-            size_str = self._format_size(total_size)
-            self.backup_stats_text.value = f"{count} backup{'s' if count != 1 else ''} · {size_str}"
+            return
+
+        total_size = sum(b.backup_size or 0 for b in backups)
+        most_recent = max((b.backup_created_at for b in backups), default=None)
+
+        self._stat_tiles[0].set_value(f"{count}")
+        self._stat_tiles[1].set_value(self._format_size(total_size))
+        # Same YYYY-MM-DD form as BackupRow / BackupGroup subtitles.
+        self._stat_tiles[2].set_value(
+            most_recent.strftime("%Y-%m-%d") if most_recent else "—"
+        )
 
     async def load_backups(self, force: bool = False):
         """Load backups from database with optional game filter.
@@ -423,7 +697,6 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 LoadTask("games", lambda: db_manager.get_games_with_backups_sync()),
                 LoadTask("grouped", lambda gid=game_id: db_manager.get_backups_grouped_by_game_sync(gid)),
                 LoadTask("orphaned", lambda: db_manager.get_orphaned_backups_grouped_sync()),
-                LoadTask("stats", lambda: db_manager.get_backup_summary_stats_sync()),
             ])
 
             self.games_with_backups = results.get("games", [])
@@ -444,8 +717,6 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 total_group_count = len(self.games_with_backups) + len(orphaned_grouped)
                 self.game_filter_dropdown.visible = total_group_count >= 2
 
-            backup_stats = results.get("stats", (0, 0))
-            self._update_backup_stats(backup_stats[0], backup_stats[1])
             db_ms = (time.perf_counter() - start_db) * 1000
             self.logger.debug(f"[PERF] Database queries (hyper-parallel): {db_ms:.1f}ms")
 
@@ -465,12 +736,16 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 self.backups.extend(_obs)
             total_count = len(self.backups)
 
+            # Summary tiles are aggregated from that same flattened list — the
+            # backup rows already in memory — so the header costs no query of
+            # its own (the old get_backup_summary_stats_sync LoadTask is gone).
+            self._update_summary(self.backups)
+
             if not grouped_backups and not orphan_items:
                 self.logger.info("No backups found")
                 self.empty_state.visible = True
                 self.loading_indicator.visible = False
                 self._update_clear_button_state(False)
-                self._update_backup_stats(0, 0)
                 self._backups_loaded = True
                 self.update()
                 return
@@ -480,12 +755,36 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             # app_id query (batch_get_app_ids_for_games_sync) instead of
             # scanning the entire games table. A single batch query then
             # resolves cached local image paths for exactly those app_ids.
+            #
+            # UNLINKED groups are resolved the same way, just with a different
+            # first leg: they have no games row to read an app_id from, so the
+            # id comes from an exact normalized-NAME lookup against the cached
+            # Steam app index (_resolve_orphan_app_ids_sync). Both legs then
+            # share ONE cached-image-path query, so an unlinked game whose art
+            # was cached while it was still in the library shows the same
+            # thumbnail as a linked one; a miss falls back to the folder icon.
             self._art_paths_by_game_id: dict[int, str] = {}
             displayed_game_ids = list(grouped_backups.keys())
+            orphan_labels: dict[int, str] = {
+                gid: (obs[0].game_name if obs else "")
+                for gid, obs in orphan_items
+            }
             try:
                 app_id_by_game_id = await anyio.to_thread.run_sync(
                     db_manager.batch_get_app_ids_for_games_sync, displayed_game_ids, limiter=thread_io
                 )
+                if orphan_labels:
+                    # Synthetic orphan ids are negative, so they can never
+                    # collide with the linked game ids merged in here. Kept as a
+                    # second sequential hop rather than a HyperParallelLoader
+                    # fan-out: it is a handful of indexed point lookups, and the
+                    # loader returns the Exception AS the result on failure,
+                    # which this dict merge would then choke on.
+                    app_id_by_game_id.update(
+                        await anyio.to_thread.run_sync(
+                            _resolve_orphan_app_ids_sync, orphan_labels, limiter=thread_io
+                        )
+                    )
                 needed_app_ids = list(set(app_id_by_game_id.values()))
                 if needed_app_ids:
                     cached_art_paths = await anyio.to_thread.run_sync(
@@ -571,6 +870,9 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             self.empty_state.visible = True
             self.loading_indicator.visible = False
             self._update_clear_button_state(False)
+            # Hide the summary rather than leaving stale totals over an empty
+            # list (the load may have failed after a previous successful one).
+            self._update_summary([])
             self._backups_loaded = False  # Allow retry on next tab switch
             self.update()  # Single terminal update for the error path
 
@@ -693,6 +995,10 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         restore_orphaned_dll_from_backup) but pass on_restore_all=None, so
         BackupGroup shows per-row Restore but no group-level Restore All. Delete
         still works. is_orphan=True is informational only (see BackupGroup).
+
+        Artwork comes from the same batch-resolved map as the linked groups —
+        orphan ids are resolved by name in load_backups — so unlinked games with
+        cached Steam art get a real thumbnail instead of the folder icon.
         """
         if not orphan_items:
             return
@@ -711,7 +1017,9 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 on_restore=self._on_restore_orphan_from_group,  # restore-by-path
                 on_delete=self._on_delete_backup_from_group,
                 on_restore_all=None,      # no Restore All for orphans
-                art_path=None,            # negative id -> folder-icon fallback
+                # Name-resolved cached art when we have it; None (folder icon)
+                # when the game was never cached or the name didn't match.
+                art_path=self._art_paths_by_game_id.get(gid),
                 is_orphan=True,
             )
             self.backups_list.controls.append(group)

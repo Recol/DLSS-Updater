@@ -386,13 +386,21 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # ---- Title + launcher/status overlay (on scrim, bottom-left) ----
         # Themed: the scrim now fades to the card's own surface color (not a fixed
         # black), so the text needs to flip dark/light with it to stay legible.
+        # SINGLE line, always: a wrapped second line ("Ghost of Tsushima DIRECTOR'S
+        # CUT") ate into the artwork and desynced the caption baseline across the
+        # grid. no_wrap + max_lines=1 + ELLIPSIS truncates instead; the full name
+        # (plus install path(s)) stays reachable via the tooltip below.
+        # The Text is a direct child of the title Column, which sits in a Stack
+        # child positioned left=0/right=0 — so it inherits a BOUNDED max width and
+        # the ellipsis actually triggers (it needs a width constraint to fire).
         self.game_name_text = ft.Text(
             prettify_display_name(self.game.display_name),
             size=16,
             weight=ft.FontWeight.BOLD,
             color=_title_color(is_dark),
             style=_title_style(is_dark),
-            max_lines=2,
+            no_wrap=True,
+            max_lines=1,
             overflow=ft.TextOverflow.ELLIPSIS,
             tooltip=self._title_tooltip(),  # Full name + path(s) on hover
         )

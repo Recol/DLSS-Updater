@@ -28,7 +28,11 @@ from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
 from dlss_updater.models import GameCardData, MAX_PATHS_PER_LAUNCHER
 from dlss_updater.ui_flet.theme.colors import MD3Colors, LauncherColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
-from dlss_updater.ui_flet.components.hero_surface import build_brand_wash, build_pill
+from dlss_updater.ui_flet.components.hero_surface import (
+    build_brand_wash,
+    build_pill,
+    themed_accent,
+)
 from dlss_updater.ui_flet.components.slide_panel import PanelManager
 
 # ==================== BANNER GEOMETRY ====================
@@ -51,6 +55,17 @@ _BANNER_WASH_OPACITY_LIGHT = 0.26
 
 # Opacity applied to the whole shell when the launcher has no path configured.
 _UNCONFIGURED_OPACITY = 0.6
+
+# ==================== CUSTOM-FOLDER ACCENT ====================
+# Custom folders have no brand, so they borrow a neutral STEEL accent instead
+# of the primary teal LauncherColors hands them. Two reasons: the teal IS the
+# app's primary, so a teal-washed tile reads as selected/interactive when it
+# is neither; and a strongly branded wash on an unbranded tile invites the eye
+# to hunt for a logo that isn't there. Steel keeps custom folders in the same
+# visual family as the branded tiles — identical wash mechanism, identical
+# badge treatment (Material star-folder glyph in a filled circle), just
+# calmer. Paired (dark, light) in the THEMED convention — see themed_accent().
+_CUSTOM_ACCENT: tuple[str, str] = ("#7C8A99", "#8895A3")
 
 # ==================== FOOTER GEOMETRY ====================
 # Fixed footer height, matching game_card.py's 52px footer idiom (there:
@@ -186,8 +201,9 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
         self._theme_priority = 25  # Cards are mid-priority
         is_dark = self._registry.is_dark
 
-        # Brand color (used by banner wash, badge fill, and the panel accent)
-        self.brand_color = LauncherColors.get_color(self.launcher_enum.name)
+        # Accent (used by banner wash, badge fill, count pill, and the panel
+        # accent). Theme-dependent for custom folders — see _resolve_accent().
+        self.brand_color = self._resolve_accent(is_dark)
 
         # Game-count pill ref (populated/toggled by _update_header_pill();
         # None both before the first set_paths()/set_games() call and
@@ -215,9 +231,10 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
         # Dim the shell if unconfigured (current_paths is empty at this point)
         self._apply_configured_state(is_dark)
 
-        # Apply custom styling for custom launchers
-        if self.is_custom:
-            self.border = ft.Border.all(1, MD3Colors.get_primary(is_dark))
+        # NOTE: custom folders deliberately carry NO outline border. The old
+        # 1px primary-teal border read as a keyboard-focus ring parked next to
+        # the borderless branded tiles; the steel wash + badge above is what
+        # sets them apart now, and they read as first-class tiles because of it.
 
         # Register for theme updates
         self._register_theme_aware()
@@ -230,6 +247,20 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
     def name(self) -> str:
         """Property for backward compatibility - returns the launcher name"""
         return self.name_str
+
+    # ==================== ACCENT ====================
+
+    def _resolve_accent(self, is_dark: bool) -> str:
+        """Wash / badge / panel accent for this launcher.
+
+        Branded launchers keep their theme-independent brand color. Custom
+        folders use the neutral steel pair (_CUSTOM_ACCENT), which has a
+        light-mode variant and therefore has to be re-resolved on every theme
+        change — see apply_theme().
+        """
+        if self.is_custom:
+            return themed_accent(_CUSTOM_ACCENT, is_dark)
+        return LauncherColors.get_color(self.launcher_enum.name)
 
     # ==================== CONFIGURED / DIMMED STATE ====================
 
@@ -605,7 +636,11 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
         if path_count == 0:
             self.path_text.value = "No paths configured"
             self.path_text.color = MD3Colors.get_on_surface_variant(is_dark)
-            self.status_icon.name = ft.Icons.INFO_OUTLINE
+            # NOTE: the field is `icon`, NOT `name` — ft.Icon has no `name`
+            # field, so the previous `.name =` writes were silently dropped
+            # (dataclass controls accept arbitrary attribute writes; see
+            # CLAUDE.md) and the glyph never left INFO_OUTLINE.
+            self.status_icon.icon = ft.Icons.INFO_OUTLINE
             self.status_icon.color = ft.Colors.GREY
             self.status_icon.tooltip = None
         else:
@@ -613,11 +648,11 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
             self.path_text.value = f"{path_count} path{'s' if path_count != 1 else ''} configured"
             self.path_text.color = MD3Colors.get_on_surface(is_dark)
             if all_valid:
-                self.status_icon.name = ft.Icons.CHECK_CIRCLE
+                self.status_icon.icon = ft.Icons.CHECK_CIRCLE
                 self.status_icon.color = MD3Colors.get_success(is_dark)
                 self.status_icon.tooltip = "All paths valid"
             else:
-                self.status_icon.name = ft.Icons.WARNING_AMBER
+                self.status_icon.icon = ft.Icons.WARNING_AMBER
                 self.status_icon.color = MD3Colors.get_warning(is_dark)
                 self.status_icon.tooltip = "Some paths inaccessible"
 
@@ -795,6 +830,11 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
         try:
             self.bgcolor = MD3Colors.get_surface(is_dark)
 
+            # Re-resolve the accent FIRST — custom folders' steel accent has a
+            # per-theme variant, and everything below (wash, badge, count pill)
+            # is painted from it.
+            self.brand_color = self._resolve_accent(is_dark)
+
             # Rebuild the banner wash + badge for the new theme, respecting
             # the current configured/unconfigured dimming state.
             self._apply_configured_state(is_dark)
@@ -811,10 +851,6 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
             self._footer.border = ft.Border.only(top=ft.BorderSide(1, MD3Colors.get_divider(is_dark)))
             if hasattr(self, 'config_menu'):
                 self.config_menu.icon_color = MD3Colors.get_on_surface_variant(is_dark)
-
-            # Custom launchers get a themed border on the outer shell
-            if self.is_custom:
-                self.border = ft.Border.all(1, MD3Colors.get_primary(is_dark))
 
             # Update path chips + status icon/text by rebuilding the display
             # (also refreshes the header pill)

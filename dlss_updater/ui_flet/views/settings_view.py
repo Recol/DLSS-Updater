@@ -39,10 +39,19 @@ TILE_WASH_OPACITY_LIGHT = 0.08
 TILE_WATERMARK_OPACITY_DARK = 0.06
 TILE_WATERMARK_OPACITY_LIGHT = 0.03
 
-# Watermark glyph geometry: sized to bleed off the tile's bottom-right corner
-# (clipped by the tile's clip_behavior) rather than sit fully inside it.
-TILE_WATERMARK_SIZE = 76
-TILE_WATERMARK_OFFSET = -16
+# Watermark glyph geometry: the glyph sits FULLY INSIDE the tile, vertically
+# centred and inset from the right edge. A glyph bled off the corner ends up
+# half-clipped with the trailing control drawn on top of it, which reads as a
+# rendering artifact rather than a motif.
+#   size   — 52 fits the tile's 68px minimum height (44px icon circle + 2x12
+#            padding) with 8px of clearance top and bottom, and stays centred
+#            if a two-line subtitle grows the tile.
+#   inset  — clears the WIDEST trailing control (the Theme tile's Switch, ~60px
+#            wide, whose left edge lands at 16 + 60 = 76px from the tile edge)
+#            plus 12px of breathing room, so one geometry serves every tile
+#            including the chevron ones (chevron is only 16 + 20 = 36px).
+TILE_WATERMARK_SIZE = 52
+TILE_WATERMARK_RIGHT_INSET = 88
 
 
 def _tile_wash_opacity(is_dark: bool) -> float:
@@ -241,8 +250,9 @@ class SettingsView(ThemeAwareMixin, ft.Column):
 
         Structure: an outer Container (surface bgcolor, rounded, clipped) hosts
         a Stack of [brand wash, icon watermark, foreground content] so the wash
-        and watermark can bleed across the full tile without disturbing the
-        original padding/layout of the foreground row.
+        can bleed across the full tile and the watermark can be placed
+        independently, without disturbing the original padding/layout of the
+        foreground row.
         """
         accent = themed_accent(TILE_COLORS[color_key], is_dark)
 
@@ -285,17 +295,27 @@ class SettingsView(ThemeAwareMixin, ft.Column):
             bottom=0,
         )
 
-        # Decorative watermark of the tile's own icon, bled off the
-        # bottom-right corner and clipped by the tile's clip_behavior.
-        watermark_container = build_watermark_icon(icon, is_dark, size=TILE_WATERMARK_SIZE)
+        # Decorative watermark of the tile's own icon, sitting wholly inside the
+        # tile in the clear band to the LEFT of the trailing control (never
+        # clipped, never underneath the chevron/switch).
+        # top+bottom=0 stretches the positioned Container to the tile's height;
+        # with an alignment set and bounded constraints the Container also fills
+        # the width available to the left of `right`, so CENTER_RIGHT parks the
+        # glyph exactly TILE_WATERMARK_RIGHT_INSET from the tile edge, vertically
+        # centred whatever the tile's height turns out to be.
+        watermark_container = build_watermark_icon(
+            icon, is_dark, size=TILE_WATERMARK_SIZE, alignment=ft.Alignment.CENTER_RIGHT
+        )
         watermark_container.opacity = _tile_watermark_opacity(is_dark)
-        watermark_container.right = TILE_WATERMARK_OFFSET
-        watermark_container.bottom = TILE_WATERMARK_OFFSET
+        watermark_container.right = TILE_WATERMARK_RIGHT_INSET
+        watermark_container.top = 0
+        watermark_container.bottom = 0
         watermark_widget = watermark_container.content  # ft.Icon, recolored/reshaped in apply_theme
 
         # Foreground content keeps the tile's original padding/layout. It is
         # NOT stack-positioned, so it (not the fill layers) determines the
-        # Stack's natural size. Trailing control stays above the watermark.
+        # Stack's natural size. The trailing control sits in clear space — the
+        # watermark is inset well to its left, so nothing overlaps it.
         foreground = ft.Container(
             content=ft.Row(
                 controls=[

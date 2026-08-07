@@ -64,6 +64,21 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.6.3" date="2026-08-07">
+      <description>
+        <p>A visual polish pass across every view, in both themes</p>
+        <ul>
+          <li>The hub's Games hero keeps its caption legible over any artwork: a proper bottom scrim (the old one never actually rendered), a subtle unifying tint over the cover mosaic, and a hairline outline so the hero's edge stays visible in light mode</li>
+          <li>The Backups view opens with summary tiles — total backups, disk space used, most recent — instead of a mostly blank page; unlinked games show their real artwork when it is still cached; "Clear All Backups" is outlined at rest and only fills red on hover</li>
+          <li>The app bar shows an "N updates available" pill on views that don't already display the count (Launchers, Backups, Settings), jumping to the Games library on click; the heart button rests as a quiet outline and fills on hover</li>
+          <li>Custom Folder launcher tiles lost the teal outline that read as a focus ring and now match the branded tiles' wash treatment in a neutral steel tone; the launcher grid gained bottom breathing room so the last row scrolls clear of the action bar</li>
+          <li>Settings tile watermark icons no longer clip off the card edge underneath the chevron</li>
+          <li>The floating navigation pill no longer looks stamped onto the page in light mode — white surface, soft shadow; dark mode unchanged</li>
+          <li>Long game titles truncate with an ellipsis instead of wrapping into the card artwork, with the full name in the hover tooltip</li>
+          <li>Fixed launcher cards' path-status icon never changing — the green check / amber warning for valid / inaccessible paths now actually shows</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.6.2" date="2026-08-04">
       <description>
         <p>Fixes the app failing to start on a clean Windows install</p>

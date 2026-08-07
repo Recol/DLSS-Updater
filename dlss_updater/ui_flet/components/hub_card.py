@@ -33,9 +33,10 @@ from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_re
 from dlss_updater.ui_flet.components.hero_surface import (
     WATERMARK_OPACITY_DARK,
     WATERMARK_OPACITY_LIGHT,
+    art_tint_color,
+    build_art_scrim_gradient,
     build_brand_wash,
     build_pill,
-    build_scrim_gradient,
     build_watermark_icon,
     themed_accent,
 )
@@ -309,11 +310,15 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
     """
     The large Games hub card, restyled as a true artwork-backed hero.
 
-    Layered ft.Stack: art mosaic (up to 6 cached game covers) -> bottom-weighted
-    scrim -> bottom-left identity block (icon + title + subtitle + stat pills).
-    When fewer than 2 cached art images are available (e.g. a fresh install),
-    falls back to the same brand-wash + watermark treatment as ``HubCard`` so
-    the card still looks intentional with zero art.
+    Layered ft.Stack: art mosaic (up to 6 cached game covers) -> flat unifying
+    tint -> bottom-weighted scrim -> bottom-left identity block (icon + title +
+    subtitle + stat pills). When fewer than 2 cached art images are available
+    (e.g. a fresh install), falls back to the same brand-wash + watermark
+    treatment as ``HubCard`` so the card still looks intentional with zero art.
+
+    Every alpha-carrying overlay lives on a shadow-LESS Container inside the
+    Stack; the shadow belongs to the outer card Container, which paints only an
+    opaque bgcolor (CLAUDE.md rendering pitfall #1).
 
     The mosaic is populated once via ``set_mosaic()`` and is static afterward
     (no per-image updates) — callers own the single ``page.update()`` call.
@@ -349,24 +354,15 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         accent = themed_accent((accent_color_dark, accent_color_light), is_dark)
 
         # ---- Bottom-left identity block ----
-        self._icon_widget = ft.Icon(
-            icon,
-            size=28,
-            color=MD3Colors.get_text_primary(is_dark),
-        )
+        # Colors are (re)derived by _apply_identity_colors() rather than fixed
+        # here: they depend on which backdrop is live, not only on the theme.
+        self._icon_widget = ft.Icon(icon, size=28)
 
-        self._title_text = ft.Text(
-            title,
-            size=22,
-            weight=ft.FontWeight.BOLD,
-            color=MD3Colors.get_text_primary(is_dark),
-        )
+        self._title_text = ft.Text(title, size=22, weight=ft.FontWeight.BOLD)
 
-        self._subtitle_text = ft.Text(
-            subtitle,
-            size=13,
-            color=MD3Colors.get_on_surface_variant(is_dark),
-        )
+        self._subtitle_text = ft.Text(subtitle, size=13)
+
+        self._apply_identity_colors(is_dark)
 
         # Stat pills row (game count / backups / last scan age) — populated by
         # set_pills(). Pills use a fixed dark translucent bg + white text so
@@ -408,21 +404,39 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         self._watermark.right = -18
         self._watermark.bottom = -18
 
-        # ---- Art layer (populated by set_mosaic) + its scrim ----
+        # ---- Art layer (populated by set_mosaic) + its overlays ----
         self._art_layer = ft.Container(
             expand=True,
             content=None,
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
         )
+        # Both overlays are stretched by explicit edge positioning rather than
+        # expand=True: ft.Stack's fit defaults to LOOSE, and a childless
+        # Container has no flex parent to expand into. ignore_interactions
+        # keeps them out of the hit test so the whole hero stays one tap target.
+        self._art_tint_layer = ft.Container(
+            left=0,
+            top=0,
+            right=0,
+            bottom=0,
+            bgcolor=art_tint_color(is_dark),
+            ignore_interactions=True,
+            visible=False,
+        )
         self._scrim_layer = ft.Container(
-            expand=True,
-            gradient=build_scrim_gradient(is_dark),
+            left=0,
+            top=0,
+            right=0,
+            bottom=0,
+            gradient=build_art_scrim_gradient(is_dark),
+            ignore_interactions=True,
             visible=False,
         )
 
         self._stack = ft.Stack(
             controls=[
                 self._art_layer,
+                self._art_tint_layer,
                 self._wash_layer,
                 self._watermark,
                 self._scrim_layer,
@@ -436,6 +450,7 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
             padding=ft.Padding.all(0),
             border_radius=border_radius_val,
             bgcolor=MD3Colors.get_surface(is_dark),
+            border=self._hero_border(is_dark),
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             shadow=Shadows.LEVEL_2,
             animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
@@ -448,6 +463,36 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         )
 
         self._register_theme_aware()
+
+    @staticmethod
+    def _hero_border(is_dark: bool) -> ft.Border:
+        """Hairline outline around the whole hero.
+
+        Load-bearing in light mode: a bright cover in the mosaic is close
+        enough to the page canvas (#FAFBFC) that the card's edge disappears
+        entirely without it. Kept in dark mode too so the treatment reads as
+        deliberate rather than as a light-mode patch.
+        """
+        return ft.Border.all(1, MD3Colors.get_themed("outline_variant", is_dark))
+
+    def _identity_colors(self, is_dark: bool) -> tuple[str, str]:
+        """``(title/icon color, subtitle color)`` for whichever backdrop is live.
+
+        Over the mosaic the caption sits on the BLACK art scrim in BOTH themes,
+        so light mode's dark on-surface text would be unreadable there. The
+        artwork-less fallback keeps the normal themed text colors, since it
+        renders over a themed brand wash.
+        """
+        if self._mosaic_active:
+            return ft.Colors.WHITE, ft.Colors.WHITE70
+        return MD3Colors.get_text_primary(is_dark), MD3Colors.get_on_surface_variant(is_dark)
+
+    def _apply_identity_colors(self, is_dark: bool) -> None:
+        """Repaint the identity block for the current backdrop + theme."""
+        title_color, subtitle_color = self._identity_colors(is_dark)
+        self._icon_widget.color = title_color
+        self._title_text.color = title_color
+        self._subtitle_text.color = subtitle_color
 
     def did_mount(self):
         """Defensive theme re-sync on every (re)mount - see HubCard.did_mount()
@@ -504,8 +549,13 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         self._art_layer.content = ft.Row(columns, spacing=0, expand=True)
         self._wash_layer.visible = False
         self._watermark.visible = False
+        self._art_tint_layer.visible = True
         self._scrim_layer.visible = True
         self._mosaic_active = True
+
+        # The caption flips to light-on-dark now that it sits on the art scrim
+        # rather than on the themed brand wash.
+        self._apply_identity_colors(get_theme_registry().is_dark)
 
     def set_pills(self, pills: list[tuple[str, str | None]]) -> None:
         """Rebuild the stat pill row. Each item is (text, optional ft.Icons icon)."""
@@ -521,22 +571,23 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         ]
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
-        """Apply theme: wash + scrim gradients and watermark opacity all rebuild
-        per-theme. Pills are intentionally theme-invariant (dark chip + white
-        text reads over arbitrary art in both themes) so they're left alone."""
+        """Apply theme: wash/scrim gradients, art tint, outline and watermark
+        opacity all rebuild per-theme. Pills are intentionally theme-invariant
+        (dark chip + white text reads over arbitrary art in both themes) so
+        they're left alone."""
         if delay_ms > 0:
             await anyio.sleep(delay_ms / 1000)
 
         accent = themed_accent((self._accent_dark, self._accent_light), is_dark)
 
         self.bgcolor = MD3Colors.get_surface(is_dark)
+        self.border = self._hero_border(is_dark)
         self._wash_layer.gradient = build_brand_wash(accent, is_dark)
-        self._scrim_layer.gradient = build_scrim_gradient(is_dark)
+        self._art_tint_layer.bgcolor = art_tint_color(is_dark)
+        self._scrim_layer.gradient = build_art_scrim_gradient(is_dark)
         self._watermark.opacity = WATERMARK_OPACITY_DARK if is_dark else WATERMARK_OPACITY_LIGHT
 
-        self._icon_widget.color = MD3Colors.get_text_primary(is_dark)
-        self._title_text.color = MD3Colors.get_text_primary(is_dark)
-        self._subtitle_text.color = MD3Colors.get_on_surface_variant(is_dark)
+        self._apply_identity_colors(is_dark)
 
         try:
             self.update()

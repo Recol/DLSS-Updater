@@ -15,6 +15,66 @@ from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin
 PILL_CLEARANCE = 88
 
 
+# ---- Pill surface (per-theme) ----
+# The capsule was originally styled for dark only: SURFACE_VARIANT fill +
+# a 1px OUTLINE stroke + the elevation-3 shadow. In DARK that reads correctly —
+# #333333 on the #141414 canvas is a lift, and the #5A5A5A hairline is a *lighter*
+# edge on top of it. In LIGHT the same recipe inverts: the #F5F5F5 fill is
+# ~indistinguishable from the #FAFBFC canvas, so the only thing separating pill
+# from page is the #79747E stroke — a mid-grey ring around a near-white capsule,
+# which reads as a hard "stamped" outline rather than a floating element. The
+# elevation-3 shadow (a hover-state, accent-tinted ramp) piles onto that.
+#
+# Light mode therefore gets: a pure white fill that *is* lighter than the canvas,
+# a barely-there OUTLINE_VARIANT hairline for edge definition, and a normal
+# two-layer ambient+key drop shadow. Dark mode values are byte-identical to
+# before. NOTE: opaque fill only — never a translucent gradient on a shadowed
+# Container (the shadow paints straight through it; see CLAUDE.md).
+
+
+def _pill_bgcolor(is_dark: bool) -> str:
+    """Pill fill — elevated above the page canvas in BOTH themes."""
+    if is_dark:
+        return MD3Colors.get_surface_variant(True)  # #333333 (unchanged)
+    return MD3Colors.SURFACE_LIGHT  # #FFFFFF — lifts off the #FAFBFC canvas
+
+
+def _pill_border(is_dark: bool) -> ft.Border:
+    """Hairline edge. Light mode uses the low-contrast outline *variant* so the
+    capsule is defined by its shadow, not by a dark ring."""
+    color = (
+        MD3Colors.get_outline(True) if is_dark else MD3Colors.OUTLINE_VARIANT_LIGHT
+    )
+    return ft.Border.all(1, color)
+
+
+def _pill_shadow(is_dark: bool):
+    """Drop shadow. Dark keeps the existing elevation-3 ramp; light gets a softer
+    ambient+key pair (no accent glow) so the pill floats instead of being stamped."""
+    if is_dark:
+        return Shadows.LEVEL_3
+    return [
+        ft.BoxShadow(
+            spread_radius=0,
+            blur_radius=14,
+            offset=ft.Offset(0, 5),
+            color="rgba(0, 0, 0, 0.10)",  # Ambient — the "float"
+        ),
+        ft.BoxShadow(
+            spread_radius=0,
+            blur_radius=4,
+            offset=ft.Offset(0, 1),
+            color="rgba(0, 0, 0, 0.06)",  # Key — grounds the capsule
+        ),
+    ]
+
+
+def _pill_divider_color(is_dark: bool) -> str:
+    """Home/views separator inside the pill — the same outline-variant softening
+    in light mode, so it reads as a hairline rather than a dark tick."""
+    return MD3Colors.get_outline(True) if is_dark else MD3Colors.OUTLINE_VARIANT_LIGHT
+
+
 class FloatingPill(ThemeAwareMixin, ft.Container):
     """
     Floating pill navigation bar with Home + 3 view icons.
@@ -92,7 +152,7 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
         divider = ft.Container(
             width=1,
             height=24,
-            bgcolor=MD3Colors.get_outline(is_dark),
+            bgcolor=_pill_divider_color(is_dark),
         )
         self._pill_divider = divider
 
@@ -136,9 +196,9 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
             content=pill_row,
             padding=ft.Padding.symmetric(horizontal=16, vertical=4),
             border_radius=24,
-            bgcolor=MD3Colors.get_surface_variant(is_dark),
-            border=ft.Border.all(1, MD3Colors.get_outline(is_dark)),
-            shadow=Shadows.LEVEL_3,
+            bgcolor=_pill_bgcolor(is_dark),
+            border=_pill_border(is_dark),
+            shadow=_pill_shadow(is_dark),
             animate_opacity=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
         )
 
@@ -221,9 +281,12 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
         if delay_ms > 0:
             await anyio.sleep(delay_ms / 1000)
 
-        self.bgcolor = MD3Colors.get_surface_variant(is_dark)
-        self.border = ft.Border.all(1, MD3Colors.get_outline(is_dark))
-        self._pill_divider.bgcolor = MD3Colors.get_outline(is_dark)
+        self.bgcolor = _pill_bgcolor(is_dark)
+        self.border = _pill_border(is_dark)
+        # The shadow is theme-dependent now (light gets a softer ambient+key pair),
+        # so it has to flip here too — it used to be a constant.
+        self.shadow = _pill_shadow(is_dark)
+        self._pill_divider.bgcolor = _pill_divider_color(is_dark)
         self._home_icon.color = MD3Colors.get_on_surface_variant(is_dark)
 
         # Re-apply active state with new theme colors

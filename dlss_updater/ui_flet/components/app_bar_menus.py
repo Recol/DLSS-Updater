@@ -47,13 +47,34 @@ class BasePopupMenu(ThemeAwareMixin):
         tooltip: str,
         items: list[MenuItem],
         is_dark: bool = True,
+        quiet: bool = False,
+        hover_icon: str | None = None,
     ):
+        """
+        Args:
+            quiet: Render the trigger as a QUIET circle (themed container fill,
+                outlined glyph in an on-surface-variant color) that only fills
+                with ``color`` on hover. Used for chrome that lives permanently
+                in the app bar, where a saturated filled circle competes with
+                real status signals for attention. The default (False) keeps
+                the original always-filled brand circle.
+            hover_icon: Glyph swapped in while hovered (quiet mode only) —
+                typically the FILLED counterpart of an outlined rest glyph.
+                Falls back to ``icon`` when omitted.
+        """
         self._page_ref = page
         self._icon = icon
         self._color = color
         self._tooltip = tooltip
         self._items = items
         self._is_dark = is_dark
+        self._quiet = quiet
+        self._hover_icon = hover_icon or icon
+
+        # Live refs for the quiet trigger's hover/theme repaint (None in the
+        # default filled mode). Assigned by _build_popup_button().
+        self._icon_circle: ft.Container | None = None
+        self._icon_widget: ft.Icon | None = None
 
         # Theme registration
         self._registry = get_theme_registry()
@@ -73,21 +94,42 @@ class BasePopupMenu(ThemeAwareMixin):
         # Create menu items
         menu_items = [self._build_menu_item(item) for item in self._items]
 
-        # Create the colored icon circle as button content
-        icon_circle = ft.Container(
-            content=ft.Icon(self._icon, size=18, color=ft.Colors.WHITE),
-            width=36,
-            height=36,
-            bgcolor=self._color,
-            border_radius=18,
-            alignment=ft.Alignment.CENTER,
-            shadow=ft.BoxShadow(
-                spread_radius=0,
-                blur_radius=4,
-                offset=ft.Offset(0, 2),
-                color=f"{self._color}40",
-            ),
-        )
+        if self._quiet:
+            # Quiet trigger: themed container fill + outlined glyph at rest,
+            # brand color only on hover. No shadow — a resting chrome control
+            # shouldn't claim elevation.
+            self._icon_widget = ft.Icon(
+                self._icon,
+                size=18,
+                color=MD3Colors.get_on_surface_variant(self._is_dark),
+            )
+            icon_circle = ft.Container(
+                content=self._icon_widget,
+                width=36,
+                height=36,
+                bgcolor=MD3Colors.get_surface_container(self._is_dark),
+                border_radius=18,
+                alignment=ft.Alignment.CENTER,
+                animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+                on_hover=self._on_quiet_hover,
+            )
+            self._icon_circle = icon_circle
+        else:
+            # Create the colored icon circle as button content
+            icon_circle = ft.Container(
+                content=ft.Icon(self._icon, size=18, color=ft.Colors.WHITE),
+                width=36,
+                height=36,
+                bgcolor=self._color,
+                border_radius=18,
+                alignment=ft.Alignment.CENTER,
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=4,
+                    offset=ft.Offset(0, 2),
+                    color=f"{self._color}40",
+                ),
+            )
 
         return ft.PopupMenuButton(
             content=icon_circle,
@@ -98,6 +140,32 @@ class BasePopupMenu(ThemeAwareMixin):
             bgcolor=MD3Colors.get_surface_container(self._is_dark),
             icon_color=MD3Colors.get_on_surface(self._is_dark),
         )
+
+    def _on_quiet_hover(self, e) -> None:
+        """Fill the quiet trigger with its brand color while hovered.
+
+        NOTE: hover ``e.data`` is a BOOLEAN in Flet 0.86, not the string
+        "true" — the `== "true"` spelling is silently always-False (see
+        CLAUDE.md). Both forms are accepted here, matching the idiom used
+        throughout the codebase.
+        """
+        if self._icon_circle is None or self._icon_widget is None:
+            return
+
+        hovered = e.data is True or e.data == "true"
+        if hovered:
+            self._icon_circle.bgcolor = self._color
+            self._icon_widget.icon = self._hover_icon
+            self._icon_widget.color = ft.Colors.WHITE
+        else:
+            self._icon_circle.bgcolor = MD3Colors.get_surface_container(self._is_dark)
+            self._icon_widget.icon = self._icon
+            self._icon_widget.color = MD3Colors.get_on_surface_variant(self._is_dark)
+
+        try:
+            self._icon_circle.update()
+        except Exception:
+            pass  # Silent fail - control may have been swapped out mid-hover
 
     def _build_menu_item(self, item: MenuItem) -> ft.PopupMenuItem:
         """Build a styled menu item with icon circle, title, and description
@@ -246,6 +314,13 @@ class BasePopupMenu(ThemeAwareMixin):
             self.button.bgcolor = MD3Colors.get_surface_container(is_dark)
             self.button.icon_color = MD3Colors.get_on_surface(is_dark)
 
+            # Quiet trigger repaints to its (themed) REST colors — a theme
+            # toggle can't happen mid-hover from this control anyway.
+            if self._quiet and self._icon_circle is not None and self._icon_widget is not None:
+                self._icon_circle.bgcolor = MD3Colors.get_surface_container(is_dark)
+                self._icon_widget.icon = self._icon
+                self._icon_widget.color = MD3Colors.get_on_surface_variant(is_dark)
+
             if hasattr(self.button, 'update'):
                 self.button.update()
         except Exception:
@@ -254,7 +329,12 @@ class BasePopupMenu(ThemeAwareMixin):
 
 class CommunityMenu(BasePopupMenu):
     """
-    Pink heart icon - Community & Support items
+    Outlined heart icon (fills pink on hover) - Community & Support items
+
+    Quiet by design: this button sits permanently in the app bar, so a
+    saturated filled-pink circle competed with genuine status signals
+    (update pill, DLL badges) for the eye. The hover fill preserves the
+    affordance without the constant shout.
 
     Items:
     - Support Development (Buy me a coffee)
@@ -319,11 +399,13 @@ class CommunityMenu(BasePopupMenu):
 
         super().__init__(
             page=page,
-            icon=ft.Icons.FAVORITE,
-            color="#E91E63",  # Pink
+            icon=ft.Icons.FAVORITE_BORDER,  # Rest: outlined, themed neutral
+            color="#E91E63",  # Pink — hover fill only
             tooltip="Community & Support",
             items=items,
             is_dark=is_dark,
+            quiet=True,
+            hover_icon=ft.Icons.FAVORITE,  # Hover: filled heart on pink
         )
 
 

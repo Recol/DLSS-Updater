@@ -226,8 +226,11 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
             on_restore_all: Callback for restoring all backups (game_id, game_name)
             art_path: Optional local filesystem path to a cached Steam artwork
                 WebP for this game (batch-resolved by the caller - no lookups
-                happen here). When None, the header falls back to the generic
-                folder icon.
+                happen here). Supplied for ORPHAN groups too: the view resolves
+                their app id by name, so an unlinked game whose art was cached
+                while it was still in the library keeps its thumbnail. When None
+                (or the cached file has since gone), the header falls back to
+                the generic folder icon.
             is_orphan: When True this group represents backups whose owning game
                 is no longer in the library. Informational only — restore
                 affordances are driven by the on_restore / on_restore_all

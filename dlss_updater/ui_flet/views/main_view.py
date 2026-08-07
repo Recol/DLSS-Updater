@@ -111,6 +111,22 @@ from dlss_updater.utils import find_game_root
 _CHROME_WASH_OPACITY_DARK = 0.10
 _CHROME_WASH_OPACITY_LIGHT = 0.06
 
+# Bottom inset appended INSIDE the Launchers grid's scroll content so the last
+# card row can scroll fully clear of the action bar beneath it (last-scan line
+# + Scan for Games / Start Update). Sized from that bar's own geometry: 16px
+# vertical padding x2 + ~64px button row + 12px column spacing + the ~16px
+# scan-info line ≈ 124px. A trailing SPACER rather than Container padding: it
+# costs scroll extent only, so the viewport itself never shrinks.
+_LAUNCHER_GRID_BOTTOM_INSET = 124
+
+# App bar update-status pill: alpha of the warning accent used as its fill.
+# Deliberately a tint rather than a saturated filled chip — the bar is chrome,
+# not a status board. Safe as a translucent color: the pill is a shadow-LESS
+# child painted over the app bar's own opaque background (CLAUDE.md rendering
+# pitfall #1 applies to gradients on shadowed containers, not to this).
+_UPDATE_PILL_TINT_DARK = 0.18
+_UPDATE_PILL_TINT_LIGHT = 0.20
+
 
 class MainView(ft.Column):
     """
@@ -166,6 +182,17 @@ class MainView(ft.Column):
         self._updater = SelfUpdater()
         self._update_state = UpdateBadgeState()
         self._update_lock = asyncio.Lock()
+
+        # DLL update status shown in the app bar's status pill. Like
+        # _update_state above, the COUNT lives here rather than on the pill:
+        # _rebuild_app_bar_for_theme() throws the bar (and pill) away on every
+        # theme toggle, and a freshly built pill renders from this value so it
+        # can never come back stale. Refreshed by refresh_update_status_pill()
+        # — at launch, once the DLL cache finishes initialising, and after any
+        # scan/update run (see refresh_after_dll_cache_ready /
+        # _refresh_after_bulk_run).
+        self._updates_available: int = 0
+        self._app_update_status_pill: ft.Container | None = None
 
         # Discord banner
         self.discord_banner: ft.Banner | None = None
@@ -262,6 +289,15 @@ class MainView(ft.Column):
         if self.hub_view:
             from dlss_updater.task_registry import register_task
             register_task(asyncio.create_task(self.hub_view.load_stats()), "load_hub_stats")
+
+        # Seed the app bar's update-status pill off the critical path. The DLL
+        # cache is typically still initialising here, so this first count can
+        # under-report - refresh_after_dll_cache_ready() re-runs it once the
+        # real "latest" versions are in place (same reason the hub recounts).
+        _register_task(
+            asyncio.create_task(self.refresh_update_status_pill()),
+            "refresh_update_status_pill",
+        )
 
         # Check for an application update off the startup critical path. Failures
         # are swallowed inside the coroutine - a missed check must never surface
@@ -374,6 +410,10 @@ class MainView(ft.Column):
         """Handle view loading when navigated to."""
         from dlss_updater.task_registry import register_task
 
+        # The app bar's update pill is view-contextual (hidden on hub/Games,
+        # which already show the count) — re-derive it for the new view.
+        self._schedule_update_status_pill_sync()
+
         theme_stale = view_name in self._theme_stale_views
         if theme_stale:
             self._theme_stale_views.discard(view_name)
@@ -431,6 +471,11 @@ class MainView(ft.Column):
         # hyper-parallel batch used at startup (~4ms of queries).
         if new_view == NavigationController.HUB and self.hub_view:
             from dlss_updater.task_registry import register_task
+
+            # Nav skips _on_view_load for the hub, so the update pill's
+            # view-contextual hide (the hub shows the count itself) rides
+            # this hook instead.
+            self._schedule_update_status_pill_sync()
 
             hub_theme_stale = NavigationController.HUB in self._theme_stale_views
             if hub_theme_stale:
@@ -830,12 +875,27 @@ class MainView(ft.Column):
             expand=True,
         )
 
-        # Compact top bar with 3 popup menu buttons on the right
+        # DLL update status — built from self._updates_available, so a bar
+        # constructed by a theme rebuild resumes showing the live count rather
+        # than snapping back to "nothing to do" (same contract as the version
+        # pill above).
+        self._app_update_status_pill = self._build_update_status_pill(is_dark)
+
+        # Right-side cluster: status pill then Community (heart). Grouped in
+        # their own tight Row so the gap between them is fixed regardless of
+        # how the outer SPACE_BETWEEN distributes slack.
+        actions_row = ft.Row(
+            controls=[self._app_update_status_pill, self.community_menu.button],
+            spacing=10,
+            tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        # Compact top bar: title/version on the left, status + menus on the right
         top_bar = ft.Row(
             controls=[
                 self._app_title_row,
-                # Right side: Community (Heart)
-                self.community_menu.button,
+                actions_row,
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
@@ -875,6 +935,131 @@ class MainView(ft.Column):
             supported=SelfUpdater.is_supported(),
             applies_in_place=self._updater.applies_in_place,
         )
+
+    # =========================================================================
+    # App bar DLL update-status pill
+    # =========================================================================
+
+    def _update_status_pill_label(self) -> str:
+        """Label text for the current outdated-game count."""
+        n = self._updates_available
+        return f"{n} update{'' if n == 1 else 's'} available"
+
+    def _update_status_pill_should_show(self) -> bool:
+        """Whether the app bar pill should be visible right now.
+
+        Two conditions: something is actually outdated, AND the active view
+        does not already display the same count — the hub leads with
+        "N games need updates" (hero chip + CTA bar) and the Games header
+        shows "N need updates", so on those two views the pill is pure
+        duplication a few hundred pixels from the same number. It earns its
+        place only on Launchers / Backups / Settings, where it is both the
+        only status signal and a one-click jump back to Games.
+
+        Before the navigation controller exists the landing view is the hub,
+        so default to hidden.
+        """
+        if self._updates_available <= 0:
+            return False
+        current = (
+            self.navigation_controller.current_view
+            if self.navigation_controller
+            else NavigationController.HUB
+        )
+        return current not in (NavigationController.HUB, NavigationController.GAMES)
+
+    def _build_update_status_pill(self, is_dark: bool) -> ft.Container:
+        """Build the app bar's DLL update-status pill.
+
+        Quiet by design: an amber-tinted, amber-labelled pill rather than a
+        filled chip, and HIDDEN outright when nothing is outdated or when the
+        active view already shows the count (see
+        _update_status_pill_should_show). Clicking it lands on the Games view,
+        which is where the per-game detail (and the "Update all" CTA) lives.
+        """
+        accent = MD3Colors.get_warning(is_dark)
+        tint = _UPDATE_PILL_TINT_DARK if is_dark else _UPDATE_PILL_TINT_LIGHT
+
+        pill = build_pill(
+            self._update_status_pill_label(),
+            icon=ft.Icons.ARROW_CIRCLE_UP,
+            bgcolor=ft.Colors.with_opacity(tint, accent),
+            text_color=accent,
+        )
+        pill.visible = self._update_status_pill_should_show()
+        pill.ink = True
+        pill.tooltip = "View the games that need updating"
+        pill.on_click = self._on_update_status_pill_clicked
+        return pill
+
+    async def _on_update_status_pill_clicked(self, e):
+        """Status pill click - jump to the Games view."""
+        if self.navigation_controller:
+            await self.navigation_controller.navigate_to(NavigationController.GAMES)
+
+    def _apply_update_status_pill(self) -> None:
+        """Re-render the live pill from self._updates_available.
+
+        In-place mutation is fine here: the app bar is ALWAYS attached (only
+        theme toggles detach it, and those rebuild the pill from scratch —
+        see _create_app_bar), so this isn't the detached-subtree patch-drop
+        case from CLAUDE.md.
+        """
+        pill = self._app_update_status_pill
+        if pill is None:
+            return
+
+        is_dark = self.theme_manager.is_dark
+        accent = MD3Colors.get_warning(is_dark)
+        tint = _UPDATE_PILL_TINT_DARK if is_dark else _UPDATE_PILL_TINT_LIGHT
+
+        # build_pill() lays out Row([Icon, Text]) — reach both refs.
+        row_controls = pill.content.controls
+        row_controls[0].color = accent
+        row_controls[-1].value = self._update_status_pill_label()
+        row_controls[-1].color = accent
+        pill.bgcolor = ft.Colors.with_opacity(tint, accent)
+        pill.visible = self._update_status_pill_should_show()
+
+        try:
+            pill.update()
+        except Exception as e:
+            self.logger.debug(f"Update status pill refresh failed: {e}")
+
+    def _schedule_update_status_pill_sync(self) -> None:
+        """Re-apply pill visibility shortly after a navigation transition.
+
+        Deferred to a background task for the same reason as the app-bar
+        theme heal above: updates issued DURING the nav transition's callback
+        phase don't flush reliably. 0.1s matches that heal's delay.
+        """
+        from dlss_updater.task_registry import register_task
+
+        async def _sync():
+            await anyio.sleep(0.1)
+            self._apply_update_status_pill()
+
+        register_task(asyncio.create_task(_sync()), "sync_update_status_pill")
+
+    async def refresh_update_status_pill(self) -> None:
+        """Recount outdated games and push the result into the app bar pill.
+
+        Deliberately reuses HubView._count_games_needing_update - the SAME
+        merge-by-name + count_outdated_dlls path the hub pill and the Games
+        view's "N need updates" use - so the three surfaces can never
+        disagree. It's blocking DB I/O (two batch queries), hence the worker
+        thread.
+        """
+        try:
+            count = await anyio.to_thread.run_sync(
+                HubView._count_games_needing_update, limiter=thread_io
+            )
+        except Exception as e:
+            self.logger.debug(f"Update status recount failed: {e}")
+            return
+
+        self._updates_available = int(count or 0)
+        self._apply_update_status_pill()
 
     # =========================================================================
     # Application self-update
@@ -1366,9 +1551,15 @@ class MainView(ft.Column):
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
 
-        # Scrollable wrapper around the responsive grid
+        # Scrollable wrapper around the responsive grid. The trailing spacer
+        # is the action-bar inset — without it the final row bottoms out flush
+        # against (and visually behind) the action bar and the last cards'
+        # labels are clipped mid-glyph.
         launcher_column = ft.Column(
-            controls=[launcher_grid],
+            controls=[
+                launcher_grid,
+                ft.Container(height=_LAUNCHER_GRID_BOTTOM_INSET),
+            ],
             spacing=0,
             scroll=ft.ScrollMode.AUTO,
             expand=True,
@@ -1890,6 +2081,10 @@ class MainView(ft.Column):
             except Exception as e:
                 self.logger.debug(f"Post-run hub stats refresh failed: {e}")
 
+        # App bar status pill - an update run is exactly what makes its count
+        # go DOWN, so it has to converge with the hub here too.
+        await self.refresh_update_status_pill()
+
     async def refresh_after_dll_cache_ready(self) -> None:
         """Re-derive update state once the DLL cache has finished initialising.
 
@@ -1910,6 +2105,10 @@ class MainView(ft.Column):
                 await self.hub_view.load_stats()
             except Exception as e:
                 self.logger.debug(f"Post-cache-init hub stats refresh failed: {e}")
+
+        # App bar status pill: same story as the hub pill - the count taken at
+        # launch was measured against the fallback version table.
+        await self.refresh_update_status_pill()
 
         # The Games view is normally still unbuilt here (the hub is the landing
         # view), but a user who navigated straight to it raced the cache init
