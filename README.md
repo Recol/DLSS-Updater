@@ -140,7 +140,7 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 
 - **DLSS** Super Resolution, plus **Ray Reconstruction**, **Frame Generation** and **Streamline** (Reflex Low Latency, DirectSR, NIS, etc.)
 - **XeSS / XeSS Frame Generation / XeLL**
-- **FSR**
+- **FSR** — Upscaling, Frame Generation, Ray Regeneration, plus an **FSR 4 upgrade** for games that ship only FSR 3.1 (RDNA 3 / RDNA 4 only; skipped on other GPUs, where FSR 4 cannot run)
 - **DirectStorage** (Windows only)
 - Update everything at once, or update individual binaries for a specific game
 
@@ -196,7 +196,12 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 | DLSS Super Resolution | 4.5 (`3.10.6.0`) |
 | DLSS FG / RR | 4.5 (`3.10.5`) |
 | Streamline (Reflex, DLSS SR/FG/RR, DirectSR, NIS) | `2.12.0.0` |
-| FSR | 4 (`4.0.2.0`) |
+| FSR Upscaling | 4.1.1 (`4.1.1.2740`) |
+| FSR Frame Generation | 4.0.1 (`4.0.1.2740`) |
+| FSR Ray Regeneration | 1.2.0 (`1.2.0.2740`) |
+| FSR Loader | `2.3.0.2740` |
+| FSR Radiance Caching *(preview, opt-in)* | 0.9.0 (`0.9.0.2740`) |
+| FSR (DX12 / Vulkan, SDK 1.1.4) | `1.0.1.41314` |
 | XeSS | 2.0.2 |
 | XeSS Frame Generation | 1.3.1 |
 | XeLL | 1.3.0.5 |

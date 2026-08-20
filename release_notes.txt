@@ -1,3 +1,53 @@
+Version 4.7.0:
+New:
+  - FSR 4 upgrades for games that ship FSR 3.1. Where a game has only the older
+    FidelityFX library, DLSS Updater can now install the FSR 4 DLL set beside
+    it - the loader under the name the game loads, plus the upscaler and frame
+    generation components the game never shipped. This only happens on RDNA 3
+    and RDNA 4 GPUs; on any other card the upgrade is skipped, because FSR 4
+    cannot run there and installing it would remove working FSR 3.1 upscaling.
+    The install is all-or-nothing: if any file fails to write, the whole set is
+    rolled back and the game is left exactly as it was.
+  - Restore understands added files. DLLs the updater created (rather than
+    replaced) are recorded as such, and restoring them removes them again,
+    returning the game to the DLLs it originally shipped.
+  - FSR Ray Regeneration (amd_fidelityfx_denoiser_dx12.dll) is now updated,
+    at 1.2.0. Call of Duty: Black Ops 7 and Crimson Desert ship this component.
+  - Preliminary support for AMD FSR Radiance Caching. It is OFF by default and
+    is deliberately not covered by the FSR toggle: AMD ships this component as
+    a preview (version 0.9.0) for engine developers, and no released game uses
+    it. Settings > Update Preferences has a separate opt-in under FSR, which
+    warns before enabling and can be turned back off at any time.
+
+FSR Fixes:
+  - FSR 4 updates could be rejected outright. The FidelityFX loader DLL
+    reports a loader/SDK version (1.0.2), which was being checked against an
+    FSR minimum of 3.1.0 - a bar no loader AMD ships can clear. The loader is
+    now exempt; the FSR version is read from the effect DLLs, where it lives.
+  - The bundled FidelityFX versions shown before the DLL cache finished
+    loading were wrong (every FSR DLL claimed 4.0.2.0). They now show the real
+    per-DLL versions, which genuinely differ: upscaling is FSR 4, frame
+    generation is still FSR 3.1.5, and the DX12/Vulkan libraries are SDK 1.1.4.
+
+Linux:
+  - Enabling FSR 4 RDNA 3 mode under Proton-CachyOS gave you no FSR 4 upgrade
+    at all. That fork removed PROTON_FSR4_RDNA3_UPGRADE, but the app still
+    emitted it, so the launch option was ignored. RDNA 3 mode is now tracked
+    as its own Proton capability: GE-Proton still gets the RDNA 3 variable,
+    while CachyOS and Proton-EM fall back to PROTON_FSR4_UPGRADE. The toggle
+    also greys out on builds that don't support it.
+
+Downloads:
+  - Large DLL downloads could be cancelled mid-transfer on slower connections.
+    The 120-second cap covered the whole file, penalising size rather than
+    stalls - libxess.dll alone is ~78 MB. Downloads now time out only after 60
+    seconds with no data received.
+
+Build:
+  - Fixed a malformed pyinstaller dependency that made `uv sync` fail outright.
+  - Pinned interpreter moves to Python 3.14.7 free-threaded across the local
+    build, CI, and the Flathub source manifests.
+
 Version 4.6.3:
 UI Improvements:
   - The hub's Games hero now keeps its caption legible over any artwork: a

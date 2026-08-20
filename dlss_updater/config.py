@@ -179,9 +179,18 @@ LATEST_DLL_VERSIONS = {
     "sl.directsr.dll": "2.8.0.0",
     "sl.dlss_d.dll": "2.8.0.0",
     "sl.nis.dll": "2.8.0.0",
-    "amd_fidelityfx_upscaler_dx12.dll": "4.0.2.0",
-    "amd_fidelityfx_framegeneration_dx12.dll": "4.0.2.0",
-    "amd_fidelityfx_loader_dx12.dll": "4.0.2.0",
+    # FidelityFX values below are read from the PE resources of the actual files
+    # hosted in the DLL repo (verified 2026-08-20) — not copied from manifest.json,
+    # which disagrees with its own binaries for amd_fidelityfx_dx12.dll.
+    #
+    # These are NOT all the same version: since SDK 2.0.0 each effect DLL carries
+    # its own feature version, the loader carries a loader/SDK version, and the two
+    # monolithic SDK 1.1.4 libraries are frozen (no SDK 2.x package ships them).
+    "amd_fidelityfx_dx12.dll": "1.0.1.41314",           # SDK 1.1.4 monolith
+    "amd_fidelityfx_vk.dll": "1.0.1.41314",             # SDK 1.1.4 monolith, DX12-only split leaves this frozen
+    "amd_fidelityfx_loader_dx12.dll": "1.0.2.44888",    # loader/SDK version, not an FSR version
+    "amd_fidelityfx_upscaler_dx12.dll": "4.0.2.44888",  # FSR 4 upscaling
+    "amd_fidelityfx_framegeneration_dx12.dll": "3.1.5.44888",  # FSR 3.1.5 frame gen, not FSR 4
 }
 
 
@@ -232,6 +241,9 @@ _UPDATE_PREF_FIELDS = {
     "XeSS": "update_xess",
     "FSR": "update_fsr",
     "Streamline": "update_streamline",
+    # Not a technology group of its own — a sub-toggle for pre-release FidelityFX
+    # components, gated on top of "FSR". See constants.PREVIEW_DLL_PREFERENCE.
+    "FSR_RadianceCache": "update_fsr_radiance_cache",
 }
 
 
@@ -1297,31 +1309,18 @@ def initialize_dll_paths():
 
     global LATEST_DLL_PATHS
 
+    # Derived from DLL_TYPE_MAP rather than hand-listed. These two used to be
+    # maintained separately, and drifted: DLLs added to DLL_TYPE_MAP/DLL_GROUPS
+    # but forgotten here silently became un-updatable, because process_single_dll
+    # resolves the cached file through LATEST_DLL_PATHS and simply finds nothing.
+    # Deriving it makes that class of bug impossible, and picks up the
+    # platform-conditional entries (DirectStorage is Windows-only) for free.
+    from .constants import DLL_TYPE_MAP
+
     # Build the dict outside the lock to minimize lock time
     new_paths = {
-        "nvngx_dlss.dll": get_local_dll_path("nvngx_dlss.dll"),
-        "nvngx_dlssg.dll": get_local_dll_path("nvngx_dlssg.dll"),
-        "nvngx_dlssd.dll": get_local_dll_path("nvngx_dlssd.dll"),
-        "libxess.dll": get_local_dll_path("libxess.dll"),
-        "libxess_dx11.dll": get_local_dll_path("libxess_dx11.dll"),
-        "libxess_fg.dll": get_local_dll_path("libxess_fg.dll"),
-        "libxell.dll": get_local_dll_path("libxell.dll"),
-        "dstorage.dll": get_local_dll_path("dstorage.dll"),
-        "dstoragecore.dll": get_local_dll_path("dstoragecore.dll"),
-        "sl.common.dll": get_local_dll_path("sl.common.dll"),
-        "sl.dlss.dll": get_local_dll_path("sl.dlss.dll"),
-        "sl.dlss_g.dll": get_local_dll_path("sl.dlss_g.dll"),
-        "sl.interposer.dll": get_local_dll_path("sl.interposer.dll"),
-        "sl.pcl.dll": get_local_dll_path("sl.pcl.dll"),
-        "sl.reflex.dll": get_local_dll_path("sl.reflex.dll"),
-        "amd_fidelityfx_vk.dll": get_local_dll_path("amd_fidelityfx_vk.dll"),
-        "amd_fidelityfx_dx12.dll": get_local_dll_path("amd_fidelityfx_dx12.dll"),
-        "amd_fidelityfx_upscaler_dx12.dll": get_local_dll_path("amd_fidelityfx_upscaler_dx12.dll"),
-        "amd_fidelityfx_framegeneration_dx12.dll": get_local_dll_path("amd_fidelityfx_framegeneration_dx12.dll"),
-        "amd_fidelityfx_loader_dx12.dll": get_local_dll_path("amd_fidelityfx_loader_dx12.dll"),
-        "sl.directsr.dll": get_local_dll_path("sl.directsr.dll"),
-        "sl.dlss_d.dll": get_local_dll_path("sl.dlss_d.dll"),
-        "sl.nis.dll": get_local_dll_path("sl.nis.dll"),
+        dll_name: get_local_dll_path(dll_name)
+        for dll_name in DLL_TYPE_MAP
     }
 
     with _dll_paths_lock:

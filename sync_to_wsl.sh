@@ -14,4 +14,4 @@ rsync -avz --progress \
   --exclude=.flatpak-builder/ \
   --exclude=.flatpak_gpg_key --exclude="repo-key.gpg*" \
   --exclude=.build_cache/ \
-  /mnt/c/Github/DLSS-Updater/ ~/DLSS-Updater/
+  /mnt/c/Users/deckl/Documents/GitHub/DLSS-Updater/ ~/DLSS-Updater/

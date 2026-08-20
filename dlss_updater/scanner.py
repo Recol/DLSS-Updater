@@ -1013,7 +1013,16 @@ async def find_all_dlls(progress_callback=None):
     if update_xess and DLL_GROUPS["XeSS"]:  # Only add if there are XeSS DLLs defined
         dll_names.extend(DLL_GROUPS["XeSS"])
     if update_fsr and DLL_GROUPS["FSR"]:  # Add FSR DLLs if FSR is selected
-        dll_names.extend(DLL_GROUPS["FSR"])
+        # Pre-release components (FSR Radiance Caching) are excluded unless the
+        # user has separately opted in — enabling "FSR" alone must not make the
+        # app go looking for, or touch, a DLL AMD ships as a preview.
+        from .constants import PREVIEW_DLL_PREFERENCE
+
+        for dll in DLL_GROUPS["FSR"]:
+            preview_pref = PREVIEW_DLL_PREFERENCE.get(dll.lower())
+            if preview_pref and not config_manager.get_update_preference(preview_pref):
+                continue
+            dll_names.append(dll)
 
     # Skip if no technologies selected
     if not dll_names:

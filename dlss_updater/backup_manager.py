@@ -158,6 +158,48 @@ async def record_backup_metadata(dll_path: Path, backup_path: Path) -> int | Non
         return None
 
 
+async def _remove_added_dll(backup) -> tuple[bool, str]:
+    """
+    Undo an *added* DLL by deleting it.
+
+    Counterpart to the normal restore path for records created with
+    ``was_added=True``: the updater put this file into the game folder, so
+    reverting means taking it back out, not copying an older build over it.
+    ``backup.backup_path`` is the path of the file that was created.
+
+    Treated as success when the file is already gone — the desired end state
+    (game no longer carries the DLL) is what matters, and a user who deleted it
+    by hand should still be able to clear the record.
+    """
+    dll_path = Path(backup.backup_path)
+
+    if not dll_path.exists():
+        logger.info(f"Added DLL already absent, nothing to remove: {dll_path}")
+        await db_manager.mark_backup_restored(backup.id)
+        return True, f"{dll_path.name} was already removed"
+
+    # Deferred import: dlss_updater.updater imports this module at load time.
+    from dlss_updater.updater import is_file_in_use_async, remove_read_only
+
+    if await is_file_in_use_async(str(dll_path)):
+        return False, "DLL is currently in use. Please close the game first."
+
+    try:
+        await anyio.to_thread.run_sync(remove_read_only, dll_path, limiter=thread_io)
+    except Exception as e:  # Non-fatal: unlink may still succeed
+        logger.debug(f"Could not clear read-only on {dll_path}: {e}")
+
+    try:
+        await anyio.to_thread.run_sync(dll_path.unlink, limiter=thread_io)
+    except OSError as e:
+        logger.error(f"Failed to remove added DLL {dll_path}: {e}")
+        return False, f"Could not remove {dll_path.name}: {e}"
+
+    logger.info(f"Removed added DLL: {dll_path}")
+    await db_manager.mark_backup_restored(backup.id)
+    return True, f"Removed {dll_path.name} (added by DLSS Updater)"
+
+
 async def restore_dll_from_backup(backup_id: int) -> tuple[bool, str]:
     """
     Restore a DLL from backup
@@ -174,6 +216,13 @@ async def restore_dll_from_backup(backup_id: int) -> tuple[bool, str]:
 
         if not backup:
             return False, "Backup not found in database"
+
+        # A DLL the updater CREATED has no earlier version to put back, so
+        # "restore" means removing the file again and returning the game to the
+        # set of DLLs it originally shipped. Handled before the lookup below,
+        # which assumes backup_path is a *copy* sitting beside the original.
+        if backup.was_added:
+            return await _remove_added_dll(backup)
 
         # Get game DLL info
         game_dll = await db_manager.get_game_dll_by_path(

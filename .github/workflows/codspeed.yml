@@ -18,10 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up Python 3.14.3 (free-threaded)
+      - name: Set up Python 3.14.7 (free-threaded)
         uses: actions/setup-python@v7
         with:
-          python-version: "3.14.3t"
+          python-version: "3.14.7t"
 
       - name: Install dependencies
         run: |

@@ -699,6 +699,24 @@ class DatabaseManager:
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
+            # Migration: "added file" marker on dll_backups.
+            #
+            # Until FSR 4 the updater only ever REPLACED a DLL a game already had,
+            # so every backup row meant "here is the file that was there before".
+            # Upgrading an FSR 3.1 game to FSR 4 requires *adding* component DLLs
+            # the game never shipped, and those have no previous version to keep.
+            #
+            # A row with was_added=1 records the creation itself: backup_path holds
+            # the path of the file we created (never a copy, since there was
+            # nothing to copy), and restoring it means DELETING that file rather
+            # than copying anything back. Defaulting to 0 keeps every pre-existing
+            # row meaning exactly what it always meant.
+            try:
+                cursor.execute("ALTER TABLE dll_backups ADD COLUMN was_added BOOLEAN DEFAULT 0")
+                logger.info("Migration: Added was_added column to dll_backups table")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
             # One-time migration: mark existing Steam-launcher games with app IDs as manifest-resolved
             cursor.execute("""
                 UPDATE games SET resolution_source = 'manifest'
@@ -2562,15 +2580,21 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         try:
+            # was_added marks a record whose "restore" means DELETE: the updater
+            # created this DLL, so there is no earlier file to put back. Optional
+            # and defaulted so existing callers keep replace semantics untouched.
             cursor.execute("""
-                INSERT INTO dll_backups (game_dll_id, backup_path, original_version, backup_size)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO dll_backups (
+                    game_dll_id, backup_path, original_version, backup_size, was_added
+                )
+                VALUES (?, ?, ?, ?, ?)
                 RETURNING id
             """, (
                 backup_data['game_dll_id'],
                 backup_data['backup_path'],
                 backup_data.get('original_version'),
-                backup_data.get('backup_size', 0)
+                backup_data.get('backup_size', 0),
+                1 if backup_data.get('was_added') else 0,
             ))
 
             backup_id = cursor.fetchone()[0]
@@ -2648,7 +2672,7 @@ class DatabaseManager:
                 SELECT
                     b.id, b.game_dll_id, g.name, d.dll_filename,
                     b.backup_path, b.original_version, b.backup_created_at,
-                    b.backup_size, b.is_active
+                    b.backup_size, b.is_active, b.was_added
                 FROM dll_backups b
                 LEFT JOIN game_dlls d ON b.game_dll_id = d.id
                 LEFT JOIN games g ON d.game_id = g.id
@@ -2669,7 +2693,8 @@ class DatabaseManager:
                     original_version=row[5],
                     backup_created_at=datetime.fromisoformat(row[6]),
                     backup_size=row[7],
-                    is_active=bool(row[8])
+                    is_active=bool(row[8]),
+                    was_added=bool(row[9]),
                 )
             return None
 

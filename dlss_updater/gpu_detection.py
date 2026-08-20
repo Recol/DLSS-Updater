@@ -297,6 +297,134 @@ def pick_primary_gpu(gpus: list[LinuxGPU]) -> LinuxGPU | None:
     return min(gpus, key=rank) if gpus else None
 
 
+# =============================================================================
+# Cross-platform PCI GPU enumeration + FSR 4 capability
+# =============================================================================
+#
+# classify_pci_gpu() is pure logic over (vendor id, device id) and is therefore
+# platform-agnostic; only the *enumeration* differs. Linux reads sysfs; Windows
+# reads the display-adapter class key, whose MatchingDeviceId values look like
+# "pci\ven_1002&dev_744c&subsys_...". winreg is stdlib, so this adds no
+# dependency and no subprocess.
+
+# Alias: the NamedTuple predates Windows support and kept its original name for
+# compatibility. New code should prefer PCIGPU, which is what it actually is.
+PCIGPU = LinuxGPU
+
+_WINDOWS_DISPLAY_CLASS_GUID = "{4d36e968-e325-11ce-bfc1-08002be10318}"
+_MATCHING_DEVICE_ID_RE = re.compile(
+    r"pci\\ven_([0-9a-f]{4})&dev_([0-9a-f]{4})", re.IGNORECASE
+)
+
+# AMD generations whose drivers expose the FSR 4 upscaler. RDNA 4 runs the FP8
+# path; RDNA 3 gained support in FSR Upscaling 4.1.1. Everything else — RDNA 2
+# and older, and every non-AMD vendor — cannot run FSR 4 at all, so installing
+# the FSR 4 DLL set over a working FSR 3.1 game there removes upscaling rather
+# than upgrading it.
+FSR4_CAPABLE_AMD_GENERATIONS = frozenset({"rdna3", "rdna4"})
+
+
+def _detect_windows_gpus_sync() -> list[PCIGPU]:
+    """Enumerate GPUs from the Windows display-adapter class key."""
+    if not IS_WINDOWS:
+        return []
+
+    import winreg
+
+    gpus: list[PCIGPU] = []
+    seen: set[tuple[int, int]] = set()
+    key_path = rf"SYSTEM\CurrentControlSet\Control\Class\{_WINDOWS_DISPLAY_CLASS_GUID}"
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as class_key:
+            index = 0
+            while True:
+                try:
+                    subkey_name = winreg.EnumKey(class_key, index)
+                except OSError:
+                    break  # No more subkeys
+                index += 1
+
+                # Only the numbered instance keys ("0000", "0001", ...) describe
+                # adapters; siblings like "Configuration" do not.
+                if not subkey_name.isdigit():
+                    continue
+
+                try:
+                    with winreg.OpenKey(class_key, subkey_name) as adapter:
+                        matching_id, _ = winreg.QueryValueEx(adapter, "MatchingDeviceId")
+                except OSError:
+                    continue
+
+                match = _MATCHING_DEVICE_ID_RE.search(str(matching_id))
+                if not match:
+                    continue
+
+                vendor_id = int(match.group(1), 16)
+                device_id = int(match.group(2), 16)
+                if (vendor_id, device_id) in seen:
+                    continue
+                seen.add((vendor_id, device_id))
+                gpus.append(classify_pci_gpu(vendor_id, device_id))
+    except OSError as e:
+        logger.debug(f"Windows GPU registry enumeration failed: {e}")
+        return []
+
+    logger.debug(f"Windows registry GPUs: {gpus}")
+    return gpus
+
+
+def detect_gpus_sync() -> list[PCIGPU]:
+    """Enumerate GPUs on whichever platform we're running on."""
+    if IS_WINDOWS:
+        return _detect_windows_gpus_sync()
+    if IS_LINUX:
+        return _detect_linux_gpus_sync()
+    return []
+
+
+def gpu_supports_fsr4(gpu: PCIGPU) -> bool:
+    """True if this GPU can actually run the FSR 4 upscaler."""
+    return (
+        gpu.vendor == "amd"
+        and (gpu.amd_generation or "") in FSR4_CAPABLE_AMD_GENERATIONS
+    )
+
+
+def system_supports_fsr4_sync() -> bool:
+    """
+    True if ANY installed GPU can run FSR 4.
+
+    Used to gate *installing new* FidelityFX DLLs into a game that ships only
+    FSR 3.1: on hardware that cannot run FSR 4 this would swap working
+    upscaling for none at all. Replacing DLLs a game already has is unaffected.
+
+    Deliberately fails CLOSED — if enumeration returns nothing (unsupported
+    platform, registry unreadable, sysfs absent) this returns False and the
+    caller keeps today's replace-only behaviour.
+    """
+    gpus = detect_gpus_sync()
+    if not gpus:
+        logger.info("No GPUs enumerated - treating system as not FSR 4 capable")
+        return False
+
+    capable = [g for g in gpus if gpu_supports_fsr4(g)]
+    if capable:
+        logger.info(f"FSR 4 capable GPU detected: {capable[0]}")
+        return True
+
+    logger.info(
+        "No RDNA 3/4 GPU detected - FSR 4 DLLs will not be added to games "
+        f"that lack them (found: {[g.vendor for g in gpus]})"
+    )
+    return False
+
+
+async def system_supports_fsr4() -> bool:
+    """Async wrapper for :func:`system_supports_fsr4_sync`."""
+    return await anyio.to_thread.run_sync(system_supports_fsr4_sync, limiter=thread_io)
+
+
 async def cleanup_nvml() -> None:
     """
     Cleanup NVML resources on application exit.

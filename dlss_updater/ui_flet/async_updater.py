@@ -597,6 +597,15 @@ class AsyncUpdateCoordinator:
 
                 processed += 1
 
+            # FSR 4 group install. Runs after the per-DLL pass because it is a
+            # different operation: it ADDS the effect DLLs an FSR 3.1 game never
+            # shipped and installs the loader under the monolith's name. Gated on
+            # RDNA 3/4 hardware and applied all-or-nothing (see fsr4_installer).
+            if not self._cancel_requested:
+                await self._try_fsr4_upgrade(
+                    game_id, game_name, dll_groups, skip_dll_filenames, results
+                )
+
             # Final progress
             if progress_callback:
                 await progress_callback(UpdateProgress(
@@ -620,6 +629,74 @@ class AsyncUpdateCoordinator:
             self.logger.error(f"Single-game update failed for {game_name}: {e}", exc_info=True)
             results['errors'].append({'message': str(e), 'dll_type': None})
             return results
+
+    async def _try_fsr4_upgrade(
+        self,
+        game_id: int,
+        game_name: str,
+        dll_groups: list[str] | None,
+        skip_dll_filenames: set[str] | None,
+        results: dict,
+    ) -> None:
+        """
+        Offer the FSR 4 DLL set to a game that only has the FidelityFX monolith.
+
+        Silent and harmless when it doesn't apply: no FidelityFX game, no capable
+        GPU, FSR disabled in preferences, or the DLLs aren't cached yet. Failures
+        are reported but never abort the surrounding update, which has already
+        succeeded for everything else.
+        """
+        try:
+            from dlss_updater.config import LATEST_DLL_PATHS, config_manager
+            from dlss_updater.fsr4_installer import (
+                FSR4_ANCHOR_DLL,
+                apply_fsr4_upgrade,
+                plan_fsr4_upgrade,
+            )
+
+            if dll_groups and "FSR" not in dll_groups:
+                return
+            if not config_manager.get_update_preference("FSR"):
+                return
+            if skip_dll_filenames and FSR4_ANCHOR_DLL in skip_dll_filenames:
+                return
+
+            # Locate the folder(s) holding this game's FidelityFX monolith.
+            game_dlls = await db_manager.get_dlls_for_game(game_id)
+            game_dirs = {
+                str(Path(d.dll_path).parent)
+                for d in game_dlls
+                if (d.dll_filename or "").lower() == FSR4_ANCHOR_DLL
+            }
+            if not game_dirs:
+                return
+
+            for game_dir in sorted(game_dirs):
+                plan = plan_fsr4_upgrade(game_dir, dict(LATEST_DLL_PATHS))
+                if not plan.is_actionable:
+                    self.logger.info(f"FSR 4 skipped for {game_name}: {plan.skipped_reason}")
+                    continue
+                if plan.added_count == 0:
+                    # Already an SDK 2.x layout; the per-DLL pass handled it.
+                    continue
+
+                success, message, _ = await apply_fsr4_upgrade(plan, game_id)
+                if success:
+                    results['updated'].append({
+                        'dll_type': f"FSR 4 upgrade ({plan.added_count} DLL(s) added)",
+                        'dll_path': game_dir,
+                        'backup_path': None,
+                    })
+                    self.logger.info(f"FSR 4 upgrade applied to {game_name}: {message}")
+                else:
+                    results['errors'].append({
+                        'dll_type': 'FSR 4 upgrade',
+                        'dll_path': game_dir,
+                        'message': message,
+                    })
+        except Exception as e:
+            # Never let this optional step fail an otherwise-successful update.
+            self.logger.error(f"FSR 4 upgrade check failed for {game_name}: {e}", exc_info=True)
 
     def cancel(self):
         """Request cancellation of current operation"""

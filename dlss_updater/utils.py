@@ -520,8 +520,22 @@ def is_dll_update_enabled(dll_name):
 
     if not is_enabled:
         logger.info(f"Skipping {dll_name} - {tech_group} updates are disabled in preferences")
+        return False
 
-    return is_enabled
+    # Pre-release components need a SECOND, explicit opt-in on top of their
+    # technology toggle. Enabling "FSR" must not silently enrol the user in
+    # replacing a component AMD itself ships as a preview (see PREVIEW_DLLS).
+    from dlss_updater.constants import PREVIEW_DLL_PREFERENCE
+
+    preview_pref = PREVIEW_DLL_PREFERENCE.get(dll_name)
+    if preview_pref is not None and not config_manager.get_update_preference(preview_pref):
+        logger.info(
+            f"Skipping {dll_name} - pre-release component, and the "
+            f"'{preview_pref}' opt-in is off (this is the recommended setting)"
+        )
+        return False
+
+    return True
 
 
 def extract_game_name(dll_path, launcher_name):

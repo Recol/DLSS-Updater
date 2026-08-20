@@ -23,6 +23,8 @@ DLL_TYPE_MAP = {
     "amd_fidelityfx_upscaler_dx12.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Upscaler DLL",
     "amd_fidelityfx_framegeneration_dx12.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Frame Generation DLL",
     "amd_fidelityfx_loader_dx12.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Loader DLL",
+    "amd_fidelityfx_denoiser_dx12.dll": "AMD FSR Ray Regeneration (Denoiser) DLL",
+    "amd_fidelityfx_radiancecache_dx12.dll": "AMD FSR Radiance Caching DLL (Preview)",
 }
 
 # DirectStorage DLLs are Windows-only
@@ -61,7 +63,34 @@ DLL_GROUPS = {
         "amd_fidelityfx_upscaler_dx12.dll",
         "amd_fidelityfx_framegeneration_dx12.dll",
         "amd_fidelityfx_loader_dx12.dll",
+        # FSR Ray Regeneration. Replace-only: shipped by Call of Duty: Black Ops 7
+        # and Crimson Desert, and never added to a game that lacks it.
+        "amd_fidelityfx_denoiser_dx12.dll",
+        # Preview — NOT updated unless the user opts in. See PREVIEW_DLLS below.
+        # Listed here so that if a game does ship one it still groups under FSR
+        # in the UI rather than showing up as an unknown DLL.
+        "amd_fidelityfx_radiancecache_dx12.dll",
     ],
+}
+
+
+# DLLs that belong to a technology group but are PRE-RELEASE and must never be
+# touched on the strength of that group's preference alone.
+#
+# AMD ships FSR Radiance Caching as "(Preview)" in its own documentation and the
+# DLL reports version 0.9.0 — below 1.0 by AMD's own numbering. At the time of
+# writing no shipping game, driver path or benchmark uses it; it exists so engine
+# teams can integrate ahead of release. Replacing it is therefore not advisable,
+# and the app requires a separate, explicitly-acknowledged opt-in
+# (`UpdatePreferencesConfig.update_fsr_radiance_cache`, default False) on top of
+# the FSR technology toggle. See utils.is_dll_update_enabled.
+PREVIEW_DLLS = frozenset({
+    "amd_fidelityfx_radiancecache_dx12.dll",
+})
+
+# Maps a preview DLL to the preference token that unlocks it.
+PREVIEW_DLL_PREFERENCE = {
+    "amd_fidelityfx_radiancecache_dx12.dll": "FSR_RadianceCache",
 }
 
 # DirectStorage is Windows-only

@@ -273,6 +273,10 @@ class DLLBackup(msgspec.Struct):
     original_version: str | None = None
     backup_created_at: datetime = msgspec.field(default_factory=datetime.now)
     is_active: bool = True
+    # True when the updater CREATED this DLL rather than replacing one. There is
+    # no previous file to put back, so restoring such a record deletes the file
+    # at `backup_path` instead of copying anything over it.
+    was_added: bool = False
 
 
 class GameDLLBackup(msgspec.Struct):
@@ -366,6 +370,11 @@ class UpdatePreferencesConfig(msgspec.Struct):
     update_fsr: bool = True
     update_streamline: bool = True
     create_backups: bool = True
+    # Opt-in for PRE-RELEASE FidelityFX components. Deliberately default False and
+    # deliberately NOT covered by `update_fsr`: AMD labels FSR Radiance Caching
+    # "(Preview)" and ships it as 0.9.0, so updating it is not advisable and must
+    # be an explicit, separately-acknowledged choice. See constants.PREVIEW_DLLS.
+    update_fsr_radiance_cache: bool = False
 
 
 class LauncherPathsConfig(msgspec.Struct):

@@ -71,6 +71,7 @@ class PreferencesPanel(ThemeAwareMixin, PanelContentBase):
             "directstorage": config_manager.get_update_preference("DirectStorage"),
             "xess": config_manager.get_update_preference("XeSS"),
             "fsr": config_manager.get_update_preference("FSR"),
+            "fsr_radiance_cache": config_manager.get_update_preference("FSR_RadianceCache"),
         }
         self.backup_pref = config_manager.get_backup_preference()
 
@@ -133,6 +134,41 @@ class PreferencesPanel(ThemeAwareMixin, PanelContentBase):
             trailing=self.fsr_switch,
         )
 
+        # Pre-release opt-in, nested under FSR. Off by default and deliberately
+        # not covered by the FSR toggle: AMD ships Radiance Caching as a preview.
+        self.radiance_cache_switch = ft.Switch(
+            value=self.prefs["fsr_radiance_cache"],
+            active_color=MD3Colors.get_primary(is_dark),
+            on_change=self._on_radiance_cache_changed,
+        )
+        self.radiance_cache_tile = ft.ListTile(
+            title=ft.Row(
+                controls=[
+                    ft.Text("Radiance Caching", weight=ft.FontWeight.W_500),
+                    ft.Container(
+                        content=ft.Text(
+                            "PREVIEW",
+                            size=10,
+                            weight=ft.FontWeight.W_600,
+                            color=ft.Colors.WHITE,
+                        ),
+                        bgcolor=ft.Colors.ORANGE_800,
+                        padding=ft.Padding.symmetric(horizontal=6, vertical=2),
+                        border_radius=4,
+                    ),
+                ],
+                spacing=8,
+                tight=True,
+            ),
+            subtitle=ft.Text(
+                "Not recommended. AMD ships this as a preview (version 0.9.0) for "
+                "engine developers; no released game uses it. Leave off unless you "
+                "know you need it.",
+                size=12,
+            ),
+            trailing=self.radiance_cache_switch,
+        )
+
         # Backup Switch
         self.backup_switch = ft.Switch(
             value=self.backup_pref,
@@ -174,6 +210,7 @@ class PreferencesPanel(ThemeAwareMixin, PanelContentBase):
                 self.directstorage_tile,
                 self.xess_tile,
                 self.fsr_tile,
+                ft.Container(content=self.radiance_cache_tile, padding=ft.Padding.only(left=24)),
                 self._divider,
                 self._backup_label,
                 self.backup_tile,
@@ -181,6 +218,75 @@ class PreferencesPanel(ThemeAwareMixin, PanelContentBase):
             spacing=12,
             scroll=ft.ScrollMode.AUTO,
         )
+
+    def _on_radiance_cache_changed(self, e) -> None:
+        """Require an explicit acknowledgement before enabling a preview component.
+
+        Turning the toggle OFF is always allowed silently — the safe direction
+        needs no ceremony. Turning it ON opens a confirmation naming AMD's own
+        "Preview" designation, and reverts the switch if the user declines.
+        """
+        if not self.radiance_cache_switch.value:
+            return  # Disabling never needs confirmation
+
+        def dismiss(enable: bool) -> None:
+            self._page_ref.pop_dialog()
+            if not enable:
+                self.radiance_cache_switch.value = False
+            self._page_ref.update()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.ORANGE),
+                    ft.Text("Enable a preview component?"),
+                ],
+                spacing=10,
+                tight=True,
+            ),
+            content=ft.Container(
+                width=440,
+                content=ft.Column(
+                    controls=[
+                        ft.Text(
+                            "This is not advised, and that is AMD's own assessment "
+                            "rather than ours.",
+                            weight=ft.FontWeight.W_600,
+                        ),
+                        ft.Text(
+                            "AMD labels FSR Radiance Caching “(Preview)” in its "
+                            "documentation and ships it as version 0.9.0. It is "
+                            "published so engine developers can integrate ahead of "
+                            "release — no released game, driver feature or benchmark "
+                            "uses it today.",
+                            size=13,
+                        ),
+                        ft.Text(
+                            "With this on, DLSS Updater will replace "
+                            "amd_fidelityfx_radiancecache_dx12.dll wherever it finds "
+                            "one. Backups are still taken, so you can restore, but "
+                            "expect breakage.",
+                            size=13,
+                        ),
+                    ],
+                    spacing=12,
+                    tight=True,
+                ),
+            ),
+            actions=[
+                ft.TextButton("Keep it off", on_click=lambda _: dismiss(False)),
+                ft.FilledButton(
+                    "Enable anyway",
+                    on_click=lambda _: dismiss(True),
+                    style=ft.ButtonStyle(bgcolor=ft.Colors.ORANGE_800),
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        self._page_ref.show_dialog(dialog)
+        self._page_ref.update()
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """
@@ -207,6 +313,7 @@ class PreferencesPanel(ThemeAwareMixin, PanelContentBase):
         props["directstorage_switch.active_color"] = MD3Colors.get_themed_pair("primary")
         props["xess_switch.active_color"] = MD3Colors.get_themed_pair("primary")
         props["fsr_switch.active_color"] = MD3Colors.get_themed_pair("primary")
+        props["radiance_cache_switch.active_color"] = MD3Colors.get_themed_pair("primary")
         props["backup_switch.active_color"] = MD3Colors.get_themed_pair("primary")
 
         return props
@@ -253,6 +360,9 @@ class PreferencesPanel(ThemeAwareMixin, PanelContentBase):
         config_manager.set_update_preference("DirectStorage", self.directstorage_switch.value)
         config_manager.set_update_preference("XeSS", self.xess_switch.value)
         config_manager.set_update_preference("FSR", self.fsr_switch.value)
+        config_manager.set_update_preference(
+            "FSR_RadianceCache", self.radiance_cache_switch.value
+        )
         config_manager.set_backup_preference(self.backup_switch.value)
 
         self.logger.info("Update preferences saved")

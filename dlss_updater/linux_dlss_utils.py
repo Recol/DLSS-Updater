@@ -30,6 +30,7 @@ from dlss_updater.proton_compat import (
     CAP_DLSS_INDICATOR,
     CAP_DLSS_UPGRADE,
     CAP_FSR4_INDICATOR,
+    CAP_FSR4_RDNA3_UPGRADE,
     CAP_FSR4_UPGRADE,
     CAP_XESS_UPGRADE,
 )
@@ -95,10 +96,14 @@ def generate_steam_launch_options(
     if config.dlss_indicator and cap_ok(CAP_DLSS_INDICATOR):
         parts.append("PROTON_DLSS_INDICATOR=1")
     if config.fsr4_upgrade and cap_ok(CAP_FSR4_UPGRADE):
-        parts.append(
-            "PROTON_FSR4_RDNA3_UPGRADE=1" if config.fsr4_rdna3_mode
-            else "PROTON_FSR4_UPGRADE=1"
-        )
+        # RDNA 3 mode is gated on its OWN capability: Proton-CachyOS removed
+        # PROTON_FSR4_RDNA3_UPGRADE, so on that fork we must fall back to the plain
+        # variable rather than emitting one it ignores (which yielded no upgrade at
+        # all). GE-Proton still honours the RDNA 3 spelling.
+        if config.fsr4_rdna3_mode and cap_ok(CAP_FSR4_RDNA3_UPGRADE):
+            parts.append("PROTON_FSR4_RDNA3_UPGRADE=1")
+        else:
+            parts.append("PROTON_FSR4_UPGRADE=1")
     if config.fsr4_indicator and cap_ok(CAP_FSR4_INDICATOR):
         parts.append("PROTON_FSR4_INDICATOR=1")
     if config.xess_upgrade and cap_ok(CAP_XESS_UPGRADE):

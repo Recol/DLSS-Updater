@@ -25,6 +25,7 @@ from dlss_updater.proton_compat import (
     CAP_DLSS_INDICATOR,
     CAP_DLSS_UPGRADE,
     CAP_FSR4_INDICATOR,
+    CAP_FSR4_RDNA3_UPGRADE,
     CAP_FSR4_UPGRADE,
     CAP_XESS_UPGRADE,
     ProtonToolInfo,
@@ -173,7 +174,9 @@ class ProtonUpscalerPanel(ThemeAwareMixin, PanelContentBase):
             (self._dlss_upgrade_switch, CAP_DLSS_UPGRADE),
             (self._dlss_indicator_switch, CAP_DLSS_INDICATOR),
             (self._fsr4_upgrade_switch, CAP_FSR4_UPGRADE),
-            (self._rdna3_switch, CAP_FSR4_UPGRADE),
+            # Own capability: Proton-CachyOS removed PROTON_FSR4_RDNA3_UPGRADE, so
+            # this toggle must grey out there rather than silently doing nothing.
+            (self._rdna3_switch, CAP_FSR4_RDNA3_UPGRADE),
             (self._fsr4_indicator_switch, CAP_FSR4_INDICATOR),
             (self._xess_upgrade_switch, CAP_XESS_UPGRADE),
         ]

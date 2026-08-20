@@ -64,6 +64,22 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.7.0" date="2026-08-20">
+      <description>
+        <p>FSR 4 upgrades for games that ship FSR 3.1, plus FSR correctness fixes and a Linux launch option that was silently doing nothing</p>
+        <ul>
+          <li>FSR 4 upgrades for games that ship only the older FidelityFX library: the loader is installed under the name the game loads, alongside the upscaler and frame generation components the game never shipped. Restricted to RDNA 3 and RDNA 4 GPUs, since FSR 4 cannot run elsewhere and installing it would remove working FSR 3.1 upscaling. The install is all-or-nothing — any failure rolls the whole set back</li>
+          <li>Restore now understands added files: DLLs the updater created rather than replaced are recorded as such, and restoring them removes them again, returning the game to the DLLs it originally shipped</li>
+          <li>FSR Ray Regeneration (1.2.0) is now updated — Call of Duty: Black Ops 7 and Crimson Desert ship this component</li>
+          <li>Preliminary support for AMD FSR Radiance Caching, off by default and deliberately not covered by the FSR toggle — AMD ships this component as a preview (0.9.0) for engine developers and no released game uses it, so it sits behind a separate opt-in that warns before enabling</li>
+          <li>FSR 4 updates could be rejected outright: the FidelityFX loader DLL reports a loader/SDK version (1.0.2), which was being checked against an FSR minimum of 3.1.0 — a bar no loader AMD ships can clear. The loader is now exempt, and the FSR version is read from the effect DLLs where it actually lives</li>
+          <li>Enabling FSR 4 RDNA 3 mode under Proton-CachyOS produced no FSR 4 upgrade at all — that fork removed PROTON_FSR4_RDNA3_UPGRADE, but the app still emitted it. RDNA 3 mode is now its own Proton capability: GE-Proton still gets the RDNA 3 variable, while Proton-CachyOS and Proton-EM correctly fall back to PROTON_FSR4_UPGRADE, and the toggle greys out on builds that don't support it</li>
+          <li>The bundled FidelityFX versions shown before the DLL cache finished loading were wrong (every FSR DLL claimed 4.0.2.0); they now show the real per-DLL versions, which genuinely differ — upscaling is FSR 4, frame generation is still FSR 3.1.5, and the DX12/Vulkan libraries are SDK 1.1.4</li>
+          <li>Large DLL downloads could be cancelled mid-transfer on slower connections: the 120-second cap covered the whole file, penalising size rather than stalls. Downloads now time out only after 60 seconds with no data received</li>
+          <li>The pinned interpreter moves to Python 3.14.7 free-threaded</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.6.3" date="2026-08-07">
       <description>
         <p>A visual polish pass across every view, in both themes</p>

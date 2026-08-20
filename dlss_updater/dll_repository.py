@@ -368,7 +368,15 @@ async def download_latest_dll_async(dll_name: str, manifest: dict | None = None,
         session = await get_http_session()
         async with session.get(
             download_url,
-            timeout=aiohttp.ClientTimeout(total=120)
+            # Per-read, not per-download. A wall-clock `total` penalises large
+            # files rather than stalled ones: libxess.dll is already ~78 MB and the
+            # FidelityFX SDK 2.x frame-generation DLL is ~40 MB, so total=120 meant
+            # a healthy-but-slow connection was cancelled mid-transfer. sock_read
+            # only fires when no bytes arrive for 60s, which is what "stalled"
+            # actually means; sock_connect bounds an unreachable host.
+            timeout=aiohttp.ClientTimeout(
+                total=None, sock_connect=30, sock_read=60
+            )
         ) as response:
             if response.status != 200:
                 logger.error(f"Failed to download {dll_name}: HTTP {response.status}")

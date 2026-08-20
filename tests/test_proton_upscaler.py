@@ -19,6 +19,7 @@ from dlss_updater.linux_dlss_utils import (
 from dlss_updater.models import DLSSPreset, LinuxDLSSConfig
 from dlss_updater.proton_compat import (
     ALL_UPGRADE_CAPS,
+    CAP_FSR4_RDNA3_UPGRADE,
     CAP_FSR4_UPGRADE,
     classify_compat_tool,
     extract_compat_tool_mapping,
@@ -145,10 +146,22 @@ class TestCompatToolClassification:
         assert info.family == "ge"
         assert info.capabilities == ALL_UPGRADE_CAPS
 
-    def test_cachyos_full_caps(self):
+    def test_cachyos_caps_exclude_rdna3(self):
+        """Proton-CachyOS removed PROTON_FSR4_RDNA3_UPGRADE (verified 2026-08-20).
+
+        It supports every other upgrade variable, so it must NOT simply be
+        ALL_UPGRADE_CAPS — advertising the RDNA 3 capability there made the app
+        emit a variable that build ignores, silently disabling the FSR 4 upgrade.
+        """
         info = classify_compat_tool("proton-cachyos")
         assert info.family == "cachyos"
-        assert info.capabilities == ALL_UPGRADE_CAPS
+        assert CAP_FSR4_RDNA3_UPGRADE not in info.capabilities
+        assert info.capabilities == ALL_UPGRADE_CAPS - {CAP_FSR4_RDNA3_UPGRADE}
+
+    def test_ge_retains_rdna3_cap(self):
+        """GE-Proton still documents PROTON_FSR4_RDNA3_UPGRADE."""
+        info = classify_compat_tool("GE-Proton10-4")
+        assert CAP_FSR4_RDNA3_UPGRADE in info.capabilities
 
     def test_proton_em_fsr4_only(self):
         info = classify_compat_tool("Proton-EM-10.0-2d")
@@ -254,3 +267,41 @@ class TestGPUClassification:
 
     def test_pick_primary_empty(self):
         assert pick_primary_gpu([]) is None
+
+
+class TestFSR4RDNA3ForkFallback:
+    """RDNA 3 mode must degrade to the plain variable on forks that dropped it.
+
+    Regression guard for the fork drift found on 2026-08-20: while RDNA 3 mode
+    shared CAP_FSR4_UPGRADE, turning it on under Proton-CachyOS emitted
+    PROTON_FSR4_RDNA3_UPGRADE — a variable that build no longer reads — so the
+    user got no FSR 4 upgrade at all instead of the plain one.
+    """
+
+    @staticmethod
+    def _opts(tool: str, rdna3: bool) -> str:
+        cfg = LinuxDLSSConfig(fsr4_upgrade=True, fsr4_rdna3_mode=rdna3)
+        return generate_steam_launch_options(cfg, classify_compat_tool(tool).capabilities)
+
+    def test_ge_uses_rdna3_variable(self):
+        assert "PROTON_FSR4_RDNA3_UPGRADE=1" in self._opts("GE-Proton10-4", rdna3=True)
+
+    def test_cachyos_falls_back_to_plain_variable(self):
+        opts = self._opts("proton-cachyos", rdna3=True)
+        assert "PROTON_FSR4_RDNA3_UPGRADE" not in opts
+        assert "PROTON_FSR4_UPGRADE=1" in opts
+
+    def test_em_falls_back_to_plain_variable(self):
+        opts = self._opts("Proton-EM-10.0-2d", rdna3=True)
+        assert "PROTON_FSR4_RDNA3_UPGRADE" not in opts
+        assert "PROTON_FSR4_UPGRADE=1" in opts
+
+    @pytest.mark.parametrize("tool", ["GE-Proton10-4", "proton-cachyos"])
+    def test_rdna3_off_always_plain(self, tool):
+        opts = self._opts(tool, rdna3=False)
+        assert "PROTON_FSR4_RDNA3_UPGRADE" not in opts
+        assert "PROTON_FSR4_UPGRADE=1" in opts
+
+    def test_valve_emits_neither(self):
+        opts = self._opts("proton_experimental", rdna3=True)
+        assert "FSR4" not in opts

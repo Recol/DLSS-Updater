@@ -131,28 +131,33 @@ echo -e "\n${YELLOW}[3/6] Installing Python dependencies with uv...${NC}"
 if ! command -v uv &> /dev/null; then
     echo "Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.cargo/bin:$PATH"
+    export PATH="$HOME/.local/bin:$PATH"
 fi
 
-# Use Python 3.14.3 free-threaded for Linux builds (matches Windows / .python-version)
-if ! uv python list | grep -q "3.14.3+freethreaded"; then
-    echo "Installing Python 3.14.3 (free-threaded)..."
-    uv python install 3.14.3+freethreaded
+# Use Python 3.14.7 free-threaded for Linux builds (matches Windows / .python-version)
+if ! uv python list | grep -q "3.14.7+freethreaded"; then
+    echo "Installing Python 3.14.7 (free-threaded)..."
+    uv python install 3.14.7+freethreaded
 fi
 
-uv python pin 3.14.3+freethreaded
+uv python pin 3.14.7+freethreaded
 uv sync --extra build
 
 # =============================================================================
 # Step 3.5: Clear PT_GNU_STACK on bundled libpython (Issue #217)
 # =============================================================================
-# python-build-standalone 3.14.3+freethreaded ships libpython3.14t.so.1.0 with
+# python-build-standalone 3.14.3+freethreaded shipped libpython3.14t.so.1.0 with
 # PT_GNU_STACK marked executable (RWE). Modern Linux kernels (Steam Deck SteamOS,
 # CachyOS, recent Arch/Fedora) enforce W^X and reject dlopen() on shared objects
 # requesting an executable stack, breaking the PyInstaller-bundled application.
 # Clearing the flag here means PyInstaller copies the corrected .so into the
-# onefile bundle. 3.14.2+freethreaded did not have this flag set; the regression
-# is in the upstream 3.14.3 build.
+# onefile bundle.
+#
+# Status: 3.14.2 was clean, 3.14.3 regressed, and 3.14.7 (verified 2026-08-20 —
+# readelf reports "GNU_STACK ... RW") is clean again. This step is therefore a
+# no-op on the currently pinned interpreter, but it is kept deliberately: it costs
+# nothing, and the hard RWE check below turns a future upstream regression into a
+# build failure instead of a binary that dies on the user's machine.
 echo -e "\n${YELLOW}[3.5/6] Clearing PT_GNU_STACK on bundled .so files (Issue #217)...${NC}"
 
 if ! command -v execstack &> /dev/null; then
@@ -160,7 +165,7 @@ if ! command -v execstack &> /dev/null; then
     exit 1
 fi
 
-PY_BIN="$(uv python find 3.14.3+freethreaded)"
+PY_BIN="$(uv python find 3.14.7+freethreaded)"
 # Inside a uv project, `uv python find` returns the .venv symlink. Resolve to the
 # real interpreter in ~/.local/share/uv/python/... so we patch the source-of-truth
 # libpython that PyInstaller will actually bundle.

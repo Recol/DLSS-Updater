@@ -777,15 +777,44 @@ def create_backups_parallel(dll_paths, max_workers=None, progress_callback=None)
     return backup_results
 
 
-def validate_fsr_version(dll_version_string, min_version="3.1.0"):
+# FidelityFX DLLs whose PE version is NOT an FSR feature version and therefore
+# must never be measured against an FSR minimum.
+#
+# Since FidelityFX SDK 2.0.0 the monolithic amd_fidelityfx_dx12.dll was split into
+# a tiny dispatch shim (amd_fidelityfx_loader_dx12.dll) plus per-effect DLLs. The
+# shim carries a *loader/SDK* version — 1.0.2 in SDK 2.0.0, 2.3.0 in SDK 2.3.0 —
+# which is always below any plausible FSR minimum. Gating it on ">= 3.1.0" rejects
+# every loader AMD has ever built. The FSR feature version lives on the effect
+# DLLs (amd_fidelityfx_upscaler_dx12.dll reports 4.x), so only those are checked.
+FSR_VERSION_EXEMPT_DLLS = frozenset({
+    "amd_fidelityfx_loader_dx12.dll",
+})
+
+
+def validate_fsr_version(dll_version_string, min_version="3.1.0", dll_name=None):
     """
-    Validate that FSR DLL version meets minimum requirements
-    Returns True if version >= min_version, False otherwise
+    Validate that an FSR DLL version meets minimum requirements.
+
+    Args:
+        dll_version_string: Version read from the DLL's PE resource.
+        min_version: Minimum acceptable FSR feature version.
+        dll_name: Filename the version came from. DLLs listed in
+            FSR_VERSION_EXEMPT_DLLS carry a loader/SDK version rather than an FSR
+            feature version and are accepted without comparison.
+
+    Returns True if the version is acceptable, False otherwise.
     """
+    if dll_name and dll_name.lower() in FSR_VERSION_EXEMPT_DLLS:
+        logger.info(
+            f"Skipping FSR minimum-version check for {dll_name} "
+            f"(version {dll_version_string} is a loader/SDK version, not an FSR version)"
+        )
+        return True
+
     if not dll_version_string:
         logger.warning("No version string provided for FSR validation")
         return False
-    
+
     try:
         dll_version = parse_version(dll_version_string)
         min_required = parse_version(min_version)
@@ -839,7 +868,9 @@ def update_fsr4_dll_with_rename(source_dll_path, target_dll_path, latest_dll_pat
             return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         # Validate FSR version meets minimum requirements (3.1+)
-        if not validate_fsr_version(latest_version, "3.1.0"):
+        # Measure the version against the file it came from: the loader shim is
+        # exempt (see FSR_VERSION_EXEMPT_DLLS), effect DLLs are gated normally.
+        if not validate_fsr_version(latest_version, "3.1.0", dll_name=source_dll_name):
             logger.error(f"FSR4 DLL version {latest_version} does not meet minimum requirement (3.1.0)")
             return ProcessedDLLResult(success=False, dll_type=dll_type)
 

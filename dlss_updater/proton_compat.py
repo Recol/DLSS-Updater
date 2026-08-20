@@ -36,13 +36,28 @@ CAP_FSR4_UPGRADE = "fsr4_upgrade"
 CAP_FSR4_INDICATOR = "fsr4_indicator"
 CAP_XESS_UPGRADE = "xess_upgrade"
 
+# PROTON_FSR4_RDNA3_UPGRADE is deliberately a SEPARATE capability from
+# CAP_FSR4_UPGRADE, because the two forks have diverged (re-verified 2026-08-20):
+#
+#   GE-Proton      — still documents PROTON_FSR4_RDNA3_UPGRADE (defaults to 4.0.0)
+#   Proton-CachyOS — REMOVED it; the DXIL_SPIRV wmma_rdna3_workaround it existed to
+#                    set is no longer needed, and FSR 4.1.1 supports RDNA 3 natively
+#
+# While both shared one capability, enabling RDNA 3 mode on Proton-CachyOS emitted a
+# variable that build ignores, so the user silently got no FSR 4 upgrade at all.
+CAP_FSR4_RDNA3_UPGRADE = "fsr4_rdna3_upgrade"
+
 ALL_UPGRADE_CAPS: frozenset[str] = frozenset({
     CAP_DLSS_UPGRADE,
     CAP_DLSS_INDICATOR,
     CAP_FSR4_UPGRADE,
+    CAP_FSR4_RDNA3_UPGRADE,
     CAP_FSR4_INDICATOR,
     CAP_XESS_UPGRADE,
 })
+
+# Proton-CachyOS: everything except the removed RDNA 3 variable.
+_CACHYOS_CAPS: frozenset[str] = ALL_UPGRADE_CAPS - {CAP_FSR4_RDNA3_UPGRADE}
 
 # Proton-EM only documents the FSR4 upgrade path (docs/FSR4.md)
 _EM_CAPS: frozenset[str] = frozenset({CAP_FSR4_UPGRADE})
@@ -87,7 +102,7 @@ def classify_compat_tool(name: str | None) -> ProtonToolInfo:
         return ProtonToolInfo(name, name, "ge", True, ALL_UPGRADE_CAPS)
 
     if "cachyos" in n:
-        return ProtonToolInfo(name, name, "cachyos", True, ALL_UPGRADE_CAPS)
+        return ProtonToolInfo(name, name, "cachyos", True, _CACHYOS_CAPS)
 
     if n.startswith(("proton-em", "proton_em", "em-proton")):
         return ProtonToolInfo(name, name, "em", True, _EM_CAPS)
