@@ -485,10 +485,17 @@ class ProcessedDLLResult(msgspec.Struct):
     Result from DLL update operation.
 
     Returned by update_dll() function to indicate success/failure.
+
+    ``skip_reason`` carries a human-readable explanation for the caller to
+    surface when ``success`` is False for a benign reason (rather than the
+    caller falling back to printing ``dll_type`` as the reason, which is all
+    it had before). Left None when there is nothing more useful to say than
+    "already up-to-date".
     """
     success: bool
     backup_path: str | None = None
     dll_type: str = "Unknown"
+    skip_reason: str | None = None
 
 
 class DLLDiscoveryResult(msgspec.Struct):

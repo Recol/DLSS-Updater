@@ -579,8 +579,13 @@ class AsyncUpdateCoordinator:
                             'reason': 'Game is in skip list'
                         })
                     else:
-                        # DLL was not updated (already up-to-date or disabled)
-                        reason = getattr(result, 'dll_type', 'Already up-to-date or update disabled')
+                        # DLL was not updated (already up-to-date or disabled).
+                        # skip_reason, when the updater set one, explains WHY;
+                        # without it there is nothing to show but the dll_type.
+                        reason = (
+                            getattr(result, 'skip_reason', None)
+                            or getattr(result, 'dll_type', 'Already up-to-date or update disabled')
+                        )
                         results['skipped'].append({
                             'dll_type': game_dll.dll_type,
                             'dll_path': str(dll_path),

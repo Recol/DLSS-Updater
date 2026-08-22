@@ -64,6 +64,17 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.7.1" date="2026-08-22">
+      <description>
+        <p>Games that relocate their DLLs in a patch no longer error on the old path forever</p>
+        <ul>
+          <li>When a game patch moves its DLLs, the old locations kept failing on every run and rescanning never cleared them (issue #281). Rescanning does find the new paths — it just never removed the old ones. Post-scan cleanup deletes records whose file is gone, except where one still holds a restorable backup, since deleting it would take the backup with it; that exemption pinned every DLL you had ever updated to a path the game no longer uses. Which is why Streamline looked singled out in Mafia: The Old Country, Subnautica 2 and S.T.A.L.K.E.R. 2 — those sl.* DLLs simply happened to be the ones with backups</li>
+          <li>Such records are now retired rather than deleted: the backup stays restorable, but the dead path is no longer an update target. Retiring is reversible, so a drive that is merely offline, or a game that moves its DLLs back, loses nothing — the records return on the next scan that finds the path</li>
+          <li>A DLL whose file has gone now reports "File no longer exists - the game may have been patched. Run a rescan." instead of a bare "Error". The updater already knew how to skip a missing file quietly; the check sat just below a permissions read that threw first</li>
+          <li>Fixed, again, the malformed pyinstaller dependency that makes builds fail outright — reintroduced by an automated dependency bump after 4.7.0 had corrected it</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.7.0" date="2026-08-20">
       <description>
         <p>FSR 4 upgrades for games that ship FSR 3.1, plus FSR correctness fixes and a Linux launch option that was silently doing nothing</p>

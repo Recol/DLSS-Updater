@@ -30,6 +30,13 @@ except AttributeError:
 _dll_version_cache_lock = threading.Lock()
 _parse_version_cache_lock = threading.Lock()
 
+# Shown to the user when the DLL a stored record points at is gone. A game
+# patch that relocates its DLLs is the common cause (issue #281), so the text
+# names the remedy rather than just the condition.
+MISSING_TARGET_REASON = (
+    "File no longer exists - the game may have been patched. Run a rescan."
+)
+
 
 def shutdown_version_executor():
     """
@@ -481,6 +488,19 @@ def update_dll(dll_path, latest_dll_path):
     logger.info(f"Checking DLL at {dll_path}...")
 
     dll_type = DLL_TYPE_MAP.get(dll_path.name.lower(), "Unknown DLL type")
+
+    # Existence is checked FIRST because the os.stat() below raises WinError
+    # 2/3 on a vanished path and sits OUTSIDE the try - so the exception
+    # escaped to the caller's catch-all and surfaced as "Error", instead of the
+    # plain skip this function already knew how to return further down. Issue
+    # #281: a game patch relocates its DLLs and every stale record retries a
+    # directory that no longer exists.
+    if not dll_path.exists():
+        logger.info(f"Skipping {dll_path}: {MISSING_TARGET_REASON}")
+        return ProcessedDLLResult(
+            success=False, dll_type=dll_type, skip_reason=MISSING_TARGET_REASON
+        )
+
     original_permissions = os.stat(dll_path).st_mode
 
     try:
@@ -515,9 +535,14 @@ def update_dll(dll_path, latest_dll_path):
                     )
                     return ProcessedDLLResult(success=False, dll_type=dll_type)
 
+        # Re-checked after version extraction: the guard above covers the stale
+        # record, this covers the file vanishing mid-flight (game updating in
+        # the background) before we touch it.
         if not dll_path.exists():
-            logger.error(f"Error: Target DLL path does not exist: {dll_path}")
-            return ProcessedDLLResult(success=False, dll_type=dll_type)
+            logger.info(f"Skipping {dll_path}: {MISSING_TARGET_REASON}")
+            return ProcessedDLLResult(
+                success=False, dll_type=dll_type, skip_reason=MISSING_TARGET_REASON
+            )
 
         if not latest_dll_path.exists():
             logger.error(f"Error: Latest DLL path does not exist: {latest_dll_path}")
@@ -605,6 +630,15 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
     logger.info(f"Checking DLL at {dll_path}...")
 
     dll_type = DLL_TYPE_MAP.get(dll_path.name.lower(), "Unknown DLL type")
+
+    # See update_dll(): the os.stat() below is outside the try and raises on a
+    # vanished path, pre-empting the existence check further down (issue #281).
+    if not dll_path.exists():
+        logger.info(f"Skipping {dll_path}: {MISSING_TARGET_REASON}")
+        return ProcessedDLLResult(
+            success=False, dll_type=dll_type, skip_reason=MISSING_TARGET_REASON
+        )
+
     original_permissions = os.stat(dll_path).st_mode
 
     try:
@@ -640,9 +674,14 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
                     )
                     return ProcessedDLLResult(success=False, dll_type=dll_type)
 
+        # Re-checked after version extraction: the guard above covers the stale
+        # record, this covers the file vanishing mid-flight (game updating in
+        # the background) before we touch it.
         if not dll_path.exists():
-            logger.error(f"Error: Target DLL path does not exist: {dll_path}")
-            return ProcessedDLLResult(success=False, dll_type=dll_type)
+            logger.info(f"Skipping {dll_path}: {MISSING_TARGET_REASON}")
+            return ProcessedDLLResult(
+                success=False, dll_type=dll_type, skip_reason=MISSING_TARGET_REASON
+            )
 
         if not latest_dll_path.exists():
             logger.error(f"Error: Latest DLL path does not exist: {latest_dll_path}")

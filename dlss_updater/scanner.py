@@ -1444,7 +1444,9 @@ async def find_all_dlls(progress_callback=None):
                        f"{cleanup_results.get('phantom_games', 0)} phantom games, "
                        f"{cleanup_results.get('orphan_dlls', 0)} orphan DLLs, "
                        f"{cleanup_results.get('duplicate_games', 0)} duplicate games, "
-                       f"{cleanup_results.get('duplicate_backups', 0)} duplicate backups")
+                       f"{cleanup_results.get('duplicate_backups', 0)} duplicate backups; "
+                       f"retired {cleanup_results.get('missing_dlls', 0)} relocated DLL(s) "
+                       f"whose backups were kept")
 
         # Force garbage collection to release pefile/mmap memory
         # Version extraction reads 50+ DLLs (20-50MB each) - need explicit cleanup

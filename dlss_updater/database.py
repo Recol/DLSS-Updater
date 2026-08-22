@@ -519,6 +519,7 @@ class DatabaseManager:
                     dll_path TEXT NOT NULL UNIQUE,
                     current_version TEXT,
                     detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    missing_at TIMESTAMP,
                     FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
                 )
             """)
@@ -684,6 +685,22 @@ class DatabaseManager:
             try:
                 cursor.execute("ALTER TABLE games ADD COLUMN display_name_override TEXT")
                 logger.info("Migration: Added display_name_override column to games table")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            # Migration: missing_at on game_dlls (issue #281).
+            #
+            # A DLL record whose file is gone but which still holds a restorable
+            # backup cannot be deleted (the CASCADE would take the backup with
+            # it), yet it must stop being an update target — otherwise every run
+            # retries a path a game patch relocated and reports it as an error.
+            # Marking rather than deleting also makes the state REVERSIBLE,
+            # which is what lets this be safe on a removable/network drive that
+            # is merely offline: the mark is cleared the moment the path is
+            # discovered again (see the upserts' ON CONFLICT clauses).
+            try:
+                cursor.execute("ALTER TABLE game_dlls ADD COLUMN missing_at TIMESTAMP")
+                logger.info("Migration: Added missing_at column to game_dlls table")
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
@@ -1368,39 +1385,52 @@ class DatabaseManager:
 
     async def cleanup_orphan_dlls(self, valid_dll_paths: set[str]) -> int:
         """
-        Remove DLL records whose files no longer exist on the filesystem.
+        Retire DLL records whose files no longer exist on the filesystem.
 
-        This method compares stored DLL paths against the set of valid paths
-        from the current scan and the actual filesystem. DLLs are deleted if:
-        1. Their path is not in the valid_dll_paths set (not found in current scan)
-        2. AND the path no longer exists on the filesystem
-        3. AND they hold no active backup — a DLL record whose file is gone is
-           still kept alive while it is the parent of a restorable backup, since
-           deleting it would CASCADE that backup away while its .dlsss file stays
-           on disk, unreachable.
+        A record is considered gone when its path is absent from the current
+        scan AND absent from the filesystem. What happens next depends on
+        whether it is the parent of a restorable (is_active = 1) backup:
+
+        * no backup   -> DELETED outright.
+        * has backup  -> MARKED (``missing_at``) and kept. Deleting it would
+          CASCADE the backup away, so the row has to survive; marking it stops
+          it being handed to the updater, which is the only reason it was still
+          causing trouble (issue #281 — a game patch relocates its DLLs and
+          every previously-updated one is pinned at a dead path forever,
+          reported as an error on every run).
+
+        The mark is reversible and self-healing: rediscovering the path clears
+        it (see the upserts' ON CONFLICT clauses), and so does this method if
+        the file reappears. That is what makes it safe on a removable or
+        network drive that is merely offline — the drive coming back restores
+        the records, where a delete would have been permanent.
 
         Args:
             valid_dll_paths: Set of DLL paths found in the current scan
 
         Returns:
-            Number of DLL records removed from database
+            Number of DLL records DELETED (marked records are not counted; see
+            ``_cleanup_orphan_dlls_detailed`` for both figures)
         """
         return await anyio.to_thread.run_sync(self._cleanup_orphan_dlls, valid_dll_paths, limiter=thread_io)
 
     def _cleanup_orphan_dlls(self, valid_dll_paths: set[str]) -> int:
-        """Remove DLL records not in valid_dll_paths, not on filesystem, and
-        holding no active backup (runs in thread)"""
+        """Delete unbacked orphan DLL records, mark backup-protected ones
+        (runs in thread). Returns the DELETED count only."""
+        return self._cleanup_orphan_dlls_detailed(valid_dll_paths)[0]
+
+    def _cleanup_orphan_dlls_detailed(self, valid_dll_paths: set[str]) -> tuple[int, int]:
+        """Worker for _cleanup_orphan_dlls. Returns (deleted, newly_marked)."""
         import os
 
         conn = self._new_connection()
         cursor = conn.cursor()
 
         try:
-            # Get candidate DLL paths, EXCLUDING any that still hold a backup the
+            # Every DLL record, tagged with whether it still holds a backup the
             # user could restore. This runs on every scan (scanner.py ->
-            # perform_post_scan_cleanup) and the DELETE below cascades, so the
-            # exclusion is what keeps that cascade from destroying restorable
-            # backups — see the comment on the delete itself.
+            # perform_post_scan_cleanup) and the DELETE below cascades, so that
+            # tag is what decides delete-vs-mark — see the comment on the delete.
             #
             # "Restorable" means is_active = 1, established from the queries
             # rather than assumed: every listing/aggregate query that can put a
@@ -1423,40 +1453,78 @@ class DatabaseManager:
             # NOT EXISTS rather than NOT IN so this rides the composite
             # idx_dll_backups_game_dll_active index; one set-based query, no N+1.
             cursor.execute("""
-                SELECT gd.id, gd.dll_path
+                SELECT
+                    gd.id,
+                    gd.dll_path,
+                    gd.missing_at,
+                    EXISTS (
+                        SELECT 1 FROM dll_backups b
+                        WHERE b.game_dll_id = gd.id AND b.is_active = 1
+                    ) AS has_backup
                 FROM game_dlls gd
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM dll_backups b
-                    WHERE b.game_dll_id = gd.id AND b.is_active = 1
-                )
             """)
             all_dlls = cursor.fetchall()
 
             # Normalize valid paths for comparison
             valid_paths_normalized = {os.path.normcase(os.path.normpath(p)) for p in valid_dll_paths}
 
-            # Find DLLs to delete (not in valid set AND not on filesystem)
+            # Partition into: delete (gone, no backup), mark (gone, backup to
+            # protect) and unmark (came back — the offline-drive heal).
             dlls_to_delete = []
-            for dll_id, dll_path in all_dlls:
+            dlls_to_mark = []
+            dlls_to_unmark = []
+            for dll_id, dll_path, missing_at, has_backup in all_dlls:
                 path_normalized = os.path.normcase(os.path.normpath(dll_path))
 
-                if path_normalized not in valid_paths_normalized:
-                    # Path not in current scan - check if it still exists on filesystem
-                    if not os.path.exists(dll_path):
-                        dlls_to_delete.append(dll_id)
-                        logger.debug(f"Marking orphan DLL for deletion: {dll_path}")
+                # In the scan set, or still on disk? Then it is a live target.
+                if path_normalized in valid_paths_normalized or os.path.exists(dll_path):
+                    if missing_at is not None:
+                        dlls_to_unmark.append(dll_id)
+                        logger.debug(f"Missing DLL is back, clearing mark: {dll_path}")
+                    continue
+
+                if has_backup:
+                    # Can't delete without cascading the backup away, so retire
+                    # it from the update pass instead (issue #281).
+                    if missing_at is None:
+                        dlls_to_mark.append(dll_id)
+                        logger.debug(f"Marking DLL missing (backup retained): {dll_path}")
+                else:
+                    dlls_to_delete.append(dll_id)
+                    logger.debug(f"Marking orphan DLL for deletion: {dll_path}")
+
+            if dlls_to_unmark:
+                placeholders = ','.join('?' * len(dlls_to_unmark))
+                cursor.execute(
+                    f"UPDATE game_dlls SET missing_at = NULL WHERE id IN ({placeholders})",
+                    dlls_to_unmark,
+                )
+                logger.info(f"Restored {len(dlls_to_unmark)} previously-missing DLL record(s)")
+
+            if dlls_to_mark:
+                placeholders = ','.join('?' * len(dlls_to_mark))
+                cursor.execute(
+                    f"UPDATE game_dlls SET missing_at = CURRENT_TIMESTAMP WHERE id IN ({placeholders})",
+                    dlls_to_mark,
+                )
+                logger.info(
+                    f"Marked {len(dlls_to_mark)} DLL record(s) missing (kept: they hold "
+                    f"restorable backups). They are no longer update targets."
+                )
 
             if not dlls_to_delete:
-                logger.info("No orphan DLLs found")
-                return 0
+                if not dlls_to_mark and not dlls_to_unmark:
+                    logger.info("No orphan DLLs found")
+                conn.commit()
+                return 0, len(dlls_to_mark)
 
             # Batch delete orphan DLLs. CASCADE now genuinely fires here (the
             # connection comes from _new_connection, so foreign_keys is ON; the
             # old pragma-less connection meant this comment used to be a lie and
             # every delete left dll_backups / update_history rows stranded).
             #
-            # That cascade is safe by construction: the candidate query above
-            # already excluded every DLL still holding a restorable backup, so
+            # That cascade is safe by construction: the partition above routed
+            # every DLL still holding a restorable backup into dlls_to_mark, so
             # the only dll_backups rows reachable from here are soft-deleted ones
             # nothing surfaces. Their update_history rows go with them, which is
             # the point — those were the stranded rows.
@@ -1472,7 +1540,7 @@ class DatabaseManager:
             conn.commit()
             deleted_count = len(dlls_to_delete)
             logger.info(f"Cleaned up {deleted_count} orphan DLL record(s)")
-            return deleted_count
+            return deleted_count, len(dlls_to_mark)
 
         except sqlite3.OperationalError as e:
             if "readonly database" in str(e):
@@ -1480,11 +1548,11 @@ class DatabaseManager:
             else:
                 logger.error(f"Error cleaning up orphan DLLs: {e}", exc_info=True)
             conn.rollback()
-            return 0
+            return 0, 0
         except Exception as e:
             logger.error(f"Error cleaning up orphan DLLs: {e}", exc_info=True)
             conn.rollback()
-            return 0
+            return 0, 0
         finally:
             conn.close()
 
@@ -1498,7 +1566,8 @@ class DatabaseManager:
 
         This method orchestrates the complete post-scan cleanup process:
         1. Remove phantom games (uninstalled games still in DB)
-        2. Remove orphan DLLs (DLL records for deleted files)
+        2. Remove orphan DLLs (DLL records for deleted files), or retire the
+           ones that must be kept for their backups
         3. Cleanup duplicate game entries
         4. Cleanup duplicate backup entries
 
@@ -1510,6 +1579,8 @@ class DatabaseManager:
             Dict with cleanup counts:
             - 'phantom_games': Number of phantom games removed
             - 'orphan_dlls': Number of orphan DLLs removed
+            - 'missing_dlls': Number of DLL records newly marked missing (kept
+              because they hold restorable backups, but no longer update targets)
             - 'duplicate_games': Number of duplicate game entries removed
             - 'duplicate_backups': Number of duplicate backup entries removed
         """
@@ -1519,7 +1590,11 @@ class DatabaseManager:
         results['phantom_games'] = await self.cleanup_missing_games(valid_game_paths)
 
         # Cleanup orphan DLLs (DLL records for files that no longer exist)
-        results['orphan_dlls'] = await self.cleanup_orphan_dlls(valid_dll_paths)
+        orphan_dlls, missing_dlls = await anyio.to_thread.run_sync(
+            self._cleanup_orphan_dlls_detailed, valid_dll_paths, limiter=thread_io
+        )
+        results['orphan_dlls'] = orphan_dlls
+        results['missing_dlls'] = missing_dlls
 
         # Cleanup duplicate game entries (same name + launcher)
         results['duplicate_games'] = await anyio.to_thread.run_sync(self._cleanup_duplicate_games, limiter=thread_io)
@@ -1739,7 +1814,10 @@ class DatabaseManager:
                     dll_type = excluded.dll_type,
                     dll_filename = excluded.dll_filename,
                     current_version = excluded.current_version,
-                    detected_at = CURRENT_TIMESTAMP
+                    detected_at = CURRENT_TIMESTAMP,
+                    -- Re-discovered, so it is no longer missing. This is the
+                    -- heal for the offline-drive case (issue #281).
+                    missing_at = NULL
                 RETURNING *
             """, (
                 dll_data['game_id'],
@@ -1816,10 +1894,14 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         try:
+            # missing_at IS NULL: a record whose file is gone is kept only to
+            # keep its backup reachable (see _cleanup_orphan_dlls). It is not an
+            # update target and must not be shown as one — retrying it is what
+            # produced the repeated errors in issue #281.
             cursor.execute("""
                 SELECT id, game_id, dll_type, dll_filename, dll_path, current_version, detected_at
                 FROM game_dlls
-                WHERE game_id = ?
+                WHERE game_id = ? AND missing_at IS NULL
             """, (game_id,))
 
             dlls = []
@@ -2066,7 +2148,10 @@ class DatabaseManager:
                     dll_type = excluded.dll_type,
                     dll_filename = excluded.dll_filename,
                     current_version = excluded.current_version,
-                    detected_at = CURRENT_TIMESTAMP
+                    detected_at = CURRENT_TIMESTAMP,
+                    -- Re-discovered, so it is no longer missing. This is the
+                    -- heal for the offline-drive case (issue #281).
+                    missing_at = NULL
             """, dll_data)
 
             conn.commit()
@@ -2104,10 +2189,11 @@ class DatabaseManager:
 
         try:
             placeholders = ','.join('?' * len(game_ids))
+            # missing_at IS NULL — see _get_dlls_for_game (issue #281).
             cursor.execute(f"""
                 SELECT id, game_id, dll_type, dll_filename, dll_path, current_version, detected_at
                 FROM game_dlls
-                WHERE game_id IN ({placeholders})
+                WHERE game_id IN ({placeholders}) AND missing_at IS NULL
                 ORDER BY game_id, dll_type
             """, game_ids)
 

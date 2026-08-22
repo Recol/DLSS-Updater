@@ -1,3 +1,29 @@
+Version 4.7.1:
+Fixes:
+  - Games that move their DLLs in a patch kept failing on the old location,
+    run after run, and no amount of rescanning cleared it (issue #281).
+    Rescanning does find the new paths - it just never removed the old ones.
+    Post-scan cleanup deletes DLL records whose file is gone, except where the
+    record still holds a restorable backup, because deleting it would take the
+    backup with it. That exemption meant every DLL you had ever updated stayed
+    pinned to a path the game no longer uses and was retried forever. Which is
+    why Streamline looked singled out in Mafia: The Old Country, Subnautica 2
+    and S.T.A.L.K.E.R. 2 - those sl.* DLLs simply happened to be the ones with
+    backups. Such records are now retired instead of deleted: the backup stays
+    restorable, but the dead path is no longer an update target. Retiring is
+    reversible, so a drive that is merely offline, or a game that moves its
+    DLLs back, loses nothing - the records return on the next scan that finds
+    the path.
+  - A DLL whose file has gone now reports "File no longer exists - the game may
+    have been patched. Run a rescan." instead of a bare "Error". The updater
+    already knew how to skip a missing file quietly; the check sat just below a
+    permissions read that threw first.
+
+Build:
+  - Fixed, again, the malformed pyinstaller dependency that makes `uv sync`
+    fail outright - reintroduced by an automated dependency bump after 4.7.0
+    had corrected it.
+
 Version 4.7.0:
 New:
   - FSR 4 upgrades for games that ship FSR 3.1. Where a game has only the older
