@@ -38,7 +38,7 @@ dependencies = [
     "anyio>=4.14.1",  # Structured concurrency: cancel scopes, CapacityLimiter-based worker threads, async Path
     "aiohttp>=3.14.1",
     "niquests>=3.20.1",  # Fallback for DLL downloads when aiohttp fails; drop-in requests replacement, actively maintained (requests is in upstream feature-freeze), thread-safe, HTTP/2+HTTP/3 support
-    "pyinstaller>=6.20.0",
+    "pyinstaller*",
     "aiosqlite>=0.22.1",
     "aiofiles>=25.1.0",
     "pillow>=12.2.0",  # Image thumbnail generation, Python 3.14 free-threaded compatible
