@@ -87,7 +87,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
     not be included in page.update() and would require individual card.update() calls.
     """
 
-    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None, on_resolve=None, db_manager=None):
+    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None, on_resolve=None, db_manager=None, dlss_presets=None):
         super().__init__()
 
         # Handle both Game and MergedGame
@@ -123,6 +123,9 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self.backup_groups = backup_groups or {}
         self.has_backups = bool(backup_groups)
         self.is_ignored = is_ignored
+        # Saved per-game SR/RR preset override (models.GameDLSSPresets), if any.
+        # Windows-only (dlss_updater.nvapi_drs) — always None elsewhere.
+        self.dlss_presets = dlss_presets
 
         # Button references for loading state
         self.update_button: ft.PopupMenuButton | None = None
@@ -419,6 +422,21 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # Status dot + label (e.g. "● Needs update" / "● Up to date").
         self.status_row = self._build_status_row()
 
+        # Tech version chips (e.g. "DLSS 4 · RR 4"), on their OWN line below
+        # launcher/status — inlining it caused inconsistent wrapping (some
+        # cards single-line, others wrapping flush against the row above with
+        # no gap). Hidden (empty text, collapses — no reserved space) when no
+        # tracked DLL has a confident marketing-name mapping — see
+        # version_labels.marketing_version().
+        self.tech_version_text = ft.Text(
+            self._tech_version_label(),
+            size=11,
+            weight=ft.FontWeight.W_500,
+            color=MD3Colors.get_on_surface_variant(is_dark),
+            no_wrap=True,
+        )
+        self._update_tech_version_visibility()
+
         # "Hidden" chip (only visible when ignored).
         self.hidden_chip = ft.Container(
             content=ft.Row(
@@ -446,6 +464,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                         tight=True,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
+                    self.tech_version_text,
                 ],
                 spacing=2,
                 tight=True,
@@ -684,6 +703,69 @@ class GameCard(ThemeAwareMixin, ft.Card):
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
+    def _tech_version_label(self) -> str:
+        """Build the "DLSS 4 (Preset K) · RR 4" style chip text.
+
+        A game can ship more than one DLL for the same technology (e.g. both
+        nvngx_dlss.dll and the Streamline-wrapped sl.dlss.dll for DLSS SR),
+        each independently versioned — so DLLs are bucketed by
+        version_labels.kind_of() and only the highest-versioned DLL per
+        bucket contributes a label, instead of showing two possibly
+        contradictory generation numbers for what reads as one "DLSS
+        version" on the card. Buckets with no confident marketing-name
+        mapping (version_labels.marketing_version) are skipped rather than
+        guessed at. The "(Preset K)" suffix only appears when this game has
+        a saved per-game SR/RR override (self.dlss_presets, Windows-only)
+        other than default.
+        """
+        from dlss_updater.updater import parse_version
+        from dlss_updater.version_labels import (
+            KIND_DLSS_RR,
+            KIND_DLSS_SR,
+            KIND_FSR,
+            KIND_XESS,
+            kind_of,
+            marketing_version,
+            preset_suffix,
+        )
+
+        presets = self.dlss_presets
+        best_by_kind: dict[str, tuple] = {}
+        for dll in self.dlls:
+            if not dll.current_version or not dll.dll_filename:
+                continue
+            kind = kind_of(dll.dll_filename)
+            if kind is None:
+                continue
+            try:
+                parsed = parse_version(dll.current_version)
+            except Exception:
+                continue
+            current = best_by_kind.get(kind)
+            if current is None or parsed > current[0]:
+                best_by_kind[kind] = (parsed, dll)
+
+        labels: list[str] = []
+        for kind in (KIND_DLSS_SR, KIND_FSR, KIND_XESS, KIND_DLSS_RR):
+            entry = best_by_kind.get(kind)
+            if entry is None:
+                continue
+            dll = entry[1]
+            label = marketing_version(dll.dll_filename, dll.current_version)
+            if not label:
+                continue
+            if presets is not None:
+                if kind == KIND_DLSS_SR:
+                    label += preset_suffix(presets.sr)
+                elif kind == KIND_DLSS_RR:
+                    label += preset_suffix(presets.rr)
+            labels.append(label)
+        return " · ".join(labels)
+
+    def _update_tech_version_visibility(self) -> None:
+        """Show the tech-version line only when there's a label (collapses otherwise)."""
+        self.tech_version_text.visible = bool(self.tech_version_text.value)
+
     def _refresh_status_row(self) -> None:
         """Update the scrim status dot/label after DLL versions change."""
         if not getattr(self, "status_dot", None) or not getattr(self, "status_label", None):
@@ -699,6 +781,10 @@ class GameCard(ThemeAwareMixin, ft.Card):
         else:
             self.status_dot.bgcolor = "#69F0AE"
             self.status_label.value = "Up to date"
+
+        if getattr(self, "tech_version_text", None) is not None:
+            self.tech_version_text.value = self._tech_version_label()
+            self._update_tech_version_visibility()
 
     def _build_context_menu_items(self) -> list[ft.PopupMenuItem]:
         """Build right-click context menu items reflecting current card state.

@@ -19,7 +19,7 @@ import flet as ft
 from dlss_updater.concurrency_limiters import thread_io, io_heavy
 
 from dlss_updater.database import db_manager, Game, merge_games_by_name
-from dlss_updater.models import MergedGame, GameDLL, DLLBackup
+from dlss_updater.models import MergedGame, GameDLL, DLLBackup, GameDLSSPresets
 from dlss_updater.ui_flet.components.game_card import GameCard
 from dlss_updater.ui_flet.components.search_bar import GameSearchBar
 from dlss_updater.ui_flet.components.floating_pill import PILL_CLEARANCE
@@ -1217,12 +1217,18 @@ class GamesView(ThemeAwareMixin, ft.Column):
             LoadTask("backups", lambda: db_manager.batch_get_backups_grouped_sync(all_game_ids)),
             LoadTask("images", lambda: db_manager._batch_get_cached_image_paths(all_steam_app_ids)),
             LoadTask("ignored", lambda: db_manager.batch_get_ignored_game_ids_sync()),
+            LoadTask("dlss_presets", lambda: db_manager.batch_get_game_dlss_presets_sync(all_game_ids)),
         ])
 
         dlls_by_game: dict[int, list[GameDLL]] = results.get("dlls", {})
         backups_by_game: dict[int, dict[str, list[DLLBackup]]] = results.get("backups", {})
         cached_image_paths: dict[int, str] = results.get("images", {})
         self._ignored_game_ids = results.get("ignored", set())
+        # Saved per-game SR/RR preset overrides (Windows-only feature — empty
+        # dict everywhere else). Looked up by id in create_card() below rather
+        # than threaded through the (mg, dlls, backup_groups) tuples used by
+        # progressive/background card loading.
+        presets_by_game: dict[int, GameDLSSPresets] = results.get("dlss_presets", {})
 
         # Headline game count for the subtitle — the true merged total, shown
         # immediately even while later cards are still loading progressively.
@@ -1259,6 +1265,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
         def create_card(merged: MergedGame, dlls: list[GameDLL], backup_groups: dict[str, list[DLLBackup]]) -> GameCard:
             is_ignored = bool(set(merged.all_game_ids) & self._ignored_game_ids)
             merged.is_ignored = is_ignored
+            dlss_presets = next(
+                (presets_by_game[gid] for gid in merged.all_game_ids if gid in presets_by_game),
+                None,
+            )
             card = GameCard(
                 game=merged,
                 dlls=dlls,
@@ -1270,6 +1280,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 is_ignored=is_ignored,
                 on_ignore_toggle=self._on_game_ignore_toggle,
                 on_resolve=self._on_game_resolve,
+                dlss_presets=dlss_presets,
             )
             card.opacity = 0 if not is_ignored else 0.5
             card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
