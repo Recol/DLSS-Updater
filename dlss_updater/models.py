@@ -636,6 +636,10 @@ class DLSSPreset(StrEnum):
     PRESET_K = "preset_k"  # Lighter preset (RTX 20/30 recommended)
     PRESET_L = "preset_l"  # Balanced preset
     PRESET_M = "preset_m"  # Heavier preset (RTX 40/50 recommended)
+    # Ray Reconstruction models - only D and F are offered for RR (see
+    # _RR_PRESETS in linux_dlss_utils), mirroring the NVIDIA App's RR dropdown.
+    PRESET_D = "preset_d"  # DLSS 4 Ray Reconstruction (first generation)
+    PRESET_F = "preset_f"  # DLSS 4.5 Ray Reconstruction Gen 2
 
     @property
     def env_value(self) -> str:
@@ -647,6 +651,8 @@ class DLSSPreset(StrEnum):
             "preset_k": "render_preset_k",
             "preset_l": "render_preset_l",
             "preset_m": "render_preset_m",
+            "preset_d": "render_preset_d",
+            "preset_f": "render_preset_f",
         }
         return mapping.get(self.value, "")
 
@@ -660,6 +666,8 @@ class DLSSPreset(StrEnum):
             "preset_k": "Preset K (Lighter)",
             "preset_l": "Preset L (Balanced)",
             "preset_m": "Preset M (Heavier)",
+            "preset_d": "Preset D (DLSS 4)",
+            "preset_f": "Preset F (DLSS 4.5 Ray Reconstruction Gen 2)",
         }
         return names.get(self.value, self.value)
 
@@ -744,22 +752,29 @@ class WindowsDLSSPreset(StrEnum):
 
 class WindowsDLSSModelPreset(StrEnum):
     """
-    Default/Latest model override for DLSS Ray Reconstruction (RR) via NvAPI
-    Driver Settings.
+    Model override for DLSS Ray Reconstruction (RR) via NvAPI Driver Settings.
 
-    Unlike SR (which exposes documented named presets J/K/L/M), the RR render
-    presets are undocumented internal model variants. The meaningful, user-facing
-    control - matching the NVIDIA App's DLSS 4 override - is forcing the newest
-    model ("Latest") or leaving it to the game/driver ("Default").
+    The driver accepts presets A-O on "Override DLSS-RR preset" (0x10E41DF7),
+    but only D and F are meaningful models, so those are the two the NVIDIA App
+    offers in its RR dropdown and the two mirrored here:
+
+        Preset D - DLSS 4 Ray Reconstruction (first generation)
+        Preset F - DLSS 4.5 Ray Reconstruction Gen 2
+
+    See dlss_updater.nvapi_drs for the driver enum values.
     """
-    DEFAULT = "default"  # No override - game/driver default
-    LATEST = "latest"    # Always use the newest model
+    DEFAULT = "default"    # No override - game/driver default
+    LATEST = "latest"      # Always use the newest model
+    PRESET_D = "preset_d"  # DLSS 4 Ray Reconstruction (first generation)
+    PRESET_F = "preset_f"  # DLSS 4.5 Ray Reconstruction Gen 2
 
     @property
     def display_name(self) -> str:
         names = {
             "default": "Default (No Override)",
             "latest": "Latest (Newest Model)",
+            "preset_d": "Preset D (DLSS 4)",
+            "preset_f": "Preset F (DLSS 4.5 Ray Reconstruction Gen 2)",
         }
         return names.get(self.value, self.value)
 

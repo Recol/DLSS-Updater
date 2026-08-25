@@ -99,8 +99,6 @@ class DLLGroupDialog(ThemeAwareMixin):
 
     async def show(self):
         """Build and display the dialog"""
-        from dlss_updater.config import LATEST_DLL_VERSIONS
-        from dlss_updater.updater import parse_version
         from dlss_updater.database import db_manager
 
         # Register for theme updates

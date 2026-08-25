@@ -10,7 +10,7 @@ import logging
 from typing import Optional
 
 from .panel_content_base import PanelContentBase
-from ...theme.colors import MD3Colors, Shadows, Animations
+from ...theme.colors import MD3Colors, Shadows
 from ...theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from ..hero_surface import (
     build_brand_wash,

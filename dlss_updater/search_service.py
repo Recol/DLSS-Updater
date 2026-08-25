@@ -29,7 +29,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Callable, Any
+from typing import Any
 from datetime import datetime
 
 import anyio
@@ -38,7 +38,6 @@ import msgspec
 from dlss_updater.concurrency_limiters import thread_cpu
 from dlss_updater.logger import setup_logger
 from dlss_updater.models import Game
-from dlss_updater.config import Concurrency
 
 logger = setup_logger()
 
@@ -483,7 +482,7 @@ class GameSearchService:
     def _init_fuzzy(self):
         """Initialize fuzzy matching if rapidfuzz is available."""
         try:
-            from rapidfuzz import fuzz, process
+            from rapidfuzz import fuzz
             self._fuzzy_scorer = fuzz.WRatio
             self._fuzzy_enabled = True
             logger.info("Fuzzy matching enabled (rapidfuzz 3.12.0+)")

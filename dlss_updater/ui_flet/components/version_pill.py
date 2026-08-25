@@ -36,7 +36,7 @@ import msgspec
 from dlss_updater.self_update import SelfUpdateStage, UpdateInfo
 from dlss_updater.ui_flet.components.hero_surface import PILL_HEIGHT
 from dlss_updater.ui_flet.theme.colors import Animations, MD3Colors
-from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin
 from dlss_updater.version import __version__
 
 # One shimmer sweep on first appearance draws the eye without the CPU cost and

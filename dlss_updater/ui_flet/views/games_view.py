@@ -12,7 +12,7 @@ PERFORMANCE NOTES:
 import asyncio
 import math
 import time
-from typing import Callable, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 import anyio
 import flet as ft
 

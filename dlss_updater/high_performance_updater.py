@@ -34,7 +34,7 @@ import stat
 import sys
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 from typing import Callable, Any
@@ -42,7 +42,7 @@ from typing import Callable, Any
 import anyio
 import psutil
 
-from .config import LATEST_DLL_PATHS, config_manager
+from .config import LATEST_DLL_PATHS
 from .concurrency_limiters import thread_cpu, thread_io
 from .constants import DLL_TYPE_MAP
 from .logger import setup_logger
@@ -51,7 +51,6 @@ from .models import (
     BatchUpdateResult,
     CacheStats,
     MemoryStatus,
-    ProcessedDLLResult,
 )
 from .dll_repository import is_known_bad_dll
 from .updater import (

@@ -110,6 +110,8 @@ _PRESET_VALUES: dict[str, dict[str, int]] = {
     "rr": {
         "default": _PRESET_OFF,
         "latest": _PRESET_LATEST,
+        "preset_d": 0x04,  # DLSS 4 Ray Reconstruction (first generation)
+        "preset_f": 0x06,  # DLSS 4.5 Ray Reconstruction Gen 2
     },
     "fg": {
         "default": _PRESET_OFF,

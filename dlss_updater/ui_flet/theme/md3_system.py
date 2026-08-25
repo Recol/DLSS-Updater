@@ -5,7 +5,6 @@ Based on Material Design 3 specifications and DLSS Updater UX proposal.
 """
 
 import flet as ft
-from typing import Callable, Any
 
 
 class MD3ColorSystem:

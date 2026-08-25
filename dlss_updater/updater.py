@@ -4,7 +4,7 @@ import threading
 import sys
 import logging
 import anyio
-from .config import LATEST_DLL_VERSIONS, LATEST_DLL_PATHS, Concurrency
+from .config import Concurrency
 from .concurrency_limiters import thread_cpu, thread_io
 from pathlib import Path
 import concurrent.futures
@@ -13,7 +13,7 @@ import time
 import psutil
 from packaging import version
 from .logger import setup_logger
-from .constants import DLL_TYPE_MAP, FSR4_DLL_RENAME_MAP
+from .constants import DLL_TYPE_MAP
 from .config import config_manager
 from .dll_repository import is_known_bad_dll
 from .models import ProcessedDLLResult

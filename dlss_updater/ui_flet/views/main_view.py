@@ -10,7 +10,6 @@ import subprocess
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Any
 
 import anyio
 import flet as ft
@@ -89,7 +88,7 @@ from dlss_updater.ui_flet.components.version_pill import UpdateBadgeState, Versi
 from dlss_updater.self_update import SelfUpdater, SelfUpdateStage
 from dlss_updater.ui_flet.dialogs.dlss_overlay_dialog import DLSSOverlayDialog
 from dlss_updater.ui_flet.async_updater import AsyncUpdateCoordinator, UpdateProgress
-from dlss_updater.platform_utils import FEATURES, IS_LINUX, IS_WINDOWS
+from dlss_updater.platform_utils import IS_LINUX
 from dlss_updater.linux_paths import is_flatpak, get_flatpak_override_command
 from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
@@ -2781,7 +2780,6 @@ class MainView(ft.Column):
             progress_callback: Optional callback(step: int) to report shutdown progress.
                               Steps 1-9 correspond to different cleanup phases.
         """
-        import sys
 
         async def report_progress(step: int):
             """Report progress to callback, handling errors gracefully."""

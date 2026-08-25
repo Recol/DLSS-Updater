@@ -5,8 +5,7 @@ Individual game card with Steam image, DLL badges, and action buttons
 
 import asyncio
 import anyio
-from pathlib import Path
-from typing import Callable, Any
+from typing import Any
 import flet as ft
 
 from dlss_updater.database import GameDLL
@@ -14,7 +13,6 @@ from dlss_updater.models import Game, MergedGame
 from dlss_updater.name_normalize import prettify_display_name
 from dlss_updater.steam_integration import fetch_steam_image
 from dlss_updater.ui_flet.theme.colors import MD3Colors, TechnologyColors
-from dlss_updater.ui_flet.theme.md3_system import MD3Spacing
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.constants import DLL_GROUPS
 

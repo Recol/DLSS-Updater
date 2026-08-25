@@ -11,7 +11,7 @@ from typing import Callable
 
 import flet as ft
 
-from ..theme.colors import MD3Colors, Animations
+from ..theme.colors import MD3Colors
 from ..theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 
@@ -149,7 +149,6 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
 
     def _on_item_hover(self, e, container: ft.Container, category_color: str):
         """Handle item hover state"""
-        is_dark = self._get_is_dark()
         if e.data is True or e.data == "true":
             # Hover enter
             container.bgcolor = f"{category_color}15"  # 8% opacity
@@ -170,7 +169,6 @@ class AppMenuSelector(ThemeAwareMixin, ft.Container):
             return
 
         # Update selected state
-        old_selected = self.selected_item_id
         self.selected_item_id = item.id
 
         # Execute the item's callback (handle both sync and async)

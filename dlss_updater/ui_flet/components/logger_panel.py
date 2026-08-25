@@ -7,7 +7,6 @@ Thread-safe implementation using page.run_task()
 import logging
 import anyio
 import threading
-from typing import Callable, Any
 import flet as ft
 from dlss_updater.ui_flet.theme.colors import MD3Colors, Animations, Shadows
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
