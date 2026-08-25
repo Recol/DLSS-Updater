@@ -9,7 +9,6 @@ Performance optimizations:
 """
 
 import sqlite3
-import logging
 import threading
 import zlib
 from pathlib import Path, PurePath
@@ -30,8 +29,7 @@ from dlss_updater.name_normalize import (
 )
 from dlss_updater.platform_utils import APP_CONFIG_DIR
 from dlss_updater.models import (
-    Game, GameDLL, DLLBackup, UpdateHistory, SteamImage,
-    GameDLLBackup, GameBackupSummary, GameWithBackupCount, MergedGame,
+    Game, GameDLL, DLLBackup, GameDLLBackup, GameBackupSummary, GameWithBackupCount, MergedGame,
     GameDLSSPresets
 )
 

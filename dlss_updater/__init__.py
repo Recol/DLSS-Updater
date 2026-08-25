@@ -7,7 +7,7 @@ from .scanner import (
 from .updater import update_dll
 from .whitelist import is_whitelisted
 from .version import __version__
-from .config import resource_path, initialize_dll_paths, config_manager
+from .config import resource_path, config_manager
 from .logger import setup_logger
 from .constants import DLL_TYPE_MAP, DLL_GROUPS
 

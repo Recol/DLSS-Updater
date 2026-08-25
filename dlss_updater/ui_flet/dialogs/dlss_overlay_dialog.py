@@ -10,7 +10,7 @@ import logging
 import flet as ft
 
 from dlss_updater.registry_utils import get_dlss_overlay_state, set_dlss_overlay_state
-from dlss_updater.platform_utils import FEATURES, IS_LINUX, IS_WINDOWS
+from dlss_updater.platform_utils import FEATURES, IS_LINUX
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 

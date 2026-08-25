@@ -25,7 +25,6 @@ class TestConfigManagerThreadSafety:
 
         with patch('dlss_updater.config.get_config_path', return_value=str(config_file)):
             # Force re-import to test fresh singleton
-            import importlib
             import dlss_updater.config as config_module
             config_module.ConfigManager._instance = None
 
@@ -101,7 +100,6 @@ class TestParseVersionCacheThreadSafety:
             try:
                 for v in versions:
                     result = parse_version(v)
-                    key = (v, result)
                     results.setdefault(v, set()).add(result)
             except Exception as e:
                 errors.append(e)

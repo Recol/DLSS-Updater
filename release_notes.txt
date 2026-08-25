@@ -1,3 +1,20 @@
+Version 4.8.0:
+New:
+  - Ray Reconstruction presets D and F are now selectable, globally and per
+    game, matching the dropdown the NVIDIA App added for DLSS 4.5 Ray
+    Reconstruction Gen 2. Preset F is that Gen 2 model; Preset D is the
+    first-generation DLSS 4 model. The driver has accepted presets A-O all
+    along - it publishes the whole range for "Override DLSS-RR preset" -
+    but only those two are meaningful models, so those are the two offered,
+    the same pair the NVIDIA App exposes. Linux gets both through DXVK-NVAPI.
+
+Maintenance:
+  - Removed dead code across the codebase: 44 unused imports, five values that
+    were computed and then never read, and a leftover import in the package
+    __init__ that was not part of its public __all__. One of the five, in the
+    Steam API card's hover handler, had been resolving an accent colour for a
+    border glow that was never implemented.
+
 Version 4.7.1:
 Fixes:
   - Games that move their DLLs in a patch kept failing on the old location,

@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.8.0" date="2026-08-25">
+      <description>
+        <p>Ray Reconstruction presets D and F, matching the NVIDIA App's DLSS 4.5 Ray Reconstruction Gen 2 dropdown</p>
+        <ul>
+          <li>Ray Reconstruction presets D and F are now selectable, globally and per game, matching the dropdown the NVIDIA App added for DLSS 4.5 Ray Reconstruction Gen 2. Preset F is that Gen 2 model; Preset D is the first-generation DLSS 4 model</li>
+          <li>The driver has accepted presets A–O on this setting all along — it publishes the whole range for "Override DLSS-RR preset" — but only those two are meaningful models, so those are the two offered, the same pair the NVIDIA App exposes. Linux gets both through DXVK-NVAPI</li>
+          <li>Removed dead code across the codebase: 44 unused imports, five values that were computed and then never read, and a leftover import in the package __init__ that was not part of its public __all__</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.7.1" date="2026-08-22">
       <description>
         <p>Games that relocate their DLLs in a patch no longer error on the old path forever</p>

@@ -3,7 +3,6 @@ import threading
 from pathlib import Path
 from typing import Any
 from .config import LauncherPathName, config_manager, Concurrency
-from .whitelist import is_whitelisted
 from .constants import DLL_GROUPS
 from .utils import find_game_root
 from .vdf_parser import VDFParser
@@ -1187,7 +1186,6 @@ async def find_all_dlls(progress_callback=None):
             find_app_id_via_store_search,
             get_steam_owned_games,
         )
-        from dlss_updater.utils import extract_game_name
         from dlss_updater.constants import DLL_TYPE_MAP
 
         # Report database recording start

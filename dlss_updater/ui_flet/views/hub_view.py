@@ -9,7 +9,7 @@ import logging
 
 import flet as ft
 
-from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
+from dlss_updater.ui_flet.theme.colors import TabColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin
 from dlss_updater.ui_flet.components.hub_card import HubCard, GamesHeroCard, HubActionCard
 from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask

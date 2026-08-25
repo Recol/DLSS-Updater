@@ -20,7 +20,7 @@ from dlss_updater.concurrency_limiters import thread_io
 from dlss_updater.platform_utils import IS_WINDOWS, IS_LINUX
 
 if TYPE_CHECKING:
-    from dlss_updater.models import GPUInfo, GPUArchitecture
+    from dlss_updater.models import GPUInfo
 
 logger = logging.getLogger("DLSSUpdater")
 

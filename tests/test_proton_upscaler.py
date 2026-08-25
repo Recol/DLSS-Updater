@@ -127,11 +127,19 @@ class TestPresetLists:
 
     def test_rr_presets_mirror_windows_dialog(self):
         values = [v for v, _, _ in get_rr_presets()]
-        assert values == ["default", "latest"]
+        assert values == ["default", "latest", "preset_d", "preset_f"]
+
+    def test_rr_presets_absent_from_sr_list(self):
+        # D and F are Ray Reconstruction models; they must not leak into SR.
+        values = [v for v, _, _ in get_all_presets()]
+        assert "preset_d" not in values
+        assert "preset_f" not in values
 
     def test_env_values(self):
         assert DLSSPreset.LATEST.env_value == "render_preset_latest"
         assert DLSSPreset.PRESET_J.env_value == "render_preset_j"
+        assert DLSSPreset.PRESET_D.env_value == "render_preset_d"
+        assert DLSSPreset.PRESET_F.env_value == "render_preset_f"
         assert DLSSPreset.DEFAULT.env_value == ""
 
 

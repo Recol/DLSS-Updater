@@ -18,14 +18,10 @@ Performance characteristics:
 
 import asyncio
 import mmap
-import os
-import sys
-import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import aiofiles
 import anyio
 
 from dlss_updater.concurrency_limiters import thread_io

@@ -151,14 +151,14 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 
 - **Global presets (Windows, experimental)** — the *DLSS Settings* card on the home page applies preset overrides to every game via the NVIDIA driver base profile (the same mechanism as the NVIDIA App's global override). Shows the currently applied preset; takes effect at the next game launch.
   - Super Resolution (SR): Default / Latest / Preset J / K / L / M
-  - Ray Reconstruction (RR): Default / Latest model
+  - Ray Reconstruction (RR): Default / Latest / Preset D (DLSS 4) / Preset F (DLSS 4.5 Gen 2)
   - Frame Generation (FG): Default / Latest / Preset A / B
   - ⚠️ Per-game overrides set in the NVIDIA App take priority — set its DLSS override to *Default/Off* to let this global setting apply.
 - **Per-game presets (Windows, NVIDIA only)** — the **DLSS Settings** action on any game (right-click a card, or its *⋮* menu) opens a per-game panel that overrides SR / RR / FG for just that title via its NVIDIA per-application driver profile — the same mechanism the NVIDIA App uses for per-game overrides. It takes priority over the global setting for that game and applies at the next launch. The action is hidden automatically on non-NVIDIA systems.
   - The game's executable is detected automatically (NVIDIA driver lookup → folder heuristic → Steam manifest); when it can't be determined, a *Change executable* file picker lets you point at the correct `.exe`. Your executable and preset choices are remembered between sessions.
   - The panel reads back the value the driver is actually applying and distinguishes NVIDIA's predefined value from your own override. *Reset to default* clears the override (reverting to the game's predefined value) in one click.
 - **Proton Upscalers (Linux only)** — the **Proton Upscalers** panel generates per-title Steam launch options (copy-to-clipboard; the same variables work in Heroic/Lutris environment settings):
-  - **DLSS (NVIDIA)** — SR presets (Latest / J / K / L / M) and RR presets (Latest) plus a Frame Generation override via DXVK-NVAPI, matching the Windows per-game dialog. Works on any Proton, including Valve's.
+  - **DLSS (NVIDIA)** — SR presets (Latest / J / K / L / M) and RR presets (Latest / D / F) plus a Frame Generation override via DXVK-NVAPI, matching the Windows per-game dialog. Works on any Proton, including Valve's.
   - **DLL upgrades (GE-Proton / Proton-CachyOS / Proton-EM)** — one-toggle `PROTON_DLSS_UPGRADE`, `PROTON_FSR4_UPGRADE` (RDNA3/RDNA4 aware) and `PROTON_XESS_UPGRADE` launch options with optional on-screen indicators. The panel reads each game's Proton build from Steam's compat-tool mapping and disables toggles that build doesn't support.
   - GPU vendor is auto-detected (NVIDIA / AMD / Intel) to show the relevant sections, with RDNA3 mode recommended automatically on RX&nbsp;7000 GPUs.
 
@@ -193,9 +193,9 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 
 | Technology | Included version |
 |---|---|
-| DLSS Super Resolution | 4.5 (`3.10.6.0`) |
-| DLSS FG / RR | 4.5 (`3.10.5`) |
-| Streamline (Reflex, DLSS SR/FG/RR, DirectSR, NIS) | `2.12.0.0` |
+| DLSS Super Resolution | 4.5 (`310.7.128.0`) |
+| DLSS FG / RR | 4.5 (`310.7.128.0`) |
+| Streamline (Reflex, DLSS SR/FG/RR, DirectSR, NIS) | `2.12.128.0` (NIS & DirectSR `2.12.0.0`) |
 | FSR Upscaling | 4.1.1 (`4.1.1.2740`) |
 | FSR Frame Generation | 4.0.1 (`4.0.1.2740`) |
 | FSR Ray Regeneration | 1.2.0 (`1.2.0.2740`) |
@@ -204,7 +204,7 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 | FSR (DX12 / Vulkan, SDK 1.1.4) | `1.0.1.41314` |
 | XeSS | 2.0.2 |
 | XeSS Frame Generation | 1.3.1 |
-| XeLL | 1.3.0.5 |
+| XeLL | 1.3.2.10 |
 
 > See the [Intel XeSS releases](https://github.com/intel/xess/releases) for per-game XeSS support details.
 

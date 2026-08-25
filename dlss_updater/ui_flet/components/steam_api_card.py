@@ -429,10 +429,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
     # ------------------------------------------------------------------ #
 
     def _on_hover(self, e):
-        """Handle hover -- elevate shadow and subtle border glow."""
-        is_dark = self._get_is_dark()
-        accent = self._get_accent(is_dark)
-
+        """Handle hover -- elevate shadow."""
         if e.data is True or e.data == "true":
             self.shadow = Shadows.LEVEL_2
         else:

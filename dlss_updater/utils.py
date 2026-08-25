@@ -1,6 +1,5 @@
 import os
 import anyio
-import concurrent.futures
 import threading
 import sys
 from pathlib import Path

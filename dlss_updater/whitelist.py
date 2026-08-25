@@ -143,8 +143,8 @@ async def is_whitelisted(game_path):
     """
     logger.debug(f"Checking game against whitelist: {game_path}")
 
-    # Get the whitelist (will initialize if needed)
-    whitelist = await get_whitelist()
+    # Awaited only to guarantee initialization; the lookup below uses the index.
+    await get_whitelist()
 
     # Extract path components using pathlib
     path_parts = list(Path(game_path).parts)
@@ -219,8 +219,7 @@ async def is_whitelisted(game_path):
     logger.debug(f"Identified game directory: {game_dir}")
 
     # O(1) lookup against the precomputed lowercase index instead of two O(n)
-    # scans. `whitelist` above is fetched only to guarantee initialization; the
-    # index is populated in the same locked block that fills the cache.
+    # scans. The index is populated in the same locked block that fills the cache.
     game_dir_lower = game_dir.lower()
     with _whitelist_threading_lock:
         matched_names = _whitelist_lower_index.get(game_dir_lower)

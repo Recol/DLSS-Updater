@@ -6,7 +6,7 @@ Universal image fetching for ALL games (not just Steam launcher) via name matchi
 import threading
 import msgspec
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 import aiohttp
 import anyio
 

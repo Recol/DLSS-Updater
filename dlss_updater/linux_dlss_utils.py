@@ -143,6 +143,8 @@ def get_preset_description(preset: DLSSPreset | str) -> str:
         "preset_k": "Lighter preset - better performance, recommended for RTX 20/30 series",
         "preset_l": "Balanced preset - good quality/performance balance",
         "preset_m": "Heavier preset - higher quality, recommended for RTX 40/50 series",
+        "preset_d": "DLSS 4 Ray Reconstruction - the first-generation model",
+        "preset_f": "DLSS 4.5 Ray Reconstruction Gen 2",
     }
     return descriptions.get(preset_str, "Unknown preset")
 
@@ -156,10 +158,13 @@ _SR_PRESETS = (
     DLSSPreset.PRESET_M,
 )
 
-# RR mirrors the Windows per-game dialog: Default or Latest only
+# RR mirrors the Windows per-game dialog and the NVIDIA App's RR dropdown:
+# Default/Latest plus the only two meaningful RR models, D (DLSS 4) and F (DLSS 4.5).
 _RR_PRESETS = (
     DLSSPreset.DEFAULT,
     DLSSPreset.LATEST,
+    DLSSPreset.PRESET_D,
+    DLSSPreset.PRESET_F,
 )
 
 
