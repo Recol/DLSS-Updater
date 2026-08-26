@@ -4,9 +4,10 @@ from pathlib import Path
 from typing import Any
 from .config import LauncherPathName, config_manager, Concurrency
 from .constants import DLL_GROUPS
+from .platform_utils import IS_WINDOWS, IS_LINUX
+from .playnite import load_playnite_games, register_roots, title_for
 from .utils import find_game_root
 from .vdf_parser import VDFParser
-from .platform_utils import IS_WINDOWS, IS_LINUX
 import asyncio
 import anyio
 from dlss_updater.concurrency_limiters import thread_cpu, thread_io, io_heavy
@@ -746,6 +747,21 @@ async def get_xbox_games():
     return [Path(p) for p in xbox_paths if Path(p).exists()]
 
 
+async def get_playnite_games():
+    """Get installed Playnite games (title + install dir) from its own library."""
+    configured = config_manager.get_launcher_paths(LauncherPathName.PLAYNITE)
+    try:
+        # LiteDB parsing is blocking file I/O; keep it off the event loop.
+        pairs = await anyio.to_thread.run_sync(
+            lambda: load_playnite_games(configured)
+        )
+    except Exception as e:
+        logger.warning(f"Failed to read Playnite library: {e}")
+        return []
+    register_roots(pairs)
+    return [{"name": title, "path": Path(path_str)} for title, path_str in pairs]
+
+
 async def get_custom_folder(folder_num):
     """Get all configured paths for a custom folder (multi-path support)."""
     launcher = getattr(LauncherPathName, f"CUSTOM{folder_num}")
@@ -986,6 +1002,7 @@ async def find_all_dlls(progress_callback=None):
         "GOG Launcher": [],
         "Battle.net Launcher": [],
         "Xbox Launcher": [],
+        "Playnite": [],
         "Custom Folder 1": [],
         "Custom Folder 2": [],
         "Custom Folder 3": [],
@@ -1093,6 +1110,37 @@ async def find_all_dlls(progress_callback=None):
             return await find_dlls(xbox_games, "Xbox Launcher", dll_names)
         return []
 
+    async def scan_playnite():
+        # Playnite games come with exact install roots and titles read from
+        # its own database, so they use the targeted per-game pipeline
+        # (scan_games_for_dlls_parallel) like Steam instead of walking
+        # entire library folders.
+        playnite_games = await get_playnite_games()
+        if not playnite_games:
+            return []
+
+        dll_names_lower = frozenset(d.lower() for d in dll_names)
+        scan_results = await scan_games_for_dlls_parallel(playnite_games, dll_names_lower)
+
+        potential_dlls = [
+            dll_path
+            for data in scan_results.values()
+            for dll_path in data["dlls"]
+        ]
+
+        from .whitelist import check_whitelist_batch
+
+        whitelist_results = await check_whitelist_batch(potential_dlls)
+
+        filtered_dlls = []
+        for dll_path in potential_dlls:
+            if not whitelist_results.get(dll_path, True):
+                logger.info(f"Found non-whitelisted DLL in Playnite: {dll_path}")
+                filtered_dlls.append(dll_path)
+            else:
+                logger.info(f"Skipped whitelisted game in Playnite: {dll_path}")
+        return filtered_dlls
+
     async def scan_custom(folder_num):
         custom_folder = await get_custom_folder(folder_num)
         if custom_folder:
@@ -1118,6 +1166,7 @@ async def find_all_dlls(progress_callback=None):
             "GOG Launcher": register_task(asyncio.create_task(scan_gog()), "scan_gog"),
             "Battle.net Launcher": register_task(asyncio.create_task(scan_battlenet()), "scan_battlenet"),
             "Xbox Launcher": register_task(asyncio.create_task(scan_xbox()), "scan_xbox"),
+            "Playnite": register_task(asyncio.create_task(scan_playnite()), "scan_playnite"),
             "Custom Folder 1": register_task(asyncio.create_task(scan_custom(1)), "scan_custom_1"),
             "Custom Folder 2": register_task(asyncio.create_task(scan_custom(2)), "scan_custom_2"),
             "Custom Folder 3": register_task(asyncio.create_task(scan_custom(3)), "scan_custom_3"),
@@ -1281,6 +1330,8 @@ async def find_all_dlls(progress_callback=None):
         async def prepare_game_data(launcher: str, game_dir_str: str, game_dlls: list):
             game_dir = Path(game_dir_str)
             game_name = game_dir.name
+            if launcher == "Playnite":
+                game_name = title_for(game_dir) or game_name
 
             app_id = None
             resolution_source = None
@@ -1499,6 +1550,7 @@ def find_all_dlls_sync():
             "GOG Launcher": [],
             "Battle.net Launcher": [],
             "Xbox Launcher": [],
+            "Playnite": [],
             "Custom Folder 1": [],
             "Custom Folder 2": [],
             "Custom Folder 3": [],

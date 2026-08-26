@@ -1621,6 +1621,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             "GOG Launcher": ft.Icons.VIDEOGAME_ASSET_OUTLINED,
             "Battle.net Launcher": ft.Icons.MILITARY_TECH,
             "Xbox Launcher": ft.Icons.SPORTS_ESPORTS_OUTLINED,
+            "Playnite": ft.Icons.LIBRARY_BOOKS,
             "Custom Folder 1": ft.Icons.FOLDER_SPECIAL,
             "Custom Folder 2": ft.Icons.FOLDER_SPECIAL,
             "Custom Folder 3": ft.Icons.FOLDER_SPECIAL,

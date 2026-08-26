@@ -436,6 +436,7 @@ class LauncherColors:
     GOG = "#86328A"             # GOG purple
     BATTLENET = "#00AEFF"       # Battle.net blue
     XBOX = "#107C10"            # Xbox green
+    PLAYNITE = "#6A2C8F"        # Playnite purple
     CUSTOM = "#2D6E88"          # Primary teal for custom folders
 
     # Mapping for enum lookup
@@ -447,6 +448,7 @@ class LauncherColors:
         "GOG": GOG,
         "BATTLENET": BATTLENET,
         "XBOX": XBOX,
+        "PLAYNITE": PLAYNITE,
         "CUSTOM1": CUSTOM,
         "CUSTOM2": CUSTOM,
         "CUSTOM3": CUSTOM,
