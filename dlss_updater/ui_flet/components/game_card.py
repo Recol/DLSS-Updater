@@ -85,7 +85,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
     not be included in page.update() and would require individual card.update() calls.
     """
 
-    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None, on_resolve=None, db_manager=None, dlss_presets=None):
+    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None, on_resolve=None, db_manager=None, dlss_presets=None, dll_manifest=None):
         super().__init__()
 
         # Handle both Game and MergedGame
@@ -124,6 +124,11 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # Saved per-game SR/RR preset override (models.GameDLSSPresets), if any.
         # Windows-only (dlss_updater.nvapi_drs) — always None elsewhere.
         self.dlss_presets = dlss_presets
+        # Cached DLL manifest (dll_repository.get_cached_manifest()), shared by
+        # every card — the source of tech-version chip labels/bucketing. None
+        # before the DLL cache has ever been initialized (chips just stay
+        # hidden until then).
+        self.dll_manifest = dll_manifest
 
         # Button references for loading state
         self.update_button: ft.PopupMenuButton | None = None
@@ -424,8 +429,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # launcher/status — inlining it caused inconsistent wrapping (some
         # cards single-line, others wrapping flush against the row above with
         # no gap). Hidden (empty text, collapses — no reserved space) when no
-        # tracked DLL has a confident marketing-name mapping — see
-        # version_labels.marketing_version().
+        # DLL in self.dlls has a manifest "feature" tag — see
+        # version_labels.kind_of().
         self.tech_version_text = ft.Text(
             self._tech_version_label(),
             size=11,
@@ -707,32 +712,34 @@ class GameCard(ThemeAwareMixin, ft.Card):
         A game can ship more than one DLL for the same technology (e.g. both
         nvngx_dlss.dll and the Streamline-wrapped sl.dlss.dll for DLSS SR),
         each independently versioned — so DLLs are bucketed by
-        version_labels.kind_of() and only the highest-versioned DLL per
-        bucket contributes a label, instead of showing two possibly
-        contradictory generation numbers for what reads as one "DLSS
-        version" on the card. Buckets with no confident marketing-name
-        mapping (version_labels.marketing_version) are skipped rather than
-        guessed at. The "(Preset K)" suffix only appears when this game has
-        a saved per-game SR/RR override (self.dlss_presets, Windows-only)
-        other than default.
+        version_labels.kind_of() (manifest-driven "feature" key, not a
+        filename list) and only the highest-versioned DLL per bucket
+        contributes a label. A bucket whose winning DLL has no marketing-name
+        match in the manifest (version_labels.marketing_version) falls back
+        to showing its raw version rather than being skipped — Streamline
+        DLLs in particular aren't expected to ever get a marketing-name entry
+        (SL versioning doesn't track the DLSS generation it wraps), so this
+        is their normal, permanent display. The "(Preset K)" suffix only
+        appears when this game has a saved per-game SR/RR override
+        (self.dlss_presets, Windows-only) other than default.
         """
         from dlss_updater.updater import parse_version
         from dlss_updater.version_labels import (
-            KIND_DLSS_RR,
-            KIND_DLSS_SR,
-            KIND_FSR,
-            KIND_XESS,
+            FEATURE_DLSS_RR,
+            FEATURE_DLSS_SR,
             kind_of,
             marketing_version,
             preset_suffix,
+            sort_kinds,
         )
 
         presets = self.dlss_presets
+        manifest = self.dll_manifest
         best_by_kind: dict[str, tuple] = {}
         for dll in self.dlls:
             if not dll.current_version or not dll.dll_filename:
                 continue
-            kind = kind_of(dll.dll_filename)
+            kind = kind_of(dll.dll_filename, manifest)
             if kind is None:
                 continue
             try:
@@ -744,18 +751,13 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 best_by_kind[kind] = (parsed, dll)
 
         labels: list[str] = []
-        for kind in (KIND_DLSS_SR, KIND_FSR, KIND_XESS, KIND_DLSS_RR):
-            entry = best_by_kind.get(kind)
-            if entry is None:
-                continue
-            dll = entry[1]
-            label = marketing_version(dll.dll_filename, dll.current_version)
-            if not label:
-                continue
+        for kind in sort_kinds(best_by_kind.keys()):
+            _, dll = best_by_kind[kind]
+            label = marketing_version(dll.dll_filename, dll.current_version, manifest) or dll.current_version
             if presets is not None:
-                if kind == KIND_DLSS_SR:
+                if kind == FEATURE_DLSS_SR:
                     label += preset_suffix(presets.sr)
-                elif kind == KIND_DLSS_RR:
+                elif kind == FEATURE_DLSS_RR:
                     label += preset_suffix(presets.rr)
             labels.append(label)
         return " · ".join(labels)

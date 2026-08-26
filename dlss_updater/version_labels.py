@@ -1,118 +1,91 @@
-"""Marketing-name labels for tracked upscaler / Ray Reconstruction DLL versions.
+"""Marketing-name labels for tracked upscaler / Ray Reconstruction DLLs.
 
-Raw DLL file versions don't line up 1:1 with vendor marketing names (NVIDIA
-especially: the transformer model's file version jumped nvngx_dlss.dll into
-the 310.x.x range, currently marketed "DLSS 4.5"). The mappings below only
-cover generations we're confident about; anything outside a known range
-returns None so callers can fall back to showing nothing (or the raw
-version) instead of a guess.
+Labels and technology bucketing come from the DLL manifest (manifest.json in
+the DLL repo), not this client. A client-side version->name table goes stale
+the moment a vendor renumbers (NVIDIA's DLSS marketing generation doesn't
+track the raw PE version linearly) or the DLL repo adds a DLL the table
+doesn't know about — and since the mismatched DLL is one this same app just
+auto-installed, a wrong label is worse than a missing one. So the manifest
+carries, per DLL, an optional "feature" key (which technology bucket it
+belongs to — lets DLLs like nvngx_dlss.dll and the Streamline-wrapped
+sl.dlss.dll that describe the same tech get grouped without a client-side
+filename list) and an optional "labels" list of bounded
+[min_version, max_version, name] ranges, e.g.:
 
-ponytail: coarse major-version buckets, not every SDK point release
-(3.5/3.7/3.8 all collapse to "DLSS 3") — when NVIDIA ships a new marketing
-generation, update the top _DLSS_*_THRESHOLDS entry (name AND, if the raw
-file-version major changes again, its threshold number) to match README.md's
-"Bundled DLL Versions" table, which the maintainer already keeps current.
+    "nvngx_dlss.dll": {
+        "version": "310.7.128.0",
+        "feature": "dlss_sr",
+        "labels": [["310.4", "311", "DLSS 4.5"], ["310", "310.4", "DLSS 4"]]
+    }
+
+No manifest, no entry, no "labels", or a version outside every range means
+marketing_version() returns None — callers show the raw version instead of
+guessing. Ranges are display-only lookups; they never feed into the actual
+update version comparison (that's parse_version() in updater.py, against the
+manifest's own "version" field).
 """
 
-# (minimum raw major version, label) pairs, checked highest-first. Top entry
-# mirrors README.md's Bundled DLL Versions table (DLSS Super Resolution /
-# DLSS FG-RR rows) — keep both in sync on the same release that bumps
-# config.LATEST_DLL_VERSIONS's nvngx_dlss.dll / nvngx_dlssd.dll entries.
-_DLSS_SR_THRESHOLDS = [(310, "DLSS 4.5"), (3, "DLSS 3"), (2, "DLSS 2"), (1, "DLSS 1")]
-_DLSS_RR_THRESHOLDS = [(310, "RR 4.5"), (3, "RR 3.5")]  # RR didn't exist before DLSS 3.5
+from .updater import parse_version
 
-# DLL filenames whose raw major.minor IS the vendor's marketing version
-# (Intel/AMD, unlike NVIDIA, don't renumber for a new generation).
-_XESS_FILES = {"libxess.dll", "libxess_dx11.dll"}
-# amd_fidelityfx_dx12.dll / _vk.dll are a frozen SDK 1.1.4 "loader" version,
-# not the FSR feature version, so they're deliberately excluded here.
-_FSR_FILES = {"amd_fidelityfx_upscaler_dx12.dll"}
+# The two feature keys the client special-cases for the per-game DLSS
+# preset-override suffix (see game_card._tech_version_label). Any other
+# feature key is still bucketed and displayed — it just never gets a
+# "(Preset K)" suffix, since presets only apply to DLSS SR/RR.
+FEATURE_DLSS_SR = "dlss_sr"
+FEATURE_DLSS_RR = "dlss_rr"
 
-DLSS_SR_FILES = {"nvngx_dlss.dll", "sl.dlss.dll"}
-DLSS_RR_FILES = {"nvngx_dlssd.dll", "sl.dlss_d.dll"}
-
-# A game can ship more than one DLL for the same technology (e.g. both the
-# native nvngx_dlss.dll and the Streamline-wrapped sl.dlss.dll for DLSS SR),
-# each independently versioned. kind_of() lets callers bucket by technology
-# and pick ONE representative DLL per bucket (the highest version) instead of
-# showing two possibly-contradictory generation labels for what a user sees
-# as a single "DLSS version" on the card.
-KIND_DLSS_SR = "dlss_sr"
-KIND_DLSS_RR = "dlss_rr"
-KIND_XESS = "xess"
-KIND_FSR = "fsr"
+# Canonical display order for the well-known buckets (matches the
+# DLSS/FSR/XeSS/RR order the chip line has always used). A feature key the
+# manifest introduces after this client shipped isn't in here — it still
+# displays, just appended after these, alphabetically, in sort_kinds().
+KNOWN_FEATURE_ORDER = (FEATURE_DLSS_SR, "fsr_sr", "xess_sr", FEATURE_DLSS_RR)
 
 
-def kind_of(dll_filename: str) -> str | None:
-    """Technology bucket for a tracked DLL filename, or None if untracked."""
-    if not dll_filename:
+def _manifest_entry(dll_filename: str, manifest: dict | None) -> dict | None:
+    if not dll_filename or not isinstance(manifest, dict):
         return None
-    name = dll_filename.lower()
-    if name in DLSS_SR_FILES:
-        return KIND_DLSS_SR
-    if name in DLSS_RR_FILES:
-        return KIND_DLSS_RR
-    if name in _XESS_FILES:
-        return KIND_XESS
-    if name in _FSR_FILES:
-        return KIND_FSR
+    entry = manifest.get(dll_filename.lower())
+    return entry if isinstance(entry, dict) else None
+
+
+def kind_of(dll_filename: str, manifest: dict | None) -> str | None:
+    """Technology bucket for a tracked DLL, from the manifest's "feature" key.
+
+    None (untracked, no chip entry) if the manifest is unavailable or has no
+    "feature" for this DLL.
+    """
+    entry = _manifest_entry(dll_filename, manifest)
+    feature = entry.get("feature") if entry else None
+    return feature if isinstance(feature, str) and feature else None
+
+
+def marketing_version(dll_filename: str, raw_version: str, manifest: dict | None) -> str | None:
+    """Marketing label for raw_version within the manifest's bounded ranges,
+    or None if there's no entry/labels/match — callers should fall back to
+    showing raw_version rather than guess."""
+    entry = _manifest_entry(dll_filename, manifest)
+    labels = entry.get("labels") if entry else None
+    if not isinstance(labels, list) or not raw_version:
+        return None
+
+    v = parse_version(raw_version)
+    for bucket in labels:
+        if not isinstance(bucket, (list, tuple)) or len(bucket) != 3:
+            continue
+        lo, hi, label = bucket
+        if not isinstance(label, str) or not label:
+            continue
+        if parse_version(lo) <= v < parse_version(hi):
+            return label
     return None
 
 
-def _major(raw_version: str) -> int | None:
-    try:
-        return int(raw_version.replace(",", ".").split(".")[0])
-    except (ValueError, IndexError, AttributeError):
-        return None
-
-
-def _major_minor(raw_version: str) -> str | None:
-    parts = raw_version.replace(",", ".").split(".")
-    if len(parts) < 2:
-        return None
-    try:
-        return f"{int(parts[0])}.{int(parts[1])}"
-    except ValueError:
-        return None
-
-
-def marketing_version(dll_filename: str, raw_version: str) -> str | None:
-    """Best-effort marketing label for a tracked DLL, or None if not confident."""
-    if not dll_filename or not raw_version:
-        return None
-    name = dll_filename.lower()
-
-    if name in DLSS_SR_FILES:
-        major = _major(raw_version)
-        if major is None:
-            return None
-        for threshold, label in _DLSS_SR_THRESHOLDS:
-            if major >= threshold:
-                return label
-        return None
-
-    if name in DLSS_RR_FILES:
-        major = _major(raw_version)
-        if major is None:
-            return None
-        for threshold, label in _DLSS_RR_THRESHOLDS:
-            if major >= threshold:
-                return label
-        return None
-
-    if name in _XESS_FILES:
-        mm = _major_minor(raw_version)
-        return f"XeSS {mm}" if mm else None
-
-    if name in _FSR_FILES:
-        mm = _major_minor(raw_version)
-        return f"FSR {mm}" if mm else None
-
-    return None
-
-
-def is_ray_reconstruction(dll_filename: str) -> bool:
-    return bool(dll_filename) and dll_filename.lower() in DLSS_RR_FILES
+def sort_kinds(kinds) -> list[str]:
+    """Order feature-bucket keys: known techs in their fixed display order,
+    then any unrecognised ones (new to the manifest) alphabetically after."""
+    known = [k for k in KNOWN_FEATURE_ORDER if k in kinds]
+    unknown = sorted(k for k in kinds if k not in KNOWN_FEATURE_ORDER)
+    return known + unknown
 
 
 # Short chip labels for a per-game preset override (models.WindowsDLSSPreset /

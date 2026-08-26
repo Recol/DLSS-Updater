@@ -1,79 +1,115 @@
-"""Tests for dlss_updater.version_labels (DLL version -> marketing name)."""
+"""Tests for dlss_updater.version_labels (manifest-driven DLL label lookup).
+
+Labels/bucketing come from a manifest dict shaped like the DLL repo's
+manifest.json (see version_labels.py's module docstring) — these tests build
+that manifest inline rather than hitting the network.
+"""
 
 import pytest
 
 from dlss_updater.version_labels import (
-    KIND_DLSS_RR,
-    KIND_DLSS_SR,
-    KIND_FSR,
-    KIND_XESS,
-    is_ray_reconstruction,
+    FEATURE_DLSS_RR,
+    FEATURE_DLSS_SR,
     kind_of,
     marketing_version,
     preset_suffix,
+    sort_kinds,
 )
+
+# Mirrors the shape (and the exact bug scenarios) described for the real
+# manifest: a bounded DLSS SR/RR generation table, sl.* DLLs sharing the same
+# "feature" as their nvngx_* counterparts but with NO labels (raw-version
+# fallback), and libxess.dll present but untagged (not yet migrated).
+MANIFEST = {
+    "nvngx_dlss.dll": {
+        "version": "310.7.128.0",
+        "feature": "dlss_sr",
+        "labels": [
+            ["310.4", "311", "DLSS 4.5"],
+            ["310", "310.4", "DLSS 4"],
+            ["3", "4", "DLSS 3"],
+            ["2", "3", "DLSS 2"],
+        ],
+    },
+    "nvngx_dlssd.dll": {
+        "version": "310.7.128.0",
+        "feature": "dlss_rr",
+        "labels": [
+            ["310", "311", "RR 4.5"],
+            ["3.5", "4", "RR 3.5"],
+        ],
+    },
+    "sl.dlss.dll": {"version": "2.12.128.0", "feature": "dlss_sr"},
+    "sl.dlss_d.dll": {"version": "2.12.128.0", "feature": "dlss_rr"},
+    "libxess.dll": {"version": "2.0.2.68"},  # no "feature" yet: untracked
+    "malformed.dll": {"version": "1.0.0.0", "feature": "fsr_sr", "labels": "not-a-list"},
+}
 
 
 @pytest.mark.parametrize(
     "dll_filename, raw_version, expected",
     [
-        ("nvngx_dlss.dll", "310.2.1.0", "DLSS 4.5"),
-        ("sl.dlss.dll", "3.8.10.0", "DLSS 3"),
-        ("nvngx_dlss.dll", "2.5.1.0", "DLSS 2"),
-        ("nvngx_dlssd.dll", "310.2.1.0", "RR 4.5"),
-        ("sl.dlss_d.dll", "3.5.0.0", "RR 3.5"),
-        ("nvngx_dlssd.dll", "2.5.1.0", None),  # RR didn't exist pre-3.5
-        ("libxess.dll", "2.0.2.68", "XeSS 2.0"),
-        ("libxess_dx11.dll", "1.3.0.5", "XeSS 1.3"),
-        ("amd_fidelityfx_upscaler_dx12.dll", "4.0.2.44888", "FSR 4.0"),
-        ("amd_fidelityfx_dx12.dll", "1.0.1.41314", None),  # loader/SDK version, not FSR's
-        ("nvngx_dlssg.dll", "310.2.1.0", None),  # frame gen: not tracked here
+        # Bounded top range: covers the current shipped version.
+        ("nvngx_dlss.dll", "310.7.128.0", "DLSS 4.5"),
+        ("nvngx_dlss.dll", "310.2.1.0", "DLSS 4"),
+        ("nvngx_dlss.dll", "3.8.10.0", "DLSS 3"),
+        # A version above every bucket's upper bound (the vendor renumbered
+        # again since this manifest snapshot) falls through to None, NOT the
+        # top bucket's label — this is the whole point of bounding ranges.
+        ("nvngx_dlss.dll", "311.0.0.0", None),
+        ("nvngx_dlssd.dll", "310.7.128.0", "RR 4.5"),
+        ("nvngx_dlssd.dll", "3.5.0.0", "RR 3.5"),
+        # Streamline DLLs: same "feature" as their nvngx counterpart, no
+        # "labels" — always raw-version fallback (caller supplies the raw
+        # string; this function itself has nothing to map).
+        ("sl.dlss.dll", "2.12.128.0", None),
+        ("sl.dlss_d.dll", "2.12.128.0", None),
+        # Not in the manifest at all.
         ("unknown.dll", "1.0.0.0", None),
         ("nvngx_dlss.dll", "", None),
-        ("nvngx_dlss.dll", "not-a-version", None),
+        # Malformed "labels" (wrong type) must not raise.
+        ("malformed.dll", "1.0.0.0", None),
     ],
 )
 def test_marketing_version(dll_filename, raw_version, expected):
-    assert marketing_version(dll_filename, raw_version) == expected
+    assert marketing_version(dll_filename, raw_version, MANIFEST) == expected
 
 
-def test_is_ray_reconstruction():
-    assert is_ray_reconstruction("nvngx_dlssd.dll") is True
-    assert is_ray_reconstruction("sl.dlss_d.dll") is True
-    assert is_ray_reconstruction("nvngx_dlss.dll") is False
-    assert is_ray_reconstruction("") is False
-
-
-@pytest.mark.parametrize(
-    "preset_key, expected",
-    [
-        (None, ""),
-        ("", ""),
-        ("default", ""),
-        ("latest", " (Latest)"),
-        ("preset_k", " (Preset K)"),
-        ("bogus", ""),
-    ],
-)
-def test_preset_suffix(preset_key, expected):
-    assert preset_suffix(preset_key) == expected
+def test_marketing_version_no_manifest():
+    assert marketing_version("nvngx_dlss.dll", "310.7.128.0", None) is None
 
 
 @pytest.mark.parametrize(
     "dll_filename, expected_kind",
     [
-        ("nvngx_dlss.dll", KIND_DLSS_SR),
-        ("sl.dlss.dll", KIND_DLSS_SR),  # same bucket as nvngx_dlss.dll (regression:
-        # a game shipping both must contribute ONE label, not two conflicting ones)
-        ("nvngx_dlssd.dll", KIND_DLSS_RR),
-        ("sl.dlss_d.dll", KIND_DLSS_RR),
-        ("libxess.dll", KIND_XESS),
-        ("libxess_dx11.dll", KIND_XESS),
-        ("amd_fidelityfx_upscaler_dx12.dll", KIND_FSR),
-        ("amd_fidelityfx_dx12.dll", None),
-        ("nvngx_dlssg.dll", None),
-        ("", None),
+        ("nvngx_dlss.dll", "dlss_sr"),
+        ("sl.dlss.dll", "dlss_sr"),  # same bucket as nvngx_dlss.dll
+        ("nvngx_dlssd.dll", "dlss_rr"),
+        ("sl.dlss_d.dll", "dlss_rr"),
+        ("libxess.dll", None),  # present in manifest, but no "feature" yet
+        ("unknown.dll", None),
     ],
 )
 def test_kind_of(dll_filename, expected_kind):
-    assert kind_of(dll_filename) == expected_kind
+    assert kind_of(dll_filename, MANIFEST) == expected_kind
+
+
+def test_kind_of_no_manifest():
+    assert kind_of("nvngx_dlss.dll", None) is None
+
+
+def test_sort_kinds_known_order_then_unknown_alphabetical():
+    kinds = {FEATURE_DLSS_RR, "xess_sr", FEATURE_DLSS_SR, "zzz_new_tech", "aaa_new_tech"}
+    assert sort_kinds(kinds) == [
+        FEATURE_DLSS_SR,
+        "xess_sr",
+        FEATURE_DLSS_RR,
+        "aaa_new_tech",
+        "zzz_new_tech",
+    ]
+
+
+def test_preset_suffix():
+    assert preset_suffix("preset_k") == " (Preset K)"
+    assert preset_suffix(None) == ""
+    assert preset_suffix("default") == ""

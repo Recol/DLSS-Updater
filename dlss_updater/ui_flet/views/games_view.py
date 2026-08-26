@@ -18,6 +18,7 @@ import flet as ft
 
 from dlss_updater.concurrency_limiters import thread_io, io_heavy
 
+from dlss_updater import dll_repository
 from dlss_updater.database import db_manager, Game, merge_games_by_name
 from dlss_updater.models import MergedGame, GameDLL, DLLBackup, GameDLSSPresets
 from dlss_updater.ui_flet.components.game_card import GameCard
@@ -1218,6 +1219,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             LoadTask("images", lambda: db_manager._batch_get_cached_image_paths(all_steam_app_ids)),
             LoadTask("ignored", lambda: db_manager.batch_get_ignored_game_ids_sync()),
             LoadTask("dlss_presets", lambda: db_manager.batch_get_game_dlss_presets_sync(all_game_ids)),
+            LoadTask("dll_manifest", lambda: dll_repository.get_cached_manifest()),
         ])
 
         dlls_by_game: dict[int, list[GameDLL]] = results.get("dlls", {})
@@ -1229,6 +1231,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # than threaded through the (mg, dlls, backup_groups) tuples used by
         # progressive/background card loading.
         presets_by_game: dict[int, GameDLSSPresets] = results.get("dlss_presets", {})
+        # Cached DLL manifest — source of tech-version chip labels/bucketing
+        # (see version_labels.py). Same dict handed to every card; None
+        # before the DLL cache has ever been initialized.
+        dll_manifest: dict | None = results.get("dll_manifest")
 
         # Headline game count for the subtitle — the true merged total, shown
         # immediately even while later cards are still loading progressively.
@@ -1281,6 +1287,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 on_ignore_toggle=self._on_game_ignore_toggle,
                 on_resolve=self._on_game_resolve,
                 dlss_presets=dlss_presets,
+                dll_manifest=dll_manifest,
             )
             card.opacity = 0 if not is_ignored else 0.5
             card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
