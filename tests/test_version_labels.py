@@ -57,6 +57,14 @@ MANIFEST = {
         # again since this manifest snapshot) falls through to None, NOT the
         # top bucket's label — this is the whole point of bounding ranges.
         ("nvngx_dlss.dll", "311.0.0.0", None),
+        # A version BELOW every bucket's lower bound — an ancient DLSS 1.x
+        # DLL a game installed years before this manifest existed — falls
+        # through to None the same way, so the caller shows the raw old
+        # version instead of a wrong/missing label.
+        ("nvngx_dlss.dll", "1.0.13.0", None),
+        # Unparseable version string must not raise (parse_version() catches
+        # internally and returns a low sentinel) — still resolves to None.
+        ("nvngx_dlss.dll", "garbage", None),
         ("nvngx_dlssd.dll", "310.7.128.0", "RR 4.5"),
         ("nvngx_dlssd.dll", "3.5.0.0", "RR 3.5"),
         # Streamline DLLs: same "feature" as their nvngx counterpart, no
