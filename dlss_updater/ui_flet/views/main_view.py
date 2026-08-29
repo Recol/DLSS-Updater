@@ -328,7 +328,10 @@ class MainView(ft.Column):
         # Create games view. on_update_all wires its header CTA to the same
         # bulk-update pipeline the Launchers action bar uses.
         self.games_view = GamesView(
-            self._page_ref, self.logger, on_update_all=self.run_bulk_update
+            self._page_ref,
+            self.logger,
+            on_update_all=self.run_bulk_update,
+            on_update_selected=self.run_bulk_update_for_selection,
         )
 
         # Create backups view
@@ -2035,6 +2038,92 @@ class MainView(ft.Column):
         finally:
             self._bulk_run_active = False
 
+    async def run_bulk_update_for_selection(
+        self, dll_dict: dict[str, list[str]], target_filenames: set[str], game_count: int
+    ) -> None:
+        """Update just the games the user selected in the Games view.
+
+        Shares the whole library-wide pipeline - ``update_games()`` already
+        takes ``{launcher: [dll_path]}``, so a hand-picked subset is expressed
+        as a narrower dict rather than a second update engine. No scan cache is
+        needed: the paths come from the selected cards' DB rows.
+
+        The rollback-compatibility check runs ONCE over the union of the
+        selection's DLL filenames (flagged versions are bad regardless of which
+        game carries them), so a 40-game selection shows a single warning
+        dialog rather than 40.
+        """
+        if self._bulk_run_active:
+            await self._show_snackbar("An update or scan is already running")
+            return
+
+        from dlss_updater.config import is_dll_cache_ready
+        if not is_dll_cache_ready():
+            await self._show_snackbar("DLL cache is still initializing — try again in a moment")
+            return
+
+        self._bulk_run_active = True
+        try:
+            dll_dict = await self._apply_rollback_warning(dll_dict, target_filenames, game_count)
+            if dll_dict is None:
+                return  # User cancelled at the warning dialog
+            if not dll_dict:
+                await self._show_snackbar("Nothing left to update after skipping flagged DLLs")
+                return
+
+            self.logger.info(
+                f"Updating {game_count} selected game(s): "
+                f"{sum(len(p) for p in dll_dict.values())} DLL(s) across {len(dll_dict)} launcher(s)"
+            )
+            await self._execute_bulk_update(dll_dict)
+        finally:
+            self._bulk_run_active = False
+
+    async def _apply_rollback_warning(
+        self, dll_dict: dict[str, list[str]], target_filenames: set[str], game_count: int
+    ) -> dict[str, list[str]] | None:
+        """Warn about flagged target versions; return the dict to actually run.
+
+        Returns None if the user cancelled, the dict unchanged on "proceed",
+        and a dict with the flagged DLLs removed on "skip" (``update_games()``
+        has no skip parameter, so the narrowing happens here).
+
+        Fails OPEN: a failure in the warning path never blocks an update, which
+        matches GamesView's per-game handling of the same check.
+        """
+        from dlss_updater.ui_flet.views.games_view import collect_flagged_dlls, filter_dll_dict
+
+        try:
+            from dlss_updater.config import LATEST_DLL_VERSIONS
+            from dlss_updater.database import db_manager
+
+            flagged_map = await db_manager.get_flagged_dll_versions()
+            if not flagged_map:
+                return dll_dict
+
+            flagged = collect_flagged_dlls(target_filenames, flagged_map, LATEST_DLL_VERSIONS)
+            if not flagged:
+                return dll_dict
+
+            from dlss_updater.ui_flet.dialogs.rollback_warning_dialog import RollbackWarningDialog
+
+            label = f"{game_count} selected game{'s' if game_count != 1 else ''}"
+            result = await RollbackWarningDialog(
+                self._page_ref, self.logger, label, flagged
+            ).show()
+
+            if result == "cancel":
+                self.logger.info("Selected-games update cancelled by user (rollback warning)")
+                return None
+            if result == "skip":
+                skip = {entry["dll_filename"] for entry in flagged}
+                self.logger.info(f"User chose to skip flagged DLLs: {skip}")
+                return filter_dll_dict(dll_dict, skip)
+        except Exception as ex:
+            self.logger.warning(f"Rollback warning check failed: {ex}", exc_info=True)
+
+        return dll_dict
+
     async def run_scan(self) -> None:
         """Start a launcher scan (same handler as the Launchers bar button)."""
         if self._bulk_run_active:
@@ -2397,6 +2486,18 @@ class MainView(ft.Column):
                 age_str = f"{int(hours_ago / 24)} days ago"
             self.logger.info(f"Using scan results from {age_str}")
 
+        # Run update ONLY (use cached scan results)
+        await self._execute_bulk_update(self.last_scan_results)
+
+    async def _execute_bulk_update(self, dll_dict: dict) -> None:
+        """Run ``dll_dict`` through the update pipeline and report the outcome.
+
+        The shared tail of every bulk update - library-wide from the Launchers
+        bar / hub CTA, and the Games view's "Update selected (N)" over a
+        narrowed dict. Both need the identical cancellable overlay, progress
+        wiring, cancelled-vs-summary reporting and post-run reconciliation, so
+        it is stated once here rather than duplicated per entry point.
+        """
         try:
             # Show loading overlay with a Cancel button wired to the coordinator
             self.loading_overlay.show(
@@ -2413,9 +2514,8 @@ class MainView(ft.Column):
                     progress.message
                 )
 
-            # Run update ONLY (use cached scan results)
             result = await self.update_coordinator.update_games(
-                self.last_scan_results,
+                dll_dict,
                 on_progress
             )
 

@@ -1,3 +1,51 @@
+Version 4.8.1:
+New:
+  - Games can now be updated in hand-picked batches. Hovering a card in the
+    Games view reveals a checkbox in its top-left corner; ticking one enters
+    selection mode, where every card keeps its checkbox and the filter chips
+    give way to a selection bar - "N selected", Update selected (N), Select all
+    and Clear. A selected card is marked by an accent-filled tick and a
+    matching accent border, so a selection reads across a grid of box art at a
+    glance. "Update all" hides itself for as long as anything is selected: two
+    bulk actions side by side, one offering the whole library and one the two
+    games you picked, is a misclick waiting to happen. It returns, with its
+    original count, the moment the selection is cleared.
+    Select all takes every game visible in the current launcher tab,
+    which makes "update only this launcher" a two-click operation without a
+    separate code path for it. The selection is a set of game ids shared across
+    every launcher tab, so it survives tab switches and filter changes, and it
+    is dropped whenever the cards are rebuilt by a rescan or a database delete,
+    since the retained ids could otherwise name games that no longer exist.
+    The run itself reuses the library-wide pipeline rather than looping the
+    per-game one: the selected cards' DLL paths are collected into the same
+    {launcher: [path]} shape the updater already accepts, so a selection gets
+    the parallel high-performance pipeline, the cancellable progress overlay
+    and one summary dialog at the end - not a dialog per game. Because the
+    paths come from the database rather than from scan results, a selection can
+    be updated with no scan cache present at all.
+    The rollback-compatibility warning runs once for the whole selection rather
+    than once per game. Flagged DLL versions are vendor-signed, so a bad
+    version is bad regardless of which game carries it; the check is made over
+    the union of the selection's DLL filenames and yields one warning entry per
+    DLL, so a forty-game selection still shows a single dialog. Choosing "skip
+    flagged" narrows the DLL list before the update starts.
+  - The Games grid now has a card size setting - Compact, Comfortable or Large
+    - in the header's options menu, remembered between sessions. Compact fits
+    noticeably more of a large library on screen. The preference had been
+    written to config.toml and read back for some time, but nothing had ever
+    applied it; it is now wired to the grid.
+    Cell geometry is derived rather than hand-written: a card is a flexible
+    banner over a fixed 52px footer, so each density states its cell width and
+    banner target and the aspect ratio is computed from them. That keeps the
+    footer from being clipped, or trailed by a grey gap, at any size. The
+    loading placeholder follows the same target, so a compact cell no longer
+    lays out against a banner height meant for a comfortable one.
+
+Fixes:
+  - Extracted the update pipeline's shared tail (overlay, progress, cancelled
+    versus summary reporting, badge and backup reconciliation) so the
+    library-wide update and the new selection update cannot drift apart.
+
 Version 4.8.0:
 New:
   - Ray Reconstruction presets D and F are now selectable, globally and per

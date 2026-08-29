@@ -64,6 +64,19 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="4.8.1" date="2026-08-30">
+      <description>
+        <p>Update a hand-picked set of games, and choose how large the game cards are</p>
+        <ul>
+          <li>Games can now be updated in hand-picked batches. Hovering a card in the Games view reveals a checkbox; ticking one enters selection mode, where the filter chips give way to a selection bar — "N selected", Update selected (N), Select all and Clear. Select all takes every game visible in the current launcher tab, so "update only this launcher" is two clicks</li>
+          <li>The selection is shared across launcher tabs, so it survives tab switches and filter changes, and it is dropped whenever the cards are rebuilt by a rescan or a database delete</li>
+          <li>A selection reuses the library-wide pipeline rather than looping the per-game one, so it gets the parallel update path, the cancellable progress overlay and a single summary at the end — not a dialog per game. The DLL paths come from the database, so a selection can be updated with no scan cache present</li>
+          <li>The rollback-compatibility warning runs once for a whole selection rather than once per game: flagged DLL versions are bad regardless of which game carries them, so a forty-game selection still shows a single dialog</li>
+          <li>"Update all" hides itself while anything is selected, so the whole-library action is never sitting one misclick away from the two games you picked. It returns, with its original count, when the selection is cleared</li>
+          <li>The Games grid has a card size setting — Compact, Comfortable or Large — in the header's options menu, remembered between sessions. Compact fits noticeably more of a large library on screen. The preference had been saved and read back for some time, but nothing had ever applied it</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.8.0" date="2026-08-25">
       <description>
         <p>Ray Reconstruction presets D and F, matching the NVIDIA App's DLSS 4.5 Ray Reconstruction Gen 2 dropdown</p>

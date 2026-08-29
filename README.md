@@ -143,6 +143,7 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 - **FSR** — Upscaling, Frame Generation, Ray Regeneration, plus an **FSR 4 upgrade** for games that ship only FSR 3.1 (RDNA 3 / RDNA 4 only; skipped on other GPUs, where FSR 4 cannot run)
 - **DirectStorage** (Windows only)
 - Update everything at once, or update individual binaries for a specific game
+- **Update a hand-picked set** — hover any game card in the **Games** view to reveal its checkbox, tick the games you want, then hit *Update selected*. **Select all** takes every game visible in the current launcher tab, so "update just this launcher" is one click away. The selection carries across launcher tabs and filters, and the run reports one summary rather than a dialog per game
 
 </details>
 
@@ -175,6 +176,7 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
   - Search the local Steam app list to find any game (no API key required; credentials improve results)
   - Overrides are stored separately from scanner data, so a rescan can't revert them
   - Reset to default at any time
+- **Card size** — the *⋮* menu in the **Games** header switches the grid between **Compact**, **Comfortable** and **Large**. Compact fits noticeably more of a large library on screen; the choice is remembered between sessions.
 
 </details>
 

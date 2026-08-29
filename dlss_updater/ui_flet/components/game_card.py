@@ -85,7 +85,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
     not be included in page.update() and would require individual card.update() calls.
     """
 
-    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None, on_resolve=None, db_manager=None, dlss_presets=None, dll_manifest=None):
+    def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None, on_resolve=None, db_manager=None, dlss_presets=None, dll_manifest=None, banner_height: int = HERO_HEIGHT, on_select_toggle=None):
         super().__init__()
 
         # Handle both Game and MergedGame
@@ -157,6 +157,21 @@ class GameCard(ThemeAwareMixin, ft.Card):
         self._is_hovering = False
         self._menu_open = False
 
+        # ---- Bulk selection ----
+        # The checkbox is hidden at rest and revealed on hover, EXCEPT while a
+        # selection exists anywhere in the view (_selection_active), when every
+        # card shows it persistently so the selection is legible without
+        # hovering each card. GamesView owns the set of selected ids; the card
+        # only mirrors its own bit.
+        self.on_select_toggle_callback = on_select_toggle
+        self._selected = False
+        self._selection_active = False
+        self._select_button: ft.Container | None = None
+        self._select_icon: ft.Icon | None = None
+        # Banner target height for the shimmer placeholder — driven by the grid
+        # density, since a 204 px placeholder overflows a compact cell.
+        self._banner_height = banner_height
+
         # Get theme state and register
         self._registry = get_theme_registry()
         self._theme_priority = 25  # Cards are mid-priority
@@ -200,7 +215,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # Inner placeholder container with game icon — wide banner aspect.
         placeholder_content = ft.Container(
             expand=True,  # Fill the full-width banner
-            height=BANNER_HEIGHT,  # Min height while the card lays out
+            height=self._banner_height,  # Min height while the card lays out (density-driven)
             bgcolor=MD3Colors.get_themed("skeleton_base", is_dark),
             content=ft.Icon(
                 ft.Icons.VIDEOGAME_ASSET,
@@ -539,6 +554,27 @@ class GameCard(ThemeAwareMixin, ft.Card):
             animate_opacity=ft.Animation(FOOTER_ANIM_MS, ft.AnimationCurve.EASE_OUT),
         )
 
+        # ---- Selection checkbox (top-LEFT, mirroring the action cluster) ----
+        # A Container + Icon rather than ft.Checkbox: it matches the corner
+        # buttons' visual language exactly (translucent black plate, white
+        # glyph) and is markedly lighter per card — ft.Checkbox brings Material
+        # ripple/label machinery this never uses, and there can be 200+ cards.
+        self._select_icon = ft.Icon(
+            ft.Icons.CHECK_BOX_OUTLINE_BLANK, size=18, color=ft.Colors.WHITE
+        )
+        self._select_button = ft.Container(
+            content=self._select_icon,
+            bgcolor=ft.Colors.with_opacity(0.5, ft.Colors.BLACK),
+            padding=ft.Padding.all(5),
+            border_radius=8,
+            left=4,
+            top=4,
+            opacity=0,
+            animate_opacity=ft.Animation(FOOTER_ANIM_MS, ft.AnimationCurve.EASE_OUT),
+            tooltip="Select for bulk update",
+            on_click=self._on_select_clicked,
+        )
+
         # ---- Banner stack: image | scrim | title overlay | overlay cluster ----
         # expand=True: the banner absorbs ALL of the card's height minus the fixed
         # footer, so it grows/shrinks with the GridView cell. The image (COVER) and
@@ -550,6 +586,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 self._scrim,
                 ft.Container(content=title_overlay, bottom=0, left=0, right=0),
                 self._overlay_cluster,
+                self._select_button,
             ],
             expand=True,
         )
@@ -1530,6 +1567,66 @@ class GameCard(ThemeAwareMixin, ft.Card):
             except Exception:
                 pass  # Page may be closing
 
+    # ===== Bulk selection =====
+
+    def _on_select_clicked(self, e):
+        """Toggle this card's selection and notify GamesView.
+
+        The card does NOT flip its own state here — GamesView owns the selected
+        set and calls back into set_selected(), so the card's visual can never
+        drift from the set the bulk update actually runs over.
+        """
+        if self.on_select_toggle_callback:
+            self.on_select_toggle_callback(self.game.id, not self._selected)
+
+    def set_selected(self, selected: bool, is_dark: bool | None = None) -> None:
+        """Mirror this card's bit of GamesView's selected set (no update()).
+
+        The PLATE carries the state, not just the glyph: an accent-filled
+        square with a white tick, versus a translucent black plate with an
+        empty outline. Two 18px glyphs differing only in their interior are
+        near-indistinguishable over box art - which is exactly how this first
+        shipped - whereas a solid accent chip reads across a full grid at a
+        glance. The fill matches the card's own selected border, so the two
+        signals are visibly the same idea.
+        """
+        self._selected = selected
+        if is_dark is None:
+            is_dark = self._registry.is_dark
+
+        if self._select_icon is not None:
+            self._select_icon.name = ft.Icons.CHECK if selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK
+            self._select_icon.color = ft.Colors.WHITE
+        if self._select_button is not None:
+            self._select_button.bgcolor = (
+                MD3Colors.get_primary(is_dark)
+                if selected
+                else ft.Colors.with_opacity(0.5, ft.Colors.BLACK)
+            )
+            # A white hairline keeps the accent chip legible where the artwork
+            # behind it happens to be a similar blue.
+            self._select_button.border = (
+                ft.Border.all(1.5, ft.Colors.WHITE) if selected else None
+            )
+
+    def set_selection_active(self, active: bool) -> None:
+        """Show/hide every card's checkbox as selection mode enters/leaves."""
+        self._selection_active = active
+        if self._select_button is not None:
+            self._select_button.opacity = 1 if (active or self._is_hovering) else 0
+
+    def set_banner_height(self, height: int) -> None:
+        """Retarget the shimmer placeholder after a grid-density change.
+
+        Only affects cards still showing a skeleton — loaded artwork is painted
+        with BoxFit.COVER and simply re-crops to the new cell.
+        """
+        self._banner_height = height
+        skeleton = getattr(self.image_container, "content", None)
+        placeholder = getattr(skeleton, "content", None)
+        if placeholder is not None and hasattr(placeholder, "height"):
+            placeholder.height = height
+
     def _on_ignore_clicked(self, e):
         """Toggle ignore status and notify parent."""
         new_state = not self.is_ignored
@@ -1594,10 +1691,16 @@ class GameCard(ThemeAwareMixin, ft.Card):
         if hovering:
             self.elevation = 8
             self.scale = 1.015
-            self._card_body.border = ft.Border.all(1, ft.Colors.with_opacity(0.3, primary_color))
         else:
             self.elevation = 2
             self.scale = 1.0
+        # A selected card keeps a solid accent border whether hovered or not —
+        # that is what makes the selection readable across the grid at a glance.
+        if self._selected:
+            self._card_body.border = ft.Border.all(2, primary_color)
+        elif hovering:
+            self._card_body.border = ft.Border.all(1, ft.Colors.with_opacity(0.3, primary_color))
+        else:
             self._card_body.border = None
 
         # Footer expand/collapse — WIDTH animation only (height stays constant, so no
@@ -1619,6 +1722,12 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # Corner action cluster (eye / pencil / kebab) fades in on hover only.
         if getattr(self, "_overlay_cluster", None) is not None:
             self._overlay_cluster.opacity = 1 if hovering else 0
+
+        # Selection checkbox: on hover, or permanently once a selection exists
+        # anywhere in the view (so the selected set stays visible while the
+        # mouse is over the selection bar rather than a card).
+        if self._select_button is not None:
+            self._select_button.opacity = 1 if (hovering or self._selection_active) else 0
 
         start_update = time.perf_counter()
         self.update()
@@ -1816,6 +1925,17 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # theme toggle.
         if getattr(self, "status_dot", None) is not None and not self.dlls:
             self.status_dot.bgcolor = MD3Colors.get_on_surface_variant(is_dark)
+
+        # Selection plate is accent-filled when selected, so it has to follow
+        # the theme's primary. Same reasoning as status_dot above: it is state-
+        # dependent, so it can't be a declarative get_themed_properties() pair.
+        self.set_selected(self._selected, is_dark=is_dark)
+        # The selected card's accent border re-resolves primary too. Set here
+        # rather than via _apply_hover_visual_state(), which ends in a per-card
+        # self.update() - one of those per card during a theme cascade is
+        # exactly the serialization cost the batching rules exist to avoid.
+        if self._selected and getattr(self, "_card_body", None) is not None:
+            self._card_body.border = ft.Border.all(2, MD3Colors.get_primary(is_dark))
 
         # Call parent implementation for standard themed property updates
         await super().apply_theme(is_dark, delay_ms)

@@ -21,7 +21,7 @@ from dlss_updater.concurrency_limiters import thread_io, io_heavy
 from dlss_updater import dll_repository
 from dlss_updater.database import db_manager, Game, merge_games_by_name
 from dlss_updater.models import MergedGame, GameDLL, DLLBackup, GameDLSSPresets
-from dlss_updater.ui_flet.components.game_card import GameCard
+from dlss_updater.ui_flet.components.game_card import GameCard, FOOTER_HEIGHT, HERO_HEIGHT
 from dlss_updater.ui_flet.components.search_bar import GameSearchBar
 from dlss_updater.ui_flet.components.floating_pill import PILL_CLEARANCE
 from dlss_updater.ui_flet.components.hero_surface import build_brand_wash, build_pill, themed_accent
@@ -38,14 +38,45 @@ from dlss_updater.task_registry import register_task
 GAMES_INITIAL_BATCH_SIZE = 16  # Visible cards on typical screen
 GAMES_BACKGROUND_BATCH_SIZE = 24  # Cards per background batch
 
-# Grid density: (max_extent, child_aspect_ratio, image_size)
+# ==================== GRID DENSITY ====================
 # Card layout is a flexible banner + a FIXED 52 px footer (see game_card.py:
 # HERO_HEIGHT=204 target banner + FOOTER_HEIGHT=52 → 256 px total at the dominant cell
-# width). child_aspect_ratio = max_extent / total_card_height = 320 / 256 = 1.25 makes a
-# maximised-window cell (~320 px wide) exactly 256 px tall, so the banner sits at its 204
-# px target. At other widths the banner flexes (BoxFit.COVER crops) — the fixed footer is
-# never clipped and there is never a grey gap, because it always fills the cell exactly.
-GRID_DENSITY_DEFAULT = (320, 1.25, 140)
+# width). The aspect ratio must therefore always be max_extent / (banner + FOOTER_HEIGHT):
+# that makes a cell exactly as tall as its contents, so the banner sits at its target and
+# the fixed footer is never clipped and never trailed by a grey gap. At other widths the
+# banner flexes (BoxFit.COVER crops).
+#
+# Because the aspect ratio is DERIVED from those two numbers rather than written out, a
+# new density can never silently violate that invariant — the table is (max_extent,
+# banner_target) and resolve_density() computes the rest. Banner targets keep the
+# comfortable card's proportions (banner ≈ 0.6375 × cell width).
+#
+# Keys are config.toml's [ui_preferences].GridDensity vocabulary exactly (see
+# config_manager.get/set_grid_density and models.UIPreferencesConfig.grid_density).
+GRID_DENSITIES: dict[str, tuple[int, int]] = {
+    "compact": (240, 153),
+    "comfortable": (320, HERO_HEIGHT),  # 204 — the long-standing default geometry
+    "large": (400, 255),
+}
+DEFAULT_DENSITY = "comfortable"
+
+# Menu order == display order.
+DENSITY_MODES: tuple[tuple[str, str, str], ...] = (
+    ("compact", "Compact", ft.Icons.GRID_ON),
+    ("comfortable", "Comfortable", ft.Icons.GRID_VIEW),
+    ("large", "Large", ft.Icons.CROP_SQUARE),
+)
+
+
+def resolve_density(name: str | None) -> tuple[int, float, int]:
+    """Return ``(max_extent, child_aspect_ratio, banner_height)`` for a density.
+
+    Falls back to the default for an unknown name or None, so a hand-edited
+    config.toml (or a fresh one, where the getter can return None) degrades to
+    the previous grid rather than raising at build time.
+    """
+    max_extent, banner = GRID_DENSITIES.get(name or "", GRID_DENSITIES[DEFAULT_DENSITY])
+    return max_extent, max_extent / (banner + FOOTER_HEIGHT), banner
 
 # ==================== SORTING ====================
 # Menu order == display order. Modes match config.toml's
@@ -88,6 +119,98 @@ def count_outdated_dlls(dlls: list[GameDLL]) -> int:
         except Exception:
             continue
     return outdated
+
+
+# ==================== BULK SELECTION ====================
+
+
+def build_dll_dict_for_selection(cards) -> dict[str, list[str]]:
+    """Map selected game cards onto ``{launcher: [dll_path, ...]}``.
+
+    That is exactly the shape ``AsyncUpdateCoordinator.update_games()`` already
+    takes, so a hand-picked subset runs through the same high-performance
+    pipeline, cancellable overlay and summary dialog as the library-wide
+    update - no second update engine, and no scan cache required (the paths
+    come from the cards' already-loaded DB rows, not from scan results).
+
+    Takes anything with ``.game.launcher`` and ``.dlls``, so it is testable
+    without constructing Flet-backed cards.
+
+    Paths are de-duplicated per launcher, preserving order: a MergedGame
+    aggregates DLLs across every merged game id, so the same path can appear
+    twice and would otherwise be updated - and backed up - twice. A game with
+    no DLLs contributes no launcher key at all, rather than an empty list the
+    coordinator would report a launcher for and then do nothing with.
+    """
+    dll_dict: dict[str, list[str]] = {}
+    for card in cards:
+        launcher = card.game.launcher
+        for dll in card.dlls:
+            if not dll.dll_path:
+                continue
+            paths = dll_dict.setdefault(launcher, [])
+            if dll.dll_path not in paths:
+                paths.append(dll.dll_path)
+    return {launcher: paths for launcher, paths in dll_dict.items() if paths}
+
+
+def filter_dll_dict(
+    dll_dict: dict[str, list[str]], skip_filenames
+) -> dict[str, list[str]]:
+    """Drop every path whose filename is in ``skip_filenames``.
+
+    ``update_games()`` has no ``skip_dll_filenames`` parameter (only
+    ``update_single_game()`` does), so the rollback dialog's "Skip flagged"
+    outcome is applied by narrowing the dict before the coordinator sees it.
+
+    Returns a new dict; a launcher left with no paths is dropped entirely
+    rather than kept as an empty list.
+    """
+    skip = {name.lower() for name in skip_filenames}
+    if not skip:
+        return dict(dll_dict)
+
+    filtered: dict[str, list[str]] = {}
+    for launcher, paths in dll_dict.items():
+        kept = [p for p in paths if p.rsplit("/", 1)[-1].rsplit("\\", 1)[-1].lower() not in skip]
+        if kept:
+            filtered[launcher] = kept
+    return filtered
+
+
+def collect_flagged_dlls(
+    target_filenames,
+    flagged_map: dict[tuple[str, str], dict],
+    latest_versions: dict[str, str],
+) -> list[dict]:
+    """Cross-reference target DLLs against versions the user has rolled back from.
+
+    ``flagged_map`` is ``db_manager.get_flagged_dll_versions()``: keyed by
+    ``(dll_filename, version)`` for versions rolled back from in >=2 games
+    recently. Returns the entry shape ``RollbackWarningDialog`` consumes.
+
+    DLLs are vendor-signed, so a flagged version is bad regardless of which
+    game carries it - the check is over the UNION of the selection's filenames
+    and yields ONE entry per DLL however many selected games carry it, rather
+    than one warning per game. That is what lets a 40-game selection show a
+    single dialog.
+    """
+    entries: list[dict] = []
+    for fname in dict.fromkeys(f.lower() for f in target_filenames if f):
+        latest = latest_versions.get(fname)
+        if not latest:
+            continue
+        flagged = flagged_map.get((fname, latest))
+        if not flagged:
+            continue
+        entries.append({
+            "dll_filename": fname,
+            "target_version": latest,
+            "event_count": flagged.get("count", 0),
+            "affected_games": flagged.get("games", []),
+            "from_versions": flagged.get("from_versions", []),
+        })
+    return entries
 
 
 def _on_accent(is_dark: bool) -> str:
@@ -245,7 +368,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
     page.update() cost is only incurred on nav-to-games.
     """
 
-    def __init__(self, page: ft.Page, logger, on_update_all=None):
+    def __init__(self, page: ft.Page, logger, on_update_all=None, on_update_selected=None):
         super().__init__()
         self._page_ref = page
         self.logger = logger
@@ -253,6 +376,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # through the exact same pipeline as the Launchers action bar rather
         # than reaching into MainView internals from here.
         self._on_update_all = on_update_all
+        # MainView.run_bulk_update_for_selection - same pipeline again, narrowed
+        # to the selected games' DLL paths.
+        self._on_update_selected = on_update_selected
         self.expand = True
         self.spacing = 0
 
@@ -301,6 +427,31 @@ class GamesView(ThemeAwareMixin, ft.Column):
         except Exception:
             self._sort_preference = DEFAULT_SORT
 
+        # Grid density. Read once from config.toml ([ui_preferences].GridDensity);
+        # every later change is written back by _on_density_selected(). Lives in
+        # the options menu rather than its own header button - the header is
+        # already at its width budget (see the subtitle comment in _build_ui).
+        try:
+            self._density: str = config_manager.get_grid_density() or DEFAULT_DENSITY
+        except Exception:
+            self._density = DEFAULT_DENSITY
+        if self._density not in GRID_DENSITIES:
+            self._density = DEFAULT_DENSITY
+
+        # Bulk selection state. A single set of game ids shared across ALL
+        # launcher tabs, so a selection survives tab switches and filter
+        # changes (a card hidden by a filter stays selected; the bar's count is
+        # the truth). Non-empty == "selection mode": every card shows a
+        # persistent checkbox and the filter-chips row is replaced by the
+        # selection bar.
+        self._selected_game_ids: set[int] = set()
+        self.selection_bar: ft.Container | None = None
+        self._selection_count_text: ft.Text | None = None
+        self._selection_update_button: ft.Container | None = None
+        # Last outdated count seen by _set_update_all_state(), so the "Update
+        # all" CTA can be restored verbatim once a selection is cleared.
+        self._needs_update_count: int = 0
+
         # PERFORMANCE: Track if games are already loaded to prevent redundant rebuilds
         # on tab switching. Only reload on explicit refresh or when forced=True
         self._games_loaded = False
@@ -345,6 +496,33 @@ class GamesView(ThemeAwareMixin, ft.Column):
             disabled=not self._has_games,
         )
 
+        accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
+
+        # Card size group. Check-marks the active density exactly the way the
+        # sort menu marks the active mode, and like it is built UPFRONT and
+        # rebuilt after a selection / on theme change - never lazily via
+        # on_open, which fires after the menu has rendered (CLAUDE.md).
+        density_items = [
+            ft.PopupMenuItem(
+                content=ft.Row([
+                    ft.Icon(
+                        ft.Icons.CHECK if mode == self._density else icon,
+                        size=18,
+                        color=accent if mode == self._density else icon_default,
+                    ),
+                    ft.Text(
+                        label,
+                        size=14,
+                        color=accent if mode == self._density else on_surface,
+                        weight=ft.FontWeight.W_600 if mode == self._density else ft.FontWeight.NORMAL,
+                    ),
+                ], spacing=8),
+                data=mode,
+                on_click=self._on_density_selected,
+            )
+            for mode, label, icon in DENSITY_MODES
+        ]
+
         return [
             ft.PopupMenuItem(
                 content=ft.Row([
@@ -353,6 +531,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 ], spacing=8),
                 on_click=self._on_ignore_filter_toggle,
             ),
+            ft.PopupMenuItem(),  # Divider
+            *density_items,
             ft.PopupMenuItem(),  # Divider
             self._delete_menu_item,
         ]
@@ -496,6 +676,44 @@ class GamesView(ThemeAwareMixin, ft.Column):
             self.logger.debug(f"Failed to persist sort preference: {ex}")
 
         self.logger.debug(f"Games sort preference set to '{mode}'")
+
+    # ===== Grid density =====
+
+    async def _on_density_selected(self, e):
+        """Persist the chosen card size and reflow the live grids."""
+        mode = getattr(e.control, "data", None)
+        if not mode or mode == self._density or mode not in GRID_DENSITIES:
+            return
+
+        self._density = mode
+        if self.options_menu:
+            self.options_menu.items = self._build_options_menu_items()
+
+        max_extent, aspect_ratio, banner = resolve_density(mode)
+        for grid in self._grids_by_launcher.values():
+            grid.max_extent = max_extent
+            grid.child_aspect_ratio = aspect_ratio
+
+        # Cards not yet showing artwork size their shimmer placeholder from
+        # this; already-loaded artwork is BoxFit.COVER and just re-crops.
+        for card in self.game_cards.values():
+            card.set_banner_height(banner)
+
+        try:
+            self.update()
+        except Exception:
+            pass
+
+        # Persist off the event loop: set_grid_density takes _config_lock and
+        # rewrites config.toml (blocking I/O).
+        try:
+            await anyio.to_thread.run_sync(
+                config_manager.set_grid_density, mode, limiter=thread_io
+            )
+        except Exception as ex:
+            self.logger.debug(f"Failed to persist grid density: {ex}")
+
+        self.logger.debug(f"Games grid density set to '{mode}'")
 
     def _update_delete_button_state(self, has_games: bool):
         """Update delete menu item enabled/disabled state."""
@@ -650,6 +868,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
         )
         self._apply_filter_chip_theme(is_dark)
 
+        # Selection bar — occupies the chips row's slot while a selection
+        # exists (the two are mutually exclusive, so the header gains no
+        # height). Hidden, not absent, so entering/leaving selection mode is a
+        # visibility flip rather than a control-tree edit.
+        self.selection_bar = self._build_selection_bar(is_dark)
+
         # Compact Steam API status pill — clicking opens the full config UI
         # in a dialog (see _open_steam_api_dialog). Kept as a ref so its
         # colors/icon can be patched in place after the dialog closes.
@@ -706,6 +930,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     self.filter_chips_row,
+                    self.selection_bar,
                 ],
                 spacing=8,
             ),
@@ -817,17 +1042,224 @@ class GamesView(ThemeAwareMixin, ft.Column):
         button.visible = False
         return button
 
+    # ===== Bulk selection =====
+
+    def _build_selection_bar(self, is_dark: bool) -> ft.Container:
+        """Build the selection action bar shown in place of the filter chips."""
+        accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
+
+        self._selection_count_text = ft.Text(
+            "0 selected",
+            size=12,
+            weight=ft.FontWeight.W_600,
+            color=MD3Colors.get_on_surface(is_dark),
+        )
+
+        # Same pill language as "Update all (N)" beside it — this is the same
+        # action, narrowed to a hand-picked set.
+        fg = _on_accent(is_dark)
+        update_button = build_pill(
+            "Update selected",
+            icon=ft.Icons.DOWNLOAD,
+            bgcolor=MD3Colors.get_warning(is_dark),
+            text_color=fg,
+            icon_color=fg,
+            text_size=12,
+            icon_size=16,
+        )
+        row = update_button.content
+        self._selection_update_icon: ft.Icon = row.controls[0]
+        self._selection_update_text: ft.Text = row.controls[1]
+        update_button.height = 32
+        update_button.padding = ft.Padding.symmetric(horizontal=12, vertical=6)
+        update_button.on_click = self._on_update_selected_clicked
+        update_button.ink = True
+        update_button.tooltip = "Update the DLLs of every selected game"
+        self._selection_update_button = update_button
+
+        self._select_all_button = ft.TextButton(
+            "Select all",
+            icon=ft.Icons.SELECT_ALL,
+            on_click=self._on_select_all_visible,
+            tooltip="Select every game visible in this launcher tab",
+        )
+        self._clear_selection_button = ft.TextButton(
+            "Clear",
+            icon=ft.Icons.CLOSE,
+            on_click=self._on_clear_selection,
+            tooltip="Clear the selection",
+        )
+
+        return ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.CHECK_BOX, size=16, color=accent),
+                    self._selection_count_text,
+                    update_button,
+                    self._select_all_button,
+                    self._clear_selection_button,
+                ],
+                spacing=8,
+                wrap=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            visible=False,
+        )
+
+    def _refresh_selection_bar(self, is_dark: bool) -> None:
+        """Repaint the selection bar for the active theme."""
+        if self.selection_bar is None:
+            return
+        accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
+        fg = _on_accent(is_dark)
+
+        leading_icon = self.selection_bar.content.controls[0]
+        leading_icon.color = accent
+        if self._selection_count_text is not None:
+            self._selection_count_text.color = MD3Colors.get_on_surface(is_dark)
+        if self._selection_update_button is not None:
+            self._selection_update_button.bgcolor = MD3Colors.get_warning(is_dark)
+            self._selection_update_icon.color = fg
+            self._selection_update_text.color = fg
+
+    def _sync_selection_ui(self) -> None:
+        """Reconcile every selection-dependent surface with the selected set.
+
+        One place so the bar, the chips row and each card's checkbox can never
+        disagree. Does NOT call update() — callers own the flush, since they
+        usually have other changes to batch with it.
+        """
+        count = len(self._selected_game_ids)
+        active = count > 0
+
+        if self.selection_bar is not None:
+            self.selection_bar.visible = active
+        if self.filter_chips_row is not None:
+            # Mutually exclusive: the chips restate counts that the selection
+            # bar's own count supersedes while picking games.
+            self.filter_chips_row.visible = not active
+        if self._selection_count_text is not None:
+            self._selection_count_text.value = f"{count} selected"
+        if getattr(self, "_selection_update_text", None) is not None:
+            self._selection_update_text.value = f"Update selected ({count})"
+
+        # "Update all" yields to the selection and returns when it is cleared.
+        self._set_update_all_state(self._needs_update_count)
+
+        for game_id, card in self.game_cards.items():
+            card.set_selection_active(active)
+            card.set_selected(game_id in self._selected_game_ids)
+
+    def _on_card_select_toggle(self, game_id: int, selected: bool) -> None:
+        """A card's checkbox was clicked."""
+        if selected:
+            self._selected_game_ids.add(game_id)
+        else:
+            self._selected_game_ids.discard(game_id)
+
+        self._sync_selection_ui()
+        try:
+            self.update()
+        except Exception:
+            pass
+
+    def _on_select_all_visible(self, e) -> None:
+        """Select every card currently visible in the active launcher tab.
+
+        Visible, not merely present: a card filtered out by the search box or a
+        status chip is not something the user can see, so including it would
+        make the count lie. This is also the "update all in this launcher"
+        affordance — Select all followed by Update selected — rather than a
+        second bulk code path that could drift from this one.
+        """
+        # Mirrors _apply_visibility()'s own launcher + filter logic, and reads
+        # the authoritative card registry rather than grid.controls (background
+        # batches are still being appended to the grids during progressive
+        # loading, but every card is in game_cards the moment it is created).
+        launcher = self._get_current_launcher()
+        for card in self.game_cards.values():
+            if launcher and card.game.launcher != launcher:
+                continue
+            # Ignored games are dropped by the coordinator anyway; selecting
+            # them would only inflate the count against what actually runs.
+            if card.visible and not card.is_ignored:
+                self._selected_game_ids.add(card.game.id)
+
+        self._sync_selection_ui()
+        try:
+            self.update()
+        except Exception:
+            pass
+
+    def _on_clear_selection(self, e=None) -> None:
+        """Empty the selection, which also leaves selection mode."""
+        self._selected_game_ids.clear()
+        self._sync_selection_ui()
+        try:
+            self.update()
+        except Exception:
+            pass
+
+    def _selected_cards(self) -> list[GameCard]:
+        """The selected cards, in grid order, skipping ids with no live card."""
+        return [
+            card
+            for game_id, card in self.game_cards.items()
+            if game_id in self._selected_game_ids
+        ]
+
+    async def _on_update_selected_clicked(self, e) -> None:
+        """Run a bulk update over just the selected games."""
+        cards = self._selected_cards()
+        if not cards:
+            return
+        if self._on_update_selected is None:
+            self.logger.warning("Update selected clicked but no handler is wired")
+            return
+
+        dll_dict = build_dll_dict_for_selection(cards)
+        if not dll_dict:
+            await self._show_error_dialog(
+                "Nothing to update",
+                "The selected games have no DLLs on record. Try a rescan first.",
+                ft.Colors.ORANGE,
+            )
+            return
+
+        # Union of the selection's DLL filenames — the rollback check is per
+        # DLL version, not per game (see collect_flagged_dlls).
+        target_filenames = {
+            dll.dll_filename.lower()
+            for card in cards
+            for dll in card.dlls
+            if dll.dll_filename
+        }
+
+        await self._on_update_selected(dll_dict, target_filenames, len(cards))
+
+        # The selection has been acted on; leaving it set would invite a
+        # double-run on a second click of the same button.
+        self._on_clear_selection()
+
     def _set_update_all_state(self, needs_update: int) -> None:
         """Show/label the bulk-update CTA from the live outdated count.
 
         Hidden entirely when nothing is outdated (or no callback was wired) -
         a greyed-out button next to "all up to date" would just be noise.
+
+        Also hidden while a selection exists: "Update all (11)" sitting beside
+        "Update selected (2)" offers to update the whole library instead, one
+        misclick from doing something far larger than the user asked for. The
+        count is remembered so _sync_selection_ui() can bring the button back
+        unchanged when the selection is cleared.
         """
         button = getattr(self, "update_all_button", None)
         if button is None:
             return
 
-        if needs_update > 0 and self._on_update_all is not None:
+        self._needs_update_count = needs_update
+
+        if needs_update > 0 and self._on_update_all is not None and not self._selected_game_ids:
             self._update_all_text.value = f"Update all ({needs_update})"
             button.visible = True
         else:
@@ -1027,6 +1459,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # differ between light and dark mode).
         self._apply_filter_chip_theme(is_dark)
 
+        # Selection bar: same WARNING fill + inverted foreground as the CTA it
+        # mirrors, plus the themed count label and leading accent glyph.
+        self._refresh_selection_bar(is_dark)
+
         # Steam API pill — repaint using the current connection state at the
         # new theme's colors (handles the neutral-state outline color too).
         self._refresh_steam_api_pill()
@@ -1170,6 +1606,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self.game_card_containers.clear()
         self._grids_by_launcher = {}
 
+        # Drop the bulk selection with the cards it referred to: a rebuild
+        # follows a rescan or a database delete, after which the retained ids
+        # may name games that no longer exist.
+        self._selected_game_ids.clear()
+        self._sync_selection_ui()
+
         # Launcher icons mapping
         launcher_icons = {
             "Steam": ft.Icons.VIDEOGAME_ASSET,
@@ -1288,7 +1730,14 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 on_resolve=self._on_game_resolve,
                 dlss_presets=dlss_presets,
                 dll_manifest=dll_manifest,
+                banner_height=resolve_density(self._density)[2],
+                on_select_toggle=self._on_card_select_toggle,
             )
+            # A card created by progressive loading (or after a refresh) while a
+            # selection is live must join it already showing its checkbox.
+            if self._selected_game_ids:
+                card.set_selection_active(True)
+                card.set_selected(card.game.id in self._selected_game_ids)
             card.opacity = 0 if not is_ignored else 0.5
             card.animate_opacity = ft.Animation(400, ft.AnimationCurve.EASE_OUT)
             # Stable key so Flet's list differ reconciles a re-ordered grid by
@@ -1319,7 +1768,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             game_count = len(self.games_by_launcher[launcher])
 
             # Create GridView first (will be populated progressively)
-            max_extent, aspect_ratio, _ = GRID_DENSITY_DEFAULT
+            max_extent, aspect_ratio, _ = resolve_density(self._density)
 
             game_grid = ft.GridView(
                 controls=[],
@@ -2650,6 +3099,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self.game_cards.clear()
         self.game_card_containers.clear()
         self._grids_by_launcher = {}
+        self._selected_game_ids.clear()
 
         # Cancel update coordinator if exists
         if self.update_coordinator:
