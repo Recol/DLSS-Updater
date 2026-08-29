@@ -23,7 +23,7 @@ jobs:
       # rejects the built-in Actions GITHUB_TOKEN (403 disguised as a rate
       # limit), so the render step needs a user PAT (STAR_HISTORY_TOKEN,
       # read-only/public_repo); the fallback keeps forks from hard-failing.
-      - uses: narayann7/star-history-action@a68d8f9d67ca20d55b682a264e69152dcf326e9c # v1.0.5
+      - uses: narayann7/star-history-action@12543ab7352b91fb7c5eb0c4fbb39772baa0c168 # v1.0.6
         with:
           repos: ${{ github.repository }}
           token: ${{ secrets.STAR_HISTORY_TOKEN || secrets.GH_PAT || github.token }}
