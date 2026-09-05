@@ -626,6 +626,8 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
         page: ft.Page | None = None,
         on_update_all=None,
         on_scan=None,
+        get_scope=None,
+        on_scope_changed=None,
     ):
         self._page_ref = page
         self._on_update_all = on_update_all
@@ -642,6 +644,12 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
         # this rather than page.theme_mode).
         is_dark = get_theme_registry().is_dark
 
+        # ---- Update scope ----
+        # Built further down, once the run button it uses as its trigger
+        # exists. Only wired when the host supplies both callbacks.
+        self.scope_menu = None
+        self._scope_deps = (get_scope, on_scope_changed)
+
         # ---- Leading badge (state glyph in a tinted circle) ----
         self._badge_icon = ft.Icon(ft.Icons.SEARCH, size=22)
         self._badge = ft.Container(
@@ -653,40 +661,51 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
         )
 
         # ---- Identity block (headline + supporting line) ----
-        self._title_text = ft.Text(
-            "",
-            size=16,
-            weight=ft.FontWeight.W_600,
-            max_lines=1,
-            overflow=ft.TextOverflow.ELLIPSIS,
-        )
-        self._subtitle_text = ft.Text(
-            "",
-            size=12,
-            max_lines=1,
-            overflow=ft.TextOverflow.ELLIPSIS,
-        )
+        # Not built here: self._last_text starts None below, so the
+        # _apply_state(is_dark) call at the end of __init__ unconditionally
+        # takes its rebuild branch and constructs the real _title_text /
+        # _subtitle_text / _text_column there. Building throwaway ones here
+        # too would just be discarded a few lines later on every card.
+        self._title_text: ft.Text | None = None
+        self._subtitle_text: ft.Text | None = None
 
         # ---- Primary action (filled accent) ----
+        # Two buttons, not one, because this CTA is dual-purpose. "Scan for
+        # games" runs immediately and is deliberately unscoped, while
+        # "Update all (N)" opens the technology checklist first. A Flet control
+        # can only have one parent, so the scoped variant cannot be the same
+        # object moved in and out of the menu - _apply_state() shows exactly
+        # one of these and hides the other.
         self._primary_icon = ft.Icon(ft.Icons.DOWNLOAD, size=18)
         self._primary_label = ft.Text("", size=13, weight=ft.FontWeight.W_600)
-        self._primary_button = ft.Container(
-            content=ft.Row(
-                controls=[self._primary_icon, self._primary_label],
-                spacing=8,
-                tight=True,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            height=40,
-            padding=ft.Padding.symmetric(horizontal=18),
-            border_radius=20,
-            alignment=ft.Alignment.CENTER,
-            ink=True,
-            on_click=self._on_primary_click,
-            on_hover=self._on_button_hover,
-            animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
-            scale=1.0,
+        self._primary_button = self._build_action_button(
+            self._primary_icon, self._primary_label, on_click=self._on_primary_click
         )
+
+        # The scoped twin. No on_click: it is the menu's trigger, and a
+        # Container on_click would swallow the tap before the menu opened.
+        self._run_icon = ft.Icon(ft.Icons.DOWNLOAD, size=18)
+        self._run_label_text = ft.Text("", size=13, weight=ft.FontWeight.W_600)
+        self._run_button = self._build_action_button(
+            self._run_icon, self._run_label_text, on_click=None
+        )
+
+        get_scope, on_scope_changed = self._scope_deps
+        if get_scope is not None and on_scope_changed is not None:
+            from dlss_updater.ui_flet.components.update_scope_menu import UpdateScopeMenu
+
+            self.scope_menu = UpdateScopeMenu(
+                page=page,
+                get_scope=get_scope,
+                on_scope_changed=on_scope_changed,
+                accent=MD3Colors.get_warning(is_dark),
+                trigger_content=self._run_button,
+                # run_bulk_update() takes no arguments, so the event is dropped
+                # here rather than widening its signature for one caller.
+                on_run=lambda e: self._on_update_all() if self._on_update_all else None,
+                run_label=self._run_menu_label,
+                radius=20,
+            )
 
         # ---- Secondary action (outlined "Rescan") ----
         self._secondary_icon = ft.Icon(ft.Icons.REFRESH, size=16)
@@ -713,18 +732,58 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
         self._watermark.right = -16
         self._watermark.bottom = -22
 
+        # Empty placeholder — content=None/[] can't be passed to
+        # AnimatedSwitcher (mirrors why the switcher below needs SOME
+        # control), and it is replaced immediately by the _apply_state()
+        # rebuild branch a few lines down. expand=True is not set here: the
+        # switcher (the actual Flex child) carries expand=True, and setting
+        # it again on this inner Column is inert since AnimatedSwitcher, not
+        # a Flex, is its parent.
+        self._text_column = ft.Column(controls=[], tight=True, alignment=ft.MainAxisAlignment.CENTER)
+        self._state_switcher = ft.AnimatedSwitcher(
+            content=self._text_column,
+            duration=ft.Duration(milliseconds=220),
+            reverse_duration=ft.Duration(milliseconds=160),
+            transition=ft.AnimatedSwitcherTransition.FADE,
+            switch_in_curve=ft.AnimationCurve.EASE_OUT,
+            switch_out_curve=ft.AnimationCurve.EASE_IN,
+            expand=True,
+        )
+        self._last_text: tuple[str, str] | None = None
+        # Set when a switcher-content rebuild (below, in _apply_state) is
+        # issued while this card is detached from the page — see
+        # _apply_state's "Detached-patch guard" comment. Forces the next
+        # _apply_state() call to rebuild fresh instances even if
+        # (title, subtitle) happens to match _last_text, since the client
+        # never actually received the dropped patch.
+        self._stats_stale: bool = False
+
+        # Keep a reference to the wrapper itself (not just self.scope_menu):
+        # _apply_state() hides the scoped button entirely in the "Scan for
+        # games" / "Everything is up to date" states, where scanning is
+        # deliberately unscoped. Toggling only the child leaves the Semantics
+        # node in the tree advertising an invisible, unreachable button —
+        # belt and braces, both are set in _apply_state().
+        self._scope_menu_semantics: ft.Semantics | None = None
+        if self.scope_menu is not None:
+            self._scope_menu_semantics = ft.Semantics(
+                content=self.scope_menu,
+                label="Update all",
+                button=True,
+                focusable=True,
+            )
+
         content_row = ft.Row(
             controls=[
                 self._badge,
-                ft.Column(
-                    controls=[self._title_text, self._subtitle_text],
-                    spacing=2,
-                    tight=True,
-                    expand=True,
-                    alignment=ft.MainAxisAlignment.CENTER,
-                ),
+                self._state_switcher,
                 self._secondary_button,
-                self._primary_button,
+                ft.Row(
+                    controls=[self._primary_button]
+                    + ([self._scope_menu_semantics] if self._scope_menu_semantics else []),
+                    spacing=0,
+                    tight=True,
+                ),
             ],
             spacing=14,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -817,23 +876,95 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
         self._badge_icon.name = badge_icon
         self._badge_icon.color = accent
 
-        self._title_text.value = title
-        self._title_text.color = MD3Colors.get_on_surface(is_dark)
-        self._subtitle_text.value = subtitle
-        self._subtitle_text.color = MD3Colors.get_on_surface_variant(is_dark)
+        # Detached-patch guard (CLAUDE.md "Flet desktop client rendering
+        # pitfalls" #2 — the client silently drops property patches aimed at
+        # controls inside detached subtrees while the server marks them
+        # delivered). load_stats() calls set_state() -> _apply_state() from
+        # MainView._refresh_after_bulk_run() even when this card is behind
+        # the nav controller's content-detachment (main_view.py's comment
+        # there: "Best-effort when the hub is detached; returning to it
+        # re-runs load_stats anyway"). That recovery only works if the
+        # switcher-content rebuild below actually reruns with different
+        # inputs; if the rebuild was issued while detached and is later
+        # retried with the SAME (title, subtitle), the cheap recolor branch
+        # would fire instead and never repaint a subtree the client never
+        # received. Mirrors games_view's _chips_theme_stale /
+        # _selection_theme_stale. `self.page` can't be read unguarded here —
+        # _apply_state also runs from __init__, before attachment, where
+        # Flet 0.86 raises RuntimeError("Control must be added to the page
+        # first") — so this reuses the try/except-around-`.page` idiom
+        # HubView._on_page_resize already uses for the same purpose.
+        try:
+            attached = self.page is not None
+        except Exception:
+            attached = False
+
+        # AnimatedSwitcher animates on content REPLACEMENT, so a state change
+        # must build a fresh column. A THEME change must not: _apply_state is
+        # also the theme entry point, and rebuilding there would cross-fade
+        # identical text on every light/dark toggle. Recolour in place instead.
+        if (title, subtitle) != self._last_text or self._stats_stale:
+            self._title_text = ft.Text(
+                title,
+                size=16,
+                weight=ft.FontWeight.W_600,
+                max_lines=1,
+                overflow=ft.TextOverflow.ELLIPSIS,
+                color=MD3Colors.get_on_surface(is_dark),
+            )
+            self._subtitle_text = ft.Text(
+                subtitle,
+                size=12,
+                max_lines=1,
+                overflow=ft.TextOverflow.ELLIPSIS,
+                color=MD3Colors.get_on_surface_variant(is_dark),
+            )
+            self._text_column = ft.Column(
+                controls=[self._title_text, self._subtitle_text],
+                spacing=2,
+                tight=True,
+                alignment=ft.MainAxisAlignment.CENTER,
+            )
+            self._state_switcher.content = self._text_column
+            self._last_text = (title, subtitle)
+            self._stats_stale = not attached
+        else:
+            self._title_text.color = MD3Colors.get_on_surface(is_dark)
+            self._subtitle_text.color = MD3Colors.get_on_surface_variant(is_dark)
+
+        # Scanning is deliberately unscoped, so only the "Update all (N)" state
+        # routes through the menu. Exactly one of the two buttons is shown.
+        scoped = primary is not None and n > 0 and self.scope_menu is not None
 
         if primary is not None:
             label, icon = primary
             fg = _on_accent(is_dark)
-            self._primary_button.visible = True
-            self._primary_button.bgcolor = accent
-            self._primary_button.tooltip = primary_tooltip
-            self._primary_icon.name = icon
-            self._primary_icon.color = fg
-            self._primary_label.value = label
-            self._primary_label.color = fg
-        else:
-            self._primary_button.visible = False
+            target, icon_ctl, label_ctl = (
+                (self._run_button, self._run_icon, self._run_label_text)
+                if scoped
+                else (self._primary_button, self._primary_icon, self._primary_label)
+            )
+            target.bgcolor = accent
+            target.tooltip = primary_tooltip
+            icon_ctl.name = icon
+            icon_ctl.color = fg
+            label_ctl.value = label
+            label_ctl.color = fg
+
+        self._primary_button.visible = primary is not None and not scoped
+
+        if self.scope_menu is not None:
+            # Both the child AND the Semantics wrapper get toggled: the wrapper
+            # is what a screen reader actually sees, so leaving it visible while
+            # the child collapses would announce a button that isn't on screen
+            # and can't be activated.
+            self.scope_menu.visible = scoped
+            if self._scope_menu_semantics is not None:
+                self._scope_menu_semantics.visible = scoped
+            if scoped:
+                self.scope_menu.set_accent(accent)
+                # Re-label the menu's run row for the new count.
+                self.scope_menu.refresh_ticks()
 
         # Rescan stays available whenever a scan exists AND it either went
         # stale or there is nothing to update (the calm state's only action).
@@ -845,6 +976,31 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
         self._secondary_label.color = MD3Colors.get_on_surface_variant(is_dark)
 
         self._watermark.opacity = WATERMARK_OPACITY_DARK if is_dark else WATERMARK_OPACITY_LIGHT
+
+    def _build_action_button(self, icon_ctl, label_ctl, on_click) -> ft.Container:
+        """One pill shape for both the plain and the scoped primary button, so
+        swapping between them is invisible to the user."""
+        return ft.Container(
+            content=ft.Row(
+                controls=[icon_ctl, label_ctl],
+                spacing=8,
+                tight=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            height=40,
+            padding=ft.Padding.symmetric(horizontal=18),
+            border_radius=20,
+            alignment=ft.Alignment.CENTER,
+            ink=True,
+            on_click=on_click,
+            on_hover=self._on_button_hover,
+            animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+            scale=1.0,
+        )
+
+    def _run_menu_label(self) -> str:
+        n = self._needs_update
+        return f"Update {n} game{'' if n == 1 else 's'}"
 
     # ===== Interaction =====
 
@@ -859,15 +1015,28 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
             self._page_ref.run_task(self._on_scan)
 
     def _on_button_hover(self, e):
-        """Subtle lift on the primary button (e.data is a bool in Flet 0.86)."""
-        self._primary_button.scale = 1.03 if (e.data is True or e.data == "true") else 1.0
+        """Subtle lift on the hovered button (e.data is a bool in Flet 0.86).
+
+        Reads the target off the event rather than assuming _primary_button:
+        the scoped twin shares this handler, and only one of the two is on
+        screen at a time."""
+        target = getattr(e, "control", None) or self._primary_button
+        target.scale = 1.03 if (e.data is True or e.data == "true") else 1.0
         if self._page_ref:
             try:
-                self._primary_button.update()
+                target.update()
             except Exception:
                 pass
 
     # ===== Lifecycle =====
+
+    def _unregister_theme_aware(self) -> None:
+        """Also drop the caret: this card is REPLACED on every theme change
+        (HubView.rebuild_for_theme / MainView's hub swap) and its menu registers
+        itself, so without this the registry accumulates detached menus."""
+        if self.scope_menu is not None:
+            self.scope_menu._unregister_theme_aware()
+        super()._unregister_theme_aware()
 
     def did_mount(self):
         """Defensive theme re-sync on every (re)mount - see HubCard.did_mount()."""

@@ -374,6 +374,13 @@ class DLLGroupDialog(ThemeAwareMixin):
         is_dark: bool = True,
     ) -> ft.Container:
         """Build group header with status and action buttons"""
+        from dlss_updater.update_scope import all_technologies, from_preferences
+
+        # "Other" (ungrouped DLLs) is not a technology token, so it is never
+        # subject to Update Preferences — only genuine technology groups
+        # (DLSS, Streamline, XeSS, FSR, DirectStorage) can be excluded.
+        in_scope = group_name not in all_technologies() or group_name in from_preferences()
+
         tech_color = TechnologyColors.get_themed_color(group_name, is_dark)
 
         # Status badge
@@ -402,12 +409,16 @@ class DLLGroupDialog(ThemeAwareMixin):
                 padding=ft.Padding.symmetric(horizontal=8, vertical=4),
             )
 
-        # Update button
+        # Update button — also disabled when the technology is excluded from
+        # Update Preferences: process_single_dll's fallback path reads saved
+        # preferences with no scope override, so this button would otherwise
+        # open a progress dialog and report every DLL skipped.
         update_button = ft.ElevatedButton(
             "Update",
             icon=ft.Icons.UPDATE,
             on_click=lambda e: self._on_update_clicked(group_name),
-            disabled=status.updates_available == 0,
+            disabled=status.updates_available == 0 or not in_scope,
+            tooltip=None if in_scope else "Excluded from updates in Update Preferences",
             style=ft.ButtonStyle(
                 bgcolor={
                     ft.ControlState.DEFAULT: tech_color if status.updates_available > 0 else ft.Colors.GREY_700,
@@ -451,7 +462,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                     ft.Column(
                         controls=[
                             ft.Text(
-                                group_name,
+                                group_name if in_scope else f"{group_name} (updates disabled)",
                                 size=16,
                                 weight=ft.FontWeight.BOLD,
                                 color=MD3Colors.get_text_primary(is_dark),
@@ -476,6 +487,7 @@ class DLLGroupDialog(ThemeAwareMixin):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+            opacity=1.0 if in_scope else 0.55,
         )
 
     def _build_group_content(

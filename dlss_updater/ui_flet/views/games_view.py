@@ -368,7 +368,15 @@ class GamesView(ThemeAwareMixin, ft.Column):
     page.update() cost is only incurred on nav-to-games.
     """
 
-    def __init__(self, page: ft.Page, logger, on_update_all=None, on_update_selected=None):
+    def __init__(
+        self,
+        page: ft.Page,
+        logger,
+        on_update_all=None,
+        on_update_selected=None,
+        get_scope=None,
+        on_scope_changed=None,
+    ):
         super().__init__()
         self._page_ref = page
         self.logger = logger
@@ -376,6 +384,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # through the exact same pipeline as the Launchers action bar rather
         # than reaching into MainView internals from here.
         self._on_update_all = on_update_all
+        self._scope_deps = (get_scope, on_scope_changed)
         # MainView.run_bulk_update_for_selection - same pipeline again, narrowed
         # to the selected games' DLL paths.
         self._on_update_selected = on_update_selected
@@ -448,6 +457,15 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self.selection_bar: ft.Container | None = None
         self._selection_count_text: ft.Text | None = None
         self._selection_update_button: ft.Container | None = None
+        # Set when a theme change repaints the filter chips / selection bar
+        # while that control is detached from the AnimatedSwitcher (the
+        # OTHER control showing instead) — patches to detached subtrees are
+        # silently dropped, so the repaint is deferred and the control is
+        # rebuilt fresh the next time it is swapped back in as the
+        # switcher's content. Symmetric pair: one flag + one guard per
+        # control, same shape both times.
+        self._chips_theme_stale: bool = False
+        self._selection_theme_stale: bool = False
         # Last outdated count seen by _set_update_all_state(), so the "Update
         # all" CTA can be restored verbatim once a selection is cleared.
         self._needs_update_count: int = 0
@@ -785,6 +803,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 tooltip="More options",
             ),
             items=self._build_options_menu_items(),
+            popup_animation_style=ft.AnimationStyle(
+                duration=ft.Duration(milliseconds=180),
+                curve=ft.AnimationCurve.EASE_OUT,
+            ),
         )
 
         # Sort popup - same idiom as the options menu above (custom content +
@@ -803,6 +825,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 tooltip="Sort games",
             ),
             items=self._build_sort_menu_items(),
+            popup_animation_style=ft.AnimationStyle(
+                duration=ft.Duration(milliseconds=180),
+                curve=ft.AnimationCurve.EASE_OUT,
+            ),
         )
 
         # Primary bulk-update CTA. Sits with the "N need updates" count in the
@@ -830,48 +856,15 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Label Text controls are kept as refs so live counts can be patched
         # in-place (self._update_filter_chip_counts()) without rebuilding the
         # Chip's label subtree.
-        self._needs_update_label = ft.Text("Needs update", size=12)
-        self._needs_update_icon = ft.Icon(ft.Icons.ARROW_UPWARD, size=14)
-        self._needs_update_chip = ft.Chip(
-            label=self._needs_update_label,
-            leading=self._needs_update_icon,
-            selected=False,
-            on_select=self._on_status_chip_select,
-            data="needs_update",
-        )
-        self._up_to_date_label = ft.Text("Up to date", size=12)
-        self._up_to_date_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, size=14)
-        self._up_to_date_chip = ft.Chip(
-            label=self._up_to_date_label,
-            leading=self._up_to_date_icon,
-            selected=False,
-            on_select=self._on_status_chip_select,
-            data="up_to_date",
-        )
-        self._has_backups_label = ft.Text("Has backups", size=12)
-        self._has_backups_icon = ft.Icon(ft.Icons.RESTORE, size=14)
-        self._has_backups_chip = ft.Chip(
-            label=self._has_backups_label,
-            leading=self._has_backups_icon,
-            selected=False,
-            on_select=self._on_status_chip_select,
-            data="has_backups",
-        )
-        self.filter_chips_row = ft.Row(
-            controls=[
-                self._needs_update_chip,
-                self._up_to_date_chip,
-                self._has_backups_chip,
-            ],
-            spacing=8,
-            wrap=True,
-        )
+        self.filter_chips_row = self._build_filter_chips_row(is_dark)
         self._apply_filter_chip_theme(is_dark)
 
         # Selection bar — occupies the chips row's slot while a selection
         # exists (the two are mutually exclusive, so the header gains no
-        # height). Hidden, not absent, so entering/leaving selection mode is a
-        # visibility flip rather than a control-tree edit.
+        # height). The two are mounted as alternating content of an
+        # AnimatedSwitcher (see self._chips_switcher below), so
+        # entering/leaving selection mode is a control-tree edit, not a
+        # visibility flip.
         self.selection_bar = self._build_selection_bar(is_dark)
 
         # Compact Steam API status pill — clicking opens the full config UI
@@ -890,6 +883,20 @@ class GamesView(ThemeAwareMixin, ft.Column):
             right=0,
             bottom=0,
         )
+        # Mutually exclusive occupants of the same header slot (chips vs.
+        # selection bar) mounted as alternating content of one
+        # AnimatedSwitcher, so entering/leaving selection mode cross-fades as
+        # one surface changing rather than blinking two controls via
+        # `visible`. See `_sync_selection_ui`.
+        self._chips_switcher = ft.AnimatedSwitcher(
+            content=self.filter_chips_row,
+            duration=ft.Duration(milliseconds=180),
+            reverse_duration=ft.Duration(milliseconds=140),
+            transition=ft.AnimatedSwitcherTransition.FADE,
+            switch_in_curve=ft.AnimationCurve.EASE_OUT,
+            switch_out_curve=ft.AnimationCurve.EASE_IN,
+        )
+
         header_foreground = ft.Container(
             content=ft.Column(
                 controls=[
@@ -929,8 +936,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                         alignment=ft.MainAxisAlignment.START,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    self.filter_chips_row,
-                    self.selection_bar,
+                    self._chips_switcher,
                 ],
                 spacing=8,
             ),
@@ -1036,11 +1042,43 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self._update_all_text: ft.Text = row.controls[1]
         button.height = 32
         button.padding = ft.Padding.symmetric(horizontal=12, vertical=6)
-        button.on_click = self._on_update_all_clicked
         button.ink = True
-        button.tooltip = "Update every outdated DLL in your library"
         button.visible = False
-        return button
+        self._update_all_pill = button
+
+        get_scope, on_scope_changed = self._scope_deps
+        if get_scope is None or on_scope_changed is None:
+            # No scope wiring (standalone/test construction): keep the plain
+            # button so the header still works.
+            button.on_click = self._on_update_all_clicked
+            button.tooltip = "Update every outdated DLL in your library"
+            return button
+
+        # The pill becomes the menu's trigger, so this header gains the same
+        # scope control the Launchers bar and Hub CTA already had - it was the
+        # one bulk-update entry point with none. No on_click on the pill: a
+        # Container on_click would swallow the tap before the menu opened.
+        from dlss_updater.ui_flet.components.update_scope_menu import UpdateScopeMenu
+
+        self._scope_menu = UpdateScopeMenu(
+            page=self._page_ref,
+            get_scope=get_scope,
+            on_scope_changed=on_scope_changed,
+            accent=accent,
+            trigger_content=button,
+            on_run=lambda e: self._on_update_all_clicked(e),
+            run_label=self._run_menu_label,
+            radius=16,
+        )
+        # Hidden until a scan finds something outdated, exactly as the bare
+        # pill was. Set after construction: `visible` is a Control field, not
+        # an UpdateScopeMenu constructor argument.
+        self._scope_menu.visible = False
+        return self._scope_menu
+
+    def _run_menu_label(self) -> str:
+        n = getattr(self, "_needs_update_count", 0)
+        return f"Update {n} game{'' if n == 1 else 's'}"
 
     # ===== Bulk selection =====
 
@@ -1103,13 +1141,33 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 wrap=True,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            visible=False,
+            # The AnimatedSwitcher (self._chips_switcher) owns which of the
+            # chips row / selection bar is shown; both mounted controls stay
+            # visible=True, since it is the switcher's `content` that decides
+            # what is actually attached and rendered.
+            visible=True,
         )
 
     def _refresh_selection_bar(self, is_dark: bool) -> None:
-        """Repaint the selection bar for the active theme."""
+        """Repaint the selection bar for the active theme.
+
+        Mirrors the guard in `_apply_filter_chip_theme`: the selection bar is
+        the other of the two mutually exclusive occupants of
+        `self._chips_switcher` (see `_sync_selection_ui`). When the chips row
+        is showing instead, the selection bar is DETACHED from the control
+        tree, and the Flet desktop client silently drops property patches
+        targeting detached subtrees (CLAUDE.md "Flet desktop client
+        rendering pitfalls" #2) — painting now would be dropped and never
+        recovered by a later identical-value repaint. Defer instead: mark
+        stale and let `_sync_selection_ui` rebuild a fresh, correctly-themed
+        bar the next time it is swapped back in.
+        """
         if self.selection_bar is None:
             return
+        if getattr(self, "_chips_switcher", None) is not None and self._chips_switcher.content is not self.selection_bar:
+            self._selection_theme_stale = True
+            return
+
         accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
         fg = _on_accent(is_dark)
 
@@ -1132,12 +1190,54 @@ class GamesView(ThemeAwareMixin, ft.Column):
         count = len(self._selected_game_ids)
         active = count > 0
 
-        if self.selection_bar is not None:
-            self.selection_bar.visible = active
-        if self.filter_chips_row is not None:
-            # Mutually exclusive: the chips restate counts that the selection
-            # bar's own count supersedes while picking games.
-            self.filter_chips_row.visible = not active
+        # Mutually exclusive occupants of the same slot — swap the switcher's
+        # content rather than toggling visibility, so entering and leaving
+        # selection mode reads as one surface changing rather than two
+        # blinking. The chips restate counts that the selection bar's own
+        # count supersedes while picking games.
+        if getattr(self, "_chips_switcher", None) is not None:
+            if active:
+                if self._selection_theme_stale:
+                    # The selection bar was detached (chips row showing) the
+                    # last time the theme changed, so its repaint was dropped
+                    # (see CLAUDE.md "Flet desktop client rendering
+                    # pitfalls" #2, and `_refresh_selection_bar`). Heal by
+                    # rebuilding a fresh, correctly-themed bar instead of
+                    # reattaching the stale one. `_build_selection_bar`
+                    # re-points self._selection_count_text /
+                    # self._selection_update_text (and the other selection
+                    # widgets) at the fresh instance's controls, so the
+                    # count-writing lines below always agree with what's live.
+                    is_dark = self._get_is_dark()
+                    self.selection_bar = self._build_selection_bar(is_dark)
+                    self._selection_theme_stale = False
+                self._chips_switcher.content = self.selection_bar
+            elif self._chips_theme_stale:
+                # The chips row was detached (selection bar showing) the last
+                # time the theme changed, so its repaint was dropped (see
+                # CLAUDE.md "Flet desktop client rendering pitfalls" #2, and
+                # `_apply_filter_chip_theme`). Heal by rebuilding a fresh,
+                # correctly-themed row instead of reattaching the stale one.
+                # `_build_filter_chips_row` rebuilds fresh Chip instances that
+                # default to `selected=False` and re-points
+                # self._needs_update_chip / _up_to_date_chip / _has_backups_chip
+                # at them, so the rebuild alone would silently drop the active
+                # filter and its counts (mirrors the count-writing lines that
+                # follow the `active` branch above). Restore both axes: the
+                # `selected` state from the authoritative
+                # _filter_needs_update / _filter_up_to_date / _filter_has_backups
+                # flags, and the "(N)" counts via _update_filter_chip_counts().
+                is_dark = self._get_is_dark()
+                self.filter_chips_row = self._build_filter_chips_row(is_dark)
+                self._chips_theme_stale = False
+                self._chips_switcher.content = self.filter_chips_row
+                self._apply_filter_chip_theme(is_dark)
+                self._needs_update_chip.selected = self._filter_needs_update
+                self._up_to_date_chip.selected = self._filter_up_to_date
+                self._has_backups_chip.selected = self._filter_has_backups
+                self._update_filter_chip_counts()
+            else:
+                self._chips_switcher.content = self.filter_chips_row
         if self._selection_count_text is not None:
             self._selection_count_text.value = f"{count} selected"
         if getattr(self, "_selection_update_text", None) is not None:
@@ -1262,6 +1362,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
         if needs_update > 0 and self._on_update_all is not None and not self._selected_game_ids:
             self._update_all_text.value = f"Update all ({needs_update})"
             button.visible = True
+            menu = getattr(self, "_scope_menu", None)
+            if menu is not None:
+                menu.refresh_ticks()  # re-label the run row for the new count
         else:
             button.visible = False
 
@@ -1272,9 +1375,16 @@ class GamesView(ThemeAwareMixin, ft.Column):
             return
         accent = MD3Colors.get_warning(is_dark)
         fg = _on_accent(is_dark)
-        button.bgcolor = accent
+        # `button` may be the scope menu (a transparent shell) rather than the
+        # pill, so paint the pill itself - filling the shell would draw a
+        # second box behind it.
+        pill = getattr(self, "_update_all_pill", None) or button
+        pill.bgcolor = accent
         self._update_all_icon.color = fg
         self._update_all_text.color = fg
+        menu = getattr(self, "_scope_menu", None)
+        if menu is not None:
+            menu.set_accent(accent)
 
     async def _on_update_all_clicked(self, e) -> None:
         """Run the library-wide update through MainView's existing pipeline."""
@@ -1369,6 +1479,54 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
     # ===== Filter chip theming + live counts =====
 
+    def _build_filter_chips_row(self, is_dark: bool) -> ft.Row:
+        """Construct the three status filter chips and their row.
+
+        Extracted so `_sync_selection_ui` can rebuild a fresh instance when
+        the live row went theme-stale while detached inside the
+        AnimatedSwitcher (see `_apply_filter_chip_theme` and
+        `_chips_theme_stale`) — the client silently drops property patches
+        targeting detached subtrees, so re-theming the same instance in place
+        would be a no-op. Callers are responsible for calling
+        `_apply_filter_chip_theme(is_dark)` afterwards to paint it.
+        """
+        self._needs_update_label = ft.Text("Needs update", size=12)
+        self._needs_update_icon = ft.Icon(ft.Icons.ARROW_UPWARD, size=14)
+        self._needs_update_chip = ft.Chip(
+            label=self._needs_update_label,
+            leading=self._needs_update_icon,
+            selected=False,
+            on_select=self._on_status_chip_select,
+            data="needs_update",
+        )
+        self._up_to_date_label = ft.Text("Up to date", size=12)
+        self._up_to_date_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, size=14)
+        self._up_to_date_chip = ft.Chip(
+            label=self._up_to_date_label,
+            leading=self._up_to_date_icon,
+            selected=False,
+            on_select=self._on_status_chip_select,
+            data="up_to_date",
+        )
+        self._has_backups_label = ft.Text("Has backups", size=12)
+        self._has_backups_icon = ft.Icon(ft.Icons.RESTORE, size=14)
+        self._has_backups_chip = ft.Chip(
+            label=self._has_backups_label,
+            leading=self._has_backups_icon,
+            selected=False,
+            on_select=self._on_status_chip_select,
+            data="has_backups",
+        )
+        return ft.Row(
+            controls=[
+                self._needs_update_chip,
+                self._up_to_date_chip,
+                self._has_backups_chip,
+            ],
+            spacing=8,
+            wrap=True,
+        )
+
     def _apply_filter_chip_theme(self, is_dark: bool) -> None:
         """Tint the three status filter chips with semantic accents.
 
@@ -1376,7 +1534,21 @@ class GamesView(ThemeAwareMixin, ft.Column):
         Has backups -> BACKUPS orange (themed_accent picks the _LIGHT variant
         in light mode). Unselected chips stay on the neutral surface with a
         subtle colored outline; selecting fills with a translucent accent tint.
+
+        The chips row is one of two mutually exclusive occupants of
+        `self._chips_switcher` (see `_sync_selection_ui`); when the selection
+        bar is showing instead, the chips row is DETACHED from the control
+        tree. The Flet desktop client silently drops property patches
+        targeting detached subtrees while the server marks them delivered, so
+        painting now would be dropped and never recovered by a later
+        identical-value repaint. Defer instead: mark stale and let
+        `_sync_selection_ui` rebuild a fresh, correctly-themed row the next
+        time the chips are swapped back in.
         """
+        if getattr(self, "_chips_switcher", None) is not None and self._chips_switcher.content is not self.filter_chips_row:
+            self._chips_theme_stale = True
+            return
+
         needs_update_accent = MD3Colors.get_warning(is_dark)
         up_to_date_accent = MD3Colors.get_success(is_dark)
         has_backups_accent = themed_accent((TabColors.BACKUPS, TabColors.BACKUPS_LIGHT), is_dark)
@@ -1779,6 +1951,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 spacing=12,
                 run_spacing=12,
                 expand=True,
+                scroll=ft.Scrollbar(
+                    thumb_visibility=False,   # appears on scroll, not at rest
+                    thickness=8,
+                    radius=4,
+                    interactive=True,
+                ),
             )
             grids_by_launcher[launcher] = game_grid
 
@@ -1825,7 +2003,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Indicator/label accent = GAMES blue, matching the header wash.
         is_dark = self._get_is_dark()
         tab_accent = themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark)
-        self._tab_bar_ref = ft.TabBar(tabs=tabs, indicator_color=tab_accent, label_color=tab_accent)
+        self._tab_bar_ref = ft.TabBar(
+            tabs=tabs,
+            indicator_color=tab_accent,
+            label_color=tab_accent,
+            indicator_animation=ft.TabIndicatorAnimation.ELASTIC,
+        )
         # A lone launcher tab (e.g. "Steam (14)") just wastes a vertical band — the
         # grid alone is unambiguous. Hide the bar row entirely when there's only one
         # launcher; the TabBarView still renders index 0. Detachment (visible=False)
@@ -2865,7 +3048,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=8,
                 tight=True,
-                scroll=ft.ScrollMode.AUTO,
+                scroll=ft.Scrollbar(
+                    thumb_visibility=False,   # appears on scroll, not at rest
+                    thickness=8,
+                    radius=4,
+                    interactive=True,
+                ),
             ),
         )
         # Add actions after dialog exists
@@ -3054,7 +3242,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=8,
                 tight=True,
-                scroll=ft.ScrollMode.AUTO,
+                scroll=ft.Scrollbar(
+                    thumb_visibility=False,   # appears on scroll, not at rest
+                    thickness=8,
+                    radius=4,
+                    interactive=True,
+                ),
             ),
         )
         results_dialog.actions = [

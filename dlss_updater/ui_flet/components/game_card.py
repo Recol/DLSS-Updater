@@ -307,7 +307,9 @@ class GameCard(ThemeAwareMixin, ft.Card):
     def _build_dll_popover_items(self) -> list[ft.PopupMenuItem]:
         """Build popup menu items for all DLLs with color coding and update status"""
         from dlss_updater.config import LATEST_DLL_VERSIONS
+        from dlss_updater.update_scope import allows, from_preferences
         from dlss_updater.updater import parse_version
+        from dlss_updater.utils import get_dll_technology_group
 
         is_dark = self._registry.is_dark
         dll_colors = {
@@ -315,6 +317,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
             "DLSS-G": "#76B900", "DLSS-D": "#76B900",
             "Streamline": "#76B900", "DirectStorage": "#FFB900",
         }
+
+        saved_scope = from_preferences()
 
         items = []
         for dll in self.dlls:
@@ -337,6 +341,24 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 color=MD3Colors.get_warning(is_dark) if update_available else MD3Colors.get_success(is_dark),
             )
 
+            # Scanning is unconditional, so this list can include technologies
+            # excluded from updates. Report them — dimmed — rather than hiding
+            # them: the DLL is genuinely installed, it just will not be touched.
+            #
+            # Keyed on dll_filename, NOT dll_type: dll_type carries display
+            # labels like "DLSS-G" and "DLSS-D" that are not technology group
+            # names and would not resolve.
+            #
+            # Dim ONLY technologies the user excluded. A DLL that belongs to no
+            # technology group is not "excluded from updates in preferences" —
+            # there is no preference governing it — so it renders normally, the
+            # same way the group dialog exempts its "Other" bucket. allows()
+            # returns False for both cases, so an extra membership check is
+            # needed to tell them apart.
+            filename = (dll.dll_filename or "").lower()
+            known = get_dll_technology_group(filename) is not None
+            in_scope = not known or allows(saved_scope, filename)
+
             items.append(ft.PopupMenuItem(
                 content=ft.Row(
                     controls=[
@@ -348,6 +370,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
                     spacing=8,
                     tight=True,
                 ),
+                opacity=1.0 if in_scope else 0.45,
+                tooltip=None if in_scope else "Excluded from updates in Update Preferences",
             ))
         return items
 
@@ -471,21 +495,38 @@ class GameCard(ThemeAwareMixin, ft.Card):
             visible=self.is_ignored,
         )
 
+        # MergeSemantics here (NOT around the whole card — see self.content
+        # below) covers only the purely informational identity cluster: the
+        # hidden chip, title, launcher/status line and tech-version line.
+        # None of these carry on_click/on_tap/on_select of their own, so
+        # folding them into one screen-reader phrase ("Cyberpunk 2077,
+        # Steam, Needs update, DLSS 4") loses nothing — it's the textbook
+        # "adjacent widgets whose separate semantics would be redundant"
+        # case. The DLL badge is deliberately NOT part of this cluster even
+        # though it's informational-looking: it's an independent tap target
+        # (see _create_dll_badges' GestureDetector.on_tap) and merging it in
+        # would make it unreachable as its own action. No expand is needed:
+        # this Container is sized by its Stack position (bottom/left/right=0
+        # in _banner_stack below), not by an expand-driven flex chain, so
+        # MergeSemantics here doesn't need `expand=True` to pass sizing
+        # through — unlike the two Semantics nodes further down.
         title_overlay = ft.Container(
-            content=ft.Column(
-                controls=[
-                    self.hidden_chip,
-                    self.game_name_text,
-                    ft.Row(
-                        controls=[self.launcher_text, self.status_separator_text, self.status_row],
-                        spacing=6,
-                        tight=True,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                    self.tech_version_text,
-                ],
-                spacing=2,
-                tight=True,
+            content=ft.MergeSemantics(
+                content=ft.Column(
+                    controls=[
+                        self.hidden_chip,
+                        self.game_name_text,
+                        ft.Row(
+                            controls=[self.launcher_text, self.status_separator_text, self.status_row],
+                            spacing=6,
+                            tight=True,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        self.tech_version_text,
+                    ],
+                    spacing=2,
+                    tight=True,
+                ),
             ),
             padding=ft.Padding.only(left=12, right=12, top=14, bottom=10),
         )
@@ -535,6 +576,10 @@ class GameCard(ThemeAwareMixin, ft.Card):
             ),
             tooltip="More actions",
             items=self._build_context_menu_items(),
+            popup_animation_style=ft.AnimationStyle(
+                duration=ft.Duration(milliseconds=180),
+                curve=ft.AnimationCurve.EASE_OUT,
+            ),
         )
 
         # Corner action cluster is hidden at rest and fades in on card hover (see
@@ -696,14 +741,47 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # Right-click context menu wrapping the whole card body.
         # secondary_items = right mouse button; left-click children (badges,
         # overlay buttons) keep their own on_tap/on_click behaviour.
-        self._context_menu = ft.ContextMenu(
+        # card_body's own on_click (open the DLL details dialog) is the
+        # card's primary action, so it gets its own Semantics label here.
+        # expand=True on the wrapper is required: ft.Semantics DOES have
+        # expand, and card_body is expand=True so the cell's height reaches
+        # the Column below (see the "expand chain" note above) — a
+        # non-expanding wrapper inserted into that chain would collapse the
+        # card to zero height (CLAUDE.md: "Fixed Height Clipping Issues").
+        # Kept as a named ref (like _banner_semantics / _scope_menu_semantics
+        # elsewhere) so apply_resolution() can update
+        # `label` in place when the card is re-linked to a different Steam
+        # game — otherwise the wrapper's label goes stale, same defect shape
+        # as the other Semantics/MergeSemantics wrappers fixed this phase.
+        self._card_semantics = ft.Semantics(
             content=card_body,
+            label=self._card_semantics_label(),
+            button=True,
+            focusable=True,
+            expand=True,
+        )
+        self._context_menu = ft.ContextMenu(
+            content=self._card_semantics,
             expand=True,
             secondary_items=self._build_context_menu_items(),
         )
 
-        # Card content layout
+        # Card content layout. NOT wrapped in MergeSemantics: this subtree
+        # contains several independently actionable controls (the Update /
+        # Restore PopupMenuButtons, the kebab menu, the selection checkbox,
+        # the DLL badge's own tap target, and card_body's click-through
+        # above) whose separate semantics MergeSemantics would collapse into
+        # one node — see the narrower merge on just the identity cluster in
+        # title_overlay below instead (task-7 Fix round 3).
         self.content = self._context_menu
+
+    def _card_semantics_label(self) -> str:
+        """Label for self._card_semantics — the card's primary click target.
+
+        One helper so the construction site and apply_resolution()'s refresh
+        site cannot drift (see the label-goes-stale defect this fixes).
+        """
+        return f"View DLL details for {prettify_display_name(self.game.display_name)}"
 
     def _title_tooltip(self) -> str:
         """Tooltip for the title: full name plus the install path(s)."""
@@ -1161,6 +1239,10 @@ class GameCard(ThemeAwareMixin, ft.Card):
             on_open=self._on_menu_open,
             on_select=self._on_menu_closed,
             on_cancel=self._on_menu_closed,
+            popup_animation_style=ft.AnimationStyle(
+                duration=ft.Duration(milliseconds=180),
+                curve=ft.AnimationCurve.EASE_OUT,
+            ),
         )
 
     def _build_update_menu_items(self) -> list[ft.PopupMenuItem]:
@@ -1251,7 +1333,9 @@ class GameCard(ThemeAwareMixin, ft.Card):
         )
 
         if not self.backup_groups:
-            # Disabled button if no backups (icon stays muted).
+            # Disabled button if no backups (icon stays muted). No
+            # popup_animation_style here: a disabled menu can never open, so
+            # the style can never render — every other PopupMenuButton keeps it.
             return ft.PopupMenuButton(
                 content=restore_content,
                 tooltip="No backups available",
@@ -1266,6 +1350,10 @@ class GameCard(ThemeAwareMixin, ft.Card):
             on_open=self._on_menu_open,
             on_select=self._on_menu_closed,
             on_cancel=self._on_menu_closed,
+            popup_animation_style=ft.AnimationStyle(
+                duration=ft.Duration(milliseconds=180),
+                curve=ft.AnimationCurve.EASE_OUT,
+            ),
         )
 
     def _build_restore_menu_items(self) -> list[ft.PopupMenuItem]:
@@ -1382,6 +1470,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
             # Refresh title text (prettified for display only — see prettify_display_name)
             self.game_name_text.value = prettify_display_name(self.game.display_name)
             self.game_name_text.tooltip = self._title_tooltip()
+            if getattr(self, "_card_semantics", None) is not None:
+                self._card_semantics.label = self._card_semantics_label()
 
             # Refresh resolve button tooltip
             self.resolve_button.tooltip = "Edit display" if self.game.is_manually_resolved else "Edit display (image & name)"

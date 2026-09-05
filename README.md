@@ -81,7 +81,7 @@ understands games from every major launcher.
     </td>
     <td width="33%" valign="top">
       <h3>🔄 Updates Everything</h3>
-      DLSS, Ray Reconstruction, Frame Generation, Streamline, XeSS, FSR &amp; DirectStorage — all at once, or one binary at a time.
+      DLSS, Neural Rendering, Ray Reconstruction, Frame Generation, Streamline, XeSS, FSR &amp; DirectStorage — all at once, only the technologies you pick, or one binary at a time.
     </td>
     <td width="33%" valign="top">
       <h3>🎛️ DLSS Presets</h3>
@@ -139,10 +139,12 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 <summary><h3>🔄 DLL Updating</h3></summary>
 
 - **DLSS** Super Resolution, plus **Ray Reconstruction**, **Frame Generation** and **Streamline** (Reflex Low Latency, DirectSR, NIS, etc.)
+- **DLSS 5 Neural Rendering** — runs alongside Super Resolution rather than replacing it (RTX 50 series only; the DLL is ~158&nbsp;MB, so expect a longer first download)
 - **XeSS / XeSS Frame Generation / XeLL**
 - **FSR** — Upscaling, Frame Generation, Ray Regeneration, plus an **FSR 4 upgrade** for games that ship only FSR 3.1 (RDNA 3 / RDNA 4 only; skipped on other GPUs, where FSR 4 cannot run)
 - **DirectStorage** (Windows only)
 - Update everything at once, or update individual binaries for a specific game
+- **Choose what "update everything" means** — the caret beside *Start Update* (and beside the Hub's *Update all*) opens a menu of technologies. Untick the ones you want left alone and the run skips them; the caret shows a count whenever the run is narrower than everything. The choice applies to **that run only** and then reverts to your saved preferences, so a one-off "only DLSS this time" never quietly becomes permanent — use *Make this my default* to write it to **Update Preferences** instead. Both menus share one scope, so narrowing on the Hub shows up on the Launchers bar and vice versa
 - **Update a hand-picked set** — hover any game card in the **Games** view to reveal its checkbox, tick the games you want, then hit *Update selected*. **Select all** takes every game visible in the current launcher tab, so "update just this launcher" is one click away. The selection carries across launcher tabs and filters, and the run reports one summary rather than a dialog per game
 
 </details>

@@ -73,6 +73,7 @@ from dlss_updater.ui_flet.components.launcher_card import LauncherCard
 from dlss_updater.ui_flet.components.loading_overlay import LoadingOverlay
 from dlss_updater.ui_flet.components.logger_panel import LoggerPanel
 from dlss_updater.ui_flet.components.theme_manager import ThemeManager
+from dlss_updater.ui_flet.components.update_scope_menu import UpdateScopeMenu
 from dlss_updater.ui_flet.theme.colors import Shadows, MD3Colors, TabColors
 from dlss_updater.ui_flet.components.hero_surface import (
     build_brand_wash,
@@ -201,6 +202,12 @@ class MainView(ft.Column):
         # the loading overlay does cover the page, a second concurrent run
         # against the same DLL files is not something to leave to layering.
         self._bulk_run_active = False
+
+        # Per-run technology scope. None == "use the user's saved preferences".
+        # Reset after every run, so narrowing is a property of one update and
+        # never silently rewrites the saved config.
+        self._update_scope: frozenset[str] | None = None
+        self._scope_menus: list = []
 
         # Scan state management - store last scan results for update operations
         self.last_scan_results: dict | None = None
@@ -332,6 +339,8 @@ class MainView(ft.Column):
             self.logger,
             on_update_all=self.run_bulk_update,
             on_update_selected=self.run_bulk_update_for_selection,
+            get_scope=self._effective_scope,
+            on_scope_changed=self._set_update_scope,
         )
 
         # Create backups view
@@ -360,6 +369,8 @@ class MainView(ft.Column):
             on_open_dlss_settings=self._on_dlss_settings_clicked,
             on_update_all=self.run_bulk_update,
             on_scan=self.run_scan,
+            get_scope=self._effective_scope,
+            on_scope_changed=self._set_update_scope,
         )
 
         # Create navigation controller (replaces tab bar)
@@ -522,6 +533,8 @@ class MainView(ft.Column):
                         on_open_dlss_settings=self._on_dlss_settings_clicked,
                         on_update_all=self.run_bulk_update,
                         on_scan=self.run_scan,
+                        get_scope=self._effective_scope,
+                        on_scope_changed=self._set_update_scope,
                     )
                     # Unique key so Flet's list differ treats this as a
                     # keyed ADD (full serialization) instead of a same-class
@@ -685,7 +698,42 @@ class MainView(ft.Column):
             label="Start Update",
             icon=ft.Icons.DOWNLOAD,
             color="#2D5A88",  # Blue
-            on_click=self._on_update_clicked,
+            # No on_click: this button IS the scope menu's trigger now, and a
+            # Container on_click would swallow the tap before the menu opened.
+            on_click=None,
+        )
+
+        # The finished button is handed to the menu as its trigger, so it keeps
+        # its own design instead of giving up its right edge to a caret.
+        # Clicking it opens the checklist; the checklist's own accent-filled row
+        # starts the run.
+        #
+        # Note there is deliberately no "disable when the scope is empty" logic
+        # any more: this button is now the ONLY way back into the menu, so
+        # greying it out on an empty scope would strand the user with no way to
+        # re-tick anything. The menu's run row carries that state instead.
+        scope_menu = UpdateScopeMenu(
+            page=self._page_ref,
+            get_scope=self._effective_scope,
+            on_scope_changed=self._set_update_scope,
+            accent="#2D5A88",
+            trigger_content=update_button,
+            on_run=self._on_update_clicked,
+            run_label=lambda: "Start update",
+            # No height/width: the trigger button sizes the whole control.
+            # Constraining the shell clips the button inside it.
+            radius=12,
+        )
+        self._scope_menus = [scope_menu]
+
+        # One Semantics node for the whole control: it is a single button that
+        # opens a menu, so announcing a separate caret would describe UI that no
+        # longer exists.
+        split_update = ft.Semantics(
+            content=scope_menu,
+            label="Start Update",
+            button=True,
+            focusable=True,
         )
 
         # Create action buttons container with themed surface style
@@ -698,7 +746,15 @@ class MainView(ft.Column):
                     self.last_scan_info_text,
                     # Buttons row - spacing via Row property
                     ft.Row(
-                        controls=[scan_button, update_button],
+                        controls=[
+                            ft.Semantics(
+                                content=scan_button,
+                                label="Scan for Games",
+                                button=True,
+                                focusable=True,
+                            ),
+                            split_update,
+                        ],
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=16,
                     ),
@@ -1420,6 +1476,16 @@ class MainView(ft.Column):
         # the only strong references to them.
         for card in self.launcher_cards.values():
             card._unregister_theme_aware()
+
+        # Same for the caret: UpdateScopeMenu registers ITSELF, and
+        # _create_launchers_view() below rebinds self._scope_menus to a fresh
+        # instance. Without this the detached menu keeps taking theme cascades
+        # (apply_theme swallows the resulting detached-update error, so it
+        # fails silently) until the cycle collector reaps it. The Hub's copy
+        # of this menu is already handled the same way - see
+        # HubActionCard._unregister_theme_aware().
+        for menu in self._scope_menus:
+            menu._unregister_theme_aware()
 
         # Rebuild cards + header + action bar + content container from
         # scratch (also repopulates self.launcher_cards).
@@ -2489,7 +2555,45 @@ class MainView(ft.Column):
         # Run update ONLY (use cached scan results)
         await self._execute_bulk_update(self.last_scan_results)
 
-    async def _execute_bulk_update(self, dll_dict: dict) -> None:
+    def _effective_scope(self) -> frozenset[str]:
+        """The scope this run will use — the override, or saved preferences."""
+        from dlss_updater import update_scope
+
+        return self._update_scope if self._update_scope is not None else update_scope.from_preferences()
+
+    def _set_update_scope(self, scope: frozenset[str]) -> None:
+        """Record a scope override and keep every scope menu in sync."""
+        self._update_scope = scope
+        self._notify_scope_menus()
+
+    def _iter_scope_menus(self):
+        """Every live scope menu.
+
+        The hub's card is rebuilt on every theme change (two paths:
+        HubView.rebuild_for_theme and MainView's whole-view replacement), so its
+        menu is resolved fresh here rather than registered once into a list that
+        would fill with detached instances.
+        """
+        yield from self._scope_menus
+        card = getattr(getattr(self, "hub_view", None), "_action_card", None)
+        menu = getattr(card, "scope_menu", None)
+        if menu is not None:
+            yield menu
+        # The Games header's menu. Resolved live for the same reason as the
+        # hub's: the header is rebuilt on theme changes.
+        menu = getattr(getattr(self, "games_view", None), "_scope_menu", None)
+        if menu is not None:
+            yield menu
+
+    def _notify_scope_menus(self) -> None:
+        """Both hosts share one scope, so a change in either repaints the other."""
+        for menu in self._iter_scope_menus():
+            try:
+                menu.refresh_ticks()
+            except Exception:
+                pass  # a menu on a detached view repaints on its next attach
+
+    async def _execute_bulk_update(self, dll_dict: dict, scope=None) -> None:
         """Run ``dll_dict`` through the update pipeline and report the outcome.
 
         The shared tail of every bulk update - library-wide from the Launchers
@@ -2514,9 +2618,12 @@ class MainView(ft.Column):
                     progress.message
                 )
 
+            effective = scope if scope is not None else self._effective_scope()
+
             result = await self.update_coordinator.update_games(
                 dll_dict,
-                on_progress
+                on_progress,
+                scope=effective,
             )
 
             # Hide loading overlay
@@ -2534,7 +2641,13 @@ class MainView(ft.Column):
                     f"Update cancelled — processed {processed} of {total} {unit}"
                 )
             else:
-                summary_dialog = UpdateSummaryDialog(self._page_ref, self.logger, result)
+                summary_dialog = UpdateSummaryDialog(
+                    self._page_ref,
+                    self.logger,
+                    result,
+                    scope=effective,
+                    out_of_scope=self.update_coordinator.last_out_of_scope,
+                )
                 await summary_dialog.show()
 
             # Refresh game card DLL badges if games view is loaded; otherwise
@@ -2578,6 +2691,13 @@ class MainView(ft.Column):
             )
             self._page_ref.show_dialog(error_dialog)
 
+        finally:
+            # Per-run scope: the next run starts from saved preferences again,
+            # regardless of whether this run succeeded, was cancelled, or
+            # raised — every exit path must drop the override.
+            self._update_scope = None
+            self._notify_scope_menus()
+
     async def _run_scan_and_update(self):
         """Scan then update in one operation, sharing the same overlay, progress
         and Cancel-button UX as a normal update. Invoked when the user presses
@@ -2585,6 +2705,11 @@ class MainView(ft.Column):
         self.logger.info("Running scan-and-update")
 
         try:
+            # Captured before the scan starts (the scan is long-running) so a
+            # scope change mid-run doesn't retroactively apply to this run -
+            # same reasoning as _execute_bulk_update's `effective`.
+            effective = self._effective_scope()
+
             # Show loading overlay with a Cancel button wired to the coordinator
             self.loading_overlay.show(
                 self._page_ref,
@@ -2630,7 +2755,9 @@ class MainView(ft.Column):
                 await self._refresh_after_bulk_run(rescanned=True)
                 return
 
-            result = await self.update_coordinator.update_games(dll_dict, on_progress)
+            result = await self.update_coordinator.update_games(
+                dll_dict, on_progress, scope=effective
+            )
 
             # Hide loading overlay
             self.loading_overlay.hide(self._page_ref)
@@ -2649,7 +2776,13 @@ class MainView(ft.Column):
                 else:
                     await self._show_snackbar("Scan cancelled")
             else:
-                summary_dialog = UpdateSummaryDialog(self._page_ref, self.logger, result)
+                summary_dialog = UpdateSummaryDialog(
+                    self._page_ref,
+                    self.logger,
+                    result,
+                    scope=effective,
+                    out_of_scope=self.update_coordinator.last_out_of_scope,
+                )
                 await summary_dialog.show()
 
             # Refresh views the same way a normal update does (partial updates
@@ -2688,6 +2821,12 @@ class MainView(ft.Column):
                 ],
             )
             self._page_ref.show_dialog(error_dialog)
+
+        finally:
+            # Per-run scope: cleared on every exit path, exactly as in
+            # _execute_bulk_update - success, cancellation and exception alike.
+            self._update_scope = None
+            self._notify_scope_menus()
 
     # Scans older than this many days get a "rescan recommended" prompt
     STALE_SCAN_DAYS = 7

@@ -18,7 +18,7 @@
       <li>Automatic detection of games from multiple launchers</li>
       <li>Support for Steam Proton and Wine prefixes on Linux</li>
       <li>Built-in backup system for restoring original DLLs</li>
-      <li>Updates for DLSS, FSR, XeSS, Ray Reconstruction, Frame Generation, and Streamline</li>
+      <li>Updates for DLSS, FSR, XeSS, Ray Reconstruction, Frame Generation, Neural Rendering, and Streamline</li>
       <li>Individual game updates for specific binaries</li>
       <li>Custom folder support for games in non-standard locations</li>
     </ul>
@@ -64,6 +64,35 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="5.0.0" date="2026-09-06">
+      <description>
+        <p>Support for DLSS 5 Neural Rendering</p>
+        <ul>
+          <li>Added support for DLSS 5 Neural Rendering (nvngx_dlssnr.dll), which NVIDIA released on 3rd September alongside NBA 2K27. It runs alongside Super Resolution, Ray Reconstruction and Frame Generation rather than replacing any of them, so a game can ship it next to the DLSS DLLs you already update</li>
+          <li>It is treated like any other DLSS DLL: covered by the existing DLSS toggle in Update Preferences, found by scans, backed up before it is replaced, and listed in the update summary. Games that have it show a "DLSS 5" chip alongside their other technology chips</li>
+          <li>Two things worth knowing before enabling it: it needs an RTX 50 series card, and the DLL is about 158 MB — roughly twice the size of the next largest file the app downloads — so the first update after installing this version will take noticeably longer</li>
+          <li>The app can now fetch a DLL from somewhere other than the DLL repository's dlls/ folder, which is what makes the above possible. GitHub refuses any file over 100 MB in a repository, so nvngx_dlssnr.dll is published as a release asset and the manifest points at it. Nothing changes for the other DLLs, and a download location is only accepted if it is on the DLL repository itself</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.9.0" date="2026-09-04">
+      <description>
+        <p>Choose which technologies an update touches — and technology preferences now actually bind when the update runs</p>
+        <ul>
+          <li>"Start Update" now asks what to update before it runs: pressing it opens a checklist of the technologies a run may touch, with the run itself as the last entry. Untick XeSS and FSR and the next run replaces only the DLSS and Streamline binaries. Each row carries its own technology colour as a swatch and as its hover tint, and the button shows a count whenever the run is narrower than everything</li>
+          <li>Every bulk-update button works this way — Launchers, the Hub card, and the Games library, which previously had no way to narrow a run at all. All three share a single scope, so narrowing it in one place shows in the others. Scanning is deliberately unscoped and still runs immediately</li>
+          <li>A narrowed scope lasts exactly one run and then reverts to your saved preferences, so a one-off "only DLSS this time" can never quietly become permanent — including when a run fails partway through. "Make this my default" writes the current ticks into Update Preferences; "Reset" puts them back</li>
+          <li>Unticking everything disables the update buttons rather than offering a run that would touch nothing, and the button says why</li>
+          <li>The update summary now says when a run was deliberately narrowed — naming what it covered, what it excluded and how many DLLs it skipped — because a narrowed run and a broken one otherwise look identical</li>
+          <li>Excluded technologies are shown rather than hidden: a game's DLL list dims the rows it will not touch, and the grouped DLL dialog keeps the group in place, marks it "(updates disabled)" and greys out its Update button. Restore keeps working, since rolling a backup back is not an update</li>
+          <li>Fixed: technology preferences did not bind on the update path that actually runs. Disabling DirectStorage stopped the scan looking for its DLLs, but nothing rechecked the preference when an update started — and updates run from cached scan results, so a scan taken while it was enabled still replaced every DirectStorage DLL it had found. The scope is now enforced where the files are written, so it binds regardless of scan age</li>
+          <li>Fixed: enabling a technology no longer needs a rescan to take effect. Scanning used to look only for the technologies enabled at the time, so turning XeSS back on found nothing until the whole library was rescanned. Scanning now finds everything and the choice is applied at update time</li>
+          <li>The Hub's update card and the Games selection bar now cross-fade between states instead of hard-swapping (a theme toggle does not trigger it); the per-game update and restore result dialogs and the Application Logs panel show a draggable scrollbar thumb on scroll; and popup menus ease open while tab indicators glide instead of jumping</li>
+          <li>Right-clicking a launcher card now opens the same menu as its "⋮" button — copy path(s), open the folder, auto-detect, and clear — matching the context menu game cards already have</li>
+          <li>A first accessibility pass adds screen-reader labels to the Start Update button, the Hub and Games bulk-update buttons, a game card's details click target, and a launcher card's banner; a game card's name, launcher, status and DLL version now read as one phrase, while its Update, Restore, kebab menu and selection checkbox remain individually reachable</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.8.1" date="2026-08-30">
       <description>
         <p>Update a hand-picked set of games, and choose how large the game cards are</p>

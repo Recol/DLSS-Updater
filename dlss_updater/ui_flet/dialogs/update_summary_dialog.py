@@ -18,10 +18,19 @@ class UpdateSummaryDialog(ThemeAwareMixin):
     Theme-aware: responds to light/dark mode changes.
     """
 
-    def __init__(self, page: ft.Page, logger: logging.Logger, result: UpdateResult):
+    def __init__(
+        self,
+        page: ft.Page,
+        logger: logging.Logger,
+        result: UpdateResult,
+        scope=None,
+        out_of_scope=None,
+    ):
         self._page_ref = page
         self.logger = logger
         self.result = result
+        self.scope = scope
+        self.out_of_scope = out_of_scope or []
 
         # Theme registry setup
         self._registry = get_theme_registry()
@@ -39,11 +48,66 @@ class UpdateSummaryDialog(ThemeAwareMixin):
         self._unregister_theme_aware()
         self._page_ref.pop_dialog()
 
+    # Footprint of the scope banner built by _build_scope_banner(), in px:
+    # ~18px icon + 8px top padding + 8px bottom padding + 8px gap before the
+    # summary text below it. Added to the dialog content's fixed height only
+    # when a banner is actually shown, so the tab area isn't squeezed.
+    _SCOPE_BANNER_HEIGHT = 18 + 8 + 8 + 8
+
+    def _build_scope_banner(self, is_dark: bool) -> ft.Container | None:
+        """Build the "this run was narrowed" banner, or None if it shouldn't show.
+
+        Only shown when a scope was actually passed AND it excludes at least
+        one technology — an unnarrowed run (scope=None, or scope covering
+        everything) gets no banner at all.
+        """
+        if self.scope is None:
+            return None
+
+        from dlss_updater.update_scope import all_technologies
+
+        everything = all_technologies()
+        included = sorted(self.scope & everything)
+        if len(included) >= len(everything):
+            return None
+
+        excluded = sorted(everything - self.scope)
+        message = (
+            f"This run covered {', '.join(included)} — "
+            f"{', '.join(excluded)} excluded"
+        )
+        if self.out_of_scope:
+            message += f" ({len(self.out_of_scope)} DLLs skipped)"
+
+        return ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(
+                        ft.Icons.FILTER_ALT,
+                        size=18,
+                        color=MD3Colors.get_text_secondary(is_dark),
+                    ),
+                    ft.Text(
+                        message,
+                        size=12,
+                        color=MD3Colors.get_text_secondary(is_dark),
+                        expand=True,
+                    ),
+                ],
+                spacing=8,
+            ),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+            bgcolor=MD3Colors.get_surface_container(is_dark),
+            border_radius=8,
+        )
+
     async def show(self):
         """Show the update summary dialog"""
         # Register for theme updates
         self._register_theme_aware()
         is_dark = self._registry.is_dark
+
+        scope_banner = self._build_scope_banner(is_dark)
 
         # Create tabs for different result categories (Flet 0.80.4 TabBar/TabBarView pattern)
         tab_headers = []  # Tab labels/icons
@@ -234,26 +298,32 @@ class UpdateSummaryDialog(ThemeAwareMixin):
             title=ft.Text("Update Complete", color=MD3Colors.get_text_primary(is_dark)),
             content=ft.Container(
                 content=ft.Column(
-                    controls=[
-                        ft.Text(summary_str, size=14, color=MD3Colors.get_text_secondary(is_dark)),
-                        ft.Container(height=8),
-                        ft.Tabs(
-                            length=len(tab_headers),
-                            selected_index=0,
-                            animation_duration=200,
-                            content=ft.Column(
-                                expand=True,
-                                controls=[
-                                    ft.TabBar(tabs=tab_headers),
-                                    ft.TabBarView(expand=True, controls=tab_contents),
-                                ],
+                    controls=(
+                        ([scope_banner, ft.Container(height=8)] if scope_banner else [])
+                        + [
+                            ft.Text(summary_str, size=14, color=MD3Colors.get_text_secondary(is_dark)),
+                            ft.Container(height=8),
+                            ft.Tabs(
+                                length=len(tab_headers),
+                                selected_index=0,
+                                animation_duration=200,
+                                content=ft.Column(
+                                    expand=True,
+                                    controls=[
+                                        ft.TabBar(
+                                            tabs=tab_headers,
+                                            indicator_animation=ft.TabIndicatorAnimation.ELASTIC,
+                                        ),
+                                        ft.TabBarView(expand=True, controls=tab_contents),
+                                    ],
+                                ),
                             ),
-                        ),
-                    ],
+                        ]
+                    ),
                     spacing=0,
                 ),
                 width=700,
-                height=450,
+                height=450 + (self._SCOPE_BANNER_HEIGHT if scope_banner else 0),
             ),
             bgcolor=MD3Colors.get_surface(is_dark),
             actions=[

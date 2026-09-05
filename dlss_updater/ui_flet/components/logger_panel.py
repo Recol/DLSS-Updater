@@ -238,7 +238,12 @@ class LoggerPanel(ThemeAwareMixin, ft.Container):
         self.log_column = ft.Column(
             controls=[],
             spacing=2,
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.Scrollbar(
+                thumb_visibility=False,   # appears on scroll, not at rest
+                thickness=8,
+                radius=4,
+                interactive=True,
+            ),
             expand=True,
         )
 

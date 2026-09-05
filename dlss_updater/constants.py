@@ -5,6 +5,7 @@ DLL_TYPE_MAP = {
     "nvngx_dlss.dll": "DLSS DLL",
     "nvngx_dlssg.dll": "DLSS Frame Generation DLL",
     "nvngx_dlssd.dll": "DLSS Ray Reconstruction DLL",
+    "nvngx_dlssnr.dll": "DLSS Neural Rendering DLL",
     "libxess.dll": "XeSS DLL",
     "libxess_dx11.dll": "XeSS DX11 DLL",
     "libxess_fg.dll": "XeSS Frame Generation DLL",
@@ -39,6 +40,11 @@ DLL_GROUPS = {
         "nvngx_dlss.dll",
         "nvngx_dlssg.dll",
         "nvngx_dlssd.dll",
+        # DLSS 5 Neural Rendering (released 2026-09-03, RTX 50 series only).
+        # Runs alongside SR/RR/Frame Generation rather than replacing any of
+        # them, so it is an ordinary member of this group. Too large for the
+        # DLL repo's dlls/ directory — see resolve_download_url.
+        "nvngx_dlssnr.dll",
     ],
     "Streamline": [
         "sl.common.dll",

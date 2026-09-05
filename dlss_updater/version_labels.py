@@ -34,11 +34,22 @@ from .updater import parse_version
 FEATURE_DLSS_SR = "dlss_sr"
 FEATURE_DLSS_RR = "dlss_rr"
 
+# DLSS 5 Neural Rendering. A bucket of its own rather than part of dlss_sr: it
+# runs alongside Super Resolution instead of replacing it, so a game can show
+# both chips. Presets don't apply to it.
+FEATURE_DLSS_NR = "dlss_nr"
+
 # Canonical display order for the well-known buckets (matches the
 # DLSS/FSR/XeSS/RR order the chip line has always used). A feature key the
 # manifest introduces after this client shipped isn't in here — it still
 # displays, just appended after these, alphabetically, in sort_kinds().
-KNOWN_FEATURE_ORDER = (FEATURE_DLSS_SR, "fsr_sr", "xess_sr", FEATURE_DLSS_RR)
+KNOWN_FEATURE_ORDER = (
+    FEATURE_DLSS_SR,
+    "fsr_sr",
+    "xess_sr",
+    FEATURE_DLSS_RR,
+    FEATURE_DLSS_NR,
+)
 
 
 def _manifest_entry(dll_filename: str, manifest: dict | None) -> dict | None:

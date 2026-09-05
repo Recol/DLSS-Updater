@@ -412,6 +412,10 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             tooltip="Recent searches",
             items=[],
             visible=False,
+            popup_animation_style=ft.AnimationStyle(
+                duration=ft.Duration(milliseconds=180),
+                curve=ft.AnimationCurve.EASE_OUT,
+            ),
         )
 
         # Search text field

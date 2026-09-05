@@ -115,8 +115,14 @@ async def process_single_dll_with_backup(dll_path, launcher, backup_path, progre
         return ProcessedDLLResult(success=False, dll_type="Error")
 
 
-async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=None):
-    """Process DLLs using anyio with progress tracking (maximum hardware utilization)"""
+async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=None, scope=None):
+    """Process DLLs using anyio with progress tracking (maximum hardware utilization)
+
+    Args:
+        scope: Optional UpdateScope threaded down to process_single_dll for
+            each task. None preserves the historical behaviour of reading
+            saved Update Preferences.
+    """
     # Bound concurrency with the shared io_heavy limiter by default; honour an
     # explicit max_workers override with a one-off CapacityLimiter.
     limiter = io_heavy if max_workers is None else anyio.CapacityLimiter(max_workers)
@@ -147,7 +153,7 @@ async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=N
     async def process_with_progress(dll_path, launcher):
         """Process single DLL and update progress"""
         try:
-            result = await process_single_dll(dll_path, launcher)
+            result = await process_single_dll(dll_path, launcher, scope)
             await update_progress()
             return result, dll_path, launcher
         except Exception as e:
@@ -497,16 +503,23 @@ def get_dll_technology_group(dll_name):
     return None
 
 
-def is_dll_update_enabled(dll_name):
+def is_dll_update_enabled(dll_name, scope=None):
     """
-    Check if updates are enabled for this DLL type based on user preferences
+    Check if updates are enabled for this DLL type
 
     Args:
         dll_name: DLL filename (lowercase)
+        scope: Optional UpdateScope for this run. When None, the user's saved
+            Update Preferences are read, which is the historical behaviour.
 
     Returns:
         True if updates are enabled, False otherwise
     """
+    if scope is not None:
+        from dlss_updater.update_scope import allows
+
+        return allows(scope, dll_name)
+
     # Get the technology group for this DLL
     tech_group = get_dll_technology_group(dll_name)
 
@@ -575,7 +588,7 @@ def extract_game_name(dll_path, launcher_name):
         return "Unknown Game"
 
 
-async def update_dlss_versions(dll_dict=None, settings=None, progress_callback=None):
+async def update_dlss_versions(dll_dict=None, settings=None, progress_callback=None, scope=None):
     """
     Update DLSS versions across all games (fully async version)
 
@@ -583,6 +596,9 @@ async def update_dlss_versions(dll_dict=None, settings=None, progress_callback=N
         dll_dict: Pre-scanned dictionary of DLLs, or None to scan
         settings: Update settings
         progress_callback: Progress callback function
+        scope: Optional UpdateScope for this run, threaded down to
+            process_single_dll for each DLL. None preserves the historical
+            behaviour of reading saved Update Preferences per DLL.
 
     Returns:
         Dict with updated_games, skipped_games, successful_backups, errors
@@ -639,7 +655,7 @@ async def update_dlss_versions(dll_dict=None, settings=None, progress_callback=N
             logger.info(f"Using {max_workers} parallel workers (IO_HEAVY={Concurrency.IO_HEAVY})")
 
             # Process all DLLs in parallel with progress callback (now async)
-            results = await process_dlls_parallel(dll_tasks, max_workers, progress_callback)
+            results = await process_dlls_parallel(dll_tasks, max_workers, progress_callback, scope)
 
             # Extract results
             updated_games = results["updated_games"]
@@ -705,14 +721,21 @@ async def update_dlss_versions(dll_dict=None, settings=None, progress_callback=N
         }
 
 
-async def process_single_dll(dll_path, launcher):
-    """Process a single DLL file (async version)"""
+async def process_single_dll(dll_path, launcher, scope=None):
+    """Process a single DLL file (async version)
+
+    Args:
+        dll_path: Path to the DLL to process
+        launcher: Launcher name the DLL was found under
+        scope: Optional UpdateScope for this run. When None, the user's saved
+            Update Preferences are read, which is the historical behaviour.
+    """
     try:
         # Get the lowercase filename for consistency
         dll_name = dll_path.name.lower()
 
         # Check if updates are enabled for this DLL type
-        if not is_dll_update_enabled(dll_name):
+        if not is_dll_update_enabled(dll_name, scope):
             dll_type = DLL_TYPE_MAP.get(dll_name, "Unknown DLL type")
             return ProcessedDLLResult(success=False, dll_type=dll_type)
 
@@ -723,6 +746,8 @@ async def process_single_dll(dll_path, launcher):
             dll_type = "DLSS Frame Generation DLL"
         elif "nvngx_dlssd.dll" == dll_name:
             dll_type = "DLSS Ray Reconstruction DLL"
+        elif "nvngx_dlssnr.dll" == dll_name:
+            dll_type = "DLSS Neural Rendering DLL"
         elif "libxess.dll" == dll_name:
             dll_type = "XeSS DLL"
         elif "libxess_dx11.dll" == dll_name:

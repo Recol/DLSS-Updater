@@ -70,6 +70,8 @@ class HubView(ThemeAwareMixin, ft.Column):
         on_open_dlss_settings=None,
         on_update_all=None,
         on_scan=None,
+        get_scope=None,
+        on_scope_changed=None,
     ):
         super().__init__()
         self._page_ref = page
@@ -82,6 +84,8 @@ class HubView(ThemeAwareMixin, ft.Column):
         # overlay, "Scan and Update" fallback, summary dialog.
         self._on_update_all = on_update_all
         self._on_scan = on_scan
+        self._get_scope = get_scope
+        self._on_scope_changed = on_scope_changed
         self.expand = True
         self.alignment = ft.MainAxisAlignment.CENTER
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
@@ -212,6 +216,8 @@ class HubView(ThemeAwareMixin, ft.Column):
             page=page,
             on_update_all=self._on_update_all,
             on_scan=self._on_scan,
+            get_scope=self._get_scope,
+            on_scope_changed=self._on_scope_changed,
         )
 
         # Right: Games card (full height) + the action band beneath it

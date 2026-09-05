@@ -1,3 +1,103 @@
+Version 5.0.0:
+New:
+  - Added support for DLSS 5 Neural Rendering (nvngx_dlssnr.dll). NVIDIA
+    released it on 3rd September alongside NBA 2K27. It runs alongside Super
+    Resolution, Ray Reconstruction and Frame Generation rather than replacing
+    any of them, so a game can ship it next to the DLSS DLLs you already
+    update.
+    It is treated like any other DLSS DLL: covered by the existing DLSS
+    toggle in Update Preferences, found by scans, backed up before it is
+    replaced, and listed in the update summary. Games that have it show a
+    "DLSS 5" chip alongside their other technology chips.
+    Two things worth knowing before you enable it. It needs an RTX 50 series
+    card - nothing older can run it. And the DLL is about 158 MB, which is
+    roughly twice the size of the next largest file the app downloads, so the
+    first update after installing this version will take noticeably longer.
+
+Changed:
+  - The app can now fetch a DLL from somewhere other than the DLL repository's
+    dlls/ folder, which is what makes the above possible. GitHub refuses any
+    file over 100 MB in a repository, so nvngx_dlssnr.dll is published as a
+    release asset instead and the manifest points at it. Nothing changes for
+    the other DLLs, and a download location is only accepted if it is on the
+    DLL repository itself.
+
+Version 4.9.0:
+New:
+  - "Start Update" now asks what to update before it runs. Pressing it opens a
+    short checklist of the technologies the run is allowed to touch, with the
+    run itself as the last entry. Untick XeSS and FSR and the next run leaves
+    them where they are, replacing only the DLSS and Streamline binaries. Each
+    row carries its own technology colour, as a swatch and as the tint the row
+    takes on hover, so the menu speaks the same visual vocabulary the rest of
+    the app already uses for DLSS, XeSS, FSR and DirectStorage. Whenever the
+    run is narrower than everything, the button carries a count, so a narrowed
+    scope is visible without opening the menu at all.
+    Every bulk-update button works this way now - "Start Update" on Launchers,
+    "Update all (N)" on the Hub, and "Update all (N)" in the Games library,
+    which previously had no way to narrow a run at all. All three share a
+    single scope: narrow it in one place and the others already show it.
+    Scanning is deliberately unscoped, so the Hub card's "Scan for games"
+    state runs immediately, with no checklist.
+    A narrowed scope lasts exactly one run and then reverts to your saved
+    preferences. That is the right default for "just this once, only DLSS", and
+    it means a one-off narrowing can never quietly become permanent - including
+    when a run fails partway through. When you do want it to stick, "Make this
+    my default" writes the current ticks straight into Update Preferences, and
+    "Reset" puts them back to whatever is saved.
+    Unticking everything greys out the run entry rather than offering a run
+    that would touch nothing. The button itself stays live, since it is now the
+    only way back into the checklist to tick something again.
+  - The update summary now tells you when a run was deliberately narrowed. A
+    narrowed run and a broken one otherwise look identical - both report far
+    fewer games than you expected - so the dialog names what the run covered,
+    what it excluded, and how many DLLs it skipped for that reason.
+  - Technologies you have excluded are now shown rather than hidden. A game's
+    DLL list dims the rows it will not touch and explains why on hover, and the
+    grouped DLL dialog keeps the excluded group in place, marks it "(updates
+    disabled)" and greys out its Update button - which, for an excluded
+    technology, could only ever have reported everything as skipped. Restore is
+    deliberately left working: rolling a backup back is not an update, and
+    there is no reason to block it.
+  - A handful of animation and scrolling polish items: the Hub's update card
+    now cross-fades between "No games scanned yet", "N games need updates"
+    and "Everything is up to date" instead of swapping the text instantly,
+    and a theme toggle deliberately does not trigger it. In Games, the
+    filter chips and the selection bar share one slot and fade between each
+    other instead of blinking when you tick a card's checkbox. The per-game
+    update and restore result dialogs, and the Application Logs panel, now
+    show a rounded, draggable scrollbar thumb while you scroll, and popup
+    menus across the app ease open while tab indicators glide between tabs
+    instead of jumping.
+  - Right-clicking a launcher card now opens the same menu as its "⋮"
+    button - copy path(s), open the folder, auto-detect, and clear -
+    matching the context menu game cards already have.
+  - A first accessibility pass adds screen-reader labels to the app's
+    highest-traffic controls: the Start Update button, the Hub and Games
+    bulk-update buttons, a game card's click-to-view-details area, and a launcher card's
+    artwork banner. A game card's name, launcher, status and DLL version
+    now read as a single phrase instead of four separate fragments; its
+    Update, Restore, kebab menu and selection checkbox are unaffected and
+    remain individually reachable.
+
+Fixes:
+  - Your technology preferences did not bind on the update path that actually
+    runs. Disabling DirectStorage in Update Preferences stopped the app looking
+    for DirectStorage DLLs during a scan, but nothing checked that preference
+    again when an update was started - and updates run from the cached scan
+    results. So a scan taken while DirectStorage was enabled, followed by
+    disabling it, still replaced every DirectStorage DLL it had found. Since
+    the whole reason to disable DirectStorage is that some games stop launching
+    when it is replaced, the one setting meant to prevent that did not.
+    The scope is now enforced where the files are actually written, so it binds
+    regardless of how old the scan is or which pipeline runs.
+  - Enabling a technology no longer requires a rescan to take effect. Scanning
+    used to look only for the technologies that were enabled at the time, so
+    turning XeSS back on found nothing until the whole library was scanned
+    again - the cached results simply had no XeSS in them. Scanning now finds
+    every technology, and the choice of what to update is applied at update
+    time, so widening the scope takes effect immediately.
+
 Version 4.8.1:
 New:
   - Games can now be updated in hand-picked batches. Hovering a card in the

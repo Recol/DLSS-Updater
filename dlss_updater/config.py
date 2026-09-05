@@ -164,6 +164,7 @@ LATEST_DLL_VERSIONS = {
     "nvngx_dlss.dll": "310.2.1.0",
     "nvngx_dlssg.dll": "310.2.1.0",
     "nvngx_dlssd.dll": "310.2.1.0",
+    "nvngx_dlssnr.dll": "310.8.0.0",
     "libxess.dll": "2.0.2.68",
     "libxess_dx11.dll": "2.0.2.68",
     "libxess_fg.dll": "1.2.2.118",

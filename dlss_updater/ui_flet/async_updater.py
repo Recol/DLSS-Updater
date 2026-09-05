@@ -18,6 +18,42 @@ from dlss_updater.models import UpdateProgress, UpdateResult
 from dlss_updater.database import db_manager
 
 
+def build_dll_tasks(dll_dict: dict[str, list], scope) -> tuple[list, list[str]]:
+    """Turn scanned DLL paths into DLLTask objects, honouring ``scope``.
+
+    Returns ``(tasks, skipped_out_of_scope)``. Extracted from update_games so
+    the technology filter is testable without touching the filesystem.
+
+    The scope check is the fix for a real defect: this pipeline previously
+    gated only on LATEST_DLL_PATHS membership, so preferences bound at scan
+    time and nowhere else — a technology disabled after a scan was still
+    updated from cached scan results.
+    """
+    from dlss_updater.config import LATEST_DLL_PATHS
+    from dlss_updater.high_performance_updater import DLLTask
+    from dlss_updater.update_scope import allows
+
+    tasks: list[DLLTask] = []
+    skipped: list[str] = []
+
+    for launcher, dll_paths in dll_dict.items():
+        for dll_path in dll_paths:
+            dll_name = Path(dll_path).name.lower()
+
+            if not allows(scope, dll_name):
+                skipped.append(str(dll_path))
+                continue
+
+            if dll_name in LATEST_DLL_PATHS and LATEST_DLL_PATHS[dll_name]:
+                tasks.append(DLLTask(
+                    target_path=str(dll_path),
+                    source_dll_name=dll_name,
+                    game_name=extract_game_name(dll_path, launcher),
+                ))
+
+    return tasks, skipped
+
+
 class AsyncUpdateCoordinator:
     """
     Coordinates async update operations between UI and core business logic
@@ -35,6 +71,9 @@ class AsyncUpdateCoordinator:
         self.cancel_processed = 0
         self.cancel_total = 0
         self.cancel_unit = "games"
+        # Target paths skipped by the last update_games run for being outside
+        # that run's technology scope (read by the update summary dialog).
+        self.last_out_of_scope: list[str] = []
 
     async def scan_for_games(
         self,
@@ -97,7 +136,8 @@ class AsyncUpdateCoordinator:
     async def update_games(
         self,
         dll_dict: dict[str, list],
-        progress_callback: Callable[[UpdateProgress], None] | None = None
+        progress_callback: Callable[[UpdateProgress], None] | None = None,
+        scope=None,
     ) -> UpdateResult:
         """
         Update DLLs for discovered games
@@ -105,6 +145,8 @@ class AsyncUpdateCoordinator:
         Args:
             dll_dict: Dictionary of DLL paths from scanner
             progress_callback: Optional callback for progress updates
+            scope: Optional UpdateScope limiting which technologies this run
+                touches. None falls back to the user's saved preferences.
 
         Returns:
             UpdateResult with details of what was updated
@@ -116,9 +158,15 @@ class AsyncUpdateCoordinator:
         self.cancel_processed = 0
         self.cancel_total = 0
         self.cancel_unit = "games"
+        self.last_out_of_scope = []
 
         # Filter out DLLs belonging to personally-ignored games
         dll_dict = await self._filter_ignored_games(dll_dict)
+
+        from dlss_updater import update_scope as _scope
+
+        effective_scope = scope if scope is not None else _scope.from_preferences()
+        self.logger.info(f"Update scope: {sorted(effective_scope)}")
 
         # Get current settings
         settings = get_current_settings()
@@ -128,25 +176,19 @@ class AsyncUpdateCoordinator:
         # opt-out setting was removed); the standard per-game loop below is
         # kept solely as an automatic fallback if the pipeline raises.
         try:
-            from ..high_performance_updater import HighPerformanceUpdateManager, DLLTask
-            from ..config import LATEST_DLL_PATHS
+            from ..high_performance_updater import HighPerformanceUpdateManager
 
             self.logger.info("Using high-performance update mode")
             manager = HighPerformanceUpdateManager()
 
-            # Build task list from dll_dict with proper DLLTask objects
-            dll_tasks = []
-            for launcher, dll_paths in dll_dict.items():
-                for dll_path in dll_paths:
-                    path_obj = Path(dll_path)
-                    dll_name = path_obj.name.lower()
-                    # Only create task if we have a source DLL for this
-                    if dll_name in LATEST_DLL_PATHS and LATEST_DLL_PATHS[dll_name]:
-                        dll_tasks.append(DLLTask(
-                            target_path=str(dll_path),
-                            source_dll_name=dll_name,
-                            game_name=extract_game_name(dll_path, launcher),
-                        ))
+            # Build task list from dll_dict with proper DLLTask objects,
+            # honouring this run's technology scope.
+            dll_tasks, out_of_scope = build_dll_tasks(dll_dict, effective_scope)
+            self.last_out_of_scope = out_of_scope
+            if out_of_scope:
+                self.logger.info(
+                    f"{len(out_of_scope)} DLLs skipped — outside this run's scope"
+                )
 
             # Create progress wrapper to convert (int, int, str) to UpdateProgress
             async def hp_progress_wrapper(current: int, total: int, message: str):
@@ -311,7 +353,8 @@ class AsyncUpdateCoordinator:
                 result = await update_dlss_versions(
                     {launcher: dll_paths},
                     settings,
-                    make_progress_callback(processed_dlls, game_name)
+                    make_progress_callback(processed_dlls, game_name),
+                    scope=effective_scope,
                 )
 
                 raw_updated.extend(result.get("updated_games", []))

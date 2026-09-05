@@ -139,6 +139,10 @@ class BasePopupMenu(ThemeAwareMixin):
             shape=ft.RoundedRectangleBorder(radius=12),
             bgcolor=MD3Colors.get_surface_container(self._is_dark),
             icon_color=MD3Colors.get_on_surface(self._is_dark),
+            popup_animation_style=ft.AnimationStyle(
+                duration=ft.Duration(milliseconds=180),
+                curve=ft.AnimationCurve.EASE_OUT,
+            ),
         )
 
     def _on_quiet_hover(self, e) -> None:

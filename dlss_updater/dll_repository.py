@@ -2,6 +2,7 @@ import hashlib
 import inspect
 import threading
 from pathlib import Path
+from urllib.parse import urlsplit
 import anyio
 import msgspec
 import aiohttp
@@ -50,6 +51,71 @@ KNOWN_BAD_DLL_BUILDS = {
         "sha256": "0d33b5de65d60a943c33bd096d574297302b214a1c5baa6bcb74bc1150a608de",
     },
 }
+
+
+# Hosts a manifest "url" override is allowed to point at.
+#
+# This vets the URL the manifest supplies, not the redirect chain the HTTP
+# client then follows: a /releases/download/ link on github.com answers with a
+# 302 to a signed, expiring release-assets.githubusercontent.com URL (verified
+# 2026-09-06), and aiohttp/niquests follow that themselves. Signed URLs expire
+# within the hour, so they are never what the manifest should carry — the
+# canonical github.com form is. The googleusercontent hosts are listed only so
+# a hand-written manifest pointing at one still resolves.
+_ALLOWED_DOWNLOAD_HOSTS = frozenset({
+    "github.com",
+    "release-assets.githubusercontent.com",
+    "objects.githubusercontent.com",
+    "raw.githubusercontent.com",
+})
+
+
+def resolve_download_url(dll_name: str, dll_info: dict | None) -> str:
+    """Where to fetch ``dll_name`` from.
+
+    Normally the DLL repo's ``dlls/`` directory via raw.githubusercontent.com.
+    That has a ceiling: GitHub rejects any pushed file over 100 MiB, and
+    nvngx_dlssnr.dll (DLSS 5 Neural Rendering) is ~158 MiB, so it cannot live
+    in the tree at all. Those DLLs ship as GitHub *release assets* and their
+    manifest entry carries a "url".
+
+    Git LFS is not an alternative here: raw.githubusercontent.com serves the
+    LFS pointer text rather than the binary, so the client would cache a
+    ~130-byte text file as the DLL and cheerfully copy it over a game's.
+
+    The override is constrained to the DLL repo. These files are written into
+    game directories, so a manifest that has been tampered with must not be
+    able to redirect the download somewhere else; anything unparseable, non-
+    HTTPS, off-host or out-of-repo falls back to the raw URL.
+    """
+    fallback = f"{GITHUB_RAW_BASE}/dlls/{dll_name}"
+
+    url = (dll_info or {}).get("url")
+    if not url or not isinstance(url, str):
+        return fallback
+
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        logger.warning(f"Unparseable download URL for {dll_name}, using {fallback}")
+        return fallback
+
+    if parsed.scheme != "https" or parsed.hostname not in _ALLOWED_DOWNLOAD_HOSTS:
+        logger.warning(
+            f"Ignoring out-of-repo download URL for {dll_name}: {url}"
+        )
+        return fallback
+
+    # github.com also hosts every other repository; pin to ours.
+    if parsed.hostname == "github.com" and not parsed.path.startswith(
+        f"/{GITHUB_DLL_REPO}/"
+    ):
+        logger.warning(
+            f"Ignoring download URL outside {GITHUB_DLL_REPO} for {dll_name}: {url}"
+        )
+        return fallback
+
+    return url
 
 
 def is_known_bad_dll(dll_name: str, local_path: Path) -> bool:
@@ -359,7 +425,7 @@ async def download_latest_dll_async(dll_name: str, manifest: dict | None = None,
         return False
 
     dll_info = manifest[dll_name]
-    download_url = f"{GITHUB_RAW_BASE}/dlls/{dll_name}"
+    download_url = resolve_download_url(dll_name, dll_info)
     local_path = Path(LOCAL_DLL_CACHE_DIR) / dll_name
     temp_path = local_path.with_suffix(local_path.suffix + ".tmp")
 
@@ -441,7 +507,7 @@ def download_latest_dll(dll_name, progress_callback=None):
         return False
 
     dll_info = manifest[dll_name]
-    download_url = f"{GITHUB_RAW_BASE}/dlls/{dll_name}"
+    download_url = resolve_download_url(dll_name, dll_info)
     local_path = Path(LOCAL_DLL_CACHE_DIR) / dll_name
 
     try:

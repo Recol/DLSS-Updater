@@ -214,14 +214,42 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
         self._banner = self._build_banner(is_dark)
         self._footer = self._build_footer(is_dark)
 
+        # Semantics wraps the banner at placement only — self._banner itself
+        # stays the plain Container that _apply_configured_state() and
+        # _update_paths_display() mutate (.gradient/.tooltip/.bgcolor/
+        # .content.controls[0].content). The label is kept in sync with the
+        # tooltip wherever the latter changes (see _update_paths_display()).
+        self._banner_semantics = ft.Semantics(
+            content=self._banner,
+            label=self._banner.tooltip,
+            button=True,
+            focusable=True,
+        )
+
         card_body = ft.Column(
-            controls=[self._banner, self._footer],
+            controls=[self._banner_semantics, self._footer],
             spacing=0,
+        )
+
+        # Right-click context menu wrapping the whole card body (banner +
+        # footer). secondary_items = right mouse button; footer children
+        # (path chips' remove buttons, Add Sub-Folder, the kebab menu) keep
+        # their own on_click behaviour — same idiom as game_card.py's
+        # ContextMenu wrap. Unlike game_card.py, no expand=True here:
+        # LauncherCard sits in a ResponsiveRow and is sized intrinsically by
+        # its fixed BANNER_HEIGHT + FOOTER_HEIGHT children, not by a GridView
+        # cell imposing a bounded height for an expand chain to reach —
+        # asking this Container's content to expand with no bounded ancestor
+        # providing that space would be a geometry change, not a preservation
+        # of it.
+        self._context_menu = ft.ContextMenu(
+            content=card_body,
+            secondary_items=self._build_menu_items(),
         )
 
         # Outer card shell: rounded, clipped Container wrapping banner+footer.
         super().__init__(
-            content=card_body,
+            content=self._context_menu,
             border_radius=12,
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             bgcolor=MD3Colors.get_surface(is_dark),
@@ -467,6 +495,24 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
 
     # ==================== FOOTER ====================
 
+    def _build_menu_items(self) -> list[ft.PopupMenuItem]:
+        """Build the launcher actions shared by the kebab menu (self.config_menu)
+        and the right-click context menu's secondary_items (self._context_menu).
+
+        Single source so the two menus can never drift apart. Returns a FRESH
+        list of PopupMenuItem instances on every call — a Flet control
+        instance cannot appear at two places in the control tree, so each
+        menu needs its own independently-built items, not a shared list.
+        """
+        open_folder_text = "Open in Explorer" if IS_WINDOWS else "Open in File Manager"
+        return [
+            ft.PopupMenuItem(content="Copy Path(s)", icon=ft.Icons.CONTENT_COPY, on_click=self._on_copy_paths),
+            ft.PopupMenuItem(content=open_folder_text, icon=ft.Icons.FOLDER_OPEN, on_click=self._on_open_explorer),
+            ft.PopupMenuItem(content="Auto-Detect", icon=ft.Icons.AUTO_FIX_HIGH, on_click=self._on_auto_detect),
+            ft.PopupMenuItem(),  # Divider
+            ft.PopupMenuItem(content="Clear All", icon=ft.Icons.DELETE_OUTLINE, on_click=self.on_reset_callback),
+        ]
+
     def _build_footer(self, is_dark: bool) -> ft.Container:
         """
         Build the fixed-height footer: horizontally-scrollable path chips
@@ -507,18 +553,17 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
         # Kebab menu — every action from Option A preserved. The standalone
         # "Reset" TextButton is dropped (it duplicated "Clear All" below;
         # see report) to make room in the tight fixed-height footer.
-        open_folder_text = "Open in Explorer" if IS_WINDOWS else "Open in File Manager"
+        # Items come from _build_menu_items() (single source shared with the
+        # right-click context menu — see __init__'s ft.ContextMenu wrap).
         self.config_menu = ft.PopupMenuButton(
             icon=ft.Icons.MORE_VERT,
             icon_color=MD3Colors.get_on_surface_variant(is_dark),
             tooltip="More options",
-            items=[
-                ft.PopupMenuItem(content="Copy Path(s)", icon=ft.Icons.CONTENT_COPY, on_click=self._on_copy_paths),
-                ft.PopupMenuItem(content=open_folder_text, icon=ft.Icons.FOLDER_OPEN, on_click=self._on_open_explorer),
-                ft.PopupMenuItem(content="Auto-Detect", icon=ft.Icons.AUTO_FIX_HIGH, on_click=self._on_auto_detect),
-                ft.PopupMenuItem(),  # Divider
-                ft.PopupMenuItem(content="Clear All", icon=ft.Icons.DELETE_OUTLINE, on_click=self.on_reset_callback),
-            ],
+            items=self._build_menu_items(),
+            popup_animation_style=ft.AnimationStyle(
+                duration=ft.Duration(milliseconds=180),
+                curve=ft.AnimationCurve.EASE_OUT,
+            ),
         )
 
         footer_row = ft.Row(
@@ -660,6 +705,7 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
         # changed) path count
         self._update_header_pill()
         self._banner.tooltip = "View detected games" if self.current_paths else "Add a game folder"
+        self._banner_semantics.label = self._banner.tooltip
 
         if self._attached:
             self.update()

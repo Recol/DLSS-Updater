@@ -966,6 +966,28 @@ async def scan_steam_fast(steam_path: str, dll_names: list[str]) -> list[str]:
     return unique_dlls
 
 
+def dll_names_to_scan() -> list[str]:
+    """Every DLL name a scan searches for.
+
+    Unconditional across technology groups — scope is applied at update time,
+    so narrowing or widening a run never needs a rescan.
+
+    Pre-release components are the one exception: a DLL in PREVIEW_DLL_PREFERENCE
+    is skipped unless its own opt-in is enabled. Enabling "FSR" must not make the
+    app go looking for a DLL AMD ships as a preview (constants.py:77-87).
+    """
+    from .constants import PREVIEW_DLL_PREFERENCE
+
+    names = []
+    for group_dlls in DLL_GROUPS.values():
+        for dll in group_dlls:
+            preview_pref = PREVIEW_DLL_PREFERENCE.get(dll.lower())
+            if preview_pref and not config_manager.get_update_preference(preview_pref):
+                continue
+            names.append(dll)
+    return names
+
+
 async def find_all_dlls(progress_callback=None):
     """
     Find all DLLs across configured launchers
@@ -993,35 +1015,7 @@ async def find_all_dlls(progress_callback=None):
         "_skipped_paths": [],  # Paths skipped due to permissions (Linux)
     }
 
-    # Get user preferences
-    update_dlss = config_manager.get_update_preference("DLSS")
-    update_ds = config_manager.get_update_preference("DirectStorage")
-    update_streamline = config_manager.get_update_preference("Streamline")
-    update_xess = config_manager.get_update_preference("XeSS")
-    update_fsr = config_manager.get_update_preference("FSR")
-
-    # Build list of DLLs to search for based on preferences
-    dll_names = []
-    if update_dlss:
-        dll_names.extend(DLL_GROUPS["DLSS"])
-    if update_streamline:
-        dll_names.extend(DLL_GROUPS["Streamline"])
-    # DirectStorage DLLs are optional and Windows-only
-    if update_ds and "DirectStorage" in DLL_GROUPS:
-        dll_names.extend(DLL_GROUPS["DirectStorage"])
-    if update_xess and DLL_GROUPS["XeSS"]:  # Only add if there are XeSS DLLs defined
-        dll_names.extend(DLL_GROUPS["XeSS"])
-    if update_fsr and DLL_GROUPS["FSR"]:  # Add FSR DLLs if FSR is selected
-        # Pre-release components (FSR Radiance Caching) are excluded unless the
-        # user has separately opted in — enabling "FSR" alone must not make the
-        # app go looking for, or touch, a DLL AMD ships as a preview.
-        from .constants import PREVIEW_DLL_PREFERENCE
-
-        for dll in DLL_GROUPS["FSR"]:
-            preview_pref = PREVIEW_DLL_PREFERENCE.get(dll.lower())
-            if preview_pref and not config_manager.get_update_preference(preview_pref):
-                continue
-            dll_names.append(dll)
+    dll_names = dll_names_to_scan()
 
     # Skip if no technologies selected
     if not dll_names:
