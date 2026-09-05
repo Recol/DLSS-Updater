@@ -180,9 +180,13 @@ async def main(page: ft.Page):
     _saved_window = config_manager.get_window_state()
     page.window.width = max(_saved_window["width"], 820)
     page.window.height = max(_saved_window["height"], 560)
-    if _saved_window["top"] is not None and _saved_window["left"] is not None:
-        page.window.top = _saved_window["top"]
-        page.window.left = _saved_window["left"]
+    top = _saved_window["top"]
+    left = _saved_window["left"]
+    # Ignore the minimized-window sentinel (-32000 on Windows) that older
+    # versions may have persisted; the OS centers the window instead.
+    if top is not None and left is not None and top > -10000 and left > -10000:
+        page.window.top = top
+        page.window.left = left
     if _saved_window["maximized"]:
         page.window.maximized = True
 

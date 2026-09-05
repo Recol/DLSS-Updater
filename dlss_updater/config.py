@@ -1238,9 +1238,13 @@ class ConfigManager:
             ws = self._config.window_state
             ws.width = int(width)
             ws.height = int(height)
-            ws.has_position = top is not None and left is not None
-            ws.top = int(top) if top is not None else 0
-            ws.left = int(left) if left is not None else 0
+            # A minimized window reports the off-screen sentinel (-32000 on
+            # Windows). Persisting it would hide the window on next launch,
+            # so keep the last visible position instead.
+            if top is not None and left is not None and top > -10000 and left > -10000:
+                ws.has_position = True
+                ws.top = int(top)
+                ws.left = int(left)
             ws.maximized = bool(maximized)
             self._save_unlocked()
 
