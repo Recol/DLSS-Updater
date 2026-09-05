@@ -226,6 +226,7 @@ class LauncherPathName(StrEnum):
     UBISOFT = "UbisoftPath"
     BATTLENET = "BattleDotNetPath"
     XBOX = "XboxPath"
+    PLAYNITE = "PlaynitePath"
     CUSTOM1 = "CustomPath1"
     CUSTOM2 = "CustomPath2"
     CUSTOM3 = "CustomPath3"
@@ -1047,6 +1048,7 @@ class ConfigManager:
             ubisoft_path=self.check_path_value(LauncherPathName.UBISOFT) or None,
             battle_net_path=self.check_path_value(LauncherPathName.BATTLENET) or None,
             xbox_path=self.check_path_value(LauncherPathName.XBOX) or None,
+            playnite_path=self.check_path_value(LauncherPathName.PLAYNITE) or None,
             custom_path_1=self.check_path_value(LauncherPathName.CUSTOM1) or None,
             custom_path_2=self.check_path_value(LauncherPathName.CUSTOM2) or None,
             custom_path_3=self.check_path_value(LauncherPathName.CUSTOM3) or None,
@@ -1064,6 +1066,7 @@ class ConfigManager:
             lp[str(LauncherPathName.UBISOFT)] = paths.ubisoft_path or ""
             lp[str(LauncherPathName.BATTLENET)] = paths.battle_net_path or ""
             lp[str(LauncherPathName.XBOX)] = paths.xbox_path or ""
+            lp[str(LauncherPathName.PLAYNITE)] = paths.playnite_path or ""
             lp[str(LauncherPathName.CUSTOM1)] = paths.custom_path_1 or ""
             lp[str(LauncherPathName.CUSTOM2)] = paths.custom_path_2 or ""
             lp[str(LauncherPathName.CUSTOM3)] = paths.custom_path_3 or ""
