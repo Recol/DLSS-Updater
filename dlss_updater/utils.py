@@ -431,6 +431,14 @@ def find_game_root(dll_path: Path, launcher: str) -> Path:
         except (ValueError, IndexError):
             pass
 
+    # For Playnite: install roots are read from Playnite's own database
+    if launcher == "Playnite":
+        from dlss_updater.playnite import root_for
+
+        known_root = root_for(current)
+        if known_root is not None:
+            return known_root
+
     # For Ubisoft: Use games/<GameName>
     if launcher == "Ubisoft Launcher":
         parts = current.parts

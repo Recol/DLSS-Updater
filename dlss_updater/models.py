@@ -390,6 +390,7 @@ class LauncherPathsConfig(msgspec.Struct):
     ubisoft_path: str | None = None
     battle_net_path: str | None = None
     xbox_path: str | None = None
+    playnite_path: str | None = None
     custom_path_1: str | None = None
     custom_path_2: str | None = None
     custom_path_3: str | None = None
