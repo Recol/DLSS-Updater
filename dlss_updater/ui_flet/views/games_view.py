@@ -12,7 +12,7 @@ PERFORMANCE NOTES:
 import asyncio
 import math
 import time
-from typing import Any, TYPE_CHECKING
+from typing import Any, NamedTuple, TYPE_CHECKING
 import anyio
 import flet as ft
 
@@ -119,6 +119,81 @@ def count_outdated_dlls(dlls: list[GameDLL]) -> int:
         except Exception:
             continue
     return outdated
+
+
+class CardStatusCounts(NamedTuple):
+    """The Games header's four live numbers, counted in one pass over the cards.
+
+    Ignored games are OUT of the update accounting: ignoring a game is exactly
+    "don't touch this one", and AsyncUpdateCoordinator._filter_ignored_games()
+    already drops their DLLs from a run — so counting them made "Update all
+    (11)" promise eleven games and update eight (issue #299). They are excluded
+    from both ``needs_update`` and ``up_to_date`` rather than being folded into
+    the latter, which would only move the wrong number to the other chip.
+
+    ``has_backups`` is deliberately NOT narrowed the same way. A backup is a
+    restore affordance, not update accounting: restoring an ignored game is
+    still allowed from its card, so hiding it from that chip would hide a real
+    action. ``ignored`` is surfaced separately in the header subtitle, so a
+    library whose chips no longer sum to its game count explains itself.
+    """
+
+    needs_update: int
+    up_to_date: int
+    has_backups: int
+    ignored: int
+
+
+def count_card_statuses(cards) -> CardStatusCounts:
+    """Count the status chip / subtitle numbers over built cards.
+
+    Reads only already-computed card state (``_check_for_updates()`` is cached
+    per card, ``has_backups`` is a flag), so this stays a cheap single pass
+    called on every shape change of the grid.
+    """
+    needs_update = 0
+    up_to_date = 0
+    has_backups = 0
+    ignored = 0
+
+    for card in cards:
+        if card.has_backups:
+            has_backups += 1
+        if card.is_ignored:
+            ignored += 1
+            continue
+        if card._check_for_updates():
+            needs_update += 1
+        else:
+            up_to_date += 1
+
+    return CardStatusCounts(needs_update, up_to_date, has_backups, ignored)
+
+
+def count_merged_games_needing_update(
+    merged_games, dlls_by_game: dict[int, list[GameDLL]], ignored_ids
+) -> int:
+    """Count merged games with at least one outdated DLL, skipping ignored ones.
+
+    The card-free counterpart of ``count_card_statuses().needs_update``, for
+    surfaces that count before any card exists: HubView's pill/CTA and — via
+    the same static method — MainView's app-bar status pill. Both share this so
+    the hub, the app bar and the Games header can never disagree.
+
+    Ignore membership is an INTERSECTION with ``all_game_ids``: a merged card
+    covers the same game across several launchers but the ignore toggle only
+    ever writes the primary id, matching how GamesView.create_card() decides a
+    card's ``is_ignored``.
+    """
+    ignored = set(ignored_ids or ())
+    needing = 0
+    for merged in merged_games:
+        if ignored and ignored.intersection(merged.all_game_ids):
+            continue
+        dlls = [d for gid in merged.all_game_ids for d in dlls_by_game.get(gid, [])]
+        if count_outdated_dlls(dlls):
+            needing += 1
+    return needing
 
 
 # ==================== BULK SELECTION ====================
@@ -376,6 +451,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         on_update_selected=None,
         get_scope=None,
         on_scope_changed=None,
+        on_ignore_changed=None,
     ):
         super().__init__()
         self._page_ref = page
@@ -388,6 +464,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # MainView.run_bulk_update_for_selection - same pipeline again, narrowed
         # to the selected games' DLL paths.
         self._on_update_selected = on_update_selected
+        # MainView.refresh_update_status_pill - the app bar's "N updates
+        # available" count is derived from the same ignore-aware query as this
+        # view's header, so it has to be told when the ignore list changes.
+        # Fire-and-forget: a failed recount leaves a stale pill, never a
+        # blocked toggle.
+        self._on_ignore_changed = on_ignore_changed
         self.expand = True
         self.spacing = 0
 
@@ -412,9 +494,17 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self._filter_up_to_date: bool = False
         self._filter_has_backups: bool = False
 
-        # Personal ignore list state
+        # Personal ignore list state. _show_ignored_games is persisted to
+        # config.toml ([ui_preferences].show_ignored_games) exactly like the
+        # sort preference and grid density it shares the options menu with —
+        # it used to reset to True on every launch, so hiding ignored games
+        # lasted only until the app was restarted (issue #299). Defaults to
+        # showing them (dimmed), so an ignored game never looks deleted.
         self._ignored_game_ids: set[int] = set()
-        self._show_ignored_games: bool = True  # Default: show ignored games (dimmed)
+        try:
+            self._show_ignored_games: bool = config_manager.get_show_ignored_games()
+        except Exception:
+            self._show_ignored_games = True
 
         # Options menu state
         self._has_games: bool = False
@@ -1572,22 +1662,33 @@ class GamesView(ThemeAwareMixin, ft.Column):
         Purely derived from already-loaded card state (card._check_for_updates()
         / card.has_backups) — no new queries. Called whenever game_cards
         changes shape or a card's DLL/backup state changes.
-        """
-        needs_update = 0
-        has_backups = 0
-        for card in self.game_cards.values():
-            if card._check_for_updates():
-                needs_update += 1
-            if card.has_backups:
-                has_backups += 1
-        up_to_date = len(self.game_cards) - needs_update
 
-        self._needs_update_label.value = f"Needs update ({needs_update})"
-        self._up_to_date_label.value = f"Up to date ({up_to_date})"
-        self._has_backups_label.value = f"Has backups ({has_backups})"
+        Ignored games sit outside the update counts entirely — see
+        ``count_card_statuses`` for why, and why "Has backups" is the one
+        number that still spans them.
+        """
+        counts = count_card_statuses(self.game_cards.values())
+
+        self._needs_update_label.value = f"Needs update ({counts.needs_update})"
+        self._up_to_date_label.value = f"Up to date ({counts.up_to_date})"
+        self._has_backups_label.value = f"Has backups ({counts.has_backups})"
 
         # Header subtitle shares this recount (avoids a second pass over the cards).
-        self._update_games_subtitle(needs_update)
+        self._update_games_subtitle(counts.needs_update, counts.ignored)
+
+    def _refresh_filters_and_counts(self) -> None:
+        """Re-apply every active filter to the live cards, then recount.
+
+        The seam that every path CREATING cards must end on. Cards are born
+        ``visible=True``, so a rebuild (the refresh button, load_games(force=True),
+        post-re-resolution) or a progressive background batch would otherwise
+        paint games the active filters exclude. The ignore filter made that
+        visible because its state outlives a rebuild: "Hide ignored games"
+        stayed ticked in the menu while every ignored game came back on screen
+        (issue #299). Search text and the status chips had the same hole.
+        """
+        self._apply_visibility()
+        self._update_filter_chip_counts()
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """Return themed property mappings for theme-aware system"""
@@ -2030,9 +2131,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
         )
         self.tabs_container.content = self.tabs_control
 
-        # Live filter-chip counts reflect the initial (first-batch) cards now;
-        # refreshed again once background progressive loading finishes below.
-        self._update_filter_chip_counts()
+        # Filters + live chip counts reflect the initial (first-batch) cards
+        # now; both are re-applied once background progressive loading finishes
+        # below. The visibility pass is not optional here: these cards were
+        # just constructed (visible=True) while _show_ignored_games, the search
+        # text and the status chips all survived the rebuild.
+        self._refresh_filters_and_counts()
 
         # ========== PHASE 6: Background tasks ==========
         # Trigger staggered fade-in animation for initial cards
@@ -2125,64 +2229,6 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self._apply_visibility()
         self.update()
 
-    async def _load_remaining_game_cards(
-        self,
-        remaining_results: list[tuple],
-        grid: ft.GridView,
-        coordinator: 'ImageLoadCoordinator',
-        create_card_fn,
-        launcher: str,
-    ):
-        """Load remaining game cards in background batches.
-
-        PERFORMANCE: Creates cards in batches with yields to keep UI responsive.
-        GridView virtualization means adding 100+ cards has minimal render cost.
-        """
-        try:
-            total = len(remaining_results)
-            loaded = 0
-
-            for i in range(0, total, GAMES_BACKGROUND_BATCH_SIZE):
-                batch = remaining_results[i:i + GAMES_BACKGROUND_BATCH_SIZE]
-
-                # Create cards for this batch
-                new_cards = []
-                for merged, dlls, backup_groups in batch:
-                    card = create_card_fn(merged, dlls, backup_groups)
-                    self.game_cards[merged.primary_game.id] = card
-                    self.game_card_containers[card.game.id] = card
-                    new_cards.append(card)
-
-                # Add to grid (virtualized - only visible cards render)
-                grid.controls.extend(new_cards)
-                loaded += len(new_cards)
-
-                # Load images for new cards
-                steam_ids = [c.game.effective_steam_app_id for c in new_cards if c.game.effective_steam_app_id]
-                if steam_ids:
-                    cached_paths = await db_manager.batch_get_cached_image_paths(steam_ids)
-                    for card in new_cards:
-                        eff = card.game.effective_steam_app_id
-                        if eff:
-                            path = cached_paths.get(eff)
-                            task = asyncio.create_task(card.load_image(path, coordinator=coordinator))
-                            register_task(task, f"load_image_bg_{card.game.name[:15]}")
-
-                # Make cards visible immediately (respect ignored state)
-                for card in new_cards:
-                    card.opacity = 0.5 if card.is_ignored else 1
-
-                # Single update per batch (isolated view)
-                self.update()
-
-                # Yield to event loop
-                await anyio.sleep(0.02)
-
-            self.logger.debug(f"[PERF] Background loaded {loaded} additional {launcher} cards")
-
-        except Exception as e:
-            self.logger.error(f"Error loading remaining game cards: {e}", exc_info=True)
-
     async def _load_remaining_cards_progressive(
         self,
         remaining: list[tuple[str, MergedGame, list[GameDLL], dict[str, list[DLLBackup]]]],
@@ -2228,6 +2274,13 @@ class GamesView(ThemeAwareMixin, ft.Column):
                         grids_by_launcher[launcher].controls.extend(cards)
                         loaded += len(cards)
 
+                # Filter the batch BEFORE it is painted. A card appended
+                # straight from create_card_fn is visible=True, so a library
+                # large enough to need background batches would show every
+                # ignored game past the first screenful even with "Hide
+                # ignored games" active (issue #299).
+                self._apply_visibility()
+
                 # Single update per batch (isolated view); guard against view detach
                 try:
                     self.update()
@@ -2262,8 +2315,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
         if self._sort_preference != self._sort_applied_at_build:
             self._apply_sort_to_grids()
 
-        # Final, complete-dataset recount now that every card has loaded.
-        self._update_filter_chip_counts()
+        # Final, complete-dataset filter pass and recount now that every card
+        # has loaded (the sort above may also have reordered them).
+        self._refresh_filters_and_counts()
         try:
             self.update()
         except RuntimeError:
@@ -2333,12 +2387,17 @@ class GamesView(ThemeAwareMixin, ft.Column):
         except Exception:
             return None
 
-    def _update_games_subtitle(self, needs_update: int) -> None:
+    def _update_games_subtitle(self, needs_update: int, ignored: int = 0) -> None:
         """Set the header subtitle to game-centric stats (no new queries).
 
-        e.g. "14 games · 2 need updates · scanned 3d ago". The total is the true
-        merged count; needs_update is passed in from the shared card recount so we
-        don't iterate the cards twice.
+        e.g. "14 games · 2 need updates · 3 ignored · scanned 3d ago". The total
+        is the true merged count; needs_update and ignored are passed in from
+        the shared card recount so we don't iterate the cards twice.
+
+        The "N ignored" segment is what keeps the shrunken update count honest:
+        the total still counts the whole library, so without it a user who
+        forgot what they ignored sees numbers that don't add up and reads the
+        difference as a bug.
         """
         total = self._total_games or len(self.game_cards)
         if total == 0:
@@ -2353,6 +2412,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
             parts.append(f"{needs_update} {verb} {noun}")
         else:
             parts.append("all up to date")
+
+        if ignored > 0:
+            parts.append(f"{ignored} ignored")
 
         age = self._scan_age_str()
         if age:
@@ -2452,8 +2514,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
     # ===== Ignore List Methods =====
 
     def _on_ignore_filter_toggle(self, e):
-        """Toggle visibility of ignored games."""
+        """Toggle visibility of ignored games (persisted across restarts)."""
         self._show_ignored_games = not self._show_ignored_games
+        try:
+            config_manager.set_show_ignored_games(self._show_ignored_games)
+        except Exception as ex:
+            self.logger.debug(f"Could not persist the ignored-games filter: {ex}")
         if self.options_menu:
             self.options_menu.items = self._build_options_menu_items()
             try:
@@ -2462,6 +2528,32 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 pass
         self._apply_visibility()
         self.update()
+
+    def _sync_card_ignore_state(self, card, ignored: bool) -> None:
+        """Apply a changed ignore state to a live card, then re-filter and recount.
+
+        Both entry points land here — the card's own ignore button and the
+        Settings ignore-list panel (MainView._on_ignore_changed_from_panel) —
+        because ignoring a game changes three things at once: how the card
+        looks, whether the ignore filter still admits it, and every headline
+        count that now excludes it. Repainting without the recount left
+        "Needs update (12)" standing next to a game the user had just told the
+        app not to touch, until the next reload (issue #299).
+        """
+        card.set_ignored(ignored)
+        self._refresh_filters_and_counts()
+
+        # The app bar's status pill counts the same library from the database
+        # and is hidden while this view is on screen, so it would otherwise
+        # keep the pre-ignore number until the next update run.
+        if self._on_ignore_changed is not None:
+            try:
+                register_task(
+                    asyncio.create_task(self._on_ignore_changed()),
+                    "refresh_status_pill_after_ignore",
+                )
+            except Exception as ex:
+                self.logger.debug(f"Could not refresh the update status pill: {ex}")
 
     def _on_game_ignore_toggle(self, game, ignored: bool):
         """Handle ignore toggle from GameCard — launches async DB update."""
@@ -2488,8 +2580,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Update the card visually
         card = self.game_cards.get(game_id)
         if card:
-            card.set_ignored(ignored)
-            self._apply_visibility()
+            self._sync_card_ignore_state(card, ignored)
             self.update()
 
         action = "ignored" if ignored else "un-ignored"

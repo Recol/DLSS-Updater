@@ -1,3 +1,31 @@
+Version 5.0.1:
+Fixed:
+  - Ignored games no longer count towards "needs update". Ignoring a game
+    already stopped it being updated - the update run has always skipped
+    ignored games - but every count still included it, so "Update all (11)"
+    could run on eight games. The Games header, its "Needs update" and
+    "Up to date" chips, the Hub's "N games need updates" pill and CTA, and
+    the app bar's "N updates available" pill now all leave ignored games out,
+    and they react the moment a game is ignored rather than on the next
+    reload. "Has backups" deliberately still counts them, because restoring
+    an ignored game is still something you can do.
+    The Games header also says how many are ignored - "165 games - 12 need
+    updates - 3 ignored - scanned 2d ago" - so a count that no longer covers
+    the whole library explains itself.
+
+  - "Hide ignored games" now stays hidden. Cards created after the toggle was
+    set came back visible: on a large library the games loaded in the
+    background after the first screenful ignored the filter entirely, and any
+    rebuild - the refresh button, or the reload after a scan - brought every
+    ignored game back with the menu still reading "Hide ignored games". The
+    search box and the status filter chips were losing their filtering the
+    same way on a rebuild, and no longer do.
+
+  - "Hide ignored games" is remembered between sessions, like the sort order
+    and card size it sits beside in the same menu. It used to reset to
+    showing every ignored game on each launch. New installs still show
+    ignored games, dimmed, so an ignored game never looks deleted.
+
 Version 5.0.0:
 New:
   - Added support for DLSS 5 Neural Rendering (nvngx_dlssnr.dll). NVIDIA

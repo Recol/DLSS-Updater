@@ -341,6 +341,7 @@ class MainView(ft.Column):
             on_update_selected=self.run_bulk_update_for_selection,
             get_scope=self._effective_scope,
             on_scope_changed=self._set_update_scope,
+            on_ignore_changed=self.refresh_update_status_pill,
         )
 
         # Create backups view
@@ -2020,9 +2021,31 @@ class MainView(ft.Column):
         )
         await panel_manager.show_content(panel)
 
+    def _refresh_status_pill_soon(self) -> None:
+        """Kick off a background recount of the app bar's status pill.
+
+        Fire-and-forget: the pill is a status readout, so a failed recount
+        should leave it stale rather than block whatever changed the library.
+        """
+        from dlss_updater.task_registry import register_task
+
+        register_task(
+            asyncio.create_task(self.refresh_update_status_pill()),
+            "refresh_status_pill_after_ignore",
+        )
+
     def _on_ignore_changed_from_panel(self, game_id: int, ignored: bool):
-        """Sync ignore state from Settings panel to GamesView cards."""
+        """Sync ignore state from the Settings panel to the GamesView cards.
+
+        The app bar's status pill has to be recounted either way — Settings is
+        one of the views it actually shows on, and it counts the library from
+        the database rather than from cards. When a card exists,
+        _sync_card_ignore_state() already fires that recount (via
+        on_ignore_changed), so this only covers the paths where it can't:
+        the Games view never loaded, or the ignored game has no card yet.
+        """
         if not self.games_view or not self.games_view._games_loaded:
+            self._refresh_status_pill_soon()
             return
 
         # Update the GamesView's tracking set
@@ -2046,9 +2069,14 @@ class MainView(ft.Column):
                 is_ignored = bool(set(card.merged_game.all_game_ids) & self.games_view._ignored_game_ids)
             else:
                 is_ignored = ignored
-            card.set_ignored(is_ignored)
-            self.games_view._apply_visibility()
+            # Shared seam: repaint + re-filter + recount, so the chips and the
+            # "N need updates" headline react to a Settings-side change exactly
+            # the way they do to the card's own ignore button.
+            self.games_view._sync_card_ignore_state(card, is_ignored)
             self.games_view.update()
+        else:
+            # No card to drive the recount — do it here instead.
+            self._refresh_status_pill_soon()
 
     async def _on_dlss_overlay_clicked(self, e):
         """Handle DLSS overlay settings button click"""

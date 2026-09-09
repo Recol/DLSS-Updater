@@ -459,6 +459,7 @@ class ConfigManager:
             ui.grid_density = parser.get("UIPreferences", "GridDensity", fallback="comfortable")
             ui.keep_games_in_memory = parser.getboolean("UIPreferences", "KeepGamesInMemory", fallback=True)
             ui.sort_preference = parser.get("UIPreferences", "SortPreference", fallback="name_asc")
+            ui.show_ignored_games = parser.getboolean("UIPreferences", "ShowIgnoredGames", fallback=True)
 
         # -- LinuxDLSSPresets (frozen struct -> rebuild)
         if parser.has_section("LinuxDLSSPresets"):
@@ -980,6 +981,24 @@ class ConfigManager:
             return
         with _config_lock:
             self._config.ui_preferences.sort_preference = sort
+            self._save_unlocked()
+
+    def get_show_ignored_games(self) -> bool:
+        """Get whether the Games grid lists ignored games (default: enabled).
+
+        Persisted for the same reason as sort_preference and grid_density, its
+        two neighbours in the Games options menu: the choice is about how the
+        library reads, not about one session. Defaults to True so a fresh
+        install still shows ignored games (dimmed) rather than making them look
+        deleted.
+        """
+        with _config_lock:
+            return self._config.ui_preferences.show_ignored_games
+
+    def set_show_ignored_games(self, enabled: bool):
+        """Set whether ignored games are listed in the Games grid"""
+        with _config_lock:
+            self._config.ui_preferences.show_ignored_games = bool(enabled)
             self._save_unlocked()
 
     # =========================================================================

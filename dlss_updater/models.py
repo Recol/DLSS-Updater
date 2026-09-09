@@ -421,6 +421,7 @@ class UIPreferencesConfig(msgspec.Struct):
     grid_density: str = "comfortable"          # 'compact' | 'comfortable' | 'large'
     keep_games_in_memory: bool = True
     sort_preference: str = "name_asc"          # name_asc|name_desc|dll_count|outdated_first
+    show_ignored_games: bool = True            # Games grid: list ignored games (dimmed)
 
 
 class DiscordBannerConfig(msgspec.Struct):

@@ -392,15 +392,22 @@ class HubView(ThemeAwareMixin, ft.Column):
         """Count library games with at least one outdated DLL.
 
         Runs inside the HyperParallelLoader thread pool (blocking DB I/O) as
-        two batch queries: all games, then all their DLLs in one go.
+        three batch queries: all games, all their DLLs, and the ignore list.
 
         Games are merged by name and their DLLs aggregated across the merged
-        ids exactly the way GamesView builds its cards, and the per-DLL
-        comparison is the shared ``count_outdated_dlls`` helper - so the hub
-        pill/CTA and the Games view's "N need updates" can never disagree.
+        ids exactly the way GamesView builds its cards, and the counting itself
+        is the shared ``count_merged_games_needing_update`` helper - so the hub
+        pill/CTA, MainView's app-bar status pill (which calls this same method)
+        and the Games view's "N need updates" can never disagree.
+
+        Personally ignored games are excluded: the update coordinator drops
+        their DLLs from a run anyway (AsyncUpdateCoordinator._filter_ignored_games),
+        so counting them here made the pill advertise work the CTA would not do
+        (issue #299). A failure to read the ignore list is non-fatal - the count
+        falls back to spanning the whole library rather than reporting zero.
         """
         from dlss_updater.database import db_manager, merge_games_by_name
-        from dlss_updater.ui_flet.views.games_view import count_outdated_dlls
+        from dlss_updater.ui_flet.views.games_view import count_merged_games_needing_update
 
         try:
             games_by_launcher = db_manager._get_all_games_by_launcher()
@@ -422,12 +429,12 @@ class HubView(ThemeAwareMixin, ft.Column):
         except Exception:
             return 0
 
-        needing = 0
-        for merged in merged_games:
-            dlls = [d for gid in merged.all_game_ids for d in dlls_by_game.get(gid, [])]
-            if count_outdated_dlls(dlls):
-                needing += 1
-        return needing
+        try:
+            ignored_ids = db_manager.batch_get_ignored_game_ids_sync()
+        except Exception:
+            ignored_ids = set()
+
+        return count_merged_games_needing_update(merged_games, dlls_by_game, ignored_ids)
 
     @staticmethod
     def _load_mosaic_art_paths() -> list[str]:
