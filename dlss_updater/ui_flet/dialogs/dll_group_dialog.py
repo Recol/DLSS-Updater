@@ -413,7 +413,7 @@ class DLLGroupDialog(ThemeAwareMixin):
         # Update Preferences: process_single_dll's fallback path reads saved
         # preferences with no scope override, so this button would otherwise
         # open a progress dialog and report every DLL skipped.
-        update_button = ft.ElevatedButton(
+        update_button = ft.Button(
             "Update",
             icon=ft.Icons.UPDATE,
             on_click=lambda e: self._on_update_clicked(group_name),
@@ -431,7 +431,7 @@ class DLLGroupDialog(ThemeAwareMixin):
         )
 
         # Restore button
-        restore_button = ft.ElevatedButton(
+        restore_button = ft.Button(
             "Restore",
             icon=ft.Icons.RESTORE,
             on_click=lambda e: self._on_restore_clicked(group_name),

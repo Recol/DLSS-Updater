@@ -21,6 +21,15 @@ SSLCertVerificationError, from urllib inside flet_desktop.
 Placing the archive at step 2 removes the download - and with it the
 dependency on the user's trust store, proxy and connectivity at launch.
 
+Since Flet 1.0 a bundled archive is also content-fingerprinted, and the
+fingerprint picks the cache directory, so step 1 cannot even be checked
+without it. flet_desktop reads it from an ``<archive>.sha256`` sidecar when
+one is present, and otherwise SHA-256s the whole ~40MB archive and tries to
+cache the result next to it. In the MSI install directory (not writable by
+the user) and in a onefile build's fresh ``_MEIPASS`` that write can never
+stick, so every launch would pay the full hash. The sidecar is therefore
+computed here, at build time, and shipped beside the archive.
+
 Run directly to fetch the archive into the build cache:
 
     uv run python build_support.py
@@ -28,6 +37,7 @@ Run directly to fetch the archive into the build cache:
 
 from __future__ import annotations
 
+import hashlib
 import shutil
 import sys
 import tempfile
@@ -91,14 +101,51 @@ def _is_valid_archive(path: Path) -> bool:
     return zipfile.is_zipfile(path)
 
 
+def fingerprint_sidecar_path(archive: Path) -> Path:
+    """Where flet_desktop looks for the archive's pre-computed fingerprint."""
+    return archive.with_name(archive.name + ".sha256")
+
+
+def ensure_fingerprint_sidecar(archive: Path) -> Path:
+    """Write ``<archive>.sha256`` in the ``"<sha256 hex> <size>"`` form flet reads.
+
+    Always re-hashes rather than trusting an existing sidecar's size check:
+    this runs at build time, where the hash costs well under a second, and a
+    stale same-size sidecar would ship a fingerprint that points the app at
+    another client's cache directory. Only rewrites the file when it changed.
+    """
+    digest = hashlib.sha256()
+    with archive.open("rb") as f:
+        while chunk := f.read(1024 * 1024):
+            digest.update(chunk)
+    expected = f"{digest.hexdigest()} {archive.stat().st_size}"
+
+    sidecar = fingerprint_sidecar_path(archive)
+    try:
+        if sidecar.read_text(encoding="ascii") == expected:
+            return sidecar
+    except (OSError, UnicodeDecodeError):
+        pass
+
+    # Temp file + replace, so an interrupted build never leaves a truncated
+    # sidecar that flet would reject and silently fall back from.
+    tmp = sidecar.with_name(sidecar.name + ".part")
+    tmp.write_text(expected, encoding="ascii", newline="")
+    tmp.replace(sidecar)
+    print(f"Flet client fingerprint written: {sidecar}")
+    return sidecar
+
+
 def ensure_client_archive() -> Path:
     """Download the client archive into the build cache if it isn't there.
 
-    Returns the path to a verified archive. Safe to call repeatedly.
+    Returns the path to a verified archive, with its fingerprint sidecar
+    written next to it. Safe to call repeatedly.
     """
     target = client_archive_path()
     if _is_valid_archive(target):
         print(f"Flet client archive already cached: {target}")
+        ensure_fingerprint_sidecar(target)
         return target
 
     if target.exists():
@@ -126,11 +173,16 @@ def ensure_client_archive() -> Path:
         tmp_path.unlink(missing_ok=True)
 
     print(f"Flet client cached: {target} ({target.stat().st_size / 1024 / 1024:.1f} MB)")
+    ensure_fingerprint_sidecar(target)
     return target
 
 
 def flet_client_datas() -> list[tuple[str, str]]:
-    """PyInstaller ``datas`` entry placing the client where flet looks for it.
+    """PyInstaller ``datas`` entries placing the client where flet looks for it.
+
+    Ships the archive together with its ``.sha256`` fingerprint sidecar, so
+    the frozen app reads the fingerprint instead of hashing ~40MB on every
+    launch (see the module docstring).
 
     Raises rather than returning empty: shipping without the archive is
     invisible on any machine with a populated ~/.flet cache (i.e. every
@@ -146,7 +198,8 @@ def flet_client_datas() -> list[tuple[str, str]]:
             f"any machine that cannot verify GitHub's certificate (issue #265).\n\n"
             f"Fetch it with:  uv run python build_support.py\n"
         )
-    return [(str(archive), "flet_desktop/app")]
+    sidecar = ensure_fingerprint_sidecar(archive)
+    return [(str(archive), "flet_desktop/app"), (str(sidecar), "flet_desktop/app")]
 
 
 if __name__ == "__main__":

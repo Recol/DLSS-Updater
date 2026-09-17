@@ -1,3 +1,23 @@
+Version 5.0.2:
+Improved:
+  - Updated the Flet UI framework from 0.86.5 to 1.0.0, its first stable
+    release, on both platforms. Text fields and dropdowns were moved to
+    Flet 1.0's new border styling and keep exactly the look they had.
+
+  - Pinning DLSS Updater to the Windows taskbar is more reliable. The app
+    used to search for its window after it appeared and label it for the
+    taskbar then, retrying for a few seconds, so a pin made during that
+    gap could point at Flet's own client instead of DLSS Updater. Flet
+    now labels the window as it is created, before it is ever shown.
+
+  - On Linux (Flatpak) the window now reports itself as DLSS Updater
+    instead of "flet", so desktops that match windows by their class
+    show the right name and icon in the taskbar and window switcher.
+
+  - The search boxes in the Blacklist and Ignore List panels have a
+    visible outline in dark mode. It was drawn black before, so the box
+    blended into the background.
+
 Version 5.0.1:
 Fixed:
   - Ignored games no longer count towards "needs update". Ignoring a game

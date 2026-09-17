@@ -121,19 +121,9 @@ class ThemeManager:
         # Update registry state
         self._registry.is_dark = self.is_dark
 
-        # Store theme state for component access
-        # Note: In Flet 0.80.4+, session/client_storage APIs may differ
-        try:
-            # Try shared_preferences (new API) or client_storage (old API)
-            if hasattr(self._page_ref, 'shared_preferences'):
-                # Flet 0.80.4+ uses shared_preferences (async, but we're in sync context)
-                pass  # Skip for sync method - will be set in async version
-            elif hasattr(self._page_ref, 'client_storage'):
-                self._page_ref.client_storage.set("is_dark_theme", self.is_dark)
-        except Exception:
-            pass
-
-        # Session storage - wrap in try/except for API compatibility
+        # Store theme state for component access. The preference itself is
+        # persisted by _save_preference() (config.toml); session storage is
+        # only what backups_view/games_view read back mid-session.
         try:
             if hasattr(self._page_ref.session, 'set'):
                 self._page_ref.session.set("is_dark_theme", self.is_dark)
@@ -162,15 +152,7 @@ class ThemeManager:
         # Update registry state first
         self._registry.is_dark = self.is_dark
 
-        # Store theme state for component access
-        try:
-            if hasattr(self._page_ref, 'shared_preferences'):
-                await self._page_ref.shared_preferences.set("is_dark_theme", self.is_dark)
-            elif hasattr(self._page_ref, 'client_storage'):
-                self._page_ref.client_storage.set("is_dark_theme", self.is_dark)
-        except Exception:
-            pass
-
+        # Store theme state for component access (see apply_theme)
         try:
             if hasattr(self._page_ref.session, 'set'):
                 self._page_ref.session.set("is_dark_theme", self.is_dark)

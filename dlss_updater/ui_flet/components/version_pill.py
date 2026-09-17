@@ -318,7 +318,7 @@ class VersionPill(ThemeAwareMixin, ft.Container):
         keeps the control count down (CLAUDE.md's badge pattern).
         """
         return ft.Container(
-            content=ft.Icon(ft.Icons.CLOSE, size=12, color=ft.Colors.WHITE70),
+            content=ft.Icon(ft.Icons.CLOSE, size=12, color=ft.Colors.WHITE_70),
             on_click=self._handle_dismiss,
             tooltip="Dismiss until the next release",
             border_radius=10,
@@ -356,7 +356,7 @@ class VersionPill(ThemeAwareMixin, ft.Container):
         # client can drop after a theme cascade (CLAUDE.md pitfall 3).
         self.content = ft.Shimmer(
             base_color=MD3Colors.get_primary(self._is_dark),
-            highlight_color=ft.Colors.WHITE24,
+            highlight_color=ft.Colors.WHITE_24,
             period=_SHIMMER_PERIOD_MS,
             direction=ft.ShimmerDirection.LTR,
             loop=_SHIMMER_SWEEPS,

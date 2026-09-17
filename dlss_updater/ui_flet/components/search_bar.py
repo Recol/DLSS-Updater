@@ -19,7 +19,7 @@ import flet as ft
 
 from dlss_updater.logger import setup_logger
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
-from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.theme.colors import MD3Colors, build_input_border
 from dlss_updater.task_registry import register_task
 
 logger = setup_logger()
@@ -381,6 +381,15 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         except RuntimeError:
             pass  # Control not yet added to page
 
+    @staticmethod
+    def _field_border(
+        is_dark: bool, focused: bool = False
+    ) -> dict[ft.ControlState, ft.InputBorder]:
+        """Search field border: outline at rest (primary once focused), primary focus ring."""
+        primary = MD3Colors.get_primary(is_dark)
+        rest = primary if focused else MD3Colors.get_outline(is_dark)
+        return build_input_border(rest, primary, radius=8)
+
     def _build_ui(self):
         """Build the search bar UI with PopupMenuButton for history."""
         is_dark = self._registry.is_dark
@@ -423,10 +432,8 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             hint_text=self.placeholder_text,
             hint_style=ft.TextStyle(color=MD3Colors.get_text_secondary(is_dark)),
             text_style=ft.TextStyle(color=MD3Colors.get_on_surface(is_dark)),
-            border_color=MD3Colors.get_outline(is_dark),
-            focused_border_color=MD3Colors.get_primary(is_dark),
+            border=self._field_border(is_dark),
             bgcolor=MD3Colors.get_surface(is_dark),
-            border_radius=8,
             content_padding=ft.Padding.only(left=40, right=40, top=8, bottom=8),
             on_change=self._on_text_changed,
             on_focus=self._on_focus,
@@ -544,7 +551,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         """Handle field focus."""
         self._is_focused = True
         is_dark = self._registry.is_dark
-        self.search_field.border_color = MD3Colors.get_primary(is_dark)
+        self.search_field.border = self._field_border(is_dark, focused=True)
 
         if self.on_focus_change_callback:
             result = self.on_focus_change_callback(True)
@@ -557,7 +564,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         is_dark = self._registry.is_dark
 
         if not self.search_field.value:
-            self.search_field.border_color = MD3Colors.get_outline(is_dark)
+            self.search_field.border = self._field_border(is_dark)
 
         # Collapse to icon if expandable and no active search text
         if self._expandable and not self.search_field.value and self._is_expanded:
@@ -726,7 +733,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         """Focus the search field."""
         self.search_field.focus()
 
-    def get_themed_properties(self) -> dict[str, tuple[str, str]]:
+    def get_themed_properties(self) -> dict[str, tuple[Any, Any]]:
         """
         Return themed property mappings for theme switching.
 
@@ -736,8 +743,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
         return {
             # Search field colors
             "search_field.bgcolor": MD3Colors.get_themed_pair("surface"),
-            "search_field.border_color": MD3Colors.get_themed_pair("outline"),
-            "search_field.focused_border_color": MD3Colors.get_themed_pair("primary"),
+            "search_field.border": (self._field_border(True), self._field_border(False)),
             # Icons
             "search_icon.color": MD3Colors.get_themed_pair("icon_default"),
             "clear_button.icon_color": MD3Colors.get_themed_pair("text_secondary"),
@@ -776,10 +782,7 @@ class SearchBar(ThemeAwareMixin, ft.Container):
             )
 
             # Update border based on focus state
-            if self._is_focused:
-                self.search_field.border_color = MD3Colors.get_primary(is_dark)
-            else:
-                self.search_field.border_color = MD3Colors.get_outline(is_dark)
+            self.search_field.border = self._field_border(is_dark, focused=self._is_focused)
 
             # Refresh history items if they exist (to update their colors)
             if self._history_items:

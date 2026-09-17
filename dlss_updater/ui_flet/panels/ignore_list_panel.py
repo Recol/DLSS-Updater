@@ -225,7 +225,7 @@ class IgnoreListPanel(ThemeAwareMixin, PanelContentBase):
             hint_text="Search games...",
             prefix_icon=ft.Icons.SEARCH,
             on_change=self._on_search_change,
-            border_radius=8,
+            border=ft.OutlineInputBorder(border_radius=8),
             bgcolor=MD3Colors.get_surface_variant(is_dark),
         )
 

@@ -31,7 +31,7 @@ from dlss_updater.models import (
     WindowsDLSSFGPreset,
 )
 from dlss_updater import nvapi_drs
-from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.theme.colors import MD3Colors, build_input_border
 from dlss_updater.ui_flet.panels.dlss_preset_panel_base import _DLSSPresetPanelBase
 
 # Backend module built in parallel; guard so this module always imports.
@@ -105,8 +105,7 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
             ],
             value="default",
             label="Super Resolution (SR) Preset",
-            border_color=outline,
-            focused_border_color=primary,
+            border=build_input_border(outline, primary),
             on_select=self._on_sr_changed,
             expand=True,
         )
@@ -117,8 +116,7 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
             ],
             value="default",
             label="Ray Reconstruction (RR) Model",
-            border_color=outline,
-            focused_border_color=primary,
+            border=build_input_border(outline, primary),
             expand=True,
         )
         self._fg_dropdown = ft.Dropdown(
@@ -128,8 +126,7 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
             ],
             value="default",
             label="Frame Generation (FG) Preset",
-            border_color=outline,
-            focused_border_color=primary,
+            border=build_input_border(outline, primary),
             expand=True,
         )
 

@@ -84,7 +84,7 @@ class BackupCard(ThemeAwareMixin, ft.Card):
         self._metadata_column = metadata
 
         # Action buttons
-        self._restore_btn = ft.ElevatedButton(
+        self._restore_btn = ft.Button(
             "Restore",
             icon=ft.Icons.RESTORE,
             on_click=self._on_restore_clicked,

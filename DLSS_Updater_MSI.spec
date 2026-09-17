@@ -25,9 +25,10 @@ flet_datas = collect_data_files('flet')
 flet_desktop_datas = collect_data_files('flet_desktop')
 
 # The Flet desktop client archive, placed where ensure_client_cached() looks
-# for it so the app never downloads it at first launch. Fails the build if
-# absent rather than silently shipping a binary that only breaks on a clean
-# machine.
+# for it so the app never downloads it at first launch, plus its .sha256
+# fingerprint sidecar so the read-only install dir never forces a ~40MB hash
+# per launch. Fails the build if absent rather than silently shipping a binary
+# that only breaks on a clean machine.
 flet_client = flet_client_datas()
 
 # certifi's CA bundle. Without it every HTTPS call in the frozen app (DLL

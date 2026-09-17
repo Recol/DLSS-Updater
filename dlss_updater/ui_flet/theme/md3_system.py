@@ -760,128 +760,6 @@ def create_md3_container(
     )
 
 
-def create_md3_card(
-    content: ft.Control,
-    on_click=None,
-    on_hover=None,
-    elevation: int = 2,
-    interactive: bool = False,
-    width: int | None = None,
-    height: int | None = None,
-) -> ft.Container:
-    """
-    Create MD3-styled interactive card
-
-    Args:
-        content: Card content
-        on_click: Click handler
-        on_hover: Hover handler
-        elevation: Shadow elevation (1-5)
-        interactive: Enable hover effects
-        width: Fixed width
-        height: Fixed height
-
-    Returns:
-        Configured card Container
-    """
-    shadow_map = {
-        1: MD3Shadows.LEVEL_1,
-        2: MD3Shadows.LEVEL_2,
-        3: MD3Shadows.LEVEL_3,
-        4: MD3Shadows.LEVEL_4,
-        5: MD3Shadows.LEVEL_5,
-    }
-
-    return ft.Container(
-        content=content,
-        bgcolor=MD3ColorSystem.SURFACE,
-        padding=ft.Padding.all(MD3Spacing.CARD_PADDING),
-        border_radius=ft.BorderRadius.all(MD3Spacing.CARD_BORDER_RADIUS),
-        shadow=shadow_map.get(elevation, MD3Shadows.LEVEL_2),
-        on_click=on_click,
-        on_hover=on_hover,
-        width=width,
-        height=height,
-        animate=MD3Motion.hover_animation() if interactive else None,
-        animate_scale=ft.animation.Animation(MD3Motion.SHORT3, MD3Motion.EMPHASIZED) if interactive else None,
-    )
-
-
-def create_md3_button(
-    text: str,
-    on_click=None,
-    style: str = "filled",  # filled, outlined, text, elevated, tonal
-    icon: str | None = None,
-    disabled: bool = False,
-    width: int | None = None,
-    height: int = MD3Spacing.BUTTON_HEIGHT_MEDIUM,
-) -> ft.ElevatedButton:
-    """
-    Create MD3-styled button
-
-    Args:
-        text: Button text
-        on_click: Click handler
-        style: Button style variant
-        icon: Optional icon name
-        disabled: Disabled state
-        width: Fixed width
-        height: Button height
-
-    Returns:
-        Configured button control
-    """
-    style_config = {
-        "filled": {
-            "bgcolor": MD3ColorSystem.PRIMARY,
-            "color": MD3ColorSystem.ON_PRIMARY,
-            "elevation": 0,
-        },
-        "elevated": {
-            "bgcolor": MD3ColorSystem.SURFACE_CONTAINER_LOW,
-            "color": MD3ColorSystem.PRIMARY,
-            "elevation": 1,
-        },
-        "tonal": {
-            "bgcolor": MD3ColorSystem.SECONDARY_CONTAINER,
-            "color": MD3ColorSystem.ON_SECONDARY_CONTAINER,
-            "elevation": 0,
-        },
-        "outlined": {
-            "bgcolor": ft.Colors.TRANSPARENT,
-            "color": MD3ColorSystem.PRIMARY,
-            "elevation": 0,
-        },
-        "text": {
-            "bgcolor": ft.Colors.TRANSPARENT,
-            "color": MD3ColorSystem.PRIMARY,
-            "elevation": 0,
-        },
-    }
-
-    config = style_config.get(style, style_config["filled"])
-
-    return ft.ElevatedButton(
-        text=text,
-        icon=icon,
-        on_click=on_click,
-        disabled=disabled,
-        width=width,
-        height=height,
-        bgcolor=config["bgcolor"],
-        color=config["color"],
-        elevation=config["elevation"],
-        style=ft.ButtonStyle(
-            shape=ft.RoundedRectangleBorder(radius=MD3Spacing.RADIUS_LARGE),
-            padding=ft.Padding.symmetric(
-                horizontal=MD3Spacing.PADDING_LARGE,
-                vertical=MD3Spacing.PADDING_SMALL,
-            ),
-            animation_duration=MD3Motion.SHORT4,
-        ),
-    )
-
-
 def create_md3_text(
     text: str,
     variant: str = "body_medium",
@@ -972,8 +850,6 @@ __all__ = [
     'MD3Spacing',
     'MD3Shadows',
     'create_md3_container',
-    'create_md3_card',
-    'create_md3_button',
     'create_md3_text',
     'create_md3_icon_button',
 ]

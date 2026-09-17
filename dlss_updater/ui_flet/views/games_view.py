@@ -297,7 +297,7 @@ def _on_accent(is_dark: bool) -> str:
     than cross-imported: a view importing a hub component for a color rule
     would be worse coupling than four lines).
     """
-    return ft.Colors.BLACK87 if is_dark else ft.Colors.WHITE
+    return ft.Colors.BLACK_87 if is_dark else ft.Colors.WHITE
 
 
 if TYPE_CHECKING:
@@ -2765,7 +2765,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 "Cancel",
                 on_click=lambda e: self._page_ref.pop_dialog(),
             ),
-            ft.ElevatedButton(
+            ft.Button(
                 "Delete All",
                 on_click=self._create_delete_all_handler(confirm_dialog),
                 style=ft.ButtonStyle(
@@ -3257,7 +3257,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         dialog.actions = [
             ft.TextButton("Cancel", on_click=on_cancel),
-            ft.ElevatedButton(
+            ft.Button(
                 "Restore",
                 on_click=on_confirm,
                 style=ft.ButtonStyle(bgcolor="#4CAF50", color=ft.Colors.WHITE),

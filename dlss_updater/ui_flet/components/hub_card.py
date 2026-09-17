@@ -65,7 +65,7 @@ def _on_accent(is_dark: bool) -> str:
     solid accent fills — outlined/tinted surfaces keep the normal on-surface
     colors.
     """
-    return ft.Colors.BLACK87 if is_dark else ft.Colors.WHITE
+    return ft.Colors.BLACK_87 if is_dark else ft.Colors.WHITE
 
 
 class HubCard(ThemeAwareMixin, ft.Container):
@@ -484,7 +484,7 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         renders over a themed brand wash.
         """
         if self._mosaic_active:
-            return ft.Colors.WHITE, ft.Colors.WHITE70
+            return ft.Colors.WHITE, ft.Colors.WHITE_70
         return MD3Colors.get_text_primary(is_dark), MD3Colors.get_on_surface_variant(is_dark)
 
     def _apply_identity_colors(self, is_dark: bool) -> None:

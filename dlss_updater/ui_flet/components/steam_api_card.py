@@ -13,13 +13,17 @@ Uses ExpansionTile (native Flutter) for collapse/expand animation.
 """
 
 import anyio
-import webbrowser
 
 import flet as ft
 
 from dlss_updater.logger import setup_logger
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
-from dlss_updater.ui_flet.theme.colors import MD3Colors, Shadows, Animations
+from dlss_updater.ui_flet.theme.colors import (
+    MD3Colors,
+    Shadows,
+    Animations,
+    build_input_border,
+)
 
 logger = setup_logger()
 
@@ -151,7 +155,9 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
                 spacing=6,
                 tight=True,
             ),
-            on_click=lambda _: webbrowser.open(STEAM_API_KEY_URL),
+            # Client-side action: the desktop client opens the URL itself, so
+            # no blocking webbrowser.open() runs on the UI event loop.
+            action=ft.OpenUrl(STEAM_API_KEY_URL),
             padding=ft.Padding.symmetric(horizontal=10, vertical=6),
             border_radius=6,
             bgcolor=ft.Colors.with_opacity(0.08, MD3Colors.get_primary(is_dark)),
@@ -169,9 +175,11 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
             expand=True,
             text_size=13,
             height=48,
-            border_radius=8,
-            border_color=MD3Colors.get_outline(is_dark),
-            focused_border_color=MD3Colors.get_primary(is_dark),
+            border=build_input_border(
+                MD3Colors.get_outline(is_dark),
+                MD3Colors.get_primary(is_dark),
+                radius=8,
+            ),
             bgcolor=MD3Colors.get_surface(is_dark),
             content_padding=ft.Padding.symmetric(horizontal=14, vertical=8),
             text_style=ft.TextStyle(
@@ -645,8 +653,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
                 link_row.controls[1].color = primary  # Text
 
             # TextField styling
-            self.api_key_field.border_color = outline
-            self.api_key_field.focused_border_color = primary
+            self.api_key_field.border = build_input_border(outline, primary, radius=8)
             self.api_key_field.bgcolor = MD3Colors.get_surface(is_dark)
             self.api_key_field.text_style = ft.TextStyle(
                 color=MD3Colors.get_on_surface(is_dark),

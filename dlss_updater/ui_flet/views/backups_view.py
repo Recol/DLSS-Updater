@@ -27,7 +27,7 @@ from dlss_updater.backup_manager import restore_dll_from_backup, delete_backup
 from dlss_updater.services.backup_service import restore_orphaned_dll_from_backup
 from dlss_updater.ui_flet.components.backup_group import BackupGroup
 from dlss_updater.ui_flet.components.floating_pill import PILL_CLEARANCE
-from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.theme.colors import MD3Colors, build_hidden_input_border
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask
 from dlss_updater.task_registry import register_task
@@ -254,7 +254,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
     def _create_clear_all_button(self) -> ft.OutlinedButton:
         """Create and store reference to Clear All Backups button.
 
-        OutlinedButton (not ElevatedButton): no elevation/shadow to compete
+        OutlinedButton (not an elevated Button): no elevation/shadow to compete
         with the primary actions, and its border is driven by the ButtonStyle
         ``side`` map. The confirmation dialog wiring is unchanged.
         """
@@ -300,9 +300,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             fill_color=surface,
             bgcolor=surface,
             color=on_surface,
-            border_width=0,
-            border_color=ft.Colors.TRANSPARENT,
-            border_radius=20,
+            border=build_hidden_input_border(radius=20),
             content_padding=ft.Padding.symmetric(horizontal=14, vertical=6),
             text_style=ft.TextStyle(color=on_surface),
             hint_style=ft.TextStyle(color=MD3Colors.get_on_surface_variant(is_dark)),
@@ -1101,7 +1099,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 "Cancel",
                 on_click=lambda e: self._page_ref.pop_dialog(),
             ),
-            ft.ElevatedButton(
+            ft.Button(
                 "Clear All",
                 on_click=self._create_clear_all_handler(confirm_dialog),
                 style=ft.ButtonStyle(
@@ -1229,7 +1227,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 "Cancel",
                 on_click=lambda e: self._page_ref.pop_dialog(),
             ),
-            ft.ElevatedButton(
+            ft.Button(
                 "Restore",
                 on_click=self._create_restore_handler(backup, dialog, orphan),
                 style=ft.ButtonStyle(
@@ -1343,7 +1341,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 "Cancel",
                 on_click=lambda e: self._page_ref.pop_dialog(),
             ),
-            ft.ElevatedButton(
+            ft.Button(
                 "Delete",
                 on_click=self._create_delete_handler(backup, dialog),
                 style=ft.ButtonStyle(
@@ -1494,7 +1492,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 "Cancel",
                 on_click=lambda e: self._page_ref.pop_dialog(),
             ),
-            ft.ElevatedButton(
+            ft.Button(
                 "Restore All",
                 on_click=self._create_restore_all_handler(game_id, game_name, dialog),
                 style=ft.ButtonStyle(

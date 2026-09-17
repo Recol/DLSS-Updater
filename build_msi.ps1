@@ -55,6 +55,7 @@ if (-not $SkipDeps) {
 # flet_desktop ships no client binary, so without this the app downloads ~40MB
 # on first launch and dies on any machine that can't verify GitHub's cert
 # (issue #265). Cached outside build/ so the clean step doesn't refetch it.
+# Also writes its .sha256 fingerprint sidecar, so launches don't re-hash it.
 Write-Step "Ensuring Flet desktop client is available to bundle"
 uv run python build_support.py
 if ($LASTEXITCODE -ne 0) {
@@ -90,11 +91,13 @@ if ($LASTEXITCODE -ne 0) {
 
 # Step 4b: Inject AppUserModelID into the Start Menu shortcut and rebuild the MSI.
 #
-# Why: Flet 0.84 spawns flet.exe as a child process that owns the GUI window. When
+# Why: Flet spawns flet.exe as a child process that owns the GUI window. When
 #      users pin from the taskbar, Windows groups the window under flet.exe unless
 #      the launcher shortcut and the window itself declare a matching AUMID.
 #      Setting System.AppUserModel.ID on the Start Menu .lnk lets Windows associate
-#      taskbar pins with DLSS Updater (a runtime Python fix handles the live window).
+#      taskbar pins with DLSS Updater. The live window gets the same AUMID from
+#      flet_desktop, via the FLET_APP_* env vars set in
+#      dlss_updater/desktop_identity.py - keep the two values in sync.
 #
 # Why here: Briefcase treats this app as an "external package" (external_package_path
 #      in pyproject.toml), so `briefcase package windows` *always* regenerates the

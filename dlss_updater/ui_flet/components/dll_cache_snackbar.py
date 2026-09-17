@@ -87,7 +87,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         # Progress percentage text
         self.progress_text = ft.Text(
             "",
-            color=ft.Colors.WHITE70,
+            color=ft.Colors.WHITE_70,
             size=12,
         )
 

@@ -8,4 +8,5 @@ Icon=io.github.recol.dlss-updater
 Categories=Game;Utility;
 Keywords=DLSS;FSR;XeSS;NVIDIA;AMD;Intel;gaming;upscaling;
 StartupNotify=true
+StartupWMClass=io.github.recol.dlss-updater
 Terminal=false

@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="5.0.2" date="2026-09-17">
+      <description>
+        <p>Updated to Flet 1.0</p>
+        <ul>
+          <li>Updated the Flet UI framework from 0.86.5 to 1.0.0, its first stable release, on both platforms. Text fields and dropdowns were moved to Flet 1.0's new border styling and keep exactly the look they had</li>
+          <li>The window now reports itself as DLSS Updater instead of "flet", so desktops that match windows by their class show the right name and icon in the taskbar and window switcher</li>
+          <li>The search boxes in the Blacklist and Ignore List panels have a visible outline in dark mode. It was drawn black before, so the box blended into the background</li>
+        </ul>
+      </description>
+    </release>
     <release version="5.0.1" date="2026-09-09">
       <description>
         <p>Ignored games no longer count as needing updates</p>

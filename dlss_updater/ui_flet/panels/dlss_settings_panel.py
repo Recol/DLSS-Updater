@@ -28,7 +28,11 @@ from dlss_updater.models import (
     WindowsDLSSFGPreset,
 )
 from dlss_updater import nvapi_drs
-from dlss_updater.ui_flet.theme.colors import MD3Colors, TechnologyColors
+from dlss_updater.ui_flet.theme.colors import (
+    MD3Colors,
+    TechnologyColors,
+    build_input_border,
+)
 from dlss_updater.ui_flet.panels.dlss_preset_panel_base import _DLSSPresetPanelBase
 
 
@@ -91,8 +95,7 @@ class WindowsDLSSPresetsPanel(_DLSSPresetPanelBase):
             ],
             value=self._config.selected_preset,
             label="Super Resolution (SR) Preset",
-            border_color=outline,
-            focused_border_color=primary,
+            border=build_input_border(outline, primary),
             on_select=self._on_sr_changed,
             expand=True,
         )
@@ -105,8 +108,7 @@ class WindowsDLSSPresetsPanel(_DLSSPresetPanelBase):
             ],
             value=self._config.rr_preset,
             label="Ray Reconstruction (RR) Model",
-            border_color=outline,
-            focused_border_color=primary,
+            border=build_input_border(outline, primary),
             expand=True,
         )
         # FG dropdown: Default / Latest / Preset A / Preset B
@@ -117,8 +119,7 @@ class WindowsDLSSPresetsPanel(_DLSSPresetPanelBase):
             ],
             value=self._config.fg_preset,
             label="Frame Generation (FG) Preset",
-            border_color=outline,
-            focused_border_color=primary,
+            border=build_input_border(outline, primary),
             expand=True,
         )
 

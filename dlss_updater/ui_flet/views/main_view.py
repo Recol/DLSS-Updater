@@ -74,7 +74,7 @@ from dlss_updater.ui_flet.components.loading_overlay import LoadingOverlay
 from dlss_updater.ui_flet.components.logger_panel import LoggerPanel
 from dlss_updater.ui_flet.components.theme_manager import ThemeManager
 from dlss_updater.ui_flet.components.update_scope_menu import UpdateScopeMenu
-from dlss_updater.ui_flet.theme.colors import Shadows, MD3Colors, TabColors
+from dlss_updater.ui_flet.theme.colors import Shadows, MD3Colors, TabColors, build_input_border
 from dlss_updater.ui_flet.components.hero_surface import (
     build_brand_wash,
     build_pill,
@@ -1908,7 +1908,8 @@ class MainView(ft.Column):
             min_lines=2,
             max_lines=3,
             text_size=12,
-            border_color=ft.Colors.OUTLINE,
+            # Focus ring falls back to the same outline colour, as in 0.86.
+            border=build_input_border(ft.Colors.OUTLINE),
         )
 
         async def copy_command(e):

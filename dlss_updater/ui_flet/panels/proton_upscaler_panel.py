@@ -34,7 +34,7 @@ from dlss_updater.proton_compat import (
     resolve_tool_for_app,
 )
 from dlss_updater.ui_flet.components.slide_panel import PanelContentBase
-from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.theme.colors import MD3Colors, build_input_border
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
 # Dropdown key for the "no specific game" mode (no capability filtering)
@@ -121,8 +121,7 @@ class ProtonUpscalerPanel(ThemeAwareMixin, PanelContentBase):
             options=[ft.DropdownOption(key=_GENERIC_KEY, text="Generic (any game)")],
             value=_GENERIC_KEY,
             label="Validate against game (Steam)",
-            border_color=outline_color,
-            focused_border_color=primary_color,
+            border=build_input_border(outline_color, primary_color),
             on_select=self._on_game_changed,
             expand=True,
         )
@@ -135,8 +134,7 @@ class ProtonUpscalerPanel(ThemeAwareMixin, PanelContentBase):
             ],
             value=self._config.selected_preset,
             label="SR Preset Override",
-            border_color=outline_color,
-            focused_border_color=primary_color,
+            border=build_input_border(outline_color, primary_color),
             on_select=self._on_preset_changed,
             expand=True,
         )
@@ -147,8 +145,7 @@ class ProtonUpscalerPanel(ThemeAwareMixin, PanelContentBase):
             ],
             value=self._config.rr_preset,
             label="RR Preset Override (Ray Reconstruction)",
-            border_color=outline_color,
-            focused_border_color=primary_color,
+            border=build_input_border(outline_color, primary_color),
             on_select=self._on_setting_changed,
             expand=True,
         )
@@ -564,7 +561,8 @@ class ProtonUpscalerPanel(ThemeAwareMixin, PanelContentBase):
             multiline=True,
             min_lines=2,
             max_lines=5,
-            border_color=MD3Colors.get_outline(is_dark),
+            # Focus ring falls back to the same outline colour, as in 0.86.
+            border=build_input_border(MD3Colors.get_outline(is_dark)),
             text_size=12,
         )
         copy_button = ft.IconButton(

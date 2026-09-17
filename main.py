@@ -333,14 +333,6 @@ async def main(page: ft.Page):
     page.add(main_view)
     page.update()
 
-    # Fix Windows taskbar pinning: set AUMID on flet.exe window
-    if IS_WINDOWS:
-        from dlss_updater.windows_aumid import apply_taskbar_fix
-        register_task(
-            asyncio.create_task(apply_taskbar_fix(sys.executable if getattr(sys, 'frozen', False) else None)),
-            "taskbar_aumid_fix"
-        )
-
     # Register shutdown handler for graceful cleanup
     # IMPORTANT: Use prevent_close + on_event + destroy pattern for proper process termination
     # page.on_close alone does NOT terminate the Flet/Flutter subprocess, leaving the app running
@@ -549,13 +541,12 @@ if __name__ == "__main__":
         if os.environ.get('WAYLAND_DISPLAY') and not os.environ.get('DISPLAY'):
             os.environ['DISPLAY'] = ':0'  # Prevent Flet's web server fallback
 
-    # Set AUMID for our process (good practice; doesn't fix flet.exe window but helps with jump lists)
-    if IS_WINDOWS:
-        try:
-            import ctypes as _ctypes
-            _ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("io.github.recol.DLSSUpdater")
-        except Exception:
-            pass
+    # Taskbar/window identity for the Flet client window (Windows AUMID +
+    # relaunch pin target, Linux WM_CLASS/app_id). flet_desktop reads these
+    # from the environment when it spawns the client, so this must run before
+    # ft.run(). See dlss_updater/desktop_identity.py.
+    from dlss_updater.desktop_identity import configure_desktop_identity
+    configure_desktop_identity()
 
     # Launch Flet app with async main - uses ft.run() for Flet 0.80.4+
     #

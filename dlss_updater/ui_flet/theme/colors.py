@@ -594,3 +594,52 @@ def build_page_theme(is_dark: bool) -> ft.Theme:
         use_material3=True,
         scrollbar_theme=build_scrollbar_theme(is_dark),
     )
+
+
+def build_input_border(
+    color: ft.ColorValue,
+    focused_color: ft.ColorValue | None = None,
+    *,
+    radius: ft.BorderRadiusValue = 4,
+) -> dict[ft.ControlState, ft.InputBorder]:
+    """Per-state outline ``border=`` for TextField/Dropdown (Flet 1.0+).
+
+    Replaces the ``border_color``/``focused_border_color``/``border_radius``
+    kwargs Flet 1.0 deprecated. The FOCUSED side is width 2 explicitly: 0.86
+    drew the focus ring at an implicit 2px, but a 1.0 ``BorderSide`` renders
+    at exactly its width (default 1). ``focused_color`` defaults to ``color``,
+    matching 0.86's ``focused_border_color ?? border_color`` fallback. Error
+    and disabled states are left theme-resolved, as they were in 0.86.
+    """
+    return {
+        ft.ControlState.DEFAULT: ft.OutlineInputBorder(
+            border_radius=radius,
+            side=ft.BorderSide(color=color),
+        ),
+        ft.ControlState.FOCUSED: ft.OutlineInputBorder(
+            border_radius=radius,
+            side=ft.BorderSide(
+                width=2,
+                color=focused_color if focused_color is not None else color,
+            ),
+        ),
+    }
+
+
+def build_hidden_input_border(
+    *, radius: ft.BorderRadiusValue = 4
+) -> dict[ft.ControlState, ft.InputBorder]:
+    """Borderless per-state ``border=`` (the 0.86 ``border_width=0``).
+
+    Keeps the radius so a filled background stays clipped. FOCUSED is listed
+    too: 0.86's focus width followed ``border_width``, so without it the theme
+    would draw a 2px primary focus ring that was never there.
+    """
+    return {
+        ft.ControlState.DEFAULT: ft.OutlineInputBorder(
+            border_radius=radius, side=ft.BorderSide.none()
+        ),
+        ft.ControlState.FOCUSED: ft.OutlineInputBorder(
+            border_radius=radius, side=ft.BorderSide.none()
+        ),
+    }

@@ -11,7 +11,7 @@ from typing import Callable
 import flet as ft
 
 from dlss_updater.models import Game
-from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
+from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors, build_input_border
 from dlss_updater.ui_flet.theme.theme_aware import get_theme_registry
 from dlss_updater.ui_flet.components.hero_surface import (
     build_brand_wash,
@@ -126,9 +126,9 @@ class SteamResolveDialog:
             autofocus=True,
             filled=True,
             fill_color=ft.Colors.with_opacity(0.85, surface),
-            border_color=ft.Colors.with_opacity(0.4, primary),
-            focused_border_color=primary,
-            border_radius=10,
+            border=build_input_border(
+                ft.Colors.with_opacity(0.4, primary), primary, radius=10
+            ),
             color=text_primary,
             label_style=ft.TextStyle(color=text_secondary),
             on_change=self._on_search_changed,

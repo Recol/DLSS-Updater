@@ -23,8 +23,9 @@ dlss_updater_datas = collect_data_files('dlss_updater')
 flet_datas = collect_data_files('flet')
 flet_desktop_datas = collect_data_files('flet_desktop')
 
-# Flet desktop client archive + certifi CA bundle - see DLSS_Updater_MSI.spec
-# and build_support.py. Without these a clean machine downloads the client at
+# Flet desktop client archive (+ its .sha256 fingerprint sidecar, which a
+# onefile build's fresh _MEIPASS could never cache) and certifi CA bundle - see
+# DLSS_Updater_MSI.spec and build_support.py. Without these a clean machine downloads the client at
 # first launch and dies if its root store cannot verify GitHub.
 flet_client = flet_client_datas()
 certifi_datas = collect_data_files('certifi')
