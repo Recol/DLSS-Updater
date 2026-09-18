@@ -14,7 +14,7 @@ import zlib
 from pathlib import Path, PurePath
 from typing import Any
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 
 import aiosqlite
 import anyio
@@ -34,6 +34,39 @@ from dlss_updater.models import (
 )
 
 logger = setup_logger()
+
+
+def db_timestamp(raw: str | datetime) -> datetime:
+    """Convert a stored timestamp to naive **local** time.
+
+    Every timestamp column in this schema is written by SQLite's
+    ``CURRENT_TIMESTAMP`` - either named explicitly in the INSERT/UPDATE or
+    supplied by the column's ``DEFAULT``. Nothing binds a Python datetime, so
+    every stored value is **UTC**, and every one of them reads back as a naive
+    datetime that looks local.
+
+    Parsing those straight into the models therefore handed the whole
+    application UTC values it then compared against a local ``datetime.now()``,
+    adding the local UTC offset to every age and every displayed time. The
+    Games header could never read fresher than "scanned 1h ago" in BST (2h in
+    CEST) however recent the scan, and west of Greenwich the difference went
+    negative - "scanned -300m ago" at UTC-5. Backup timestamps were displayed
+    an offset out for the same reason.
+
+    Converting here, at the single boundary where stored strings become
+    datetimes, makes every model field naive local - which is what
+    ``models.py``'s own ``datetime.now()`` defaults already are, and what every
+    consumer already assumed.
+
+    Deliberately not exception-tolerant: a value that will not parse is a
+    corrupt row, and the previous behaviour was to raise. Callers that tolerate
+    NULL keep their own guards.
+    """
+    value = raw if isinstance(raw, datetime) else datetime.fromisoformat(raw)
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone().replace(tzinfo=None)
+
 
 # Thread-safety lock for singleton pattern (free-threading Python 3.14+)
 _db_manager_lock = threading.Lock()
@@ -886,6 +919,46 @@ class DatabaseManager:
 
     # ===== Game Operations =====
 
+    async def mark_games_scanned(self, game_ids: list[int]) -> int:
+        """Stamp ``last_scanned`` on games that were just re-verified on disk.
+
+        Until this existed, only the two game upserts wrote that column, so a
+        full library scan was the only thing that could move the Games header's
+        "scanned Xd ago". The refresh button re-reads every known DLL from the
+        filesystem (GamesView.refresh_all_badges) - which is exactly the
+        freshness that line reports - yet the counter never budged however
+        often it was pressed.
+
+        Returns the number of rows stamped.
+        """
+        if not game_ids:
+            return 0
+        return await anyio.to_thread.run_sync(
+            self._mark_games_scanned, game_ids, limiter=thread_io
+        )
+
+    def _mark_games_scanned(self, game_ids: list[int]) -> int:
+        """Stamp last_scanned (runs in thread) - uses thread-local connection"""
+        conn = self._get_thread_connection()
+        cursor = conn.cursor()
+
+        try:
+            placeholders = ','.join('?' * len(game_ids))
+            cursor.execute(
+                f"""
+                UPDATE games
+                SET last_scanned = CURRENT_TIMESTAMP
+                WHERE id IN ({placeholders})
+                """,
+                game_ids,
+            )
+            conn.commit()
+            return cursor.rowcount
+        except Exception as e:
+            logger.error(f"Error stamping last_scanned: {e}", exc_info=True)
+            conn.rollback()
+            return 0
+
     async def upsert_game(self, game_data: dict[str, Any]) -> Game | None:
         """Insert or update game record"""
         return await anyio.to_thread.run_sync(self._upsert_game, game_data, limiter=thread_io)
@@ -926,8 +999,8 @@ class DatabaseManager:
                     path=row[2],
                     launcher=row[3],
                     steam_app_id=row[4],
-                    last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6]),
+                    last_scanned=db_timestamp(row[5]),
+                    created_at=db_timestamp(row[6]),
                     resolution_source=row[7] if len(row) > 7 else None,
                     # override columns are never set by upsert; default to None
                     override_steam_app_id=row[8] if len(row) > 8 else None,
@@ -976,8 +1049,8 @@ class DatabaseManager:
                     path=row[2],
                     launcher=row[3],
                     steam_app_id=row[4],
-                    last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6]),
+                    last_scanned=db_timestamp(row[5]),
+                    created_at=db_timestamp(row[6]),
                     resolution_source=row[7],
                     override_steam_app_id=row[8],
                     display_name_override=row[9]
@@ -1023,8 +1096,8 @@ class DatabaseManager:
                     path=row[2],
                     launcher=row[3],
                     steam_app_id=row[4],
-                    last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6]),
+                    last_scanned=db_timestamp(row[5]),
+                    created_at=db_timestamp(row[6]),
                     resolution_source=row[7],
                     override_steam_app_id=row[8],
                     display_name_override=row[9],
@@ -1119,8 +1192,8 @@ class DatabaseManager:
                 Game(
                     id=row[0], name=row[1], path=row[2], launcher=row[3],
                     steam_app_id=row[4],
-                    last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6]),
+                    last_scanned=db_timestamp(row[5]),
+                    created_at=db_timestamp(row[6]),
                     resolution_source=row[7],
                     override_steam_app_id=row[8],
                     display_name_override=row[9]
@@ -1617,7 +1690,7 @@ class DatabaseManager:
         updated_raw = row[7]
         if isinstance(updated_raw, str):
             try:
-                updated_at = datetime.fromisoformat(updated_raw)
+                updated_at = db_timestamp(updated_raw)
             except ValueError:
                 updated_at = datetime.now()
         elif isinstance(updated_raw, datetime):
@@ -1836,7 +1909,7 @@ class DatabaseManager:
                     dll_filename=row[3],
                     dll_path=row[4],
                     current_version=row[5],
-                    detected_at=datetime.fromisoformat(row[6])
+                    detected_at=db_timestamp(row[6])
                 )
             return None
 
@@ -1872,7 +1945,7 @@ class DatabaseManager:
                     dll_filename=row[3],
                     dll_path=row[4],
                     current_version=row[5],
-                    detected_at=datetime.fromisoformat(row[6])
+                    detected_at=db_timestamp(row[6])
                 )
             return None
 
@@ -1911,7 +1984,7 @@ class DatabaseManager:
                     dll_filename=row[3],
                     dll_path=row[4],
                     current_version=row[5],
-                    detected_at=datetime.fromisoformat(row[6])
+                    detected_at=db_timestamp(row[6])
                 ))
 
             return dlls
@@ -2008,7 +2081,7 @@ class DatabaseManager:
                     dll_filename=row[3],
                     dll_path=dll_path,
                     current_version=fresh_version if fresh_version else stored_version,
-                    detected_at=datetime.fromisoformat(row[6])
+                    detected_at=db_timestamp(row[6])
                 ))
 
             # Batch update changed versions
@@ -2096,8 +2169,8 @@ class DatabaseManager:
                     path=row[2],
                     launcher=row[3],
                     steam_app_id=row[4],
-                    last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6]),
+                    last_scanned=db_timestamp(row[5]),
+                    created_at=db_timestamp(row[6]),
                     resolution_source=row[7]
                 )
                 result[game.path] = game
@@ -2205,7 +2278,7 @@ class DatabaseManager:
                     dll_filename=row[3],
                     dll_path=row[4],
                     current_version=row[5],
-                    detected_at=datetime.fromisoformat(row[6])
+                    detected_at=db_timestamp(row[6])
                 )
                 result[dll.game_id].append(dll)
 
@@ -2261,7 +2334,7 @@ class DatabaseManager:
                     dll_filename=row[4],
                     backup_path=row[5],
                     original_version=row[6],
-                    backup_created_at=datetime.fromisoformat(row[7]),
+                    backup_created_at=db_timestamp(row[7]),
                     backup_size=row[8],
                     is_active=bool(row[9])
                 )
@@ -2397,7 +2470,7 @@ class DatabaseManager:
                     dll_filename=row[5],
                     backup_path=row[6],
                     original_version=row[7],
-                    backup_created_at=datetime.fromisoformat(row[8]),
+                    backup_created_at=db_timestamp(row[8]),
                     backup_size=row[9],
                     is_active=bool(row[10])
                 ))
@@ -2479,7 +2552,7 @@ class DatabaseManager:
                     dll_filename=row[5],
                     backup_path=row[6],
                     original_version=row[7],
-                    backup_created_at=datetime.fromisoformat(row[8]),
+                    backup_created_at=db_timestamp(row[8]),
                     backup_size=row[9],
                     is_active=bool(row[10])
                 ))
@@ -2544,7 +2617,7 @@ class DatabaseManager:
                     dll_filename=row[5],
                     backup_path=row[6],
                     original_version=row[7],
-                    backup_created_at=datetime.fromisoformat(row[8]),
+                    backup_created_at=db_timestamp(row[8]),
                     backup_size=row[9],
                     is_active=bool(row[10])
                 )
@@ -2627,7 +2700,7 @@ class DatabaseManager:
 
                 created_raw = row[7]
                 created = (
-                    datetime.fromisoformat(created_raw)
+                    db_timestamp(created_raw)
                     if created_raw else datetime.now()
                 )
 
@@ -2723,7 +2796,7 @@ class DatabaseManager:
                     dll_filename=row[3],
                     backup_path=row[4],
                     original_version=row[5],
-                    backup_created_at=datetime.fromisoformat(row[6]),
+                    backup_created_at=db_timestamp(row[6]),
                     backup_size=row[7],
                     is_active=bool(row[8])
                 ))
@@ -2775,7 +2848,7 @@ class DatabaseManager:
                     dll_filename=dll_filename,
                     backup_path=backup_path,
                     original_version=row[5],
-                    backup_created_at=datetime.fromisoformat(row[6]),
+                    backup_created_at=db_timestamp(row[6]),
                     backup_size=row[7],
                     is_active=bool(row[8]),
                     was_added=bool(row[9]),
@@ -3194,7 +3267,7 @@ class DatabaseManager:
 
             row = cursor.fetchone()
             if row and row[0]:
-                return datetime.fromisoformat(row[0])
+                return db_timestamp(row[0])
             return None
 
         except Exception as e:
@@ -3723,7 +3796,7 @@ class DatabaseManager:
                     dll_filename=row[5],
                     backup_path=row[6],
                     original_version=row[7],
-                    backup_created_at=datetime.fromisoformat(row[8]),
+                    backup_created_at=db_timestamp(row[8]),
                     backup_size=row[9],
                     is_active=bool(row[10])
                 ))
@@ -3832,8 +3905,8 @@ class DatabaseManager:
                 backup_count=row[2],
                 total_backup_size=row[3],
                 dll_types=dll_types,
-                oldest_backup=datetime.fromisoformat(row[4]) if row[4] else None,
-                newest_backup=datetime.fromisoformat(row[5]) if row[5] else None
+                oldest_backup=db_timestamp(row[4]) if row[4] else None,
+                newest_backup=db_timestamp(row[5]) if row[5] else None
             )
 
         except Exception as e:
@@ -3884,7 +3957,7 @@ class DatabaseManager:
                     dll_filename=row[3],
                     backup_path=row[4],
                     original_version=row[5],
-                    backup_created_at=datetime.fromisoformat(row[6]),
+                    backup_created_at=db_timestamp(row[6]),
                     backup_size=row[7],
                     is_active=bool(row[8])
                 )
@@ -4008,7 +4081,7 @@ class DatabaseManager:
                     dll_filename=row[5],
                     backup_path=row[6],
                     original_version=row[7],
-                    backup_created_at=datetime.fromisoformat(row[8]),
+                    backup_created_at=db_timestamp(row[8]),
                     backup_size=row[9],
                     is_active=bool(row[10])
                 ))
@@ -4145,8 +4218,8 @@ class DatabaseManager:
                     path=row[2],
                     launcher=row[3],
                     steam_app_id=row[4],
-                    last_scanned=datetime.fromisoformat(row[5]),
-                    created_at=datetime.fromisoformat(row[6]),
+                    last_scanned=db_timestamp(row[5]),
+                    created_at=db_timestamp(row[6]),
                     resolution_source=row[7]
                 ))
 
@@ -4411,8 +4484,8 @@ class DatabaseManager:
                 path=row[2],
                 launcher=row[3],
                 steam_app_id=row[4],
-                last_scanned=datetime.fromisoformat(row[5]),
-                created_at=datetime.fromisoformat(row[6]),
+                last_scanned=db_timestamp(row[5]),
+                created_at=db_timestamp(row[6]),
                 resolution_source=row[7]
             ) for row in cursor.fetchall()]
 
@@ -4445,8 +4518,8 @@ class DatabaseManager:
                 path=row[2],
                 launcher=row[3],
                 steam_app_id=row[4],
-                last_scanned=datetime.fromisoformat(row[5]),
-                created_at=datetime.fromisoformat(row[6]),
+                last_scanned=db_timestamp(row[5]),
+                created_at=db_timestamp(row[6]),
                 resolution_source=row[7]
             ) for row in cursor.fetchall()]
 

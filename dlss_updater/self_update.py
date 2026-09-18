@@ -40,6 +40,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from pathlib import Path, PurePath
@@ -73,20 +74,23 @@ _PROGRESS_INTERVAL_BYTES = 512 * 1024
 # expanded into Program Files by the installer.
 _FREE_SPACE_MULTIPLIER = 3
 
-# msiexec exit codes that mean the install succeeded.
-_MSIEXEC_SUCCESS = frozenset((0, 1641, 3010))
-# msiexec's "a newer version is already installed" code.
-_MSIEXEC_DOWNGRADE = 1638
-
-# CreateProcess flags for the installer helper. It needs a console it never
-# shows (CREATE_NO_WINDOW) and must escape any job object that would kill it when
-# this process exits (CREATE_BREAKAWAY_FROM_JOB).
+# CreateProcess flags for msiexec. It must escape any job object that would kill
+# it when this process exits (CREATE_BREAKAWAY_FROM_JOB) and gets no console of
+# its own (CREATE_NO_WINDOW) - which does not touch its /qb progress window,
+# msiexec being a GUI application.
 #
 # Note DETACHED_PROCESS is deliberately NOT used: it is mutually exclusive with
 # CREATE_NO_WINDOW, and combining them produces a process with no console at all,
 # in which console-dependent child processes hang indefinitely.
 _CREATE_NO_WINDOW = 0x08000000
 _CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+
+# Prefix of the per-download temp directories, and how old one must be before a
+# later run treats it as abandoned. An install takes well under a minute, so an
+# hour is generous enough that a second instance can never delete an installer
+# that is still being applied.
+_DOWNLOAD_DIR_PREFIX = "dlss_updater_update_"
+_STALE_DOWNLOAD_AGE_SECONDS = 60 * 60
 
 
 class SelfUpdateStage(StrEnum):
@@ -189,6 +193,8 @@ class SelfUpdater:
         if not self.is_supported():
             logger.debug("Self-update not supported for this build - skipping check")
             return None
+
+        await self._sweep_stale_downloads()
 
         try:
             release = await fetch_latest_release()
@@ -341,11 +347,13 @@ class SelfUpdater:
     async def _prepare_target_dir(self, info: UpdateInfo) -> Path:
         """Choose and validate the download directory for this platform."""
         if self.applies_in_place:
-            # Windows: a private temp dir, removed by the installer helper.
+            # Windows: a private temp dir. Nothing outlives this process to
+            # clear it once msiexec is done, so it is swept by a later update
+            # check instead - see _sweep_stale_downloads().
             if self._temp_dir is None:
                 self._temp_dir = Path(
                     await anyio.to_thread.run_sync(
-                        lambda: tempfile.mkdtemp(prefix="dlss_updater_update_"),
+                        lambda: tempfile.mkdtemp(prefix=_DOWNLOAD_DIR_PREFIX),
                         limiter=thread_io,
                     )
                 )
@@ -387,9 +395,9 @@ class SelfUpdater:
     async def apply(self, path: Path, info: UpdateInfo) -> None:
         """Apply the downloaded update.
 
-        On Windows this spawns a detached helper and returns; **the caller must
-        then shut the application down**, because the helper waits for this
-        process to exit before running the installer. On Linux it reveals the
+        On Windows this launches msiexec and returns; **the caller must then
+        shut the application down promptly**, because the installer cannot
+        replace files this process still holds open. On Linux it reveals the
         downloaded bundle and returns - nothing is installed.
         """
         if sys.platform == "win32":
@@ -397,103 +405,119 @@ class SelfUpdater:
         else:
             await self._reveal(path)
 
-    async def _spawn_windows_installer(self, msi: Path, info: UpdateInfo) -> None:
-        """Write and launch the helper that installs the MSI after we exit.
+    async def _sweep_stale_downloads(self) -> None:
+        """Delete installers left behind by earlier updates.
 
-        The helper is an out-of-process script because the installer has to
-        replace the very executable that is running: it must outlive us, wait for
-        our PID to disappear, then reinstall and relaunch.
+        Nothing can clean up after msiexec any more: this process is gone long
+        before the install finishes, so the ~70MB MSI and its verbose log stay
+        in the temp directory they were downloaded to. The old PowerShell
+        helper deleted them because it outlived us; now the next update check
+        does it instead, which is the first moment this app is running again
+        and any earlier install is certainly over.
 
-        PowerShell rather than a batch file, deliberately. A ``.cmd`` helper has
-        to poll with ``tasklist | find`` and sleep with ``timeout``, and both of
-        those hang in a windowless process - verified the hard way: the helper
-        started, ``find.exe`` blocked forever, and the update silently never
-        installed. ``Wait-Process`` blocks on a real handle instead of polling,
-        and needs no console.
+        Never raises - a failed sweep is disk hygiene, not an update failure.
         """
-        exe = Path(sys.executable).resolve()
+        if not self.applies_in_place:
+            return
+
+        def _sweep() -> int:
+            removed = 0
+            cutoff = time.time() - _STALE_DOWNLOAD_AGE_SECONDS
+            for entry in Path(tempfile.gettempdir()).glob(f"{_DOWNLOAD_DIR_PREFIX}*"):
+                if entry == self._temp_dir or not entry.is_dir():
+                    continue
+                try:
+                    # The age guard is what makes this safe to run while another
+                    # instance may be mid-install: its directory is minutes old,
+                    # not hours.
+                    if entry.stat().st_mtime > cutoff:
+                        continue
+                except OSError:
+                    continue
+                shutil.rmtree(entry, ignore_errors=True)
+                removed += not entry.exists()
+            return removed
+
+        try:
+            removed = await anyio.to_thread.run_sync(_sweep, limiter=thread_io)
+        except Exception as e:
+            logger.debug(f"Could not sweep stale update downloads: {e}")
+            return
+        if removed:
+            logger.info(f"Cleaned up {removed} leftover update download(s)")
+
+    @staticmethod
+    def _msiexec_path() -> str:
+        """Absolute path to msiexec, so PATH cannot decide what we execute."""
+        system_root = os.environ.get("SystemRoot")
+        if system_root:
+            candidate = Path(system_root) / "System32" / "msiexec.exe"
+            if candidate.exists():
+                return str(candidate)
+        return "msiexec.exe"
+
+    async def _spawn_windows_installer(self, msi: Path, info: UpdateInfo) -> None:
+        """Launch msiexec detached, for the caller to then shut the app down.
+
+        No helper process, and deliberately no PowerShell. The previous design
+        wrote ``apply_update.ps1`` beside the downloaded installer and ran it
+        with ``-ExecutionPolicy Bypass -WindowStyle Hidden`` so it could wait
+        for this process to exit, install, and relaunch us. Feature for feature
+        that is a dropper - an unsigned binary fetching an executable payload,
+        dropping a script next to it and running it hidden with the execution
+        policy overridden - and Defender's ML classifier scored it as one:
+        5.0.2 drew a Trojan:Script/Wacatac.C!ml verdict on DLSS_Updater.exe
+        within hours of release (issue #306).
+
+        Windows Installer does not need any of it. msiexec outlives us on its
+        own, and its Restart Manager integration handles files that are still
+        open when it reaches InstallValidate.
+
+        The cost is the relaunch: nothing is left running to start the new
+        build, so the app does not reappear by itself after an update. Restart
+        Manager cannot stand in for it either - ``RmRestart`` only restarts
+        applications that registered via ``RegisterApplicationRestart`` AND run
+        as the logged-on user, and this app relaunches itself elevated.
+
+        Races with our own shutdown are benign: if this process still holds its
+        files when msiexec gets there, the installer's own files-in-use handling
+        takes over, which is a prompt rather than a failed install.
+        """
         log_path = msi.with_suffix(".install.log")
-        script = msi.parent / "apply_update.ps1"
-        pid = os.getpid()
 
-        # /qb (basic UI) rather than /qn: the app has exited by then, so a silent
-        # install would leave the user staring at nothing for ~20 seconds with no
-        # indication that anything is happening.
+        # /qb (basic UI) rather than /qn: the app exits immediately afterwards,
+        # so a silent install would leave the user staring at nothing for ~20
+        # seconds with no indication that anything is happening.
         #
-        # Single-quoted PowerShell literals: paths may contain spaces (Briefcase
-        # names the MSI "DLSS Updater-X.Y.Z.msi") and must not be re-interpreted.
-        # Any embedded quote is doubled per PowerShell's escaping rules.
-        def ps_str(value) -> str:
-            return "'" + str(value).replace("'", "''") + "'"
-
-        script_body = f"""$ErrorActionPreference = 'Continue'
-$msi = {ps_str(msi)}
-$exe = {ps_str(exe)}
-$log = {ps_str(log_path)}
-$self = $MyInvocation.MyCommand.Path
-
-# Wait for DLSS Updater to exit so its files unlock. The timeout means a wedged
-# process delays the update rather than blocking forever; if it is still alive
-# after that, msiexec's own file-in-use handling takes over.
-try {{ Wait-Process -Id {pid} -Timeout 120 -ErrorAction Stop }} catch {{ }}
-
-$rc = 1
-try {{
-    $p = Start-Process msiexec.exe -ArgumentList @(
-        '/i', ('"' + $msi + '"'), '/qb', '/norestart', '/l*v', ('"' + $log + '"')
-    ) -Wait -PassThru
-    $rc = $p.ExitCode
-}} catch {{
-    $rc = -1
-}}
-
-# 1638 means a same-or-newer version is already installed - nothing to do but
-# start what is there. On any other failure the MSI and verbose log are left in
-# place for diagnosis, and the existing install is relaunched so the user is
-# never left with no application at all.
-$ok = @(0, 1641, 3010) -contains $rc
-if ($rc -eq {_MSIEXEC_DOWNGRADE}) {{ $ok = $true }}
-
-if (Test-Path $exe) {{ Start-Process -FilePath $exe | Out-Null }}
-
-if ($ok) {{
-    Remove-Item -LiteralPath $msi -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $self -Force -ErrorAction SilentlyContinue
-}}
-exit $rc
-"""
-
-        await anyio.to_thread.run_sync(
-            lambda: script.write_text(script_body, encoding="utf-8"), limiter=thread_io
-        )
-
+        # Arguments go through the list form, so paths containing spaces (and
+        # Briefcase names the MSI "DLSS Updater-X.Y.Z.msi") are quoted by
+        # subprocess rather than by hand.
+        command = [
+            self._msiexec_path(),
+            "/i", str(msi),
+            "/qb",
+            "/norestart",
+            "/l*v", str(log_path),
+        ]
         logger.info(
-            f"Launching installer helper for {info.latest_version}: {script} "
+            f"Launching installer for {info.latest_version}: {msi} "
             f"(msiexec log: {log_path})"
         )
-        command = [
-            "powershell.exe",
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy", "Bypass",
-            "-WindowStyle", "Hidden",
-            "-File", str(script),
-        ]
         await anyio.to_thread.run_sync(
             lambda: self._popen_detached(command), limiter=thread_io
         )
 
     @staticmethod
     def _popen_detached(command: list[str]) -> subprocess.Popen:
-        """Start a process that outlives this one, with no visible window.
+        """Start a process that outlives this one, with no console of its own.
 
         ``CREATE_NO_WINDOW`` gives the child a console it simply never shows -
         which is what console-dependent tooling needs - and is mutually exclusive
         with ``DETACHED_PROCESS``; passing both yields a process with NO console
-        at all, where the helper's own child processes can hang.
+        at all, where the child's own child processes can hang.
 
         ``CREATE_BREAKAWAY_FROM_JOB`` escapes a job object that would otherwise
-        kill the helper when this process dies, but CreateProcess REFUSES it
+        kill the installer when this process dies, but CreateProcess REFUSES it
         outright when the current job disallows breakaway, so it is attempted
         first and dropped if rejected.
         """
@@ -510,7 +534,7 @@ exit $rc
                 **kwargs,
             )
         except OSError as e:
-            logger.info(f"Job breakaway refused ({e}); starting helper without it")
+            logger.info(f"Job breakaway refused ({e}); starting installer without it")
             return subprocess.Popen(
                 command, creationflags=_CREATE_NO_WINDOW, **kwargs
             )

@@ -5,7 +5,9 @@ digest verification and the capability gates, not GitHub connectivity.
 """
 
 import hashlib
+import os
 import sys
+import time
 from pathlib import Path, PurePosixPath
 
 import pytest
@@ -364,40 +366,109 @@ def test_downloads_dir_defaults_to_home(monkeypatch):
 # =============================================================================
 
 
-@pytest.mark.anyio
-async def test_helper_script_is_powershell_and_waits_without_polling(tmp_path, monkeypatch):
-    """Regression: the original batch helper hung forever in a windowless process.
+def _spy_on_spawn(monkeypatch) -> dict:
+    """Capture the command handed to _popen_detached."""
+    spawned = {}
+    monkeypatch.setattr(
+        SelfUpdater, "_popen_detached", staticmethod(lambda cmd: spawned.update(cmd=cmd))
+    )
+    return spawned
 
-    ``tasklist | find`` and ``timeout`` all require a console; spawned without
-    one, ``find.exe`` blocked indefinitely and the update silently never
-    installed. The helper must wait on a handle (``Wait-Process``) instead.
+
+@pytest.mark.anyio
+async def test_installer_is_msiexec_invoked_directly(tmp_path, monkeypatch):
+    """msiexec outlives us by itself, so there is no helper process at all.
+
+    Its Restart Manager integration deals with files this process still holds
+    when it gets there, which is what the old wait-for-our-PID helper existed
+    to avoid.
     """
     monkeypatch.setattr(sys, "platform", "win32")
     msi = tmp_path / "DLSS Updater-4.6.0.msi"       # space is deliberate
     msi.write_bytes(b"x")
 
-    spawned = {}
-    monkeypatch.setattr(
-        SelfUpdater, "_popen_detached", staticmethod(lambda cmd: spawned.update(cmd=cmd))
-    )
-
+    spawned = _spy_on_spawn(monkeypatch)
     await SelfUpdater()._spawn_windows_installer(msi, _info(""))
 
-    script = tmp_path / "apply_update.ps1"
-    assert script.exists(), "helper should be a .ps1, not a .cmd"
-    body = script.read_text(encoding="utf-8")
+    cmd = spawned["cmd"]
+    assert Path(cmd[0]).name.lower() == "msiexec.exe"
+    assert Path(cmd[0]).is_absolute(), "PATH must not decide what gets executed"
+    # Paths are passed as list elements, so subprocess quotes the spaces.
+    assert cmd[1:] == [
+        "/i", str(msi),
+        "/qb",                                      # never /qn: no UI at all
+        "/norestart",
+        "/l*v", str(msi.with_suffix(".install.log")),
+    ]
 
-    assert "Wait-Process" in body
-    for banned in ("tasklist", "timeout /t", "find "):
-        assert banned not in body, f"{banned!r} needs a console and hangs without one"
 
-    # Paths containing spaces must survive as single quoted literals.
-    assert f"'{msi}'" in body
+@pytest.mark.anyio
+async def test_no_script_is_dropped_and_no_shell_is_involved(tmp_path, monkeypatch):
+    """Regression guard for issue #306.
 
-    # Invoked through powershell with policy bypassed and no window.
-    assert spawned["cmd"][0] == "powershell.exe"
-    assert "-ExecutionPolicy" in spawned["cmd"] and "Bypass" in spawned["cmd"]
-    assert str(script) in spawned["cmd"]
+    Dropping a .ps1 beside a freshly downloaded installer and running it with
+    ``-ExecutionPolicy Bypass -WindowStyle Hidden`` is the shape of a dropper,
+    and Defender's ML scored it as one. None of it may come back.
+    """
+    monkeypatch.setattr(sys, "platform", "win32")
+    msi = tmp_path / "DLSS Updater-4.6.0.msi"
+    msi.write_bytes(b"x")
+
+    spawned = _spy_on_spawn(monkeypatch)
+    await SelfUpdater()._spawn_windows_installer(msi, _info(""))
+
+    assert list(tmp_path.glob("*.ps1")) == [], "nothing may be written to disk"
+    joined = " ".join(spawned["cmd"]).lower()
+    for banned in ("powershell", "cmd.exe", "-executionpolicy", "bypass", "-windowstyle"):
+        assert banned not in joined, f"{banned!r} reintroduces a dropper signal"
+
+
+@pytest.mark.anyio
+async def test_stale_downloads_are_swept_on_the_next_check(tmp_path, monkeypatch):
+    """Nothing outlives us to delete the MSI, so a later check does it.
+
+    Only directories old enough that no install can still be running are
+    removed, and never the one this instance is using.
+    """
+    from dlss_updater import self_update as su
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(su.tempfile, "gettempdir", lambda: str(tmp_path))
+
+    old = tmp_path / f"{su._DOWNLOAD_DIR_PREFIX}old"
+    recent = tmp_path / f"{su._DOWNLOAD_DIR_PREFIX}recent"
+    mine = tmp_path / f"{su._DOWNLOAD_DIR_PREFIX}mine"
+    unrelated = tmp_path / "someone_elses_temp_dir"
+    for d in (old, recent, mine, unrelated):
+        d.mkdir()
+        (d / "installer.msi").write_bytes(b"x")
+
+    stale = time.time() - su._STALE_DOWNLOAD_AGE_SECONDS - 60
+    os.utime(old, (stale, stale))
+    os.utime(mine, (stale, stale))      # old enough, but in use by this instance
+
+    updater = SelfUpdater()
+    updater._temp_dir = mine
+    await updater._sweep_stale_downloads()
+
+    assert not old.exists(), "an abandoned download should be cleaned up"
+    assert recent.exists(), "a download minutes old may still be installing"
+    assert mine.exists(), "never delete the directory this instance is using"
+    assert unrelated.exists(), "only our own download directories are touched"
+
+
+@pytest.mark.anyio
+async def test_sweep_never_breaks_the_update_check(tmp_path, monkeypatch):
+    """Disk hygiene must not turn into an update failure."""
+    from dlss_updater import self_update as su
+
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    def boom():
+        raise OSError("temp is not readable")
+
+    monkeypatch.setattr(su.tempfile, "gettempdir", boom)
+    await SelfUpdater()._sweep_stale_downloads()   # must not raise
 
 
 def test_detached_spawn_never_combines_no_window_with_detached_process(monkeypatch):
@@ -443,22 +514,26 @@ def test_detached_spawn_retries_without_breakaway_when_refused(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_helper_handles_downgrade_and_failure_exit_codes(tmp_path, monkeypatch):
-    """1638 is benign; any other failure still relaunches the existing install."""
+async def test_verbose_install_log_sits_next_to_the_installer(tmp_path, monkeypatch):
+    """The only diagnostic left once the helper is gone.
+
+    Nothing of ours observes msiexec's exit code any more - /qb reports failures
+    to the user directly - so the verbose log is what a bug report can attach.
+    It must survive the download directory being swept, which is why it is
+    written beside the MSI rather than into it.
+    """
     monkeypatch.setattr(sys, "platform", "win32")
     msi = tmp_path / "x.msi"
     msi.write_bytes(b"x")
-    monkeypatch.setattr(SelfUpdater, "_popen_detached", staticmethod(lambda cmd: None))
+    spawned = _spy_on_spawn(monkeypatch)
 
     await SelfUpdater()._spawn_windows_installer(msi, _info(""))
-    body = (tmp_path / "apply_update.ps1").read_text(encoding="utf-8")
 
-    assert "1638" in body                       # downgrade treated as success
-    assert "0, 1641, 3010" in body              # reboot codes treated as success
-    # The app is restarted on every path, so a failed update never leaves the
-    # user with no application.
-    assert body.count("Start-Process -FilePath $exe") == 1
-    assert "if (Test-Path $exe)" in body
+    cmd = spawned["cmd"]
+    assert "/l*v" in cmd
+    log = Path(cmd[cmd.index("/l*v") + 1])
+    assert log == msi.with_suffix(".install.log")
+    assert log.parent == msi.parent
 
 
 def test_install_command_quotes_the_path():

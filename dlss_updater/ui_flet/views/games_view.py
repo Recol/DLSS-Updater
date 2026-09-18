@@ -452,6 +452,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         get_scope=None,
         on_scope_changed=None,
         on_ignore_changed=None,
+        on_rescanned=None,
     ):
         super().__init__()
         self._page_ref = page
@@ -470,6 +471,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Fire-and-forget: a failed recount leaves a stale pill, never a
         # blocked toggle.
         self._on_ignore_changed = on_ignore_changed
+        # Told when the refresh button re-verifies the library, so the Hub's
+        # own "scanned Xm ago" (read from scan_cache.json, not the database)
+        # does not sit a day behind the Games header saying "scanned 0m ago".
+        self._on_rescanned = on_rescanned
         self.expand = True
         self.spacing = 0
 
@@ -2355,7 +2360,26 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         # Refresh DLL versions from filesystem before rebuilding cards
         # This ensures the DB has current versions after any external updates
+        game_ids = list(self.game_cards.keys())
         await self.refresh_all_badges()
+
+        # A refresh counts as a scan. It re-reads every known DLL from disk,
+        # which is precisely the freshness "scanned Xd ago" reports - but only
+        # the scan upserts wrote last_scanned, so the header used to sit at
+        # "scanned 3d ago" however many times the button was pressed. Stamped
+        # BEFORE the reload below, so load_games() reads the new timestamps
+        # back out of the database rather than showing the old ones.
+        if game_ids:
+            try:
+                await db_manager.mark_games_scanned(game_ids)
+            except Exception as ex:
+                self.logger.warning(f"Could not record the refresh as a scan: {ex}")
+
+        if self._on_rescanned is not None:
+            try:
+                await self._on_rescanned()
+            except Exception as ex:
+                self.logger.warning(f"Could not update the scan timestamp: {ex}")
 
         # Force=True to bypass the "already loaded" optimization
         await self.load_games(force=True)
@@ -2365,9 +2389,17 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         Uses only already-loaded game data (no new query). Mirrors the hub's format
         (m/h/d). Returns None if no games are loaded or the timestamps are unusable.
+
+        ``Game.last_scanned`` is naive LOCAL time: the column itself is written
+        by SQLite's ``CURRENT_TIMESTAMP`` and is therefore UTC, and
+        ``database.db_timestamp()`` converts it at the point rows become models.
+        Comparing it against a local ``datetime.now()`` is only correct because
+        of that - before the conversion existed, this header added the local UTC
+        offset to every age and could never read fresher than "scanned 1h ago"
+        in BST.
         """
         try:
-            from datetime import datetime
+            from datetime import datetime, timedelta
 
             latest = None
             for games in self.games_by_launcher.values():
@@ -2378,6 +2410,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
             if latest is None:
                 return None
             age = datetime.now() - latest
+            # A clock adjustment between the scan and now can still land in the
+            # future; report that as "just now" rather than a negative count.
+            if age.total_seconds() < 0:
+                age = timedelta(0)
             hours = age.total_seconds() / 3600
             if hours < 1:
                 return f"scanned {int(age.total_seconds() / 60)}m ago"

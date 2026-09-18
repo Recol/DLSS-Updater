@@ -1,7 +1,12 @@
 """Build-time helpers shared by the Windows PyInstaller spec files.
 
-Exists for one job: make sure the Flet desktop client ships *inside* the
-build instead of being downloaded on first launch.
+Two jobs: bundle the Flet desktop client, and stamp the Windows version
+resource onto the executable.
+
+--- The Flet desktop client ---
+
+Make sure the client ships *inside* the build instead of being downloaded on
+first launch.
 
 `flet_desktop` publishes no client binary in its wheel - the package is two
 Python files. At startup `flet_desktop.ensure_client_cached()` resolves the
@@ -30,6 +35,12 @@ the user) and in a onefile build's fresh ``_MEIPASS`` that write can never
 stick, so every launch would pay the full hash. The sidecar is therefore
 computed here, at build time, and shipped beside the archive.
 
+--- The Windows version resource ---
+
+`windows_version_info()` builds the VS_VERSIONINFO that both Windows specs
+stamp onto DLSS_Updater.exe. See its docstring for why an executable with no
+publisher metadata is a liability.
+
 Run directly to fetch the archive into the build cache:
 
     uv run python build_support.py
@@ -38,6 +49,7 @@ Run directly to fetch the archive into the build cache:
 from __future__ import annotations
 
 import hashlib
+import re
 import shutil
 import sys
 import tempfile
@@ -200,6 +212,117 @@ def flet_client_datas() -> list[tuple[str, str]]:
         )
     sidecar = ensure_fingerprint_sidecar(archive)
     return [(str(archive), "flet_desktop/app"), (str(sidecar), "flet_desktop/app")]
+
+
+# =============================================================================
+# Windows version resource
+# =============================================================================
+
+# Fixed publisher metadata. Kept here rather than read from pyproject.toml so
+# the spec has no TOML dependency at Analysis time; only the version number
+# actually changes between releases, and that IS read from the source of truth.
+_COMPANY_NAME = "Recol (Deco)"
+_PRODUCT_NAME = "DLSS Updater"
+_FILE_DESCRIPTION = "DLSS, XeSS, DirectStorage, FSR and Streamline DLL updater for games"
+_COPYRIGHT = "Copyright (C) 2024-2026 Recol (Deco). Licensed under AGPL-3.0-only."
+_ORIGINAL_FILENAME = "DLSS_Updater.exe"
+
+
+def app_version() -> str:
+    """``__version__`` from dlss_updater/version.py, read without importing it.
+
+    Parsed rather than imported so the spec never pays for (or fails on) the
+    package's import side effects during Analysis. version.py is the release
+    checklist's first entry, which makes it the right single source.
+    """
+    source = (REPO_ROOT / "dlss_updater" / "version.py").read_text(encoding="utf-8")
+    match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', source)
+    if not match:
+        raise SystemExit(
+            "Could not read __version__ from dlss_updater/version.py - "
+            "the Windows version resource cannot be built."
+        )
+    return match.group(1)
+
+
+def _version_tuple(version: str) -> tuple[int, int, int, int]:
+    """``"5.0.2"`` -> ``(5, 0, 2, 0)``.
+
+    VS_FIXEDFILEINFO is four 16-bit words, always - a short version is padded
+    and a suffixed component ("1.2.3rc1") keeps only its leading digits, since
+    anything non-numeric there would abort the build over cosmetic metadata.
+    """
+    parts: list[int] = []
+    for piece in version.split(".")[:4]:
+        digits = re.match(r"\d+", piece)
+        parts.append(int(digits.group()) if digits else 0)
+    parts.extend([0] * (4 - len(parts)))
+    return tuple(parts)  # type: ignore[return-value]
+
+
+def windows_version_info():
+    """The VS_VERSIONINFO resource for DLSS_Updater.exe.
+
+    Why this exists: the shipped executable is unsigned, and before this it
+    also carried no version resource at all - no CompanyName, no ProductName,
+    no FileVersion. That leaves Windows Defender's ML classifier with nothing
+    to anchor on beyond a brand-new PyInstaller bootloader with no prevalence,
+    which is how 5.0.2 drew a Trojan:Script/Wacatac.C!ml verdict hours after
+    release (issue #306). Publisher metadata is not a substitute for a
+    signature, but it is the part that costs nothing.
+
+    It also fixes the visible symptoms of the same gap: the Properties dialog
+    shows a version, Task Manager shows a description instead of the bare file
+    name, and the AUMID work in build_msi.ps1 gets a properly labelled window.
+
+    Returned as a ``VSVersionInfo`` instance rather than a generated text file
+    because ``EXE(version=...)`` accepts either (PyInstaller 6.x), and an
+    object cannot desync from version.py the way a checked-in file would.
+    """
+    # Imported lazily: this module is also run standalone (``python
+    # build_support.py``) to prime the client cache, where PyInstaller's
+    # Windows-only helpers need not be importable.
+    from PyInstaller.utils.win32.versioninfo import (
+        FixedFileInfo,
+        StringFileInfo,
+        StringStruct,
+        StringTable,
+        VarFileInfo,
+        VarStruct,
+        VSVersionInfo,
+    )
+
+    version = app_version()
+    numeric = _version_tuple(version)
+
+    return VSVersionInfo(
+        ffi=FixedFileInfo(
+            filevers=numeric,
+            prodvers=numeric,
+            mask=0x3F,
+            flags=0x0,
+            OS=0x40004,     # VOS_NT_WINDOWS32
+            fileType=0x1,   # VFT_APP
+            subtype=0x0,
+        ),
+        kids=[
+            # 0409 = en-US, 04B0 = 1200 = Unicode. The StringTable key and the
+            # Translation pair below must agree, or Explorer reads neither.
+            StringFileInfo([
+                StringTable("040904B0", [
+                    StringStruct("CompanyName", _COMPANY_NAME),
+                    StringStruct("FileDescription", _FILE_DESCRIPTION),
+                    StringStruct("FileVersion", version),
+                    StringStruct("InternalName", _PRODUCT_NAME),
+                    StringStruct("LegalCopyright", _COPYRIGHT),
+                    StringStruct("OriginalFilename", _ORIGINAL_FILENAME),
+                    StringStruct("ProductName", _PRODUCT_NAME),
+                    StringStruct("ProductVersion", version),
+                ]),
+            ]),
+            VarFileInfo([VarStruct("Translation", [0x0409, 1200])]),
+        ],
+    )
 
 
 if __name__ == "__main__":

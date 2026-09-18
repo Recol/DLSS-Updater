@@ -36,6 +36,7 @@ import anyio
 import msgspec
 
 from dlss_updater.concurrency_limiters import thread_cpu
+from dlss_updater.database import db_timestamp
 from dlss_updater.logger import setup_logger
 from dlss_updater.models import Game
 
@@ -775,7 +776,10 @@ class GameSearchService:
             for row in db_history:
                 entries.append(SearchHistoryEntry(
                     query=row['query'],
-                    timestamp=datetime.fromisoformat(row['timestamp']),
+                    # search_history.timestamp is CURRENT_TIMESTAMP, i.e. UTC,
+                    # while the in-memory entries this cache is merged with are
+                    # built from a local datetime.now() (see add_to_history).
+                    timestamp=db_timestamp(row['timestamp']),
                     launcher=row.get('launcher'),
                     result_count=row.get('result_count', 0)
                 ))

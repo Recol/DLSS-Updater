@@ -64,6 +64,36 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="5.0.3" date="2026-09-18">
+      <description>
+        <p>Scan and backup times now respect your timezone</p>
+        <ul>
+          <li>"scanned 3d ago" in the Games header, and the times shown against your backups, were out by your offset from UTC. Stored times were being read as if they were local, so a scan could never look fresher than an hour old in the UK or two in most of Europe, and further west the count ran backwards. Everything that shows a stored time now converts it first, so the Games header, the Hub and the backup lists agree with each other and with the clock</li>
+          <li>The refresh button in the Games library now counts as a scan. It re-reads every DLL your library knows about from disk, which is exactly what "scanned X ago" reports, but only a full scan ever updated that timestamp</li>
+        </ul>
+      </description>
+    </release>
+    <release version="5.0.2" date="2026-09-17">
+      <description>
+        <p>Updated to Flet 1.0</p>
+        <ul>
+          <li>Updated the Flet UI framework from 0.86.5 to 1.0.0, its first stable release. Text fields and dropdowns were moved to Flet 1.0's new border styling and keep exactly the look they had</li>
+          <li>The window now reports itself as DLSS Updater instead of "flet", so desktops that match windows by their class show the right name and icon in the taskbar and window switcher</li>
+          <li>The search boxes in the Blacklist and Ignore List panels have a visible outline in dark mode. It was drawn black before, so the box blended into the background</li>
+        </ul>
+      </description>
+    </release>
+    <release version="5.0.1" date="2026-09-09">
+      <description>
+        <p>Ignored games no longer count as needing updates</p>
+        <ul>
+          <li>Ignoring a game already stopped it being updated, but every count still included it, so "Update all (11)" could run on eight games. The Games header and its status chips, the Hub's "N games need updates" pill and CTA, and the app bar's update pill now all leave ignored games out, and react the moment a game is ignored rather than on the next reload</li>
+          <li>"Has backups" deliberately still counts ignored games, because restoring one is still something you can do. The Games header now also reports how many games are ignored, so a count that no longer covers the whole library explains itself</li>
+          <li>"Hide ignored games" now stays hidden. Cards created after the toggle was set came back visible — on a large library the games loaded in the background after the first screenful ignored the filter entirely, and any rebuild brought every ignored game back. The search box and status filter chips were losing their filtering the same way on a rebuild</li>
+          <li>"Hide ignored games" is remembered between sessions, like the sort order and card size it sits beside in the same menu. New installs still show ignored games, dimmed</li>
+        </ul>
+      </description>
+    </release>
     <release version="5.0.0" date="2026-09-06">
       <description>
         <p>Support for DLSS 5 Neural Rendering</p>

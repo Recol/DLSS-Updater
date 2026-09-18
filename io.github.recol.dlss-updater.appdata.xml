@@ -64,6 +64,16 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="5.0.3" date="2026-09-18">
+      <description>
+        <p>Scan and backup times now respect your timezone</p>
+        <ul>
+          <li>"scanned 3d ago" in the Games header, and the times shown against your backups, were out by your offset from UTC. Stored times were being read as if they were local, so a scan could never look fresher than an hour old in the UK or two in most of Europe, and further west the count ran backwards. Everything that shows a stored time now converts it first, so the Games header, the Hub and the backup lists agree with each other and with the clock</li>
+          <li>The refresh button in the Games library now counts as a scan. It re-reads every DLL your library knows about from disk, which is exactly what "scanned X ago" reports, but only a full scan ever updated that timestamp</li>
+          <li>Windows only: updates install through Windows Installer directly instead of a PowerShell helper script, which is what Defender was flagging as a threat in 5.0.2. The app no longer restarts itself once an update finishes - open it again from the Start Menu. The Windows executable also carries proper publisher details now, and downloaded installers are cleaned up afterwards</li>
+        </ul>
+      </description>
+    </release>
     <release version="5.0.2" date="2026-09-17">
       <description>
         <p>Updated to Flet 1.0</p>

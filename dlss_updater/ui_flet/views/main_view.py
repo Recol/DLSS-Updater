@@ -342,6 +342,7 @@ class MainView(ft.Column):
             get_scope=self._effective_scope,
             on_scope_changed=self._set_update_scope,
             on_ignore_changed=self.refresh_update_status_pill,
+            on_rescanned=self._mark_library_rescanned,
         )
 
         # Create backups view
@@ -2939,6 +2940,23 @@ class MainView(ft.Column):
             self.logger.warning(f"Failed to load scan cache: {e}")
             self.last_scan_results = None
             self.last_scan_timestamp = None
+
+    async def _mark_library_rescanned(self):
+        """Re-stamp the scan cache after the Games view re-verified the library.
+
+        The two "scanned Xm ago" labels read different sources - the Games
+        header derives it from ``games.last_scanned``, the Hub from this cache
+        file - so stamping only the database would leave the Hub a day behind
+        the Games view the moment anyone pressed refresh.
+
+        The cached ``scan_results`` are re-saved unchanged: a refresh re-reads
+        the DLLs at the paths a scan found, so it re-verifies that mapping
+        rather than replacing it. With nothing cached there is no scan to
+        re-stamp, and the Hub keeps its "no games scanned yet" state.
+        """
+        if not self.last_scan_results:
+            return
+        await self._save_scan_cache()
 
     async def _save_scan_cache(self):
         """Save scan results to disk for persistence across app restarts"""

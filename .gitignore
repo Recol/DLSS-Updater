@@ -18,6 +18,7 @@ flet-linux.tar.gz
 appimagetool-x86_64.AppImage
 *.dist/
 dist/
+.mcp.json
 
 # Flatpak build artifacts
 .flatpak-builder/

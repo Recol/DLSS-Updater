@@ -1,3 +1,43 @@
+Version 5.0.3:
+Fixed:
+  - "scanned 3d ago" in the Games header, and the times shown against your
+    backups, were out by your timezone. Scan times are stored in UTC and were
+    being read as if they were local, so the age of a scan was inflated by
+    your offset from UTC - the header could never say a scan was fresher than
+    an hour old in the UK, two hours in most of Europe, and further west it
+    counted backwards. Everything that shows a stored time now converts it
+    first, so the Games header, the Hub and the backup lists agree with each
+    other and with the clock.
+
+  - The refresh button in the Games library now counts as a scan. It re-reads
+    every DLL your library knows about from disk, which is exactly what the
+    "scanned X ago" line reports, but only a full scan ever updated that
+    timestamp - so the counter sat unchanged however many times you pressed
+    refresh.
+
+Changed:
+  - Updates now install through Windows Installer directly instead of a
+    PowerShell helper script. DLSS Updater is unsigned, and an unsigned
+    program that downloads an installer, writes a script next to it and runs
+    that script hidden with the execution policy switched off looks, feature
+    for feature, like malware - which is how 5.0.2 came to be flagged as
+    Trojan:Script/Wacatac.C!ml by Windows Defender within hours of release
+    (issue #306). None of that is needed: msiexec can outlive the app on its
+    own. Nothing is written to disk and no shell is involved any more.
+
+    One thing changes for you: the app no longer restarts itself once an
+    update finishes. Open it again from the Start Menu.
+
+  - The Windows executable now carries proper publisher details - product
+    name, version, company and copyright - visible in its Properties dialog
+    and in Task Manager. It shipped with none of them, which left Defender
+    with nothing to identify the program by beyond a brand-new file it had
+    never seen before. It is not a substitute for signing, but it is the part
+    that costs nothing.
+
+  - Installers downloaded by the in-app updater are cleaned up on the next
+    update check, rather than being left in your temp folder.
+
 Version 5.0.2:
 Improved:
   - Updated the Flet UI framework from 0.86.5 to 1.0.0, its first stable

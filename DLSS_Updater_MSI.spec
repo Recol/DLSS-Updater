@@ -9,7 +9,7 @@ import sys
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 sys.path.insert(0, os.path.abspath(SPECPATH))
-from build_support import flet_client_datas
+from build_support import flet_client_datas, windows_version_info
 
 block_cipher = None
 
@@ -91,6 +91,11 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='dlss_updater/icons/dlss_updater.ico',
+    # Publisher metadata (CompanyName/ProductName/FileVersion/...) built from
+    # dlss_updater/version.py at build time. An executable with no version
+    # resource gives Defender's ML nothing to anchor on - see issue #306 and
+    # build_support.windows_version_info().
+    version=windows_version_info(),
 )
 
 coll = COLLECT(
