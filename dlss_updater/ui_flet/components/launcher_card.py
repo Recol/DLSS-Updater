@@ -34,6 +34,7 @@ from dlss_updater.ui_flet.components.hero_surface import (
     themed_accent,
 )
 from dlss_updater.ui_flet.components.slide_panel import PanelManager
+from dlss_updater.ui_flet.components.snackbar import show_snackbar
 
 # ==================== BANNER GEOMETRY ====================
 # Fixed banner height (top identity zone) — big enough for the large brand
@@ -647,11 +648,10 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
         if path in self.current_paths:
             self.current_paths.remove(path)
 
-        # Update UI
-        await self._update_paths_display()
+        # Update UI. Configured-state first: _update_paths_display() ends with
+        # the card's single self.update(), which flushes both.
         self._apply_configured_state(self._registry.is_dark)
-        if self._attached:
-            self.update()
+        await self._update_paths_display()
 
         # Notify parent to show rescan prompt (with undo context)
         if self.on_path_removed_callback:
@@ -722,14 +722,13 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
         # Get theme state
         is_dark = self._registry.is_dark
 
-        # Update paths display (also refreshes the header pill + tooltip)
-        await self._update_paths_display()
-
-        # Dim/restore the hero shell for the (possibly new) configured state
+        # Dim/restore the hero shell for the (possibly new) configured state.
+        # Done before _update_paths_display(), whose trailing self.update()
+        # flushes both in one pass.
         self._apply_configured_state(is_dark)
 
-        if self._attached:
-            self.update()
+        # Update paths display (also refreshes the header pill + tooltip)
+        await self._update_paths_display()
 
     # Keep set_path for backward compatibility
     async def set_path(self, path: str):
@@ -787,17 +786,17 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
             paths_text = "\n".join(self.current_paths)
             try:
                 await ft.Clipboard().set(paths_text)
-                self._page_ref.snack_bar = ft.SnackBar(ft.Text("Paths copied to clipboard"))
-                self._page_ref.snack_bar.open = True
-                self._page_ref.update()
             except Exception as ex:
                 self.logger.warning(f"Clipboard operation failed: {ex}")
-                self._page_ref.snack_bar = ft.SnackBar(
-                    ft.Text("Failed to copy to clipboard"),
-                    bgcolor=ft.Colors.ERROR,
+                show_snackbar(
+                    self._page_ref, "Failed to copy to clipboard",
+                    tone="error", is_dark=self._registry.is_dark,
                 )
-                self._page_ref.snack_bar.open = True
-                self._page_ref.update()
+            else:
+                show_snackbar(
+                    self._page_ref, "Paths copied to clipboard",
+                    tone="success", is_dark=self._registry.is_dark,
+                )
 
     async def _on_open_explorer(self, e):
         """Open first path in file manager (cross-platform, non-blocking)"""
@@ -819,14 +818,19 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
                     )
             except Exception as ex:
                 self.logger.error(f"Failed to open path in file manager: {ex}")
-                self._page_ref.snack_bar = ft.SnackBar(ft.Text(f"Could not open: {path}"))
-                self._page_ref.snack_bar.open = True
-                self._page_ref.update()
+                show_snackbar(
+                    self._page_ref, f"Could not open: {path}",
+                    tone="error", is_dark=self._registry.is_dark,
+                )
 
     async def _on_auto_detect(self, e):
         """Attempt to auto-detect launcher path (offloads blocking scan to thread pool)"""
         from dlss_updater.scanner import auto_detect_launcher_path, auto_detect_steam_library_paths
 
+        # Card changes below are flushed by _update_paths_display()'s own
+        # self.update(); the snackbar goes through page.show_dialog().
+        # (page.snack_bar does not exist in Flet 1.0 — writes to it were dead.)
+        tone = "info"
         if self.launcher_enum == LauncherPathName.STEAM:
             # Steam: detect all library folders via libraryfolders.vdf
             detected_paths = await anyio.to_thread.run_sync(
@@ -839,14 +843,15 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
                         self.current_paths.append(path)
                         added_count += 1
                 if added_count > 0:
-                    await self._update_paths_display()
                     self._apply_configured_state(self._registry.is_dark)
+                    await self._update_paths_display()
                     msg = f"Detected {added_count} Steam library path(s)"
+                    tone = "success"
                 else:
                     msg = "All detected paths already configured"
-                self._page_ref.snack_bar = ft.SnackBar(ft.Text(msg))
             else:
-                self._page_ref.snack_bar = ft.SnackBar(ft.Text("Could not auto-detect Steam paths"))
+                msg = "Could not auto-detect Steam paths"
+                tone = "error"
         else:
             # Other launchers: single registry-based detection
             detected = await anyio.to_thread.run_sync(
@@ -856,17 +861,16 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
                 added = config_manager.add_launcher_path(self.launcher_enum, detected)
                 if added:
                     self.current_paths.append(detected)
-                    await self._update_paths_display()
                     self._apply_configured_state(self._registry.is_dark)
-                    self._page_ref.snack_bar = ft.SnackBar(ft.Text(f"Detected: {detected}"))
+                    await self._update_paths_display()
+                    msg = f"Detected: {detected}"
+                    tone = "success"
                 else:
-                    self._page_ref.snack_bar = ft.SnackBar(ft.Text("Path already configured or at limit"))
+                    msg = "Path already configured or at limit"
             else:
-                self._page_ref.snack_bar = ft.SnackBar(ft.Text("Could not auto-detect path"))
-        self._page_ref.snack_bar.open = True
-        self._page_ref.update()
-        if self._attached:
-            self.update()
+                msg = "Could not auto-detect path"
+                tone = "error"
+        show_snackbar(self._page_ref, msg, tone=tone, is_dark=self._registry.is_dark)
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme with optional cascade delay - rebuilds banner wash/badge, footer border, and text colors."""
@@ -899,10 +903,8 @@ class LauncherCard(ThemeAwareMixin, ft.Container):
                 self.config_menu.icon_color = MD3Colors.get_on_surface_variant(is_dark)
 
             # Update path chips + status icon/text by rebuilding the display
-            # (also refreshes the header pill)
+            # (also refreshes the header pill). Its trailing self.update()
+            # flushes every change above too — no second update needed.
             await self._update_paths_display()
-
-            if hasattr(self, 'update'):
-                self.update()
         except Exception:
             pass  # Silent fail - component may have been garbage collected

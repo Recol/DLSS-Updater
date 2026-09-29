@@ -227,13 +227,17 @@ class PreferencesPanel(ThemeAwareMixin, PanelContentBase):
         "Preview" designation, and reverts the switch if the user declines.
         """
         if not self.radiance_cache_switch.value:
-            return  # Disabling never needs confirmation
+            # Disabling never needs confirmation. The switch already shows the
+            # new value client-side, so skip the full-page auto-update.
+            ft.context.disable_auto_update()
+            return
 
         def dismiss(enable: bool) -> None:
+            # pop_dialog() already patches the dialog stack itself.
             self._page_ref.pop_dialog()
             if not enable:
                 self.radiance_cache_switch.value = False
-            self._page_ref.update()
+                self.radiance_cache_switch.update()
 
         dialog = ft.AlertDialog(
             modal=True,
@@ -285,8 +289,8 @@ class PreferencesPanel(ThemeAwareMixin, PanelContentBase):
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
+        # show_dialog() updates the dialog stack; no page.update() needed.
         self._page_ref.show_dialog(dialog)
-        self._page_ref.update()
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """

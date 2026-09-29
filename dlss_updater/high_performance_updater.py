@@ -982,38 +982,21 @@ class HighPerformanceUpdateManager:
         total_steps = len(dll_tasks) * 3  # backup + update + verify
         current_step = 0
 
-        # Capture the main event loop for thread-safe callbacks
-        main_loop = asyncio.get_running_loop()
-
-        # Progress helper - handles both sync and async callbacks
-        # Note: For calls from sync contexts (thread pool), we use call_soon_threadsafe
+        # Progress helper for the phase helpers' callbacks. Every phase runs its
+        # blocking work through anyio.to_thread.run_sync and invokes the callback
+        # back on the event loop after that await returns, so this always runs
+        # on the loop thread: no cross-thread scheduling and no lock needed for
+        # current_step. (It used to capture the loop and call_soon_threadsafe
+        # from a ThreadPoolExecutor; that branch became unreachable when the
+        # phases moved to anyio.)
         def _progress_sync(message: str):
-            """Thread-safe progress update (for thread pool contexts).
-
-            This function is safe to call from any thread. When the progress_callback
-            returns a coroutine, it schedules it properly on the main event loop
-            using call_soon_threadsafe to avoid race conditions.
-            """
             nonlocal current_step
             current_step += 1
             if progress_callback:
                 result = progress_callback(current_step, total_steps, message)
                 if inspect.iscoroutine(result):
-                    # Check if we're in the main thread with the event loop
-                    if threading.current_thread() is threading.main_thread():
-                        # We're in the main thread - safe to create task directly
-                        task = asyncio.create_task(result)
-                        register_task(task, f"progress_callback_{current_step}")
-                    else:
-                        # We're in a worker thread - use call_soon_threadsafe
-                        def _schedule_coro():
-                            task = asyncio.create_task(result)
-                            register_task(task, f"progress_callback_{current_step}")
-                        try:
-                            main_loop.call_soon_threadsafe(_schedule_coro)
-                        except RuntimeError:
-                            # Event loop is closed or shutting down - log and continue
-                            logger.debug(f"Progress callback skipped (loop closed): {message}")
+                    task = asyncio.create_task(result)
+                    register_task(task, f"progress_callback_{current_step}")
 
         async def _progress(message: str):
             """Async progress update (for async contexts)"""

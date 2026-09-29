@@ -5,12 +5,14 @@ Individual game card with Steam image, DLL badges, and action buttons
 
 import asyncio
 import anyio
+from dlss_updater.concurrency_limiters import thread_io
 from typing import Any
 import flet as ft
 
 from dlss_updater.database import GameDLL
 from dlss_updater.models import Game, MergedGame
 from dlss_updater.name_normalize import prettify_display_name
+from dlss_updater.ui_flet.components.snackbar import show_snackbar
 from dlss_updater.steam_integration import fetch_steam_image
 from dlss_updater.ui_flet.theme.colors import MD3Colors, TechnologyColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
@@ -80,9 +82,10 @@ def _title_style(is_dark: bool) -> ft.TextStyle | None:
 class GameCard(ThemeAwareMixin, ft.Card):
     """Individual game card with image, DLL info, and actions
 
-    Note: Cannot use is_isolated=True because cards need batch updates via
-    ImageLoadCoordinator which uses page.update(). Isolated controls would
-    not be included in page.update() and would require individual card.update() calls.
+    Note: Cannot use is_isolated=True because cards are flushed in batches by
+    their GamesView's update() (progressive loading, image batches, the
+    coalesced theme flush). Isolated controls are excluded from an ancestor's
+    update() and would each need their own card.update().
     """
 
     def __init__(self, game: Game | MergedGame, dlls: list[GameDLL], page: ft.Page, logger, on_update=None, on_view_backups=None, on_restore=None, backup_groups: dict[str, list] | None = None, is_ignored: bool = False, on_ignore_toggle=None, on_resolve=None, db_manager=None, dlss_presets=None, dll_manifest=None, banner_height: int = HERO_HEIGHT, on_select_toggle=None):
@@ -980,7 +983,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                         spacing=10,
                         tight=True,
                     ),
-                    on_click=lambda e: self._launch_game(),
+                    on_click=self._launch_game,
                 )
             )
 
@@ -1395,8 +1398,13 @@ class GameCard(ThemeAwareMixin, ft.Card):
         if self.on_restore_callback:
             self.on_restore_callback(self.game, group)
 
-    def _launch_game(self):
-        """Launch the game via Steam protocol."""
+    async def _launch_game(self, e=None):
+        """Launch the game via Steam protocol.
+
+        The hand-off runs on a worker thread: webbrowser.open() goes through
+        ShellExecute on Windows, which can block for as long as Steam takes to
+        accept the URL, and that used to freeze the UI event loop.
+        """
         import webbrowser
         import subprocess
         import sys
@@ -1405,7 +1413,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
             return
 
         url = f"steam://rungameid/{self.game.effective_steam_app_id}"
-        try:
+
+        def _open() -> None:
             if sys.platform == "linux":
                 subprocess.Popen(
                     ["xdg-open", url],
@@ -1414,6 +1423,9 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 )
             else:
                 webbrowser.open(url)
+
+        try:
+            await anyio.to_thread.run_sync(_open, limiter=thread_io)
         except Exception as ex:
             self.logger.warning(f"Failed to launch game: {ex}")
 
@@ -1626,7 +1638,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
         Optimized for Flet 0.80.4 performance:
         - Single 100ms wait for control attachment (vs 5x50ms retry loop)
         - Maximum 2 update calls (vs 6-7 previously)
-        - Uses page.update() which is more reliable for batch operations
+        - One card-level update() per phase (only this card's subtree)
 
         Note: Lock is released during sleep to avoid blocking other concurrent UI updates.
         This is important for Python 3.14 free-threading compatibility.
@@ -1652,7 +1664,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
             # Set final opacity and trigger animation
             self.image_container.opacity = 1
             try:
-                # Use self.update() — card-level update (isolated GamesView)
+                # Card-level update: serializes only this card's subtree
+                # (GamesView is NOT isolated; this is just the narrowest target).
                 self.update()
             except Exception:
                 pass  # Page may be closing
@@ -1685,7 +1698,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             is_dark = self._registry.is_dark
 
         if self._select_icon is not None:
-            self._select_icon.name = ft.Icons.CHECK if selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK
+            self._select_icon.icon = ft.Icons.CHECK if selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK
             self._select_icon.color = ft.Colors.WHITE
         if self._select_button is not None:
             self._select_button.bgcolor = (
@@ -1698,6 +1711,18 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self._select_button.border = (
                 ft.Border.all(1.5, ft.Colors.WHITE) if selected else None
             )
+        # The card's accent border is part of the same state. It used to be
+        # recomputed only by the hover handler, so clearing a selection left
+        # the border on every previously ticked card until it was next hovered.
+        card_body = getattr(self, "_card_body", None)
+        if card_body is not None:
+            primary = MD3Colors.get_primary(is_dark)
+            if selected:
+                card_body.border = ft.Border.all(2, primary)
+            elif getattr(self, "_is_hovering", False) or getattr(self, "_menu_open", False):
+                card_body.border = ft.Border.all(1, ft.Colors.with_opacity(0.3, primary))
+            else:
+                card_body.border = None
 
     def set_selection_active(self, active: bool) -> None:
         """Show/hide every card's checkbox as selection mode enters/leaves."""
@@ -1843,9 +1868,9 @@ class GameCard(ThemeAwareMixin, ft.Card):
         color = MD3Colors.get_text_secondary(is_dark) if is_updating else rest_color
         if self.update_button_icon is not None:
             if is_updating:
-                self.update_button_icon.name = ft.Icons.HOURGLASS_TOP
+                self.update_button_icon.icon = ft.Icons.HOURGLASS_TOP
             else:
-                self.update_button_icon.name = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
+                self.update_button_icon.icon = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
             self.update_button_icon.color = color
         if self.update_button_text is not None:
             self.update_button_text.color = color
@@ -1858,8 +1883,13 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self.update_button.disabled = is_updating
             self.update_button.update()
 
-    async def refresh_dlls(self, new_dlls: list[GameDLL]):
-        """Refresh DLL badges and update button with new data after update/restore."""
+    async def refresh_dlls(self, new_dlls: list[GameDLL], update: bool = True):
+        """Refresh DLL badges and update button with new data after update/restore.
+
+        ``update=False`` leaves the flush to the caller - GamesView passes it
+        when it updates its own subtree right afterwards (or refreshes many
+        cards and flushes once), which would otherwise double every patch.
+        """
         async with self._ui_lock:
             self.dlls = new_dlls
             self._invalidate_update_counts()
@@ -1891,7 +1921,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                     "Select DLLs to update" if has_outdated else "All DLLs are up to date"
                 )
                 if self.update_button_icon:
-                    self.update_button_icon.name = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
+                    self.update_button_icon.icon = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
                     self.update_button_icon.color = color
                 if self.update_button_text:
                     self.update_button_text.color = color
@@ -1903,11 +1933,14 @@ class GameCard(ThemeAwareMixin, ft.Card):
 
             self._refresh_context_menu()
 
-            if self._footer_row:
+            if update and self._footer_row:
                 self._footer_row.update()
 
-    async def refresh_restore_button(self, new_backup_groups: dict[str, list]):
-        """Refresh restore button with new backup data after restore"""
+    async def refresh_restore_button(self, new_backup_groups: dict[str, list], update: bool = True):
+        """Refresh restore button with new backup data after restore.
+
+        ``update=False`` leaves the flush to the caller (see refresh_dlls).
+        """
         async with self._ui_lock:
             self.backup_groups = new_backup_groups
             self.has_backups = bool(new_backup_groups)
@@ -1921,7 +1954,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
             if self.restore_button_wrapper is not None:
                 self.restore_button_wrapper.content = new_restore_button
                 self.restore_button = new_restore_button
-                self.restore_button_wrapper.update()
+                if update:
+                    self.restore_button_wrapper.update()
             self._refresh_context_menu()
 
     async def _on_copy_path_clicked(self, e):
@@ -1939,16 +1973,13 @@ class GameCard(ThemeAwareMixin, ft.Card):
             else:
                 message = "Path copied to clipboard"
 
-            self._page_ref.show_dialog(ft.SnackBar(
-                content=ft.Text(message),
-                bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
-            ))
+            show_snackbar(self._page_ref, message, is_dark=is_dark, duration_ms=4000)
         except Exception as ex:
             self.logger.warning(f"Clipboard operation failed: {ex}")
-            self._page_ref.show_dialog(ft.SnackBar(
-                content=ft.Text("Failed to copy to clipboard"),
-                bgcolor=MD3Colors.get_error(is_dark),
-            ))
+            show_snackbar(
+                self._page_ref, "Failed to copy to clipboard",
+                tone="error", is_dark=is_dark, duration_ms=4000,
+            )
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """Return themed property mappings for theme-aware updates.
@@ -1995,10 +2026,18 @@ class GameCard(ThemeAwareMixin, ft.Card):
         Overrides ThemeAwareMixin.apply_theme to also rebuild menu items with
         correct theme colors.
 
+        Does not self-update when the card sits inside a GamesView: it asks
+        that view for a coalesced flush instead (GamesView.request_card_theme_flush),
+        so a theme cascade costs one view update rather than one per card.
+        Cards outside a GamesView keep the mixin's per-control self.update().
+
         Args:
             is_dark: Whether dark mode is active
             delay_ms: Milliseconds to wait before applying (for cascade effect)
         """
+        if delay_ms > 0:
+            await anyio.sleep(delay_ms / 1000)
+
         # Rebuild menu items with new theme colors
         if self.update_button:
             self.update_button.items = self._build_update_menu_items()
@@ -2027,5 +2066,28 @@ class GameCard(ThemeAwareMixin, ft.Card):
         if self._selected and getattr(self, "_card_body", None) is not None:
             self._card_body.border = ft.Border.all(2, MD3Colors.get_primary(is_dark))
 
-        # Call parent implementation for standard themed property updates
-        await super().apply_theme(is_dark, delay_ms)
+        # Standard themed property map (same loop as ThemeAwareMixin.apply_theme,
+        # minus its unconditional self.update()).
+        try:
+            for prop_path, (dark_val, light_val) in self.get_themed_properties().items():
+                self._set_nested_property(prop_path, dark_val if is_dark else light_val)
+        except Exception:
+            return  # Card may have been disposed mid-cascade
+
+        owner = self._find_theme_flush_owner()
+        if owner is not None:
+            owner.request_card_theme_flush()
+            return
+        try:
+            self.update()
+        except Exception:
+            pass  # Not mounted (yet) - nothing to flush
+
+    def _find_theme_flush_owner(self):
+        """Nearest mounted ancestor that coalesces card theme flushes (GamesView)."""
+        node = self.parent
+        while node is not None:
+            if callable(getattr(node, "request_card_theme_flush", None)):
+                return node
+            node = node.parent
+        return None

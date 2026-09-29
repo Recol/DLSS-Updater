@@ -24,6 +24,7 @@ from dlss_updater.models import MergedGame, GameDLL, DLLBackup, GameDLSSPresets
 from dlss_updater.ui_flet.components.game_card import GameCard, FOOTER_HEIGHT, HERO_HEIGHT
 from dlss_updater.ui_flet.components.search_bar import GameSearchBar
 from dlss_updater.ui_flet.components.floating_pill import PILL_CLEARANCE
+from dlss_updater.ui_flet.navigation.navigation_controller import is_view_attached
 from dlss_updater.ui_flet.components.hero_surface import build_brand_wash, build_pill, themed_accent
 from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
@@ -37,6 +38,9 @@ from dlss_updater.task_registry import register_task
 # First batch shows immediately, rest loads in background
 GAMES_INITIAL_BATCH_SIZE = 16  # Visible cards on typical screen
 GAMES_BACKGROUND_BATCH_SIZE = 24  # Cards per background batch
+# GameCard theme repaints wake within a few ms of each other (same cascade
+# tier); this window lets them all join one GamesView flush.
+CARD_THEME_FLUSH_DEBOUNCE_S = 0.016
 
 # ==================== GRID DENSITY ====================
 # Card layout is a flexible banner + a FIXED 52 px footer (see game_card.py:
@@ -317,7 +321,7 @@ class ImageLoadCoordinator:
 
     def __init__(self, page: ft.Page, logger=None, view_ref: ft.Control | None = None):
         self._page_ref = page
-        self._view_ref = view_ref  # Isolated view for targeted updates
+        self._view_ref = view_ref  # View to update instead of the whole page (narrower target)
         self._logger = logger
         self._pending_cards: list[tuple['GameCard', str]] = []
         self._batch_task: asyncio.Task | None = None
@@ -349,8 +353,10 @@ class ImageLoadCoordinator:
     async def _flush_batch_immediate(self):
         """Flush batch immediately without debounce delay.
 
-        Uses ft.context.disable_auto_update() to ensure explicit control over updates.
-        This prevents any automatic updates during batch operations.
+        Runs in a background task, where Flet never auto-updates, so the two
+        explicit updates below are the only flushes. Both are skipped while
+        the owning view is detached: the property changes stay on the Python
+        objects and go out with the view's full re-add on its next attach.
         """
         import time
 
@@ -365,65 +371,71 @@ class ImageLoadCoordinator:
         if self._logger:
             self._logger.debug(f"[ImageLoadCoordinator] Flushing batch of {len(cards_to_update)} images")
 
-        # Disable auto-update to prevent any intermediate updates during batch setup
-        ft.context.disable_auto_update()
+        def _flush() -> bool:
+            """One update of the view (or page). False if skipped or failed."""
+            if self._view_ref is not None and not is_view_attached(self._view_ref):
+                return False
+            update_target = self._view_ref or self._page_ref
+            if update_target:
+                update_target.update()
+            return True
 
-        try:
-            # Phase 1: Setup all images (opacity=0) - no UI update yet
-            start_setup = time.perf_counter()
-            for card, image_path in cards_to_update:
-                try:
-                    card.image_container.opacity = 0
-                    card.image_container.animate_opacity = ft.Animation(300, ft.AnimationCurve.EASE_IN)
-                    card.set_image(image_path)
-                except Exception as e:
-                    if self._logger:
-                        self._logger.debug(f"[ImageLoadCoordinator] Error setting up image for card: {e}")
-            setup_ms = (time.perf_counter() - start_setup) * 1000
-
-            # Re-enable before update so the explicit update() is processed normally
-            ft.context.enable_auto_update()
-
-            # SINGLE update to attach all controls to render tree
-            # Use view_ref.update() for isolated views (serializes only GamesView subtree)
-            start_update1 = time.perf_counter()
+        # Phase 1: Setup all images (opacity=0) - no UI update yet
+        start_setup = time.perf_counter()
+        for card, image_path in cards_to_update:
             try:
-                update_target = self._view_ref or self._page_ref
-                if update_target:
-                    update_target.update()
+                card.image_container.opacity = 0
+                card.image_container.animate_opacity = ft.Animation(300, ft.AnimationCurve.EASE_IN)
+                card.set_image(image_path)
             except Exception as e:
                 if self._logger:
-                    self._logger.debug(f"[ImageLoadCoordinator] Error during first update(): {e}")
-                return
-            update1_ms = (time.perf_counter() - start_update1) * 1000
+                    self._logger.debug(f"[ImageLoadCoordinator] Error setting up image for card: {e}")
+        setup_ms = (time.perf_counter() - start_setup) * 1000
 
-            # Brief delay for render tree attachment (30ms)
-            await anyio.sleep(0.03)
+        # SINGLE update to attach all controls to render tree.
+        # view_ref.update() serializes only the GamesView subtree (GamesView
+        # is NOT isolated; this is just a narrower target than the page).
+        start_update1 = time.perf_counter()
+        try:
+            attached = _flush()
+        except Exception as e:
+            if self._logger:
+                self._logger.debug(f"[ImageLoadCoordinator] Error during first update(): {e}")
+            return
+        update1_ms = (time.perf_counter() - start_update1) * 1000
 
-            # Phase 2: Trigger all fade-in animations simultaneously
-            start_anim = time.perf_counter()
+        if not attached:
+            # Detached: no fade to animate. Land the final state directly;
+            # the next attach serializes it.
             for card, _ in cards_to_update:
                 try:
                     card.image_container.opacity = 1
                     card._image_loaded = True
                 except Exception:
-                    pass  # Card may have been disposed
-            anim_ms = (time.perf_counter() - start_anim) * 1000
+                    pass
+            return
 
-            # SINGLE update to trigger all animations together
-            start_update2 = time.perf_counter()
+        # Brief delay for render tree attachment (30ms)
+        await anyio.sleep(0.03)
+
+        # Phase 2: Trigger all fade-in animations simultaneously
+        start_anim = time.perf_counter()
+        for card, _ in cards_to_update:
             try:
-                update_target = self._view_ref or self._page_ref
-                if update_target:
-                    update_target.update()
-            except Exception as e:
-                if self._logger:
-                    self._logger.debug(f"[ImageLoadCoordinator] Error during animation update(): {e}")
-            update2_ms = (time.perf_counter() - start_update2) * 1000
-        except Exception:
-            # Always re-enable auto-update even if something fails mid-batch
-            ft.context.enable_auto_update()
-            raise
+                card.image_container.opacity = 1
+                card._image_loaded = True
+            except Exception:
+                pass  # Card may have been disposed
+        anim_ms = (time.perf_counter() - start_anim) * 1000
+
+        # SINGLE update to trigger all animations together
+        start_update2 = time.perf_counter()
+        try:
+            _flush()
+        except Exception as e:
+            if self._logger:
+                self._logger.debug(f"[ImageLoadCoordinator] Error during animation update(): {e}")
+        update2_ms = (time.perf_counter() - start_update2) * 1000
 
         total_ms = (time.perf_counter() - start_total) * 1000
         if self._logger:
@@ -545,10 +557,14 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Bulk selection state. A single set of game ids shared across ALL
         # launcher tabs, so a selection survives tab switches and filter
         # changes (a card hidden by a filter stays selected; the bar's count is
-        # the truth). Non-empty == "selection mode": every card shows a
+        # the truth). "Selection mode" is on while the set is non-empty OR the
+        # header's Select toggle (_selection_mode) is on: every card shows a
         # persistent checkbox and the filter-chips row is replaced by the
-        # selection bar.
+        # selection bar. The toggle is what makes the mode discoverable - the
+        # per-card checkbox alone only appears on hover.
         self._selected_game_ids: set[int] = set()
+        self._selection_mode: bool = False
+        self.select_mode_button: ft.IconButton | None = None
         self.selection_bar: ft.Container | None = None
         self._selection_count_text: ft.Text | None = None
         self._selection_update_button: ft.Container | None = None
@@ -744,20 +760,26 @@ class GamesView(ThemeAwareMixin, ft.Column):
             ordered[launcher] = self._sort_entries(list(grid.controls), self._card_sort_fields)
             grid.controls = []
 
-        # Detached view (progressive-loading tail after a nav-away): the
-        # reordered controls are still applied below and render on re-attach.
-        try:
-            self.update()
-        except Exception:
-            pass
+        # Detached view (progressive-loading tail after a nav-away): skip both
+        # flushes. An update() would not raise - it would diff the detached
+        # subtree and ship a patch the client drops. The reordered controls are
+        # still applied below and go out with the view's full re-add on attach,
+        # so no two-phase swap is needed then.
+        attached = is_view_attached(self)
+        if attached:
+            try:
+                self.update()
+            except Exception:
+                pass
 
         for launcher, grid in self._grids_by_launcher.items():
             grid.controls = ordered[launcher]
 
-        try:
-            self.update()
-        except Exception:
-            pass
+        if attached:
+            try:
+                self.update()
+            except Exception:
+                pass
 
         self._sort_applied_at_build = self._sort_preference
         return True
@@ -967,6 +989,18 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # colors/icon can be patched in place after the dialog closes.
         self.steam_api_pill = self._build_steam_api_pill(is_dark)
 
+        # Select toggle - enters selection mode with nothing picked yet, so bulk
+        # update is reachable without discovering the hover-only card checkbox.
+        # A native IconButton `selected` state gives the toggled look for free.
+        self.select_mode_button = ft.IconButton(
+            icon=ft.Icons.CHECKLIST,
+            selected_icon=ft.Icons.CHECKLIST_RTL,
+            selected=False,
+            selected_icon_color=themed_accent((TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark),
+            tooltip="Select games",
+            on_click=self._on_select_mode_clicked,
+        )
+
         # Header (brand-washed surface: subtle diagonal GAMES-blue tint over
         # the existing surface_variant fill, matching the hero-card wash
         # language used elsewhere — see hero_surface.build_brand_wash).
@@ -1017,6 +1051,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                             self.update_all_button,
                             self.search_bar,
                             self.steam_api_pill,
+                            self.select_mode_button,
                             self.sort_menu,
                             self.options_menu,
                             ft.IconButton(
@@ -1217,10 +1252,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
             tooltip="Select every game visible in this launcher tab",
         )
         self._clear_selection_button = ft.TextButton(
-            "Clear",
-            icon=ft.Icons.CLOSE,
+            "Done",
+            icon=ft.Icons.DONE,
             on_click=self._on_clear_selection,
-            tooltip="Clear the selection",
+            tooltip="Clear the selection and leave selection mode (Esc)",
         )
 
         return ft.Container(
@@ -1283,7 +1318,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         usually have other changes to batch with it.
         """
         count = len(self._selected_game_ids)
-        active = count > 0
+        active = self._selection_mode or count > 0
 
         # Mutually exclusive occupants of the same slot — swap the switcher's
         # content rather than toggling visibility, so entering and leaving
@@ -1334,9 +1369,19 @@ class GamesView(ThemeAwareMixin, ft.Column):
             else:
                 self._chips_switcher.content = self.filter_chips_row
         if self._selection_count_text is not None:
-            self._selection_count_text.value = f"{count} selected"
+            self._selection_count_text.value = (
+                f"{count} selected" if count else "Pick games to update"
+            )
         if getattr(self, "_selection_update_text", None) is not None:
             self._selection_update_text.value = f"Update selected ({count})"
+        if self._selection_update_button is not None:
+            # Entered via the Select toggle with nothing picked: keep the pill
+            # in place (so the bar doesn't reflow on the first tick) but inert.
+            self._selection_update_button.disabled = count == 0
+            self._selection_update_button.opacity = 1.0 if count else 0.45
+        if self.select_mode_button is not None:
+            self.select_mode_button.selected = active
+            self.select_mode_button.tooltip = "Leave selection mode" if active else "Select games"
 
         # "Update all" yields to the selection and returns when it is cleared.
         self._set_update_all_state(self._needs_update_count)
@@ -1389,11 +1434,31 @@ class GamesView(ThemeAwareMixin, ft.Column):
     def _on_clear_selection(self, e=None) -> None:
         """Empty the selection, which also leaves selection mode."""
         self._selected_game_ids.clear()
+        self._selection_mode = False
         self._sync_selection_ui()
         try:
             self.update()
         except Exception:
             pass
+
+    def _on_select_mode_clicked(self, e) -> None:
+        """Header Select toggle: enter selection mode, or leave it (clearing)."""
+        if self._selection_mode or self._selected_game_ids:
+            self._on_clear_selection()
+            return
+        self._selection_mode = True
+        self._sync_selection_ui()
+        try:
+            self.update()
+        except Exception:
+            pass
+
+    def exit_selection_mode(self) -> bool:
+        """Leave selection mode if it is on. Returns True if it was (Esc handling)."""
+        if not (self._selection_mode or self._selected_game_ids):
+            return False
+        self._on_clear_selection()
+        return True
 
     def _selected_cards(self) -> list[GameCard]:
         """The selected cards, in grid order, skipping ids with no live card."""
@@ -1454,7 +1519,12 @@ class GamesView(ThemeAwareMixin, ft.Column):
 
         self._needs_update_count = needs_update
 
-        if needs_update > 0 and self._on_update_all is not None and not self._selected_game_ids:
+        if (
+            needs_update > 0
+            and self._on_update_all is not None
+            and not self._selected_game_ids
+            and not self._selection_mode
+        ):
             self._update_all_text.value = f"Update all ({needs_update})"
             button.visible = True
             menu = getattr(self, "_scope_menu", None)
@@ -1528,19 +1598,28 @@ class GamesView(ThemeAwareMixin, ft.Column):
         pill.tooltip = "Configure Steam API"
         return pill
 
-    def _refresh_steam_api_pill(self) -> None:
-        """Re-derive the pill's state (post dialog-close) and repaint in place."""
+    def _refresh_steam_api_pill(self, update: bool = True) -> None:
+        """Re-derive the pill's state (post dialog-close) and repaint in place.
+
+        ``update=False`` paints without flushing - apply_theme() passes it so a
+        theme toggle costs one GamesView update, not one per helper.
+        """
         if not getattr(self, "steam_api_pill", None):
             return
         is_dark = self._get_is_dark()
         icon, bgcolor, fgcolor = self._steam_pill_style(is_dark)
-        self._steam_pill_icon.name = icon
+        self._steam_pill_icon.icon = icon
         self._steam_pill_icon.color = fgcolor
         self._steam_pill_text.color = fgcolor
         self.steam_api_pill.bgcolor = bgcolor
         self.steam_api_pill.border = self._steam_pill_border(is_dark)
+        if not update:
+            return
+        # Only the pill changed, so flush just the pill rather than the whole
+        # view (this runs from dialog-close paths, where no auto-update of the
+        # pill's subtree would otherwise happen).
         try:
-            self.update()
+            self.steam_api_pill.update()
         except Exception:
             pass
 
@@ -1705,24 +1784,70 @@ class GamesView(ThemeAwareMixin, ft.Column):
             "games_subtitle_text.color": (MD3Colors.get_on_surface_variant(True), MD3Colors.get_on_surface_variant(False)),
         }
 
+    def _paint_themed_properties(self, is_dark: bool) -> None:
+        """Apply get_themed_properties() WITHOUT flushing.
+
+        Mirrors the property loop in ThemeAwareMixin.apply_theme(), which
+        always ends in its own self.update() - calling super() would make a
+        theme toggle cost two full GamesView updates instead of one.
+        """
+        for prop_path, (dark_val, light_val) in self.get_themed_properties().items():
+            self._set_nested_property(prop_path, dark_val if is_dark else light_val)
+
+    def request_card_theme_flush(self) -> None:
+        """Coalesce the theme repaints of every GameCard into ONE view update.
+
+        GameCard.apply_theme() paints without updating and calls this instead
+        (it finds this view by walking its parent chain). All cards share one
+        cascade delay tier, so they wake within a few ms of each other; the
+        first request schedules a short-debounced flush and the rest join it -
+        one GamesView update per theme toggle instead of one per card. Skipped
+        entirely while the view is detached: MainView rebuilds theme-stale
+        views on their next attach, and a detached update would only diff the
+        subtree and ship a patch the client drops (CLAUDE.md pitfall #2).
+        """
+        task = getattr(self, "_card_theme_flush_task", None)
+        if task is not None and not task.done():
+            return
+        try:
+            self._card_theme_flush_task = asyncio.get_running_loop().create_task(
+                self._flush_card_theme()
+            )
+        except RuntimeError:
+            # No running loop (e.g. called synchronously in tests) - flush now.
+            self._flush_card_theme_now()
+
+    async def _flush_card_theme(self) -> None:
+        await anyio.sleep(CARD_THEME_FLUSH_DEBOUNCE_S)
+        self._flush_card_theme_now()
+
+    def _flush_card_theme_now(self) -> None:
+        if not is_view_attached(self):
+            return
+        try:
+            self.update()
+        except Exception:
+            pass
+
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
-        """Apply theme."""
-        await super().apply_theme(is_dark, delay_ms)
+        """Apply theme with exactly ONE flush.
+
+        Deliberately does not call super().apply_theme(): the mixin always
+        self.update()s, and every helper below used to flush on its own too
+        (options/sort menus, Steam pill) - five full-subtree updates per
+        toggle. Everything is painted first, then flushed once at the end.
+        """
+        if delay_ms > 0:
+            await anyio.sleep(delay_ms / 1000)
+        self._paint_themed_properties(is_dark)
+
         # Rebuild options menu items to apply new theme colors
         if self.options_menu:
             self.options_menu.items = self._build_options_menu_items()
-            try:
-                self.options_menu.update()
-            except Exception:
-                pass
 
         # Same for the sort menu (its check-mark uses the GAMES accent).
         if self.sort_menu:
             self.sort_menu.items = self._build_sort_menu_items()
-            try:
-                self.sort_menu.update()
-            except Exception:
-                pass
 
         # Bulk-update CTA: both the WARNING fill and its foreground invert.
         self._refresh_update_all_button(is_dark)
@@ -1740,10 +1865,14 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Selection bar: same WARNING fill + inverted foreground as the CTA it
         # mirrors, plus the themed count label and leading accent glyph.
         self._refresh_selection_bar(is_dark)
+        if self.select_mode_button is not None:
+            self.select_mode_button.selected_icon_color = themed_accent(
+                (TabColors.GAMES, TabColors.GAMES_LIGHT), is_dark
+            )
 
         # Steam API pill — repaint using the current connection state at the
         # new theme's colors (handles the neutral-state outline color too).
-        self._refresh_steam_api_pill()
+        self._refresh_steam_api_pill(update=False)
 
         # Launcher tabs indicator/label accent (if tabs are currently built).
         if getattr(self, "_tab_bar_ref", None):
@@ -1751,10 +1880,13 @@ class GamesView(ThemeAwareMixin, ft.Column):
             self._tab_bar_ref.indicator_color = tab_accent
             self._tab_bar_ref.label_color = tab_accent
 
-        try:
-            self.update()
-        except Exception:
-            pass
+        # The single flush. Skipped while detached (MainView rebuilds
+        # theme-stale views on their next attach; see is_view_attached()).
+        if is_view_attached(self):
+            try:
+                self.update()
+            except Exception:
+                pass
 
     def mark_pending_dll_reconcile(self) -> None:
         """Flag that a global update wrote new DLL files while this view wasn't
@@ -1845,7 +1977,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
             if self._pending_dll_reconcile:
                 self._pending_dll_reconcile = False
                 self.logger.info("Reconciling DLL versions from filesystem after a batch update that ran before this view loaded")
-                await self.refresh_all_badges()
+                # The finally block below flushes the whole view.
+                await self.refresh_all_badges(flush=False)
 
             # Initialize Steam API card (check improvement count, auto-detect ID)
             if hasattr(self, 'steam_api_card') and self.steam_api_card:
@@ -2013,7 +2146,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
             )
             # A card created by progressive loading (or after a refresh) while a
             # selection is live must join it already showing its checkbox.
-            if self._selected_game_ids:
+            if self._selected_game_ids or self._selection_mode:
                 card.set_selection_active(True)
                 card.set_selected(card.game.id in self._selected_game_ids)
             card.opacity = 0 if not is_ignored else 0.5
@@ -2219,8 +2352,10 @@ class GamesView(ThemeAwareMixin, ft.Column):
                         card._image_loaded = True
                         cards_updated += 1
 
-            # Single self.update() for all image updates (isolated view)
-            if cards_updated > 0:
+            # Single self.update() for all image updates (background task, so
+            # no auto-update follows). Skipped while detached: the images are
+            # set on the cards and go out with the view's re-add on attach.
+            if cards_updated > 0 and is_view_attached(self):
                 self.update()
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000
@@ -2286,13 +2421,16 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 # ignored games" active (issue #299).
                 self._apply_visibility()
 
-                # Single update per batch (isolated view); guard against view detach
-                try:
-                    self.update()
-                except RuntimeError:
-                    # View detached from page tree (user navigated away).
-                    # Cards are already in controls list and will render on next update.
-                    pass
+                # Single update per batch (background task: nothing else flushes
+                # it). Skipped while detached - update() would NOT raise there,
+                # it would diff the detached subtree and ship a patch the client
+                # drops. The cards are already in the grids' controls and go out
+                # with the view's full re-add on its next attach.
+                if is_view_attached(self):
+                    try:
+                        self.update()
+                    except RuntimeError:
+                        pass
 
                 # Trigger image loading for uncached cards in this batch
                 uncached_in_batch = [
@@ -2323,10 +2461,11 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Final, complete-dataset filter pass and recount now that every card
         # has loaded (the sort above may also have reordered them).
         self._refresh_filters_and_counts()
-        try:
-            self.update()
-        except RuntimeError:
-            pass
+        if is_view_attached(self):
+            try:
+                self.update()
+            except RuntimeError:
+                pass
 
     async def _animate_cards_in(self, game_cards: list[GameCard]):
         """Animate game cards with staggered fade-in for grid layout (optimized)"""
@@ -2338,18 +2477,23 @@ class GamesView(ThemeAwareMixin, ft.Column):
         batch_size = 4
 
         for batch_start in range(0, len(cards_to_animate), batch_size):
+            if not is_view_attached(self):
+                break  # Navigated away mid-animation: land the final state below
             batch_end = min(batch_start + batch_size, len(cards_to_animate))
             # Set opacity for entire batch (respect ignored state)
             for card in cards_to_animate[batch_start:batch_end]:
                 card.opacity = 0.5 if card.is_ignored else 1
-            # Single update per batch instead of per card (isolated view)
+            # Single update per batch instead of per card (GamesView subtree only)
             self.update()
             await anyio.sleep(0.08)  # 80ms delay per batch (smoother than 40ms per card)
 
-        # Set remaining cards to visible immediately
-        for card in game_cards[12:]:
+        # Set every card to its resting opacity (the remainder, plus any batch
+        # skipped above). Background task, so flush explicitly - unless
+        # detached, where the re-add on attach carries it.
+        for card in game_cards:
             card.opacity = 0.5 if card.is_ignored else 1
-        self.update()
+        if is_view_attached(self):
+            self.update()
 
     async def _on_refresh_clicked(self, e):
         """Handle refresh button click with rotation animation"""
@@ -2361,7 +2505,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # Refresh DLL versions from filesystem before rebuilding cards
         # This ensures the DB has current versions after any external updates
         game_ids = list(self.game_cards.keys())
-        await self.refresh_all_badges()
+        # load_games(force=True) below rebuilds and flushes the whole view.
+        await self.refresh_all_badges(flush=False)
 
         # A refresh counts as a scan. It re-reads every known DLL from disk,
         # which is precisely the freshness "scanned Xd ago" reports - but only
@@ -2557,11 +2702,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
         except Exception as ex:
             self.logger.debug(f"Could not persist the ignored-games filter: {ex}")
         if self.options_menu:
+            # Flushed by the self.update() below (the menu is in this subtree).
             self.options_menu.items = self._build_options_menu_items()
-            try:
-                self.options_menu.update()
-            except Exception:
-                pass
         self._apply_visibility()
         self.update()
 
@@ -2626,8 +2768,15 @@ class GamesView(ThemeAwareMixin, ft.Column):
         async def on_undo(e):
             await self._perform_ignore_toggle(game, not ignored)
 
+        # Through page.show_dialog() (as show_snackbar() does), which updates
+        # only the dialog stack and drops the snackbar once dismissed - the old
+        # overlay.append() leaked every snackbar into page.overlay forever and
+        # paid a full page.update(). Built by hand rather than via
+        # show_snackbar() because the Undo action needs a themed
+        # SnackBarAction label colour; persist=False is what lets a snackbar
+        # with an action auto-dismiss.
         is_dark = self._get_is_dark()
-        snackbar = ft.SnackBar(
+        self._page_ref.show_dialog(ft.SnackBar(
             content=ft.Text(f"'{game_name}' {action}", color=ft.Colors.WHITE),
             bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
             duration=5000,
@@ -2637,10 +2786,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 text_color=MD3Colors.get_themed("snackbar_action", is_dark),
                 on_click=on_undo,
             ),
-        )
-        self._page_ref.overlay.append(snackbar)
-        snackbar.open = True
-        self._page_ref.update()
+        ))
 
     def _on_game_resolve(self, game, override_steam_app_id: int, display_name_override: str):
         """Handle Steam resolve callback from GameCard — fires after DB write succeeds."""
@@ -2835,8 +2981,8 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
+        # show_dialog() updates the dialog stack itself; no page.update() needed.
         self._page_ref.show_dialog(progress_dialog)
-        self._page_ref.update()
 
         try:
             # Delete all games from database
@@ -2884,8 +3030,11 @@ class GamesView(ThemeAwareMixin, ft.Column):
             ]
             self._page_ref.show_dialog(error_dialog)
 
-    async def refresh_all_badges(self):
+    async def refresh_all_badges(self, flush: bool = True):
         """Refresh DLL badges on all game cards.
+
+        ``flush=False`` skips the final view update, for callers that update
+        the view themselves straight afterwards.
 
         Re-reads actual DLL versions from the filesystem (not just the DB),
         updates the database, then refreshes each card's badge. This handles
@@ -2927,8 +3076,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                 continue
             card = self.game_cards.get(game_id)
             if card and result:
-                await card.refresh_dlls(result)
-                await card.refresh_restore_button(all_backup_groups.get(game_id, {}))
+                # No per-card flushes (two updates per card); one below.
+                await card.refresh_dlls(result, update=False)
+                await card.refresh_restore_button(all_backup_groups.get(game_id, {}), update=False)
                 refreshed += 1
 
         self.logger.info(f"Refreshed DLL badges for {refreshed}/{len(game_ids)} game cards")
@@ -2937,6 +3087,15 @@ class GamesView(ThemeAwareMixin, ft.Column):
         # once (bulk update reconciliation) — recount the filter chips.
         if refreshed:
             self._update_filter_chip_counts()
+            # Single flush for every refreshed card + the recount. Callers that
+            # rebuild/update right after (load_games, the refresh button) pass
+            # flush=False. Skipped while detached: the re-add on attach
+            # carries the new badges.
+            if flush and is_view_attached(self):
+                try:
+                    self.update()
+                except Exception:
+                    pass
 
     def _on_game_update(self, game, dll_group: str = "all"):
         """Handle game update button click - launches async update"""
@@ -3064,12 +3223,16 @@ class GamesView(ThemeAwareMixin, ft.Column):
             # (updates create new backups, which must appear in the restore menu)
             if result['success'] and game_card:
                 new_dlls = await db_manager.get_dlls_for_game(game.id)
-                await game_card.refresh_dlls(new_dlls)
+                await game_card.refresh_dlls(new_dlls, update=False)
                 new_backup_groups = await db_manager.get_backups_grouped_by_dll_type(game.id)
-                await game_card.refresh_restore_button(new_backup_groups)
+                await game_card.refresh_restore_button(new_backup_groups, update=False)
                 # This card's needs_update/has_backups may have just flipped.
+                # One flush covers the card refreshes above and the recount
+                # (background task: nothing else flushes it). Skipped if the
+                # user navigated away mid-update; the re-add carries it.
                 self._update_filter_chip_counts()
-                self.update()
+                if is_view_attached(self):
+                    self.update()
 
         except Exception as ex:
             self.logger.error(f"Update failed for {game.name}: {ex}", exc_info=True)
@@ -3119,13 +3282,25 @@ class GamesView(ThemeAwareMixin, ft.Column):
         return dialog
 
     def _update_progress_dialog(self, dialog: ft.AlertDialog, progress):
-        """Update progress dialog with current progress"""
-        if hasattr(self, '_progress_text') and self._progress_text:
-            self._progress_text.value = progress.message
-        if hasattr(self, '_progress_detail') and self._progress_detail:
-            self._progress_detail.value = f"{progress.current}/{progress.total} DLLs processed"
-        if self._page_ref:
-            self._page_ref.update()
+        """Update progress dialog with current progress.
+
+        Flushes only the two Text controls it changes - this fires once per
+        DLL, and a page.update() here re-diffed the entire page each time.
+        The texts live in the dialog (on the page's dialog stack), not in this
+        view, so view attachment does not apply.
+        """
+        for text, value in (
+            (getattr(self, "_progress_text", None), progress.message),
+            (getattr(self, "_progress_detail", None),
+             f"{progress.current}/{progress.total} DLLs processed"),
+        ):
+            if text is None:
+                continue
+            text.value = value
+            try:
+                text.update()
+            except Exception:
+                pass  # Dialog already closed
 
     async def _show_update_results_dialog(self, game_name: str, result: dict[str, Any]):
         """Show results dialog after single-game update"""
@@ -3234,12 +3409,14 @@ class GamesView(ThemeAwareMixin, ft.Column):
             # Refresh the game card's DLL badges and backup groups
             if game_card:
                 new_dlls = await db_manager.get_dlls_for_game(game.id)
-                await game_card.refresh_dlls(new_dlls)
+                await game_card.refresh_dlls(new_dlls, update=False)
                 new_backup_groups = await db_manager.get_backups_grouped_by_dll_type(game.id)
-                await game_card.refresh_restore_button(new_backup_groups)
+                await game_card.refresh_restore_button(new_backup_groups, update=False)
                 # Restoring a backup flips needs_update/has_backups for this card.
+                # One flush covers the card refreshes above and the recount.
                 self._update_filter_chip_counts()
-                self.update()
+                if is_view_attached(self):
+                    self.update()
 
         except Exception as ex:
             self.logger.error(f"Restore failed for {game.name}: {ex}", exc_info=True)

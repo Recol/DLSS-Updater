@@ -10,6 +10,7 @@ import logging
 from typing import Optional
 
 from .panel_content_base import PanelContentBase
+from ..snackbar import show_snackbar
 from ...theme.colors import MD3Colors, Shadows
 from ...theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from ..hero_surface import (
@@ -73,6 +74,7 @@ class SlidePanel(ThemeAwareMixin):
         self._panel_container: Optional[ft.Container] = None
         self._scrim_container: Optional[ft.Container] = None
         self._on_keyboard_handler = None
+        self._previous_keyboard_handler = None
 
         # Theme support
         self._registry = get_theme_registry()
@@ -400,7 +402,11 @@ class SlidePanel(ThemeAwareMixin):
             # Add to page overlay
             self._page_ref.overlay.append(self._stack_overlay)
 
-            # Setup keyboard handler for ESC key
+            # Setup keyboard handler for ESC key. page.on_keyboard_event is a
+            # single slot, so remember whoever owned it (MainView's navigation
+            # handler) and hand it back on close - clearing it to None instead
+            # left Escape dead for the rest of the session after any panel.
+            self._previous_keyboard_handler = self._page_ref.on_keyboard_event
             self._on_keyboard_handler = self._handle_keyboard_event
             self._page_ref.on_keyboard_event = self._on_keyboard_handler
 
@@ -436,7 +442,7 @@ class SlidePanel(ThemeAwareMixin):
             if self._stack_overlay in self._page_ref.overlay:
                 self._page_ref.overlay.remove(self._stack_overlay)
             if self._page_ref.on_keyboard_event == self._on_keyboard_handler:
-                self._page_ref.on_keyboard_event = None
+                self._page_ref.on_keyboard_event = self._previous_keyboard_handler
             self.logger.error(f"Failed to show slide panel: {e}")
             raise
 
@@ -465,7 +471,9 @@ class SlidePanel(ThemeAwareMixin):
             self._scrim_container.opacity = 0
             self._panel_container.offset = ft.Offset(1, 0)
 
-            self._page_ref.update()
+            # Only the scrim + panel changed, and both live under the (still
+            # attached) overlay stack - no need to diff the whole page.
+            self._stack_overlay.update()
 
             # Wait for animation to complete
             await anyio.sleep(self.CLOSE_DURATION / 1000)
@@ -483,11 +491,15 @@ class SlidePanel(ThemeAwareMixin):
 
             # Remove keyboard handler
             if self._page_ref.on_keyboard_event == self._on_keyboard_handler:
-                self._page_ref.on_keyboard_event = None
+                self._page_ref.on_keyboard_event = self._previous_keyboard_handler
 
             # Unregister from theme system to allow garbage collection
             self._unregister_theme_aware()
 
+            # Deliberately page-level: the stack was just REMOVED from
+            # page.overlay, so it is detached and can't update itself - the
+            # removal lives on the page's internal Overlay control, which has
+            # no public handle. This also pushes the restored keyboard handler.
             self._page_ref.update()
             self.logger.info("Slide panel closed")
 
@@ -499,12 +511,13 @@ class SlidePanel(ThemeAwareMixin):
         is_valid, error_message = self.content.validate()
         if not is_valid:
             self.logger.warning(f"Validation failed: {error_message}")
-            # Show error snackbar
-            self._page_ref.show_snack_bar(
-                ft.SnackBar(
-                    content=ft.Text(error_message or "Validation failed"),
-                    bgcolor=MD3Colors.ERROR,
-                )
+            # Show error snackbar. (Page.show_snack_bar does not exist in Flet
+            # 1.0 - calling it raised AttributeError on every failed validation.)
+            show_snackbar(
+                self._page_ref,
+                error_message or "Validation failed",
+                tone="error",
+                is_dark=self._registry.is_dark,
             )
             return
 
@@ -524,20 +537,30 @@ class SlidePanel(ThemeAwareMixin):
         self.logger.info("Cancel/close requested")
         await self.hide()
 
+    # The click/key handlers below only schedule a task and change nothing
+    # themselves. Without an explicit update Flet ends each event with an
+    # auto-update of the nearest isolated ancestor - the Page - i.e. a full
+    # page diff for nothing. The task does its own targeted updates, so
+    # auto-update is switched off for these events (the flag is per-event).
+
     def _on_scrim_click(self, e) -> None:
         """Handle scrim click - close panel."""
+        ft.context.disable_auto_update()
         self._page_ref.run_task(self._handle_cancel)
 
     def _on_close_click(self, e) -> None:
         """Handle close button click."""
+        ft.context.disable_auto_update()
         self._page_ref.run_task(self._handle_cancel)
 
     def _on_cancel_click(self, e) -> None:
         """Handle cancel button click."""
+        ft.context.disable_auto_update()
         self._page_ref.run_task(self._handle_cancel)
 
     def _on_save_click(self, e) -> None:
         """Handle save button click."""
+        ft.context.disable_auto_update()
         self._page_ref.run_task(self._handle_save)
 
     def _handle_keyboard_event(self, e: ft.KeyboardEvent) -> None:
@@ -547,6 +570,9 @@ class SlidePanel(ThemeAwareMixin):
         Args:
             e: Keyboard event
         """
+        # Fires for every key press while the panel is open and changes
+        # nothing itself - don't pay a full-page auto-update per keystroke.
+        ft.context.disable_auto_update()
         if e.key == "Escape" and self._is_open:
             self.logger.info("ESC key pressed, closing panel")
             self._page_ref.run_task(self.hide)

@@ -4,12 +4,9 @@ import threading
 import sys
 import logging
 import anyio
-from .config import Concurrency
 from .concurrency_limiters import thread_cpu, thread_io
 from pathlib import Path
-import concurrent.futures
 import stat
-import time
 import psutil
 from packaging import version
 from .logger import setup_logger
@@ -36,6 +33,20 @@ _parse_version_cache_lock = threading.Lock()
 MISSING_TARGET_REASON = (
     "File no longer exists - the game may have been patched. Run a rescan."
 )
+
+# Shown when the target stays locked (usually because the game is running)
+# after process_dlls_parallel()'s deferred retry rounds.
+FILE_IN_USE_REASON = "File is in use - close the game and try again."
+
+
+def _locked_result(dll_path, dll_type: str) -> ProcessedDLLResult:
+    """Fail fast on a locked target. Never sleep here: these functions run on
+    bounded I/O worker threads, and a sleeping retry loop pinned one thread
+    per locked file. The async caller owns retrying (without a thread)."""
+    logger.info(f"{dll_path} is in use; deferring to the caller's retry")
+    return ProcessedDLLResult(
+        success=False, dll_type=dll_type, skip_reason=FILE_IN_USE_REASON, locked=True
+    )
 
 
 def shutdown_version_executor():
@@ -554,6 +565,12 @@ def update_dll(dll_path, latest_dll_path):
             )
             return ProcessedDLLResult(success=False, dll_type=dll_type)
 
+        # Lock check comes before the backup and the permission change, so a
+        # locked target is left exactly as found and a retry doesn't leave a
+        # second backup behind.
+        if is_file_in_use(str(dll_path)):
+            return _locked_result(dll_path, dll_type)
+
         backup_path = None
         if config_manager.get_backup_preference():
             backup_path = create_backup(dll_path)
@@ -564,23 +581,6 @@ def update_dll(dll_path, latest_dll_path):
             logger.info(f"Backup creation disabled by user preference for {dll_path}")
 
         remove_read_only(dll_path)
-
-        retry_count = 3
-        while retry_count > 0:
-            if not is_file_in_use(str(dll_path)):
-                break
-            logger.info(
-                f"File is in use. Retrying in 2 seconds... (Attempts left: {retry_count})"
-            )
-            time.sleep(2)
-            retry_count -= 1
-
-        if retry_count == 0:
-            logger.info(
-                f"File {dll_path} is still in use after multiple attempts. Cannot update."
-            )
-            restore_permissions(dll_path, original_permissions)
-            return ProcessedDLLResult(success=False, dll_type=dll_type)
 
         try:
             os.remove(dll_path)
@@ -718,22 +718,9 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
 
         remove_read_only(dll_path)
 
-        retry_count = 3
-        while retry_count > 0:
-            if not is_file_in_use(str(dll_path)):
-                break
-            logger.info(
-                f"File is in use. Retrying in 2 seconds... (Attempts left: {retry_count})"
-            )
-            time.sleep(2)
-            retry_count -= 1
-
-        if retry_count == 0:
-            logger.info(
-                f"File {dll_path} is still in use after multiple attempts. Cannot update."
-            )
+        if is_file_in_use(str(dll_path)):
             restore_permissions(dll_path, original_permissions)
-            return ProcessedDLLResult(success=False, dll_type=dll_type)
+            return _locked_result(dll_path, dll_type)
 
         try:
             os.remove(dll_path)
@@ -776,55 +763,6 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
         return ProcessedDLLResult(success=False, dll_type=dll_type)
 
 
-def create_backups_parallel(dll_paths, max_workers=None, progress_callback=None):
-    """
-    Create backups for multiple DLLs in parallel with maximum concurrency
-
-    Args:
-        dll_paths: List of DLL paths to back up
-        max_workers: Maximum number of parallel workers (default: THREADPOOL_IO)
-        progress_callback: Optional callback(current, total, message) for progress
-    """
-    if max_workers is None:
-        max_workers = Concurrency.THREADPOOL_IO
-    backup_results = []
-    total_dlls = len(dll_paths)
-    completed = 0
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_dll = {
-            executor.submit(create_backup, Path(dll_path)): dll_path
-            for dll_path in dll_paths
-        }
-
-        for future in concurrent.futures.as_completed(future_to_dll):
-            dll_path = future_to_dll[future]
-            try:
-                backup_path = future.result()
-                if backup_path:
-                    backup_results.append((dll_path, backup_path))
-                    logger.info(f"Created backup for {dll_path}")
-                else:
-                    logger.warning(f"Failed to create backup for {dll_path}")
-            except Exception as e:
-                logger.error(f"Error creating backup for {dll_path}: {e}")
-
-            completed += 1
-            if progress_callback:
-                progress_callback(completed, total_dlls, f"Backed up {completed}/{total_dlls} files")
-
-    return backup_results
-
-
-# FidelityFX DLLs whose PE version is NOT an FSR feature version and therefore
-# must never be measured against an FSR minimum.
-#
-# Since FidelityFX SDK 2.0.0 the monolithic amd_fidelityfx_dx12.dll was split into
-# a tiny dispatch shim (amd_fidelityfx_loader_dx12.dll) plus per-effect DLLs. The
-# shim carries a *loader/SDK* version — 1.0.2 in SDK 2.0.0, 2.3.0 in SDK 2.3.0 —
-# which is always below any plausible FSR minimum. Gating it on ">= 3.1.0" rejects
-# every loader AMD has ever built. The FSR feature version lives on the effect
-# DLLs (amd_fidelityfx_upscaler_dx12.dll reports 4.x), so only those are checked.
 FSR_VERSION_EXEMPT_DLLS = frozenset({
     "amd_fidelityfx_loader_dx12.dll",
 })
@@ -959,19 +897,9 @@ def update_fsr4_dll_with_rename(source_dll_path, target_dll_path, latest_dll_pat
         if target_dll_path.exists():
             remove_read_only(target_dll_path)
 
-            # Check if file is in use
-            retry_count = 3
-            while retry_count > 0:
-                if not is_file_in_use(str(target_dll_path)):
-                    break
-                logger.info(f"File is in use. Retrying in 2 seconds... (Attempts left: {retry_count})")
-                time.sleep(2)
-                retry_count -= 1
-
-            if retry_count == 0:
-                logger.info(f"File {target_dll_path} is still in use after multiple attempts. Cannot update.")
+            if is_file_in_use(str(target_dll_path)):
                 restore_permissions(target_dll_path, original_permissions)
-                return ProcessedDLLResult(success=False, dll_type=dll_type)
+                return _locked_result(target_dll_path, dll_type)
 
         try:
             # Remove existing file if it exists

@@ -3,11 +3,105 @@ Loading Overlay Component
 Semi-transparent overlay with progress indicator
 """
 
+import asyncio
+import time
+from collections.abc import Callable, Hashable
+
 import anyio
 import flet as ft
 
 from dlss_updater.ui_flet.theme.colors import Shadows, MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+
+
+# Minimum gap between two non-final progress flushes. Each Control.update() is
+# sent immediately (Flet 1.0 does not coalesce), so a scan/update run that
+# reports hundreds of ticks per second would otherwise send hundreds of patches.
+PROGRESS_FLUSH_INTERVAL_S = 0.05
+
+
+class ProgressFlushThrottle:
+    """Decides when a progress tick is worth sending to the client.
+
+    - A tick whose displayed state (``key``) equals what was last flushed is
+      dropped: there is nothing new to draw.
+    - The first tick after reset() and any ``final`` tick flush immediately.
+    - Otherwise ticks closer than ``min_interval`` to the previous flush are
+      deferred: the caller has already written the new values onto its
+      controls, and a single trailing flush (scheduled on the running event
+      loop) sends the latest state once the interval has elapsed, so a burst
+      that ends on a throttled tick is never left stale on screen.
+    """
+
+    def __init__(
+        self,
+        min_interval: float = PROGRESS_FLUSH_INTERVAL_S,
+        clock: Callable[[], float] = time.monotonic,
+    ):
+        self._min_interval = min_interval
+        self._clock = clock
+        self._last_key: Hashable | None = None
+        self._last_time: float | None = None
+        self._pending_key: Hashable | None = None
+        self._pending_flush: Callable[[], None] | None = None
+        self._handle: asyncio.TimerHandle | None = None
+
+    def reset(self) -> None:
+        """Forget flush history and drop any pending trailing flush."""
+        self._cancel_trailing()
+        self._last_key = None
+        self._last_time = None
+
+    def submit(self, key: Hashable, flush: Callable[[], None], final: bool = False) -> bool:
+        """Offer a tick. Returns True when ``flush`` was called synchronously."""
+        if key == self._last_key:
+            # Back to what is already on screen - a pending trailing flush
+            # would only resend it.
+            self._cancel_trailing()
+            return False
+        now = self._clock()
+        if (
+            final
+            or self._last_time is None
+            or now - self._last_time >= self._min_interval
+        ):
+            self._cancel_trailing()
+            self._last_key = key
+            self._last_time = now
+            flush()
+            return True
+
+        self._pending_key = key
+        self._pending_flush = flush
+        if self._handle is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return False  # No loop (sync caller): the next tick flushes it
+            delay = max(0.0, self._min_interval - (now - self._last_time))
+            self._handle = loop.call_later(delay, self._fire_trailing)
+        return False
+
+    def _fire_trailing(self) -> None:
+        self._handle = None
+        key, flush = self._pending_key, self._pending_flush
+        self._pending_key = None
+        self._pending_flush = None
+        if flush is None or key == self._last_key:
+            return
+        self._last_key = key
+        self._last_time = self._clock()
+        try:
+            flush()
+        except Exception:
+            pass  # Control torn down between the tick and the trailing flush
+
+    def _cancel_trailing(self) -> None:
+        if self._handle is not None:
+            self._handle.cancel()
+            self._handle = None
+        self._pending_key = None
+        self._pending_flush = None
 
 
 class LoadingOverlay(ThemeAwareMixin, ft.Container):
@@ -34,6 +128,10 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         # in-flight progress messages don't overwrite it (the progress bar still
         # advances as the current atomic unit finishes).
         self._cancelling = False
+
+        # Progress ticks update only this overlay's subtree, deduplicated and
+        # throttled (see ProgressFlushThrottle).
+        self._flush_throttle = ProgressFlushThrottle()
 
         # Get theme preference from registry
         is_dark = self._registry.is_dark
@@ -150,6 +248,9 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         if self not in page.overlay:
             page.overlay.append(self)
         self._is_showing = True
+        self._flush_throttle.reset()
+        # Full page update here (once per run, not per tick): it is what
+        # attaches the overlay, after which ticks can update just this subtree.
         page.update()
 
     def _on_cancel_click(self, e):
@@ -173,7 +274,30 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         if self in page.overlay:
             page.overlay.remove(self)
         self._is_showing = False
+        self._flush_throttle.reset()  # No trailing tick after we're gone
+        # Full page update: removing from page.overlay changes the page's own
+        # overlay list, which a narrow self.update() would not send.
         page.update()
+
+    def _flush_progress(self, page: ft.Page | None) -> None:
+        """Send the overlay's own subtree, not the whole page."""
+        if not self._is_showing:
+            return  # Not attached: show() resets these values anyway
+        try:
+            self.update()
+        except RuntimeError:
+            # Appended to page.overlay but not yet sent to the client.
+            if page is not None:
+                page.update()
+
+    def _submit_progress(self, page: ft.Page | None) -> bool:
+        """Offer the current displayed state to the flush throttle."""
+        key = (self._progress_value, self.status_text.value)
+        return self._flush_throttle.submit(
+            key,
+            lambda: self._flush_progress(page),
+            final=self._progress_value >= 100,
+        )
 
     def set_progress(self, percentage: int, page: ft.Page, message: str = None):
         """
@@ -184,7 +308,7 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
             page: Flet page instance
             message: Optional status message
         """
-        self._progress_value = max(0, min(100, percentage))
+        self._progress_value = max(0, min(100, int(percentage)))
         self.progress_bar.value = self._progress_value / 100
         self.progress_text.value = f"{self._progress_value}%"
 
@@ -192,17 +316,19 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         if message and not self._cancelling:
             self.status_text.value = message
 
-        page.update()
+        self._submit_progress(page)
 
     async def set_progress_async(self, percentage: int, page: ft.Page, message: str = None):
         """Async version with direct update (no animation loop).
 
         Optimized for performance:
-        - Single page.update() call
-        - No count-up animation (reduces 4 updates to 1)
-        - Progress bar has CSS animation for smooth visual feedback
+        - Updates only the overlay's subtree (self.update()), never the page
+        - Ticks that change nothing on screen are dropped
+        - Non-final ticks are throttled to one flush per
+          PROGRESS_FLUSH_INTERVAL_S, with a trailing flush for the latest state
+        - The first tick after show() and the 100% tick always flush
         """
-        end = max(0, min(100, percentage))
+        end = max(0, min(100, int(percentage)))
 
         # Direct update - progress bar's built-in animation handles visual smoothing
         self.progress_text.value = f"{end}%"
@@ -214,8 +340,7 @@ class LoadingOverlay(ThemeAwareMixin, ft.Container):
         if message and not self._cancelling and message != self.status_text.value:
             self.status_text.value = message
 
-        # Single page update for all changes
-        page.update()
+        self._submit_progress(page)
 
     def get_themed_properties(self) -> dict[str, tuple[str, str]]:
         """Return themed property mappings for loading overlay"""

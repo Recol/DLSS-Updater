@@ -6,13 +6,54 @@ Designed for Python 3.14 free-threaded compatibility.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
-from weakref import WeakSet
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from weakref import WeakSet, ref
 
 import anyio
 
 if TYPE_CHECKING:
     import flet as ft
+
+
+# Opt-in marker a nav view sets when its owner (MainView) REBUILDS the whole
+# view from fresh instances on its next attach after a theme toggle. The
+# cascade then skips its components' apply_theme() entirely while it is
+# detached - the work would be thrown away with the old instances.
+THEME_REBUILT_ON_ATTACH_ATTR = "_theme_rebuilt_on_attach"
+
+# Upper bound on the parent walk (real trees are ~20-40 deep); guards against
+# a pathological cycle rather than limiting any legitimate tree.
+_MAX_PARENT_DEPTH = 512
+
+
+def find_detached_nav_view(control: Any) -> Any | None:
+    """Return the nav-detached view ``control`` lives in, or None.
+
+    Walks ``control`` and its ancestors via Flet's ``parent`` link looking for
+    a node whose ``_nav_attached`` flag (maintained by NavigationController,
+    see navigation_controller.is_view_attached) is False. Flet never clears
+    ``_parent`` when a subtree is detached, so the chain from a control inside
+    a detached view still reaches that view - which is what makes this
+    reliable. Anything the nav controller doesn't manage (dialogs, overlay
+    panels, the app bar, controls never mounted) returns None, i.e. is
+    treated as attached exactly as before.
+    """
+    node = control
+    for _ in range(_MAX_PARENT_DEPTH):
+        if node is None:
+            return None
+        if getattr(node, "_nav_attached", True) is False:
+            return node
+        try:
+            node = getattr(node, "parent", None)
+        except Exception:
+            return None
+    return None
+
+
+def _suppressed_update(*_args, **_kwargs) -> None:
+    """Stand-in for ``update()`` on a component inside a detached view."""
+    return None
 
 
 @runtime_checkable
@@ -171,6 +212,10 @@ class ThemeRegistry:
             return
 
         self._components: WeakSet[ThemeAwareMixin] = WeakSet()
+        # Weakrefs to the nav-detached views the most recent cascade did not
+        # flush (see apply_theme_to_all). MainView reads it via
+        # last_detached_views to mark each one theme-stale.
+        self._last_detached_views: list = []
         self._is_dark: bool = True  # Default to dark mode
         self._cascade_lock = anyio.Lock()
         self._initialized = True
@@ -211,6 +256,15 @@ class ThemeRegistry:
         """Get the number of registered components (for debugging)"""
         return len(self._components)
 
+    @property
+    def last_detached_views(self) -> list:
+        """Nav-detached views the most recent cascade left unflushed.
+
+        Every one of them is theme-stale on the client and must be healed on
+        its next attach (MainView._theme_stale_views). Dead weakrefs dropped.
+        """
+        return [v for v in (r() for r in self._last_detached_views) if v is not None]
+
     async def apply_theme_to_all(
         self,
         is_dark: bool,
@@ -231,6 +285,23 @@ class ThemeRegistry:
         producing a sweep across the UI. Each component self-updates after its
         delay; a final ``page.update()`` flushes any page-level changes.
 
+        Components inside a nav-DETACHED view (find_detached_nav_view) are
+        never flushed: the client drops patches to detached subtrees anyway
+        (CLAUDE.md pitfall #2), and each such update still diffed the whole
+        detached subtree server-side. They are handled in one of two ways:
+
+        - view marked ``_theme_rebuilt_on_attach`` (hub, launchers): skipped
+          entirely - the owner replaces the whole view on its next attach.
+        - any other detached view (games, backups, ...): ``apply_theme()``
+          still runs, so Python-side state is exactly what it was before this
+          optimisation, but with ``update`` shadowed by a no-op on the
+          component for the duration of the call. Updates the override issues
+          on OTHER controls (child menus etc.) are not intercepted.
+
+        Every such view is recorded in ``last_detached_views`` so the owner
+        can mark it theme-stale; the owner's rebuild-on-attach heal is what
+        brings it up to date on the client.
+
         Args:
             is_dark: Whether to apply dark mode
             cascade: Stagger updates by priority for a sweep effect
@@ -239,6 +310,7 @@ class ThemeRegistry:
         """
         async with self._cascade_lock:
             self._is_dark = is_dark
+            self._last_detached_views = []
 
             # Snapshot of components (WeakSet may change during iteration)
             components = list(self._components)
@@ -249,6 +321,19 @@ class ThemeRegistry:
                     except Exception:
                         pass
                 return
+
+            attached: list[ThemeAwareMixin] = []
+            unflushed: list[ThemeAwareMixin] = []
+            detached_views: dict[int, Any] = {}
+            for comp in components:
+                view = find_detached_nav_view(comp)
+                if view is None:
+                    attached.append(comp)
+                    continue
+                detached_views[id(view)] = view
+                if not getattr(view, THEME_REBUILT_ON_ATTACH_ATTR, False):
+                    unflushed.append(comp)
+            self._last_detached_views = [ref(v) for v in detached_views.values()]
 
             async def _apply(comp: "ThemeAwareMixin") -> None:
                 # Delay is baked into apply_theme() so each component sleeps then
@@ -262,14 +347,38 @@ class ThemeRegistry:
                 except Exception:
                     pass  # Component may have been GC'd or detached
 
+            async def _apply_unflushed(comp: "ThemeAwareMixin") -> None:
+                # Invisible, so no cascade delay. The instance attribute shadows
+                # the bound update() for the call, covering both the mixin's
+                # own self.update() and any override's direct self.update().
+                shadowed = False
+                try:
+                    comp.update = _suppressed_update
+                    shadowed = True
+                except Exception:
+                    pass
+                try:
+                    await comp.apply_theme(is_dark, delay_ms=0)
+                except Exception:
+                    pass
+                finally:
+                    if shadowed:
+                        try:
+                            del comp.update
+                        except Exception:
+                            pass
+
             # Run all component updates concurrently; each waits its own delay.
             # _apply() swallows its own exceptions, so no error aggregation needed.
             async with anyio.create_task_group() as tg:
-                for c in components:
+                for c in unflushed:
+                    tg.start_soon(_apply_unflushed, c)
+                for c in attached:
                     tg.start_soon(_apply, c)
 
-            # Final page update flushes page-level (bgcolor/theme) changes and
-            # any components whose self.update() no-op'd while detached.
+            # Final page update flushes page-level (bgcolor/theme) changes. It
+            # only serialises the attached tree, so it never reaches the
+            # detached views above either.
             if page is not None:
                 try:
                     page.update()

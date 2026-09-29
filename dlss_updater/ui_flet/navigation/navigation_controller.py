@@ -13,6 +13,21 @@ import flet as ft
 from dlss_updater.ui_flet.components.floating_pill import FloatingPill
 
 
+def is_view_attached(view) -> bool:
+    """Whether ``view`` is the view currently attached to the navigation Stack.
+
+    Background work (progressive loading, image batches, reconcile passes)
+    uses this to skip ``update()`` on a view the user navigated away from.
+    A try/except around ``update()`` does NOT work for that: Flet never clears
+    a removed control's parent link, so updating a detached view raises
+    nothing - it diffs the whole subtree and ships a patch the client drops
+    (CLAUDE.md pitfall #2). NavigationController keeps ``_nav_attached``
+    current on every view it manages; anything it doesn't manage (dialogs,
+    panels) reports True, i.e. behaves exactly as before.
+    """
+    return getattr(view, "_nav_attached", True)
+
+
 class NavigationController(ft.Column):
     """
     Central navigation controller managing hub view and content views.
@@ -72,6 +87,9 @@ class NavigationController(ft.Column):
         self._view_refs[self.HUB] = hub_view
         for name, view in views.items():
             self._view_refs[name] = view
+        # Attachment flag read by is_view_attached(): only the hub starts attached.
+        for name, view in self._view_refs.items():
+            view._nav_attached = name == self.HUB
 
         # Build view wrappers (Stack-based content detachment)
         # IMPORTANT: Use ft.Column wrappers instead of ft.Container to avoid
@@ -163,7 +181,11 @@ class NavigationController(ft.Column):
                 views-dict entry).
             new_view: The freshly constructed replacement control.
         """
+        old = self._view_refs.get(view_name)
+        if old is not None and old is not new_view:
+            old._nav_attached = False
         self._view_refs[view_name] = new_view
+        new_view._nav_attached = self._current_view == view_name
         container = self._view_containers.get(view_name)
         if container is not None and self._current_view == view_name:
             container.controls = [new_view]
@@ -241,6 +263,8 @@ class NavigationController(ft.Column):
         old_container.opacity = 0.0
 
         new_container.controls = [self._view_refs[new_view]]  # Attach new subtree
+        self._view_refs[old_view]._nav_attached = False
+        self._view_refs[new_view]._nav_attached = True
         new_container.visible = True
         new_container.opacity = 1.0  # Instant show (no fade-out gap)
 
@@ -308,5 +332,15 @@ class NavigationController(ft.Column):
     def handle_keyboard(self, e: ft.KeyboardEvent):
         """Handle keyboard events. Call from page's on_keyboard_event."""
         if e.key == "Escape":
+            # Escape backs out of the innermost state first: leaving Games'
+            # selection mode takes priority over leaving the Games view.
+            games_view = self._view_refs.get(self.GAMES)
+            if (
+                self._current_view == self.GAMES
+                and games_view is not None
+                and hasattr(games_view, "exit_selection_mode")
+                and games_view.exit_selection_mode()
+            ):
+                return
             if self._current_view != self.HUB:
                 self._page_ref.run_task(self.navigate_back)

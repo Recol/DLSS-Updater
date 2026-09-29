@@ -7,6 +7,7 @@ import anyio
 from enum import Enum
 import flet as ft
 
+from dlss_updater.ui_flet.components.loading_overlay import ProgressFlushThrottle
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
@@ -32,6 +33,8 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         self._state = NotificationState.HIDDEN
         self._registry = get_theme_registry()
         self._theme_priority = 40  # Utility components are mid-low priority
+        # Progress ticks are deduplicated/throttled and update only the wrapper
+        self._flush_throttle = ProgressFlushThrottle()
         self._build_components()
         self._register_theme_aware()
 
@@ -155,6 +158,19 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
             expand=True,
         )
 
+    def _flush(self) -> None:
+        """Send only the notification's subtree, not the whole page.
+
+        The wrapper lives in page.overlay (MainView appends it at startup). If
+        no page.update() has run since, it isn't attached yet and update()
+        raises RuntimeError - fall back to one page.update(), which attaches it
+        so every later flush can be narrow.
+        """
+        try:
+            self.wrapper.update()
+        except RuntimeError:
+            self._page_ref.update()
+
     async def show_initializing(self):
         """Show the notification in initializing state"""
         self._state = NotificationState.INITIALIZING
@@ -173,20 +189,25 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         # Show with fade in
         self.container.visible = True
         self.wrapper.visible = True
-        self._page_ref.update()
+        self._flush_throttle.reset()
+        self._flush()
 
         # Small delay then fade in
         await anyio.sleep(0.05)
         self.container.opacity = 1
-        self._page_ref.update()
+        self._flush()
 
     async def update_progress(self, current: int, total: int, message: str):
         """Update progress display with throttling to reduce UI updates.
 
-        Only updates UI when:
+        Only applies a tick when:
         - Progress changes by 5% or more
         - Message changes
         - First or last update
+        and then flushes only the notification's own subtree, dropping ticks
+        that change nothing on screen and spacing non-final flushes at least
+        PROGRESS_FLUSH_INTERVAL_S apart (a trailing flush sends the latest
+        state). The 100% tick always flushes.
         """
         if self._state == NotificationState.HIDDEN:
             return
@@ -213,7 +234,11 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         if message:
             self.message_text.value = message
 
-        self._page_ref.update()
+        self._flush_throttle.submit(
+            (percentage, self.message_text.value),
+            self._flush,
+            final=percentage >= 100,
+        )
 
     async def show_complete(self, auto_dismiss_delay: float = 2.5):
         """Show completion state with green checkmark, then auto-dismiss"""
@@ -233,7 +258,8 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         # Change background to success color (themed)
         self.container.bgcolor = MD3Colors.get_success(is_dark)
 
-        self._page_ref.update()
+        self._flush_throttle.reset()  # Supersedes any pending progress flush
+        self._flush()
 
         # Auto-dismiss after delay
         await anyio.sleep(auto_dismiss_delay)
@@ -256,7 +282,8 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         # Change background to error color (themed)
         self.container.bgcolor = MD3Colors.get_error(is_dark)
 
-        self._page_ref.update()
+        self._flush_throttle.reset()  # Supersedes any pending progress flush
+        self._flush()
 
         # Auto-dismiss after longer delay for errors
         await anyio.sleep(5)
@@ -268,8 +295,9 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         is_dark = self._registry.is_dark
 
         # Fade out
+        self._flush_throttle.reset()
         self.container.opacity = 0
-        self._page_ref.update()
+        self._flush()
 
         # Wait for animation to complete
         await anyio.sleep(0.35)
@@ -282,7 +310,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
         self.container.bgcolor = MD3Colors.get_themed("snackbar_bg", is_dark)
         self.progress_container.visible = True
 
-        self._page_ref.update()
+        self._flush()
 
     def get_wrapper(self) -> ft.Container:
         """Get the wrapper container to add to page overlay"""
@@ -318,7 +346,7 @@ class DLLCacheProgressSnackbar(ThemeAwareMixin):
             # HIDDEN state doesn't need update
 
             if self._page_ref:
-                self._page_ref.update()
+                self._flush()
 
         except Exception:
             pass  # Silent fail - component may have been garbage collected

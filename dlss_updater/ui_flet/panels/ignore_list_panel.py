@@ -84,9 +84,12 @@ class IgnoreListPanel(ThemeAwareMixin, PanelContentBase):
             self._all_games = []
             self._filtered_games = []
 
+        # Only the list and the count changed; one call patches both. The
+        # panel is attached by now (show() updated the page before
+        # scheduling on_open).
         self._update_games_list()
         self._update_count_text()
-        self._page_ref.update()
+        self._safe_update(self.games_column, self._count_text)
 
     def _on_search_change(self, e):
         """Filter the game list based on search query."""
@@ -99,8 +102,20 @@ class IgnoreListPanel(ThemeAwareMixin, PanelContentBase):
         else:
             self._filtered_games = self._all_games.copy()
 
+        # Per keystroke: patch only the list, not the whole page.
         self._update_games_list()
-        self._page_ref.update()
+        self._safe_update(self.games_column)
+
+    def _safe_update(self, *controls):
+        """Patch just these controls; a no-op if the panel isn't attached."""
+        controls = [c for c in controls if c is not None]
+        if not controls or self._page_ref is None:
+            return
+        try:
+            controls[0].page  # raises RuntimeError while detached
+        except RuntimeError:
+            return
+        self._page_ref.update(*controls)
 
     def _update_games_list(self):
         """Rebuild games column with filtered results."""
@@ -193,6 +208,10 @@ class IgnoreListPanel(ThemeAwareMixin, PanelContentBase):
         game_id: int = e.control.data
         ignored: bool = e.control.value
 
+        # The switch already shows its new value client-side and nothing else
+        # changes synchronously - skip the full-page auto-update this event
+        # would otherwise end with. The task patches the count itself.
+        ft.context.disable_auto_update()
         if self._page_ref:
             self._page_ref.run_task(self._persist_switch_change, game_id, ignored)
 
@@ -209,13 +228,13 @@ class IgnoreListPanel(ThemeAwareMixin, PanelContentBase):
                 self._on_ignore_changed(game_id, ignored)
 
             self._update_count_text()
-            self._page_ref.update()
+            self._safe_update(self._count_text)
         else:
             # Revert switch on failure
             switch = self.game_switches.get(game_id)
             if switch:
                 switch.value = not ignored
-                self._page_ref.update()
+                self._safe_update(switch)
 
     def build(self) -> ft.Control:
         """Build the ignore list panel content."""

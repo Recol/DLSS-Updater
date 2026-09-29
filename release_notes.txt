@@ -1,3 +1,45 @@
+Version 5.1.0:
+Added:
+  - The Hub's icons now move when you hover a card: the rocket lifts off,
+    the DLSS sparkle twinkles, the Backups arrow rewinds, the Settings gear
+    turns, the Games controller tilts, and the update badge nudges. The
+    large faint icon in each card's corner drifts along with it.
+
+  - A Select button in the Games header. It puts a checkbox on every game so
+    you can pick several and update just those, without having to discover
+    the checkbox that only appears when you hover a card. Esc or Done leaves
+    selection mode.
+
+Fixed:
+  - Several icons never changed after the app started: the tick on a
+    selected game, the hourglass while a game updates, the badges on the Hub
+    and the Steam API pill, and the sun/moon on the Theme setting. They now
+    follow what they are meant to show.
+  - Messages in the Launchers view (paths copied, auto-detect results,
+    "could not open") and in the DLSS overlay dialog never appeared. They do
+    now.
+  - A settings panel that failed its validation crashed instead of showing
+    what was wrong.
+  - After opening any settings panel, Esc stopped taking you back a screen
+    for the rest of the session.
+  - Clearing a selection left the highlight on every game that had been
+    ticked, until you next hovered it.
+  - Updating a game whose files are in use no longer holds up the rest of
+    the update. Locked files are retried together once everything else is
+    done, and one that stays locked now says "File is in use - close the
+    game and try again" instead of just its DLL type. A locked file also no
+    longer leaves an extra backup behind.
+  - Launching a game from its card, and opening links from the menu or the
+    update dialog, no longer freezes the window while Windows hands the link
+    over.
+
+Changed:
+  - Less redrawing: switching theme no longer redraws screens you are not
+    looking at, scan and update progress redraws only the progress display,
+    typing in the Blacklist and Ignored Games searches redraws only the list,
+    and background loading stops redrawing a screen once you leave it.
+  - Updated the UI framework (Flet) to 1.0.2.
+
 Version 5.0.3:
 Fixed:
   - "scanned 3d ago" in the Games header, and the times shown against your

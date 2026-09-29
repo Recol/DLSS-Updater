@@ -200,21 +200,46 @@ class PanelContentBase(ABC):
         """
         pass
 
+    # Legacy colour arguments -> the shared helper's themed tones.
+    _SNACKBAR_TONES = {
+        "#2D6E88": "info",
+        "#4CAF50": "success",
+        "#F44336": "error",
+    }
+
     def _show_snackbar(self, message: str, bgcolor: str = "#2D6E88"):
         """
         Helper method to show a snackbar notification.
 
+        Goes through ``page.show_dialog()`` (via the shared ``show_snackbar``
+        helper), which updates only the dialog stack and drops the snackbar
+        when it is dismissed. The old ``page.overlay.append`` + ``page.update()``
+        leaked one SnackBar into the overlay per call and serialized the page.
+
         Args:
             message: Message to display
-            bgcolor: Background color (default: primary theme color)
+            bgcolor: Background color. The info/success/error colours map to
+                the helper's themed tones; any other colour (e.g. the amber
+                warning) is kept verbatim.
         """
-        snackbar = ft.SnackBar(
-            content=ft.Text(message),
-            bgcolor=bgcolor,
+        from dlss_updater.ui_flet.components.snackbar import show_snackbar
+        from dlss_updater.ui_flet.theme.theme_aware import get_theme_registry
+
+        if self._page_ref is None:
+            return
+        tone = self._SNACKBAR_TONES.get((bgcolor or "").upper())
+        if tone is not None:
+            show_snackbar(
+                self._page_ref,
+                message,
+                tone=tone,
+                is_dark=get_theme_registry().is_dark,
+            )
+            return
+        # Custom colour the helper has no tone for: same show_dialog path.
+        self._page_ref.show_dialog(
+            ft.SnackBar(content=ft.Text(message), bgcolor=bgcolor)
         )
-        self._page_ref.overlay.append(snackbar)
-        snackbar.open = True
-        self._page_ref.update()
 
     def _show_error_dialog(self, title: str, message: str):
         """

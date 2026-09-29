@@ -26,7 +26,7 @@ GPU-composited.
 
 from __future__ import annotations
 
-import asyncio
+import anyio
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -364,7 +364,7 @@ class VersionPill(ThemeAwareMixin, ft.Container):
         )
         self._safe_update()
 
-        await asyncio.sleep(_POP_IN_DELAY_S)
+        await anyio.sleep(_POP_IN_DELAY_S)
 
         # Phase 2: target values — animate_* on the container does the rest.
         self.opacity = 1.0

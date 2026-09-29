@@ -63,12 +63,13 @@ class SteamResolveDialog:
         self._save_button: ft.FilledButton | None = None
         self._search_field: ft.TextField | None = None
         self._status_text: ft.Text | None = None
+        self._dialog: ft.AlertDialog | None = None
 
     async def show(self):
         is_dark = self._registry.is_dark
-        dialog = self._build_dialog(is_dark)
-        self._page_ref.show_dialog(dialog)
-        self._page_ref.update()
+        self._dialog = self._build_dialog(is_dark)
+        # show_dialog() updates the dialog stack itself
+        self._page_ref.show_dialog(self._dialog)
 
     # ------------------------------------------------------------------
     # Build
@@ -266,6 +267,10 @@ class SteamResolveDialog:
     # ------------------------------------------------------------------
 
     def _on_search_changed(self, e):
+        # The handler itself changes nothing - the search task updates the
+        # dialog when results land. Skip the page-wide auto-update that would
+        # otherwise run on every keystroke.
+        ft.context.disable_auto_update()
         if self._page_ref:
             self._page_ref.run_task(self._debounced_search, e.control.value)
 
@@ -367,15 +372,18 @@ class SteamResolveDialog:
 
         if not results:
             # Don't declare "no results" while the Steam API is still in flight.
-            self._set_status("Searching Steam…" if searching_more else "No results — try a different name.")
+            self._set_status(
+                "Searching Steam…" if searching_more else "No results — try a different name.",
+                flush=False,
+            )
             self._result_list.controls = []
-            self._page_ref.update()
+            self._refresh()
             return
 
         if searching_more:
-            self._set_status(f"{len(results)} result(s) so far — searching Steam…")
+            self._set_status(f"{len(results)} result(s) so far — searching Steam…", flush=False)
         else:
-            self._set_status(f"{len(results)} result(s) — click one to select.")
+            self._set_status(f"{len(results)} result(s) — click one to select.", flush=False)
 
         rows = []
         for app_id, name in results:
@@ -471,7 +479,7 @@ class SteamResolveDialog:
             )
 
         self._result_list.controls = rows
-        self._page_ref.update()
+        self._refresh()
 
     # ------------------------------------------------------------------
     # Selection / actions
@@ -485,6 +493,7 @@ class SteamResolveDialog:
         self._render_results(self._results)
 
     def _on_save_clicked(self, e):
+        ft.context.disable_auto_update()  # _perform_save updates what it changes
         if self._selected_app_id and self._selected_name and self._page_ref:
             self._page_ref.run_task(self._perform_save, self._selected_app_id, self._selected_name)
 
@@ -508,6 +517,7 @@ class SteamResolveDialog:
             self.on_resolved(app_id, name)
 
     def _on_clear_clicked(self, e):
+        ft.context.disable_auto_update()  # _perform_clear updates what it changes
         if self._page_ref:
             self._page_ref.run_task(self._perform_clear)
 
@@ -527,27 +537,32 @@ class SteamResolveDialog:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _set_status(self, msg: str):
-        if self._status_text:
-            self._status_text.value = msg
-            try:
-                self._page_ref.update()
-            except Exception:
-                pass
-
-    def _clear_results(self, status: str):
-        self._results = []
-        self._set_status(status)
-        if self._result_list:
-            self._result_list.controls = []
+    def _refresh(self):
+        """Flush changes to the dialog subtree only (every control this class
+        mutates lives inside it) instead of re-diffing the whole page."""
+        if self._dialog is None:
+            return
         try:
-            self._page_ref.update()
+            self._dialog.update()
         except Exception:
             pass
 
+    def _set_status(self, msg: str, flush: bool = True):
+        if self._status_text:
+            self._status_text.value = msg
+            if flush:
+                self._refresh()
+
+    def _clear_results(self, status: str):
+        self._results = []
+        self._set_status(status, flush=False)
+        if self._result_list:
+            self._result_list.controls = []
+        self._refresh()
+
     def _close(self):
         try:
+            # pop_dialog() updates the closed dialog itself
             self._page_ref.pop_dialog()
-            self._page_ref.update()
         except Exception:
             pass

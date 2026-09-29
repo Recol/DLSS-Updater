@@ -130,6 +130,32 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
             expand=True,
         )
 
+    def _update_attached(self, *controls) -> None:
+        """Patch these controls in ONE page.update(*controls) call.
+
+        No-op while the panel isn't attached (e.g. before the open animation
+        mounts it); all of them live in the same panel, so they are either all
+        attached or none are.
+        """
+        controls = [c for c in controls if c is not None]
+        if not controls or self._page_ref is None:
+            return
+        try:
+            controls[0].page  # raises RuntimeError while detached
+        except RuntimeError:
+            return
+        self._page_ref.update(*controls)
+
+    # The two button handlers only schedule a task that does its own targeted
+    # updates; switch off the full-page auto-update the event would end with.
+    def _on_change_exe_click(self, e):
+        ft.context.disable_auto_update()
+        self._page_ref.run_task(self._pick_exe)
+
+    def _on_reset_click(self, e):
+        ft.context.disable_auto_update()
+        self._page_ref.run_task(self._on_reset)
+
     def _on_sr_changed(self, e):
         if self._sr_desc:
             self._sr_desc.value = self._current_sr().description
@@ -187,7 +213,7 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
                 spacing=6,
                 tight=True,
             ),
-            on_click=lambda e: self._page_ref.run_task(self._pick_exe),
+            on_click=self._on_change_exe_click,
         )
 
         self._exe_row = ft.Container(
@@ -243,7 +269,7 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
         is_dark = self._registry.is_dark
 
         if self._exe_path:
-            self._exe_status_icon.name = ft.Icons.CHECK_CIRCLE
+            self._exe_status_icon.icon = ft.Icons.CHECK_CIRCLE
             self._exe_status_icon.color = MD3Colors.get_success(is_dark)
             self._exe_path_text.value = self._exe_path
             self._exe_path_text.color = MD3Colors.get_text_secondary(is_dark)
@@ -251,7 +277,7 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
             if self._exe_auto_tag:
                 self._exe_auto_tag.visible = self._exe_is_guess
         else:
-            self._exe_status_icon.name = ft.Icons.ERROR_OUTLINE
+            self._exe_status_icon.icon = ft.Icons.ERROR_OUTLINE
             self._exe_status_icon.color = MD3Colors.get_warning(is_dark)
             self._exe_path_text.value = (
                 "Couldn't detect the game's executable — choose it with "
@@ -262,12 +288,10 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
             if self._exe_auto_tag:
                 self._exe_auto_tag.visible = False
 
-        for ctrl in (self._exe_row, self._exe_status_icon, self._exe_path_text, self._exe_auto_tag):
-            try:
-                if ctrl is not None:
-                    ctrl.update()
-            except Exception:
-                pass
+        # The icon, path text and auto tag all live inside _exe_row, so one
+        # update of the row patches them all - updating each child again
+        # afterwards only re-diffed subtrees that were already sent.
+        self._update_attached(self._exe_row)
 
     async def _pick_exe(self):
         """Open an inline FilePicker to let the user choose the game's exe."""
@@ -339,16 +363,14 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
             val = getattr(saved, attr, None)
             if dd is not None and val:
                 dd.value = val
-                try:
-                    dd.update()
-                except Exception:
-                    pass
         if self._sr_desc:
             self._sr_desc.value = self._current_sr().description
-            try:
-                self._sr_desc.update()
-            except Exception:
-                pass
+        # One call for the three dropdowns + description. Their only common
+        # parent is the whole panel column, so patching them directly is
+        # smaller than re-diffing the entire panel.
+        self._update_attached(
+            self._sr_dropdown, self._rr_dropdown, self._fg_dropdown, self._sr_desc
+        )
 
     async def _resolve_exe(self, saved):
         """Populate exe state via the resolver, falling back to the saved cache."""
@@ -487,7 +509,7 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
                 spacing=6,
                 tight=True,
             ),
-            on_click=lambda e: self._page_ref.run_task(self._on_reset),
+            on_click=self._on_reset_click,
         )
         controls.append(ft.Container(height=4))
         controls.append(
@@ -615,16 +637,11 @@ class PerGameDLSSPanel(_DLSSPresetPanelBase):
         for dd in (self._sr_dropdown, self._rr_dropdown, self._fg_dropdown):
             if dd is not None:
                 dd.value = "default"
-                try:
-                    dd.update()
-                except Exception:
-                    pass
         if self._sr_desc:
             self._sr_desc.value = self._current_sr().description
-            try:
-                self._sr_desc.update()
-            except Exception:
-                pass
+        self._update_attached(
+            self._sr_dropdown, self._rr_dropdown, self._fg_dropdown, self._sr_desc
+        )
 
     def on_cancel(self):
         self.logger.debug("Per-game DLSS presets panel cancelled, discarding changes")

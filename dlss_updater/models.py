@@ -497,6 +497,13 @@ class ProcessedDLLResult(msgspec.Struct):
     backup_path: str | None = None
     dll_type: str = "Unknown"
     skip_reason: str | None = None
+    # The target was locked by another process (usually the running game).
+    # Nothing was changed - no backup, no permission edits - so the caller
+    # may simply try again later. The updater never sleeps on a lock itself:
+    # a time.sleep() retry loop held an I/O worker thread for up to 6s per
+    # locked file. process_dlls_parallel() retries locked targets in rounds
+    # with a non-blocking anyio.sleep() instead.
+    locked: bool = False
 
 
 class DLLDiscoveryResult(msgspec.Struct):

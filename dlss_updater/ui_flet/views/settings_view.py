@@ -417,8 +417,8 @@ class SettingsView(ThemeAwareMixin, ft.Column):
             # Theme tile icon (+ its watermark twin) reflects the active mode
             if meta["color_key"] == "theme":
                 new_icon = ft.Icons.DARK_MODE if is_dark else ft.Icons.LIGHT_MODE
-                meta["icon_widget"].name = new_icon
-                meta["watermark_widget"].name = new_icon
+                meta["icon_widget"].icon = new_icon
+                meta["watermark_widget"].icon = new_icon
 
         try:
             self.update()

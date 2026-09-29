@@ -417,7 +417,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
             badge_bg = ft.Colors.with_opacity(0.08, variant_color)
             badge_fg = variant_color
 
-        self._badge_icon.name = badge_icon
+        self._badge_icon.icon = badge_icon
         self._badge_icon.color = badge_fg
         self._badge_text.value = badge_text
         self._badge_text.color = badge_fg
@@ -428,7 +428,7 @@ class SteamAPICard(ThemeAwareMixin, ft.Container):
         self._badge_text.value = text
         self._badge_text.color = color
         if icon:
-            self._badge_icon.name = icon
+            self._badge_icon.icon = icon
         self._badge_icon.color = color
         self.status_badge.bgcolor = ft.Colors.with_opacity(0.08, color)
 

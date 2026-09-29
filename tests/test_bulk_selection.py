@@ -17,6 +17,7 @@ Flet-backed controls (same approach as test_game_card_tech_version.py).
 """
 
 from types import SimpleNamespace
+import flet as ft
 
 from dlss_updater.models import Game, GameDLL
 from dlss_updater.ui_flet.components.game_card import GameCard
@@ -219,7 +220,7 @@ def test_does_not_mutate_the_input():
 # disagree.
 
 
-def _view(needs_update: int = 11, selected: set[int] | None = None):
+def _view(needs_update: int = 11, selected: set[int] | None = None, mode: bool = False):
     """A stand-in for GamesView: only the fields _set_update_all_state reads."""
     return SimpleNamespace(
         update_all_button=SimpleNamespace(visible=False),
@@ -227,6 +228,7 @@ def _view(needs_update: int = 11, selected: set[int] | None = None):
         _on_update_all=lambda: None,
         _needs_update_count=needs_update,
         _selected_game_ids=selected if selected is not None else set(),
+        _selection_mode=mode,
     )
 
 
@@ -265,6 +267,72 @@ def test_update_all_stays_hidden_when_nothing_is_outdated():
     assert view.update_all_button.visible is False
 
 
+def test_update_all_is_hidden_in_selection_mode_with_nothing_picked_yet():
+    """The header Select toggle enters selection mode before any tick - the
+    selection bar is already showing, so "Update all" must yield just the same."""
+    view = _view(needs_update=11, mode=True)
+
+    GamesView._set_update_all_state(view, 11)
+
+    assert view.update_all_button.visible is False
+
+
+# ==================== Header Select toggle ====================
+
+
+def _toggle_view(selected: set[int] | None = None, mode: bool = False):
+    calls = SimpleNamespace(sync=0, update=0)
+    view = SimpleNamespace(
+        _selected_game_ids=selected if selected is not None else set(),
+        _selection_mode=mode,
+        calls=calls,
+    )
+    view._sync_selection_ui = lambda: setattr(calls, "sync", calls.sync + 1)
+    view.update = lambda: setattr(calls, "update", calls.update + 1)
+    view._on_clear_selection = lambda e=None: GamesView._on_clear_selection(view, e)
+    return view
+
+
+def test_select_toggle_enters_selection_mode_with_an_empty_selection():
+    view = _toggle_view()
+
+    GamesView._on_select_mode_clicked(view, None)
+
+    assert view._selection_mode is True
+    assert view._selected_game_ids == set()
+    assert view.calls.sync == 1
+
+
+def test_select_toggle_leaves_selection_mode_and_clears_the_selection():
+    view = _toggle_view(selected={1, 2}, mode=True)
+
+    GamesView._on_select_mode_clicked(view, None)
+
+    assert view._selection_mode is False
+    assert view._selected_game_ids == set()
+
+
+def test_select_toggle_leaves_a_checkbox_started_selection_too():
+    """A selection started from a card's hover checkbox (mode flag off) is still
+    selection mode - the toggle shows as on, so clicking it must turn it off."""
+    view = _toggle_view(selected={3}, mode=False)
+
+    GamesView._on_select_mode_clicked(view, None)
+
+    assert view._selection_mode is False
+    assert view._selected_game_ids == set()
+
+
+def test_exit_selection_mode_reports_whether_there_was_anything_to_exit():
+    idle = _toggle_view()
+    assert GamesView.exit_selection_mode(idle) is False
+    assert idle.calls.sync == 0
+
+    active = _toggle_view(mode=True)
+    assert GamesView.exit_selection_mode(active) is True
+    assert active._selection_mode is False
+
+
 def test_set_update_all_state_records_the_count_for_later_reevaluation():
     """_sync_selection_ui() re-runs this with the remembered count when the
     selection clears, so the count has to survive the hidden state."""
@@ -284,7 +352,8 @@ def test_set_update_all_state_records_the_count_for_later_reevaluation():
 def _card_stub():
     return SimpleNamespace(
         _selected=False,
-        _select_icon=SimpleNamespace(name=None, color=None),
+        # A real ft.Icon, not a stub: a stub accepted the dead `.name` write.
+        _select_icon=ft.Icon(ft.Icons.CHECK_BOX_OUTLINE_BLANK),
         _select_button=SimpleNamespace(bgcolor=None, border=None),
         _registry=SimpleNamespace(is_dark=True),
     )
@@ -297,7 +366,7 @@ def test_selected_checkbox_shows_a_tick():
 
     GameCard.set_selected(card, True)
 
-    assert card._select_icon.name == ft.Icons.CHECK
+    assert card._select_icon.icon == ft.Icons.CHECK
 
 
 def test_unselected_checkbox_shows_an_empty_box():
@@ -307,7 +376,7 @@ def test_unselected_checkbox_shows_an_empty_box():
 
     GameCard.set_selected(card, False)
 
-    assert card._select_icon.name == ft.Icons.CHECK_BOX_OUTLINE_BLANK
+    assert card._select_icon.icon == ft.Icons.CHECK_BOX_OUTLINE_BLANK
 
 
 def test_selected_and_unselected_plates_are_different_colours():
@@ -344,3 +413,17 @@ def test_selected_plate_repaints_for_a_theme_change():
     GameCard.set_selected(card, True, is_dark=False)
 
     assert card._select_button.bgcolor != dark_plate
+
+
+def test_deselecting_clears_the_cards_accent_border():
+    """Clearing a selection must drop the 2px accent border too - it used to
+    survive until the card was next hovered."""
+    card = _card_stub()
+    card._card_body = SimpleNamespace(border=None)
+    card._is_hovering = False
+
+    GameCard.set_selected(card, True)
+    assert card._card_body.border is not None
+
+    GameCard.set_selected(card, False)
+    assert card._card_body.border is None

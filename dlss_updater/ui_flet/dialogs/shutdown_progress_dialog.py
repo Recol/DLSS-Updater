@@ -67,6 +67,7 @@ class ShutdownProgressDialog:
         self._page_ref = page
         self.logger = logger or logging.getLogger(__name__)
         self._dialog: ft.AlertDialog | None = None
+        self._content: ft.Container | None = None
         self._current_step = 0
 
         # UI element references for updates
@@ -202,6 +203,7 @@ class ShutdownProgressDialog:
         self.logger.debug("Showing shutdown progress dialog")
 
         content = self._build_content()
+        self._content = content
 
         self._dialog = ft.AlertDialog(
             modal=True,
@@ -213,9 +215,24 @@ class ShutdownProgressDialog:
         )
 
         try:
+            # show_dialog() already pushes the dialog stack - no page.update().
             self._page_ref.show_dialog(self._dialog)
         except Exception as e:
             self.logger.warning(f"Could not show shutdown dialog: {e}")
+
+    def _flush(self) -> None:
+        """Send only the dialog content's subtree, not the whole page.
+
+        Falls back to page.update() if the content isn't attached (e.g.
+        show_dialog() failed), matching the previous behaviour.
+        """
+        target = self._content
+        try:
+            if target is None:
+                raise RuntimeError("dialog content not built")
+            target.update()
+        except RuntimeError:
+            self._page_ref.update()
 
     def update_step(self, step: int) -> None:
         """
@@ -244,8 +261,8 @@ class ShutdownProgressDialog:
             if self._step_counter:
                 self._step_counter.value = f"Step {step}/{self.TOTAL_STEPS}"
 
-            # Try to update the page
-            self._page_ref.update()
+            # Update just the dialog content
+            self._flush()
         except Exception as e:
             self.logger.debug(f"Error updating shutdown progress: {e}")
 
@@ -271,8 +288,8 @@ class ShutdownProgressDialog:
             if self._step_counter:
                 self._step_counter.value = f"Step {self.TOTAL_STEPS}/{self.TOTAL_STEPS}"
 
-            # Try to update the page
-            self._page_ref.update()
+            # Update just the dialog content
+            self._flush()
         except Exception as e:
             self.logger.debug(f"Error showing completion state: {e}")
 

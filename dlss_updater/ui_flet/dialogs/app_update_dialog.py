@@ -5,8 +5,6 @@ Theme-aware: responds to light/dark mode changes
 """
 
 import logging
-import subprocess
-import webbrowser
 import flet as ft
 
 from dlss_updater.auto_updater import check_for_updates_async, get_platform_name
@@ -14,46 +12,7 @@ from dlss_updater.linux_paths import is_flathub
 from dlss_updater.version import __version__
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.theme.colors import MD3Colors
-
-
-def _open_url(url: str) -> bool:
-    """Open a URL in the default browser (cross-platform)."""
-    import sys
-    import os
-    from pathlib import Path
-
-    # On Linux (including WSL2), try multiple methods
-    if sys.platform == 'linux':
-        # Check if running in WSL
-        is_wsl = 'microsoft' in os.uname().release.lower() or Path('/mnt/c/Windows').exists()
-
-        if is_wsl:
-            # In WSL2, use cmd.exe to open URL in Windows browser
-            try:
-                subprocess.Popen(
-                    ['cmd.exe', '/c', 'start', '', url],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                return True
-            except Exception:
-                pass
-
-        # Try xdg-open for native Linux
-        try:
-            subprocess.Popen(['xdg-open', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return True
-        except Exception:
-            pass
-
-    # On Windows/other platforms, use webbrowser
-    try:
-        webbrowser.open(url)
-        return True
-    except Exception:
-        pass
-
-    return False
+from dlss_updater.ui_flet.url_opener import open_url_async
 
 
 class AppUpdateDialog(ThemeAwareMixin):
@@ -104,7 +63,6 @@ class AppUpdateDialog(ThemeAwareMixin):
                 bgcolor=MD3Colors.get_surface(is_dark),
             )
             self._page_ref.show_dialog(flathub_dialog)
-            self._page_ref.update()
             return
 
         # Show loading
@@ -124,7 +82,6 @@ class AppUpdateDialog(ThemeAwareMixin):
             bgcolor=MD3Colors.get_surface(is_dark),
         )
         self._page_ref.show_dialog(checking_dialog)
-        self._page_ref.update()
 
         try:
             # Check for updates asynchronously (non-blocking)
@@ -142,9 +99,9 @@ class AppUpdateDialog(ThemeAwareMixin):
 
             if is_update_available:
                 # Update available
-                def open_download(e):
-                    _open_url(download_url)
+                async def open_download(e):
                     self._page_ref.pop_dialog()
+                    await open_url_async(download_url)
 
                 update_dialog = ft.AlertDialog(
                     modal=True,

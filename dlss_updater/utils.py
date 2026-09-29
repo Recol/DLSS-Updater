@@ -115,6 +115,12 @@ async def process_single_dll_with_backup(dll_path, launcher, backup_path, progre
         return ProcessedDLLResult(success=False, dll_type="Error")
 
 
+# Locked-file retry policy for process_dlls_parallel(): same total patience as
+# the old per-file loop (3 checks, 2s apart) but spent once per batch, async.
+LOCKED_RETRY_ROUNDS = 2
+LOCKED_RETRY_DELAY_S = 2.0
+
+
 async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=None, scope=None):
     """Process DLLs using anyio with progress tracking (maximum hardware utilization)
 
@@ -177,6 +183,39 @@ async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=N
         for index, (dll_path, launcher) in enumerate(dll_tasks):
             tg.start_soon(process_with_limiter, index, dll_path, launcher)
 
+    # Deferred retry of locked targets. update_dll() fails fast on a file held
+    # by another process instead of sleeping on its worker thread, so every
+    # other DLL finishes first; the locked ones are retried here in rounds,
+    # waiting with anyio.sleep() - no thread and no limiter slot held while
+    # waiting, and all locked files share one wait instead of 6s each.
+    # Progress was already counted on the first attempt, so retries skip it.
+    async def retry_locked(index, dll_path, launcher):
+        async with limiter:
+            try:
+                result = await process_single_dll(dll_path, launcher, scope)
+            except Exception as e:
+                logger.error(f"Error retrying {dll_path}: {e}")
+                result = ProcessedDLLResult(success=False, dll_type=str(e))
+            task_results[index] = (result, dll_path, launcher)
+
+    for attempt in range(1, LOCKED_RETRY_ROUNDS + 1):
+        locked = [
+            index
+            for index, entry in enumerate(task_results)
+            if entry is not None and entry[0] is not None and getattr(entry[0], "locked", False)
+        ]
+        if not locked:
+            break
+        logger.info(
+            f"{len(locked)} DLL(s) in use; retrying in {LOCKED_RETRY_DELAY_S:g}s "
+            f"(round {attempt}/{LOCKED_RETRY_ROUNDS})"
+        )
+        await anyio.sleep(LOCKED_RETRY_DELAY_S)
+        async with anyio.create_task_group() as tg:
+            for index in locked:
+                _, dll_path, launcher = task_results[index]
+                tg.start_soon(retry_locked, index, dll_path, launcher)
+
     # Process results
     for index in range(len(dll_tasks)):
         if task_errors[index] is not None:
@@ -196,7 +235,9 @@ async def process_dlls_parallel(dll_tasks, max_workers=None, progress_callback=N
                         (str(dll_path), result.backup_path)
                     )
             else:
-                reason = (
+                # skip_reason says WHY (file in use, file gone); fall back to
+                # the DLL type label only when the updater had nothing better.
+                reason = result.skip_reason or (
                     result.dll_type if isinstance(result.dll_type, str) else "Update failed"
                 )
                 results["skipped_games"].append(

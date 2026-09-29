@@ -24,12 +24,18 @@ from ``hero_surface.py`` rather than duplicating them.
 """
 
 import itertools
+import math
+from dataclasses import dataclass
 
 import anyio
 import flet as ft
 
 from dlss_updater.ui_flet.theme.colors import MD3Colors, Shadows, TabColors
-from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
+from dlss_updater.ui_flet.theme.theme_aware import (
+    ThemeAwareMixin,
+    find_detached_nav_view,
+    get_theme_registry,
+)
 from dlss_updater.ui_flet.components.hero_surface import (
     WATERMARK_OPACITY_DARK,
     WATERMARK_OPACITY_LIGHT,
@@ -54,6 +60,107 @@ _SIDE_WATERMARK_MAX = 110
 # Height of the hub's call-to-action band (see HubActionCard). Deliberately
 # short: it sits under the Games hero and must not compete with it.
 ACTION_CARD_HEIGHT = 96
+
+
+# ---------------------------------------------------------------------------
+# Hover icon motion
+# ---------------------------------------------------------------------------
+# Each hub card's icon moves on hover in a way that echoes what it stands for.
+# The motion is declared ONCE per icon (animate_rotation/scale/offset set at
+# build time) and the card's existing hover handler only swaps target values,
+# so Flutter tweens it on the GPU and the handler's single narrow
+# self.update() carries it - no timers, no extra updates.
+#
+# ft.Icon.rotate is in RADIANS; offset is a fraction of the icon's own size.
+ICON_MOTION_MS = 350
+WATERMARK_MOTION_MS = 600
+# The oversized watermark moves this fraction of the identity icon's motion,
+# so it drifts behind rather than competing with the small icon.
+WATERMARK_MOTION_FACTOR = 0.5
+
+
+@dataclass(frozen=True, slots=True)
+class IconMotion:
+    """Hover target for an icon; the rest state is rotate 0, scale 1, offset 0."""
+
+    rotate: float = 0.0
+    scale: float = 1.0
+    dx: float = 0.0
+    dy: float = 0.0
+
+
+ICON_MOTIONS: dict[str, IconMotion] = {
+    ft.Icons.ROCKET_LAUNCH: IconMotion(scale=1.05, dx=0.14, dy=-0.14),            # take-off
+    ft.Icons.AUTO_AWESOME: IconMotion(rotate=math.pi / 2, scale=1.15),            # twinkle
+    ft.Icons.SETTINGS_BACKUP_RESTORE: IconMotion(rotate=-2 * math.pi),            # rewind
+    ft.Icons.SETTINGS: IconMotion(rotate=math.pi),                                # gear turn
+    ft.Icons.SPORTS_ESPORTS: IconMotion(rotate=-0.14, scale=1.12),                # tilt
+    # HubActionCard badge - looked up from whichever state icon is showing.
+    ft.Icons.SYSTEM_UPDATE_ALT: IconMotion(dy=0.18),                              # drop
+    ft.Icons.SEARCH: IconMotion(rotate=-0.35, scale=1.1),                         # magnifier sweep
+    ft.Icons.TASK_ALT: IconMotion(rotate=0.2, scale=1.15),                        # pop
+}
+
+
+def motion_for_icon(icon) -> IconMotion | None:
+    """Default hover motion for a hub icon, or None to keep it still."""
+    return ICON_MOTIONS.get(icon)
+
+
+def prime_icon_motion(icon: ft.Icon, duration_ms: int = ICON_MOTION_MS) -> None:
+    """Set the rest state and the implicit animations once, at build time."""
+    curve = ft.AnimationCurve.EASE_OUT_BACK
+    icon.rotate = 0.0
+    icon.scale = 1.0
+    icon.offset = ft.Offset(0, 0)
+    icon.animate_rotation = ft.Animation(duration_ms, curve)
+    icon.animate_scale = ft.Animation(duration_ms, curve)
+    icon.animate_offset = ft.Animation(duration_ms, curve)
+
+
+def apply_icon_motion(
+    icon: ft.Icon | None, motion: IconMotion | None, hovering: bool, factor: float = 1.0
+) -> None:
+    """Point ``icon`` at its hover target (or back at rest). No update()."""
+    if icon is None or motion is None:
+        return
+    if hovering:
+        icon.rotate = motion.rotate * factor
+        icon.scale = 1.0 + (motion.scale - 1.0) * factor
+        icon.offset = ft.Offset(motion.dx * factor, motion.dy * factor)
+    else:
+        icon.rotate = 0.0
+        icon.scale = 1.0
+        icon.offset = ft.Offset(0, 0)
+
+
+def _watermark_icon(watermark) -> ft.Icon | None:
+    content = getattr(watermark, "content", None)
+    return content if isinstance(content, ft.Icon) else None
+
+
+def _resync_theme_on_mount(card) -> None:
+    """did_mount() safety net shared by the three hub cards.
+
+    Re-applies the theme only when the card was last painted for a DIFFERENT
+    theme than the registry's current one (``_themed_for``). Flet fires
+    did_mount() on every re-attach, and the hub is re-attached on every
+    navigation back to it, so the old unconditional run_task(apply_theme)
+    cost one redundant self.update() per card per hub visit. The mismatch
+    case it exists for - a card themed while detached, or skipped by the
+    cascade because MainView replaces the whole hub on attach - still heals.
+    Scheduled via run_task rather than called inline to avoid re-entering
+    the session's in-flight patch/mount processing.
+    """
+    is_dark = get_theme_registry().is_dark
+    if getattr(card, "_themed_for", None) == is_dark:
+        return
+    page = getattr(card, "_page_ref", None)
+    if page is not None and hasattr(page, "run_task"):
+        try:
+            page.run_task(card.apply_theme, is_dark)
+        except Exception:
+            pass
 
 
 def _on_accent(is_dark: bool) -> str:
@@ -103,8 +210,10 @@ class HubCard(ThemeAwareMixin, ft.Container):
         page: ft.Page | None = None,
         wash_opacity_dark: float | None = None,
         wash_opacity_light: float | None = None,
+        motion: IconMotion | None = None,
     ):
         self._page_ref = page
+        self._motion = motion or motion_for_icon(icon)
         self._title = title
         self._subtitle = subtitle
         self._icon = icon
@@ -198,6 +307,10 @@ class HubCard(ThemeAwareMixin, ft.Container):
         self._watermark = build_watermark_icon(icon, is_dark, size=watermark_size)
         self._watermark.right = -14
         self._watermark.bottom = -14
+        if self._motion is not None:
+            prime_icon_motion(self._icon_widget)
+            if (wm := _watermark_icon(self._watermark)) is not None:
+                prime_icon_motion(wm, WATERMARK_MOTION_MS)
 
         card_content = ft.Stack(
             controls=[self._watermark, identity_overlay],
@@ -221,6 +334,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
             ink=True,
         )
 
+        self._themed_for = is_dark  # read by _resync_theme_on_mount()
         self._register_theme_aware()
 
     def _wash_opacity(self, is_dark: bool) -> float | None:
@@ -243,24 +357,25 @@ class HubCard(ThemeAwareMixin, ft.Container):
         whatever the registry's CURRENT is_dark is - is a cheap, idempotent
         safety net that self-heals regardless of the exact cause. Scheduled
         via run_task rather than called inline to avoid re-entering the
-        session's in-flight patch/mount processing.
+        session's in-flight patch/mount processing. Gated on the card's
+        last-painted theme (see _resync_theme_on_mount).
         """
-        page = self._page_ref
-        if page is not None and hasattr(page, "run_task"):
-            try:
-                page.run_task(self.apply_theme, get_theme_registry().is_dark)
-            except Exception:
-                pass
+        _resync_theme_on_mount(self)
 
     def _on_hover(self, e):
         """Handle hover effect - scale + shadow (wash replaces the old left accent bar)."""
-        if e.data is True or e.data == "true":
+        hovering = e.data is True or e.data == "true"
+        if hovering:
             max_scale = 1.01 if self._icon_size >= 64 else 1.02
             self.scale = max_scale
             self.shadow = Shadows.LEVEL_3
         else:
             self.scale = 1.0
             self.shadow = Shadows.LEVEL_2
+        apply_icon_motion(self._icon_widget, self._motion, hovering)
+        apply_icon_motion(
+            _watermark_icon(self._watermark), self._motion, hovering, WATERMARK_MOTION_FACTOR
+        )
 
         if self._page_ref:
             self.update()
@@ -299,6 +414,7 @@ class HubCard(ThemeAwareMixin, ft.Container):
         self._stats_pill_text.color = accent
         self._stats_detail_text.color = MD3Colors.get_on_surface_variant(is_dark)
         self._watermark.opacity = WATERMARK_OPACITY_DARK if is_dark else WATERMARK_OPACITY_LIGHT
+        self._themed_for = is_dark
 
         try:
             self.update()
@@ -336,8 +452,10 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         on_click=None,
         border_radius_val: int = 20,
         page: ft.Page | None = None,
+        motion: IconMotion | None = None,
     ):
         self._page_ref = page
+        self._motion = motion or motion_for_icon(icon)
         self._title = title
         self._icon = icon
         self._accent_dark = accent_color_dark
@@ -403,6 +521,10 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         self._watermark = build_watermark_icon(icon, is_dark, size=110)
         self._watermark.right = -18
         self._watermark.bottom = -18
+        if self._motion is not None:
+            prime_icon_motion(self._icon_widget)
+            if (wm := _watermark_icon(self._watermark)) is not None:
+                prime_icon_motion(wm, WATERMARK_MOTION_MS)
 
         # ---- Art layer (populated by set_mosaic) + its overlays ----
         self._art_layer = ft.Container(
@@ -462,6 +584,7 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
             ink=True,
         )
 
+        self._themed_for = is_dark  # read by _resync_theme_on_mount()
         self._register_theme_aware()
 
     @staticmethod
@@ -498,21 +621,24 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         """Defensive theme re-sync on every (re)mount - see HubCard.did_mount()
         for the full rationale (nav controller's content-detachment pattern
         can leave a swallowed apply_theme() self.update() unflushed)."""
-        page = self._page_ref
-        if page is not None and hasattr(page, "run_task"):
-            try:
-                page.run_task(self.apply_theme, get_theme_registry().is_dark)
-            except Exception:
-                pass
+        _resync_theme_on_mount(self)
 
     def _on_hover(self, e):
         """Handle hover effect - scale + shadow (unchanged from the pre-hero HubCard)."""
-        if e.data is True or e.data == "true":
+        hovering = e.data is True or e.data == "true"
+        if hovering:
             self.scale = 1.01  # smaller scale for the large card, matches prior behavior
             self.shadow = Shadows.LEVEL_3
         else:
             self.scale = 1.0
             self.shadow = Shadows.LEVEL_2
+        apply_icon_motion(self._icon_widget, self._motion, hovering)
+        # The watermark is hidden once the art mosaic is live; moving it then
+        # would only add a no-op diff.
+        if getattr(self._watermark, "visible", True) is not False:
+            apply_icon_motion(
+                _watermark_icon(self._watermark), self._motion, hovering, WATERMARK_MOTION_FACTOR
+            )
 
         if self._page_ref:
             self.update()
@@ -588,6 +714,7 @@ class GamesHeroCard(ThemeAwareMixin, ft.Container):
         self._watermark.opacity = WATERMARK_OPACITY_DARK if is_dark else WATERMARK_OPACITY_LIGHT
 
         self._apply_identity_colors(is_dark)
+        self._themed_for = is_dark
 
         try:
             self.update()
@@ -652,6 +779,7 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
 
         # ---- Leading badge (state glyph in a tinted circle) ----
         self._badge_icon = ft.Icon(ft.Icons.SEARCH, size=22)
+        prime_icon_motion(self._badge_icon)
         self._badge = ft.Container(
             content=self._badge_icon,
             width=44,
@@ -806,11 +934,13 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
             border_radius=20,
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             shadow=Shadows.LEVEL_2,
+            on_hover=self._on_card_hover,
         )
 
         # Paints bgcolor/gradient/labels for the initial (empty) state.
         self._apply_state(is_dark)
 
+        self._themed_for = is_dark  # read by _resync_theme_on_mount()
         self._register_theme_aware()
 
     # ===== State =====
@@ -873,7 +1003,7 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
         self.gradient = build_brand_wash(accent, is_dark)
 
         self._badge.bgcolor = ft.Colors.with_opacity(0.16, accent)
-        self._badge_icon.name = badge_icon
+        self._badge_icon.icon = badge_icon
         self._badge_icon.color = accent
 
         # Detached-patch guard (CLAUDE.md "Flet desktop client rendering
@@ -894,8 +1024,12 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
         # Flet 0.86 raises RuntimeError("Control must be added to the page
         # first") — so this reuses the try/except-around-`.page` idiom
         # HubView._on_page_resize already uses for the same purpose.
+        # `.page` alone is not enough: Flet never clears a detached subtree's
+        # parent links, so it still resolves while the nav controller has the
+        # hub detached - the case this guard exists for. Also require that no
+        # ancestor is a nav-detached view.
         try:
-            attached = self.page is not None
+            attached = self.page is not None and find_detached_nav_view(self) is None
         except Exception:
             attached = False
 
@@ -946,7 +1080,7 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
             )
             target.bgcolor = accent
             target.tooltip = primary_tooltip
-            icon_ctl.name = icon
+            icon_ctl.icon = icon
             icon_ctl.color = fg
             label_ctl.value = label
             label_ctl.color = fg
@@ -1014,6 +1148,18 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
         if self._on_scan and self._page_ref:
             self._page_ref.run_task(self._on_scan)
 
+    def _on_card_hover(self, e):
+        """Animate the state badge; the motion follows whichever icon is live."""
+        hovering = e.data is True or e.data == "true"
+        apply_icon_motion(
+            self._badge_icon, motion_for_icon(self._badge_icon.icon), hovering
+        )
+        if self._page_ref:
+            try:
+                self._badge_icon.update()  # narrow: suppresses the page-wide auto-update
+            except Exception:
+                pass
+
     def _on_button_hover(self, e):
         """Subtle lift on the hovered button (e.data is a bool in Flet 0.86).
 
@@ -1040,12 +1186,7 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
 
     def did_mount(self):
         """Defensive theme re-sync on every (re)mount - see HubCard.did_mount()."""
-        page = self._page_ref
-        if page is not None and hasattr(page, "run_task"):
-            try:
-                page.run_task(self.apply_theme, get_theme_registry().is_dark)
-            except Exception:
-                pass
+        _resync_theme_on_mount(self)
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Re-derive every themed property (state mapping owns them all)."""
@@ -1053,6 +1194,7 @@ class HubActionCard(ThemeAwareMixin, ft.Container):
             await anyio.sleep(delay_ms / 1000)
 
         self._apply_state(is_dark)
+        self._themed_for = is_dark
 
         try:
             self.update()

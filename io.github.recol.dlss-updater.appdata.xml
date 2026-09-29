@@ -64,6 +64,21 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="5.1.0" date="2026-09-29">
+      <description>
+        <p>Pick the games to update, a livelier Hub, and a round of fixes</p>
+        <ul>
+          <li>A Select button in the Games header puts a checkbox on every game, so you can pick several and update just those. Esc or Done leaves selection mode</li>
+          <li>The Hub's icons now animate when you hover a card</li>
+          <li>Icons that never changed after start-up now do: the tick on a selected game, the hourglass while a game updates, the Hub and Steam API badges, and the Theme setting's sun and moon</li>
+          <li>Messages in the Launchers view and the DLSS overlay dialog now appear, a settings panel that failed its check no longer crashes, and Esc keeps working after you open a settings panel</li>
+          <li>A game whose files are in use no longer holds up the rest of an update. Locked files are retried once everything else is done, and one that stays locked tells you to close the game</li>
+          <li>Opening links and launching games no longer freezes the window</li>
+          <li>Less redrawing throughout: switching theme, scan and update progress, and searching the Blacklist and Ignored Games lists only redraw what changed</li>
+          <li>Updated the UI framework (Flet) to 1.0.2</li>
+        </ul>
+      </description>
+    </release>
     <release version="5.0.3" date="2026-09-18">
       <description>
         <p>Scan and backup times now respect your timezone</p>

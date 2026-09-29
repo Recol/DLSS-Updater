@@ -13,6 +13,7 @@ from dlss_updater.ui_flet.theme.colors import TabColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin
 from dlss_updater.ui_flet.components.hub_card import HubCard, GamesHeroCard, HubActionCard
 from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask
+from dlss_updater.ui_flet.navigation.navigation_controller import is_view_attached
 
 
 # The Launchers accent (TabColors.LAUNCHERS teal) is markedly lower-chroma than
@@ -551,8 +552,20 @@ class HubView(ThemeAwareMixin, ft.Column):
                     scan_age=scan_age,
                 )
 
-            if self._page_ref:
-                self._page_ref.update()
+            # Everything above mutated hub-owned controls only (the cards,
+            # their pills/mosaic, the CTA band and its scope menu), so flush
+            # just this subtree rather than the whole page. Skipped while the
+            # nav controller has the hub detached: the client would drop the
+            # patch (CLAUDE.md pitfall #2), and leaving it unsent keeps the
+            # change in the diff that re-attaching the hub sends. Runs as a
+            # background task, so there is no event auto-update to widen.
+            if is_view_attached(self):
+                try:
+                    self.update()
+                except RuntimeError:
+                    # Not mounted yet (startup race) - the first page
+                    # serialisation sends the current state anyway.
+                    pass
 
         except Exception as e:
             self.logger.warning(f"Failed to load hub stats: {e}")
@@ -562,10 +575,10 @@ class HubView(ThemeAwareMixin, ft.Column):
         if delay_ms > 0:
             await anyio.sleep(delay_ms / 1000)
 
-        # Cards handle their own theming via ThemeAwareMixin
-        # Nothing extra needed at hub level
-
-        try:
-            self.update()
-        except Exception:
-            pass
+        # Cards handle their own theming (and flush themselves) via
+        # ThemeAwareMixin, and the hub has no themed properties of its own,
+        # so there is nothing to flush here. The old self.update() re-diffed
+        # the entire hub subtree after the cards had already sent their
+        # patches. (In practice the hub is never attached during a toggle -
+        # the switch lives in Settings - and MainView replaces the whole
+        # HubView on its next attach.)

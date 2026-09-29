@@ -31,6 +31,7 @@ from dlss_updater.ui_flet.theme.colors import MD3Colors, build_hidden_input_bord
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.hyper_parallel_loader import HyperParallelLoader, LoadTask
 from dlss_updater.task_registry import register_task
+from dlss_updater.ui_flet.navigation.navigation_controller import is_view_attached
 
 # Number of groups to create in first batch (shown immediately)
 INITIAL_BATCH_SIZE = 8
@@ -644,6 +645,9 @@ class BackupsView(ThemeAwareMixin, ft.Column):
         # PERFORMANCE: Skip full reload if already loaded (fast tab switching)
         if self._backups_loaded and not force:
             self.logger.debug("Backups already loaded - animating groups on tab switch")
+            # Set BEFORE the branch updates below: it used to be assigned after
+            # them and then return, so the change was never flushed.
+            self.loading_indicator.visible = False
             # Ensure the view is visible
             if self.backups:
                 self.backups_list_container.visible = True
@@ -666,7 +670,6 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 self.empty_state.visible = True
                 self.backups_list_container.visible = False
                 self.update()
-            self.loading_indicator.visible = False
             return
 
         self.is_loading = True
@@ -745,7 +748,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 self.loading_indicator.visible = False
                 self._update_clear_button_state(False)
                 self._backups_loaded = True
-                self.update()
+                self._update_if_attached()  # post-await: may have been navigated away
                 return
 
             # PERFORMANCE: Resolve header artwork thumbnails for ONLY the games
@@ -838,20 +841,21 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             self._update_clear_button_state(True)
             self._backups_loaded = True
 
-            self.update()
-
-            # Step 3: Create remaining linked groups in background batches, then
+            # Step 3: Remaining linked groups load in background batches, then
             # the orphan section LAST so it always sits below the linked groups.
-            # If there are no remaining linked groups, append orphans inline now.
+            # With no remaining linked groups, orphans are appended inline now
+            # so the single update below flushes them with the first batch.
             remaining_items = game_items[INITIAL_BATCH_SIZE:]
+            if not remaining_items and orphan_items:
+                self._append_orphan_section(orphan_items)
+
+            self._update_if_attached()  # post-await: may have been navigated away
+
             if remaining_items:
                 task = asyncio.create_task(
                     self._load_remaining_groups(remaining_items, orphan_items)
                 )
                 register_task(task, "load_remaining_backup_groups")
-            elif orphan_items:
-                self._append_orphan_section(orphan_items)
-                self.update()
 
             total_ms = (time.perf_counter() - start_total) * 1000
             self.logger.info(
@@ -872,7 +876,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             # list (the load may have failed after a previous successful one).
             self._update_summary([])
             self._backups_loaded = False  # Allow retry on next tab switch
-            self.update()  # Single terminal update for the error path
+            self._update_if_attached()  # Single terminal update for the error path
 
         finally:
             self.is_loading = False
@@ -920,12 +924,12 @@ class BackupsView(ThemeAwareMixin, ft.Column):
                 self.backups_list.controls.extend(new_groups)
                 loaded += len(new_groups)
 
-                # Single view-scoped update per batch. Guard against the user
-                # navigating away mid-load (view detached -> self.update() raises).
-                try:
-                    self.update()
-                except Exception:
-                    pass
+                # Single view-scoped update per batch - skipped while the view
+                # is nav-detached (updating it would not raise; it would diff
+                # the subtree for a patch the client drops). The groups stay
+                # in self.backups_list and are serialized in full when the nav
+                # controller re-attaches the view with its page.update().
+                self._update_if_attached()
 
                 # Yield to event loop to keep UI responsive
                 await anyio.sleep(0.01)
@@ -935,10 +939,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             # Orphan section renders last, below every linked group.
             if orphan_items:
                 self._append_orphan_section(orphan_items)
-                try:
-                    self.update()
-                except Exception:
-                    pass
+                self._update_if_attached()
 
         except Exception as e:
             self.logger.error(f"Error loading remaining backup groups: {e}", exc_info=True)
@@ -1022,6 +1023,23 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             )
             self.backups_list.controls.append(group)
 
+    def _update_if_attached(self) -> None:
+        """View-scoped update for background work, skipped while nav-detached.
+
+        try/except is not a detachment guard: Flet never clears a removed
+        control's parent, so update() on a detached view raises nothing and
+        ships a patch the client drops. Changes made while detached are still
+        on the Python objects, and the nav controller's re-attach
+        page.update() serializes the whole view subtree fresh, so they reach
+        the client then.
+        """
+        if not is_view_attached(self):
+            return
+        try:
+            self.update()
+        except Exception:
+            pass  # Never mounted (no page yet)
+
     async def _animate_groups_in(self, groups: list):
         """Animate backup groups with staggered fade-in for better UX"""
         # Small initial delay
@@ -1034,12 +1052,9 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             # Set opacity for entire batch
             for group in groups[batch_start:batch_end]:
                 group.opacity = 1
-            # Single view-scoped update per batch. Guard against the view being
-            # detached mid-animation (user navigated away).
-            try:
-                self.update()
-            except Exception:
-                pass
+            # Single view-scoped update per batch; skipped while nav-detached
+            # (the final opacity is serialized on re-attach).
+            self._update_if_attached()
             await anyio.sleep(0.08)  # 80ms delay per batch (slightly longer for groups)
 
     async def _on_refresh_clicked(self, e):
@@ -1134,7 +1149,6 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             ),
         )
         self._page_ref.show_dialog(progress_dialog)
-        self._page_ref.update()
 
         try:
             # Delete all backups from database
@@ -1471,7 +1485,7 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             title=ft.Text("Restore All Backups?"),
             content=ft.Column(
                 controls=[
-                    ft.Text(f"This will restore all backup DLLs for:"),
+                    ft.Text("This will restore all backup DLLs for:"),
                     ft.Text(game_name, weight=ft.FontWeight.BOLD),
                     ft.Divider(),
                     ft.Text(
@@ -1531,7 +1545,6 @@ class BackupsView(ThemeAwareMixin, ft.Column):
             ),
         )
         self._page_ref.show_dialog(progress_dialog)
-        self._page_ref.update()
 
         try:
             # Get all backups for this game using sync method in thread

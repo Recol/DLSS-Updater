@@ -13,6 +13,7 @@ from dlss_updater.registry_utils import get_dlss_overlay_state, set_dlss_overlay
 from dlss_updater.platform_utils import FEATURES, IS_LINUX
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.ui_flet.theme.colors import MD3Colors
+from dlss_updater.ui_flet.components.snackbar import show_snackbar
 
 
 class DLSSOverlayDialog(ThemeAwareMixin):
@@ -56,11 +57,25 @@ class DLSSOverlayDialog(ThemeAwareMixin):
         if self.dialog:
             self._page_ref.pop_dialog()
 
+    def _refresh_dialog(self):
+        """Flush changes to the dialog's own subtree (not the whole page).
+
+        Every control this class mutates lives inside ``self.dialog``, so a
+        dialog-scoped update is enough; an explicit update also suppresses
+        the handler's page-wide auto-update.
+        """
+        if self.dialog is None:
+            return
+        try:
+            self.dialog.update()
+        except RuntimeError:
+            pass  # Not on a page (never shown) - nothing to flush
+
     async def _load_current_state(self):
         """Load current overlay state from registry"""
         self.loading_ring.visible = True
         self.overlay_switch.disabled = True
-        self._page_ref.update()
+        self._refresh_dialog()
 
         is_enabled, error = await get_dlss_overlay_state()
 
@@ -76,7 +91,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
             self._update_status_text(is_enabled)
             self._hide_error()
 
-        self._page_ref.update()
+        self._refresh_dialog()
 
     def _update_status_text(self, is_enabled: bool):
         """Update the status text based on current state"""
@@ -107,7 +122,7 @@ class DLSSOverlayDialog(ThemeAwareMixin):
         self.loading_ring.visible = True
         self.overlay_switch.disabled = True
         self._hide_error()
-        self._page_ref.update()
+        self._refresh_dialog()
 
         # Apply change
         success, error = await set_dlss_overlay_state(new_state)
@@ -118,25 +133,24 @@ class DLSSOverlayDialog(ThemeAwareMixin):
         if success:
             self._update_status_text(new_state)
             self._hide_error()
-
-            # Show success snackbar
-            action_text = "enabled" if new_state else "disabled"
-            snackbar = ft.SnackBar(
-                content=ft.Text(
-                    f"DLSS debug overlay {action_text}. Restart games to see changes."
-                ),
-                bgcolor=MD3Colors.get_success(is_dark) if new_state else MD3Colors.get_primary(is_dark),
-                duration=3000,
-            )
-            self._page_ref.overlay.append(snackbar)
-            snackbar.open = True
         else:
             # Revert switch state on failure
             self.overlay_switch.value = not new_state
             self._show_error(error)
             self.logger.error(f"Failed to set DLSS overlay state: {error}")
 
-        self._page_ref.update()
+        self._refresh_dialog()
+
+        if success:
+            # Via page.show_dialog (the old overlay.append() leaked one
+            # SnackBar per toggle into page.overlay, never removed).
+            action_text = "enabled" if new_state else "disabled"
+            show_snackbar(
+                self._page_ref,
+                f"DLSS debug overlay {action_text}. Restart games to see changes.",
+                tone="success" if new_state else "info",
+                is_dark=is_dark,
+            )
 
     async def _show_unavailable_dialog(self):
         """Show dialog explaining feature is Windows-only"""
@@ -183,21 +197,15 @@ class DLSSOverlayDialog(ThemeAwareMixin):
         launch_opts = f"{self.LINUX_OVERLAY_ENV} %command%"
         try:
             await ft.Clipboard().set(launch_opts)
-            self._page_ref.snack_bar = ft.SnackBar(
-                content=ft.Text("Launch options copied to clipboard!"),
-                bgcolor=MD3Colors.get_success(is_dark),
-            )
-            self._page_ref.snack_bar.open = True
-            self._page_ref.update()
-            self.logger.info("Linux DLSS overlay launch options copied to clipboard")
         except Exception as ex:
             self.logger.warning(f"Clipboard operation failed: {ex}")
-            self._page_ref.snack_bar = ft.SnackBar(
-                content=ft.Text("Failed to copy to clipboard"),
-                bgcolor=MD3Colors.get_error(is_dark),
+            show_snackbar(self._page_ref, "Failed to copy to clipboard", tone="error", is_dark=is_dark)
+        else:
+            # page.snack_bar does not exist in Flet 1.0 (the old write was dead)
+            show_snackbar(
+                self._page_ref, "Launch options copied to clipboard!", tone="success", is_dark=is_dark
             )
-            self._page_ref.snack_bar.open = True
-            self._page_ref.update()
+            self.logger.info("Linux DLSS overlay launch options copied to clipboard")
 
     async def _show_linux_dialog(self):
         """Show Linux-specific dialog with environment variable instructions"""

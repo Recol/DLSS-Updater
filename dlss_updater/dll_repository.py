@@ -7,9 +7,8 @@ import anyio
 import msgspec
 import aiohttp
 import aiofiles
-import concurrent.futures
 from .logger import setup_logger
-from .config import initialize_dll_paths, update_latest_dll_versions_from_cache, Concurrency
+from .config import initialize_dll_paths, update_latest_dll_versions_from_cache
 from .concurrency_limiters import io_heavy, io_extreme, thread_cpu
 
 logger = setup_logger()
@@ -651,102 +650,3 @@ async def initialize_dll_cache_async(progress_callback=None):
     await report_progress(100, 100, "DLL cache initialized")
 
 
-def initialize_dll_cache(progress_callback=None):
-    """
-    Initialize the DLL cache on application startup - parallel version (sync)
-
-    Args:
-        progress_callback: Optional callback(current, total, message) for progress updates
-
-    Thread-safe for free-threading (Python 3.14+).
-    """
-    global _cache_initialized
-
-    # Quick check with lock
-    with _cache_init_lock:
-        if _cache_initialized:
-            logger.debug("DLL cache already initialized, skipping")
-            return
-
-    logger.info("Initializing DLL cache")
-    ensure_cache_dir()
-
-    if progress_callback:
-        progress_callback(0, 100, "Fetching DLL manifest...")
-
-    manifest = get_remote_manifest()
-    if manifest:
-        update_cached_manifest(manifest)
-
-        if progress_callback:
-            progress_callback(10, 100, "Checking for DLL updates...")
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=Concurrency.THREADPOOL_IO) as executor:
-            check_futures = {
-                executor.submit(check_for_dll_update, dll_name): dll_name
-                for dll_name in manifest
-            }
-
-            dlls_to_update = []
-            checked_count = 0
-            total_dlls = len(manifest)
-
-            for future in concurrent.futures.as_completed(check_futures):
-                dll_name = check_futures[future]
-                try:
-                    needs_update = future.result()
-                    if needs_update:
-                        logger.info(f"Updating {dll_name} to version {manifest[dll_name]['version']}")
-                        dlls_to_update.append(dll_name)
-                    else:
-                        logger.info(f"{dll_name} is up to date")
-                except Exception as e:
-                    logger.error(f"Error checking {dll_name}: {e}")
-
-                checked_count += 1
-                if progress_callback:
-                    progress_pct = int(10 + (checked_count / total_dlls) * 30)
-                    progress_callback(progress_pct, 100, f"Checked {checked_count}/{total_dlls} DLLs")
-
-            if dlls_to_update:
-                if progress_callback:
-                    progress_callback(40, 100, f"Downloading {len(dlls_to_update)} DLL updates...")
-
-                download_futures = {
-                    executor.submit(download_latest_dll, dll_name): dll_name
-                    for dll_name in dlls_to_update
-                }
-
-                downloaded_count = 0
-                total_downloads = len(dlls_to_update)
-
-                for future in concurrent.futures.as_completed(download_futures):
-                    dll_name = download_futures[future]
-                    try:
-                        success = future.result()
-                        if not success:
-                            logger.error(f"Failed to download {dll_name}")
-                        else:
-                            logger.info(f"Downloaded {dll_name}")
-                    except Exception as e:
-                        logger.error(f"Error downloading {dll_name}: {e}")
-
-                    downloaded_count += 1
-                    if progress_callback:
-                        progress_pct = int(40 + (downloaded_count / total_downloads) * 60)
-                        progress_callback(progress_pct, 100, f"Downloaded {downloaded_count}/{total_downloads} DLLs")
-            else:
-                if progress_callback:
-                    progress_callback(100, 100, "All DLLs up to date")
-    else:
-        logger.warning("Using cached manifest, updates may not be available")
-        if progress_callback:
-            progress_callback(100, 100, "Using cached manifest")
-
-    with _cache_init_lock:
-        _cache_initialized = True
-    initialize_dll_paths()
-    update_latest_dll_versions_from_cache()
-
-    if progress_callback:
-        progress_callback(100, 100, "DLL cache initialized")

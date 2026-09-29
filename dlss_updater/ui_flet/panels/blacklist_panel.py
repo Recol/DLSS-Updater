@@ -81,9 +81,11 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
             self.blacklisted_games = []
             self.filtered_games = []
 
-        # Rebuild the games list now that data is loaded
+        # Rebuild the games list now that data is loaded. Only the list
+        # changed; the panel is attached by now (show() updated the page
+        # before scheduling on_open).
         self._update_games_list()
-        self._page_ref.update()
+        self._safe_update(self.games_column)
 
     def _on_search_change(self, e):
         """
@@ -103,8 +105,19 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
         else:
             self.filtered_games = self.blacklisted_games.copy()
 
+        # Per keystroke: patch only the list, not the whole page.
         self._update_games_list()
-        self._page_ref.update()
+        self._safe_update(self.games_column)
+
+    @staticmethod
+    def _safe_update(control):
+        """Update one control; a no-op if it isn't attached (panel closed)."""
+        if control is None:
+            return
+        try:
+            control.update()
+        except RuntimeError:
+            pass
 
     def _update_games_list(self):
         """Rebuild games column with filtered results."""
@@ -213,7 +226,7 @@ class BlacklistPanel(ThemeAwareMixin, PanelContentBase):
 
         # Update the card to show the new status
         self._update_games_list()
-        self._page_ref.update()
+        self._safe_update(self.games_column)
 
     def build(self) -> ft.Control:
         """

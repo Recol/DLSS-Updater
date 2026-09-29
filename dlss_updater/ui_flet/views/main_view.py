@@ -6,8 +6,6 @@ Async-based Material Design interface with hub-based navigation
 import asyncio
 import logging
 import os
-import subprocess
-import webbrowser
 from datetime import datetime
 from pathlib import Path
 
@@ -15,57 +13,8 @@ import anyio
 import flet as ft
 
 from dlss_updater.concurrency_limiters import thread_io
+from dlss_updater.ui_flet.url_opener import open_url_async
 
-
-def open_url(url: str) -> bool:
-    """
-    Open a URL in the default browser (cross-platform).
-
-    Args:
-        url: The URL to open
-
-    Returns:
-        True if successful, False otherwise
-    """
-    import sys
-    import os
-
-    # On Linux (including WSL2), try multiple methods
-    if sys.platform == 'linux':
-        # Check if running in WSL by looking for Windows interop
-        is_wsl = 'microsoft' in os.uname().release.lower() or Path('/mnt/c/Windows').exists()
-
-        if is_wsl:
-            # In WSL2, use cmd.exe to open URL in Windows browser
-            try:
-                subprocess.Popen(
-                    ['cmd.exe', '/c', 'start', '', url],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                return True
-            except Exception:
-                pass
-
-        # Try xdg-open for native Linux
-        try:
-            subprocess.Popen(
-                ['xdg-open', url],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            return True
-        except Exception:
-            pass
-
-    # On Windows/other platforms, use webbrowser
-    try:
-        webbrowser.open(url)
-        return True
-    except Exception:
-        pass
-
-    return False
 
 from dlss_updater.config import config_manager, LauncherPathName, get_config_path
 from dlss_updater.models import ScanCacheData, GameCardData, DLLInfo, encode_json, decode_json, format_json
@@ -95,7 +44,12 @@ from dlss_updater.ui_flet.views.games_view import GamesView
 from dlss_updater.ui_flet.views.backups_view import BackupsView
 from dlss_updater.ui_flet.views.hub_view import HubView
 from dlss_updater.ui_flet.views.settings_view import SettingsView
-from dlss_updater.ui_flet.navigation.navigation_controller import NavigationController
+from dlss_updater.ui_flet.navigation.navigation_controller import NavigationController, is_view_attached
+from dlss_updater.ui_flet.components.snackbar import show_snackbar
+from dlss_updater.ui_flet.theme.theme_aware import (
+    THEME_REBUILT_ON_ATTACH_ATTR,
+    get_theme_registry,
+)
 from dlss_updater.ui_flet.components.dll_cache_snackbar import DLLCacheProgressSnackbar
 from dlss_updater.ui_flet.components.app_bar_menus import (
     CommunityMenu, create_app_bar_menus
@@ -181,7 +135,7 @@ class MainView(ft.Column):
         # handed this same object by reference and renders from it.
         self._updater = SelfUpdater()
         self._update_state = UpdateBadgeState()
-        self._update_lock = asyncio.Lock()
+        self._update_lock = anyio.Lock()
 
         # DLL update status shown in the app bar's status pill. Like
         # _update_state above, the COUNT lives here rather than on the pill:
@@ -331,6 +285,7 @@ class MainView(ft.Column):
         # defer_paths=True keeps the per-card set_paths() filesystem validation
         # off the startup critical path — see _populate_launcher_paths_deferred.
         self.launchers_view = await self._create_launchers_view(defer_paths=True)
+        self._mark_rebuilt_on_attach(self.launchers_view)
 
         # Create games view. on_update_all wires its header CTA to the same
         # bulk-update pipeline the Launchers action bar uses.
@@ -374,6 +329,7 @@ class MainView(ft.Column):
             get_scope=self._effective_scope,
             on_scope_changed=self._set_update_scope,
         )
+        self._mark_rebuilt_on_attach(self.hub_view)
 
         # Create navigation controller (replaces tab bar)
         self.navigation_controller = NavigationController(
@@ -416,6 +372,33 @@ class MainView(ft.Column):
             self.logger_panel,
         ]
 
+    @staticmethod
+    def _mark_rebuilt_on_attach(view) -> None:
+        """Tell the theme cascade this view is REPLACED wholesale on its next
+        attach after a theme toggle, so its components' apply_theme() can be
+        skipped entirely while it is detached (ThemeRegistry.apply_theme_to_all).
+
+        Only valid for views whose theme-stale heal builds a brand-new
+        instance: the hub (_on_view_hidden's _refresh_hub) and launchers
+        (_rebuild_launchers_view_for_theme). Games/Backups heal only part of
+        their subtree, so they must NOT carry this flag - the cascade still
+        themes them (without flushing) instead.
+        """
+        if view is not None:
+            setattr(view, THEME_REBUILT_ON_ATTACH_ATTR, True)
+
+    def _nav_names_for_views(self, views) -> set[str]:
+        """Map view instances to the nav names they are registered under.
+
+        Instances the nav controller no longer references (already replaced
+        by a heal) are ignored - they will never be attached again.
+        """
+        if not self.navigation_controller or not views:
+            return set()
+        refs = self.navigation_controller._view_refs
+        wanted = {id(v) for v in views}
+        return {name for name, view in refs.items() if id(view) in wanted}
+
     async def _on_hub_navigate(self, view_name: str):
         """Handle hub card click navigation."""
         if self.navigation_controller:
@@ -451,7 +434,10 @@ class MainView(ft.Column):
                 self.games_view.loading_indicator.visible = True
                 self.games_view.empty_state.visible = False
                 self.games_view.tabs_container.visible = False
-                self.games_view.update()  # Targeted update (GamesView is isolated)
+                # Targeted update of the Games subtree only. (GamesView is NOT
+                # is_isolated - this narrows the flush, it doesn't bypass a
+                # parent digest.)
+                self.games_view.update()
                 register_task(
                     asyncio.create_task(self._load_games_background(force=theme_stale)),
                     "load_games_background"
@@ -545,6 +531,7 @@ class MainView(ft.Column):
                     # client drops (see CLAUDE.md).
                     import uuid as _uuid
                     self.hub_view.key = f"hub-{_uuid.uuid4().hex[:8]}"
+                    self._mark_rebuilt_on_attach(self.hub_view)
                     self.navigation_controller.replace_view(
                         NavigationController.HUB, self.hub_view
                     )
@@ -903,10 +890,10 @@ class MainView(ft.Column):
 
         # Create callbacks dict for menu items
         menu_callbacks = {
-            "support": lambda _: open_url("https://buymeacoffee.com/decouk"),
-            "bug_report": lambda _: open_url("https://github.com/Recol/DLSS-Updater/issues"),
-            "twitter": lambda _: open_url("https://x.com/iDeco_UK"),
-            "discord": lambda _: open_url("https://discord.com/users/162568099839606784"),
+            "support": lambda _: self._page_ref.run_task(open_url_async, "https://buymeacoffee.com/decouk"),
+            "bug_report": lambda _: self._page_ref.run_task(open_url_async, "https://github.com/Recol/DLSS-Updater/issues"),
+            "twitter": lambda _: self._page_ref.run_task(open_url_async, "https://x.com/iDeco_UK"),
+            "discord": lambda _: self._page_ref.run_task(open_url_async, "https://discord.com/users/162568099839606784"),
             "discord_invite": self._on_show_discord_invite_clicked,
             "release_notes": self._on_release_notes_clicked,
         }
@@ -1330,8 +1317,8 @@ class MainView(ft.Column):
                 ft.FilledButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
             ],
         )
+        # show_dialog() flushes the dialog stack itself.
         self._page_ref.show_dialog(dialog)
-        self._page_ref.update()
 
     async def _toggle_theme_from_menu(self, e):
         """Handle theme toggle from menu with cascade animation.
@@ -1368,9 +1355,17 @@ class MainView(ft.Column):
         }
         self._theme_stale_views |= (all_views - {active_view})
 
-        # SINGLE batched page.update() for all theme changes
-        if self._page_ref:
-            self._page_ref.update()
+        # Belt and braces: the cascade skipped flushing (or, for the hub and
+        # launchers, skipped entirely - see _mark_rebuilt_on_attach) every
+        # component inside a nav-detached view, and reports those views. Each
+        # MUST be healed on its next attach, so fold them in explicitly rather
+        # than relying solely on the "everything but the active view" rule.
+        self._theme_stale_views |= self._nav_names_for_views(
+            get_theme_registry().last_detached_views
+        )
+
+        # No page.update() here: apply_theme_to_all() ends with one, after
+        # every component has been themed.
 
         # App bar chrome (plain Containers/Text, NOT ThemeAware) is untouched
         # by the cascade above, so it must be rebuilt explicitly. Mark it stale
@@ -1424,7 +1419,7 @@ class MainView(ft.Column):
         # phases and can leave the bar rendered from a half-completed swap
         # (reachable via rapid double-toggle within the heal deferral).
         if not hasattr(self, '_app_bar_rebuild_lock'):
-            self._app_bar_rebuild_lock = asyncio.Lock()
+            self._app_bar_rebuild_lock = anyio.Lock()
 
         async with self._app_bar_rebuild_lock:
             if self.community_menu is not None:
@@ -1492,6 +1487,7 @@ class MainView(ft.Column):
         # Rebuild cards + header + action bar + content container from
         # scratch (also repopulates self.launcher_cards).
         new_view = await self._create_launchers_view()
+        self._mark_rebuilt_on_attach(new_view)
         self.launchers_view = new_view
 
         # Restore the captured scan-result state onto the fresh instances.
@@ -1543,7 +1539,7 @@ class MainView(ft.Column):
 
     async def _on_join_discord_clicked(self, e):
         """Open Discord invite link and dismiss banner"""
-        open_url("https://discord.gg/xTah8XCauN")
+        await open_url_async("https://discord.gg/xTah8XCauN")
         await self._on_dismiss_discord_banner(e)
 
     async def _on_dismiss_discord_banner(self, e):
@@ -1687,7 +1683,9 @@ class MainView(ft.Column):
             raw = path_input.value.strip()
             if not raw:
                 path_input.error_text = "Please enter a path"
-                self._page_ref.update()
+                # Only the field changed - flush it alone (an explicit update
+                # also suppresses the handler's full-page auto-update).
+                path_input.update()
                 return
 
             # Expand ~ and environment variables so paths like ~/.steam work (Issue #228)
@@ -1715,7 +1713,7 @@ class MainView(ft.Column):
                 await self._show_flatpak_permission_dialog(path)
             else:
                 path_input.error_text = "Directory does not exist"
-                self._page_ref.update()
+                path_input.update()
 
         dialog = ft.AlertDialog(
             modal=True,
@@ -2005,8 +2003,8 @@ class MainView(ft.Column):
                 ft.FilledButton("OK", on_click=lambda e: self._page_ref.pop_dialog()),
             ],
         )
+        # show_dialog() flushes the dialog stack itself.
         self._page_ref.show_dialog(dialog)
-        self._page_ref.update()
 
     async def _on_blacklist_clicked(self, e):
         """Handle blacklist button click"""
@@ -2075,7 +2073,13 @@ class MainView(ft.Column):
             # "N need updates" headline react to a Settings-side change exactly
             # the way they do to the card's own ignore button.
             self.games_view._sync_card_ignore_state(card, is_ignored)
-            self.games_view.update()
+            # This fires from the Settings-side ignore panel, so the Games
+            # view is normally nav-DETACHED here: updating it would diff its
+            # whole subtree for a patch the client drops (pitfall #2), and a
+            # try/except can't detect that. Leave the change unsent; the
+            # re-attach on the next visit to Games carries it.
+            if is_view_attached(self.games_view):
+                self.games_view.update()
         else:
             # No card to drive the recount — do it here instead.
             self._refresh_status_pill_soon()
@@ -2349,7 +2353,15 @@ class MainView(ft.Column):
 
             # Update the scan info display
             self._update_scan_info_text()
-            self._page_ref.update()
+            # Only the Launchers view's scan-info line changed: flush that one
+            # Text rather than the whole page (hide() below does its own page
+            # flush for the overlay). Skipped when Launchers is nav-detached,
+            # e.g. a scan started from the hub - re-attaching sends it.
+            if is_view_attached(self.launchers_view):
+                try:
+                    self.last_scan_info_text.update()
+                except RuntimeError:
+                    pass  # never mounted yet
 
             # Hide loading overlay
             self.loading_overlay.hide(self._page_ref)
@@ -2983,17 +2995,19 @@ class MainView(ft.Column):
             self.logger.error(f"Failed to save scan cache: {e}")
 
     async def _show_snackbar(self, message: str, duration: int = 2000):
-        """Show a snackbar notification"""
-        from dlss_updater.ui_flet.theme.colors import MD3Colors
-        is_dark = self.theme_manager.is_dark
-        snackbar = ft.SnackBar(
-            content=ft.Text(message, color=ft.Colors.WHITE),
-            bgcolor=MD3Colors.get_themed("snackbar_bg", is_dark),
-            duration=duration,
+        """Show a snackbar notification.
+
+        Goes through the shared helper (page.show_dialog), which flushes only
+        the dialog stack and drops the snackbar on dismiss. The old
+        overlay.append() + page.update() leaked one SnackBar per call into
+        page.overlay, and every later page.update() re-diffed all of them.
+        """
+        show_snackbar(
+            self._page_ref,
+            message,
+            is_dark=self.theme_manager.is_dark,
+            duration_ms=duration,
         )
-        self._page_ref.overlay.append(snackbar)
-        snackbar.open = True
-        self._page_ref.update()
 
     async def _show_rescan_snackbar(self, message: str):
         """Show a snackbar informing the user to rescan."""
@@ -3044,9 +3058,11 @@ class MainView(ft.Column):
                 on_click=on_undo,
             ),
         )
-        self._page_ref.overlay.append(snackbar)
-        snackbar.open = True
-        self._page_ref.update()
+        # show_dialog() rather than overlay.append() + page.update(): same
+        # reason as _show_snackbar(). Built by hand instead of via
+        # show_snackbar() because this one needs persist=False and a themed
+        # action colour, which the helper doesn't expose.
+        self._page_ref.show_dialog(snackbar)
 
     async def _cleanup_games_view(self):
         """Release Games view resources based on user preference.
