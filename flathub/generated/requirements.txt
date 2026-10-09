@@ -67,7 +67,7 @@ msgpack==1.2.1
     #   flet
 msgspec==0.21.1
     # via dlss-updater
-multidict==6.7.1
+multidict==6.9.1
     # via
     #   aiohttp
     #   yarl
@@ -75,7 +75,7 @@ niquests==3.20.1
     # via dlss-updater
 nvidia-ml-py==13.610.43
     # via dlss-updater
-oauthlib==3.3.1 ; sys_platform != 'emscripten'
+oauthlib==4.0.0 ; sys_platform != 'emscripten'
     # via flet
 packaging==26.2
     # via
