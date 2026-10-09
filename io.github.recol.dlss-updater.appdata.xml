@@ -64,6 +64,18 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="5.1.1" date="2026-10-09">
+      <description>
+        <p>Icons that move throughout the app, a tidier Restore menu, and a restore fix</p>
+        <ul>
+          <li>Icons now move on hover beyond the Hub: the navigation pill, the update and restore buttons on each game card, the Settings tiles and the restore buttons in the backup lists</li>
+          <li>Ticking a game for bulk update pops its checkbox</li>
+          <li>The Games refresh button spins until the refresh is done, and a second click while it runs is ignored</li>
+          <li>A game's Restore menu is grouped by technology, like its Update menu, instead of listing every DLL separately</li>
+          <li>Restoring a single technology (XeSS, DLSS, FSR and so on) from a game's DLL groups window always failed with "No backups found for group", even when the backups were there. It now restores them</li>
+        </ul>
+      </description>
+    </release>
     <release version="5.1.0" date="2026-09-29">
       <description>
         <p>Pick the games to update, a livelier Hub, and a round of fixes</p>

@@ -17,6 +17,12 @@ from dlss_updater.steam_integration import fetch_steam_image
 from dlss_updater.ui_flet.theme.colors import MD3Colors, TechnologyColors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 from dlss_updater.constants import DLL_GROUPS
+from dlss_updater.ui_flet.components.hub_card import (
+    IconMotion,
+    apply_icon_motion,
+    motion_for_icon,
+    prime_icon_motion,
+)
 
 
 # Full-bleed "hero" card dimensions (Option C).
@@ -47,6 +53,10 @@ BADGE_FULL_WIDTH = 140  # DLL status badge with text (resting) — headroom for
 # XeSS+FSR+DirectStorage can realistically hit 10+ tracked DLLs).
 BADGE_HOVER_WIDTH = 0  # DLL status badge fully collapses on hover — Update/Restore take over
 FOOTER_ANIM_MS = 180  # Width/opacity animation duration for the hover expand/collapse
+# Selection plate pop: a selected plate sits slightly larger than an empty one,
+# and EASE_OUT_BACK overshoots on the way there so ticking a game "pops".
+SELECT_POP_MS = 260
+SELECTED_PLATE_SCALE = 1.12
 
 # ---- Hero art crop bias ----
 # Steam's library_hero.jpg banners are composed for their OWN native ~3.1:1 aspect
@@ -77,6 +87,24 @@ def _title_style(is_dark: bool) -> ft.TextStyle | None:
         ft.BoxShadow(blur_radius=6, color=ft.Colors.with_opacity(0.85, ft.Colors.WHITE)),
         ft.BoxShadow(blur_radius=2, color=ft.Colors.with_opacity(0.85, ft.Colors.WHITE)),
     ])
+
+
+def restore_menu_groups(backup_groups: dict[str, list]) -> dict[str, int]:
+    """Backup counts per TECHNOLOGY ("DLSS", "XeSS", ...) for the restore menu.
+
+    ``backup_groups`` is keyed by per-DLL type ("XeLL DLL", "Streamline
+    Reflex Low-Latency DLL", ...), which made the menu one long row per DLL
+    with no technology colour. Regrouped by DLL_GROUPS it matches the Update
+    menu; restore_group_for_game accepts technology names. DLLs in no group
+    land under "Other", always listed last.
+    """
+    tech_of = {d.lower(): group for group, dlls in DLL_GROUPS.items() for d in dlls}
+    counts: dict[str, int] = {}
+    for backups in backup_groups.values():
+        for backup in backups:
+            tech = tech_of.get((backup.dll_filename or "").lower(), "Other")
+            counts[tech] = counts.get(tech, 0) + 1
+    return {g: counts[g] for g in sorted(counts, key=lambda g: (g == "Other", g))}
 
 
 class GameCard(ThemeAwareMixin, ft.Card):
@@ -619,6 +647,11 @@ class GameCard(ThemeAwareMixin, ft.Card):
             top=4,
             opacity=0,
             animate_opacity=ft.Animation(FOOTER_ANIM_MS, ft.AnimationCurve.EASE_OUT),
+            # Selecting pops the plate: the fill tweens in while the plate
+            # grows past SELECTED_PLATE_SCALE and settles (EASE_OUT_BACK).
+            animate=ft.Animation(SELECT_POP_MS, ft.AnimationCurve.EASE_OUT),
+            scale=1.0,
+            animate_scale=ft.Animation(SELECT_POP_MS, ft.AnimationCurve.EASE_OUT_BACK),
             tooltip="Select for bulk update",
             on_click=self._on_select_clicked,
         )
@@ -1189,6 +1222,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
         # Downward arrow (not the refresh glyph) matches the badge's arrow language.
         icon_name = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
         self.update_button_icon = ft.Icon(icon_name, size=20, color=color)
+        prime_icon_motion(self.update_button_icon)
         # Amber notification dot overlaid on the icon — carries the "needs update"
         # signal in the compact/icon-only state where the "Update" label is hidden.
         # Ringed with the surface colour so it reads clearly on the update icon.
@@ -1309,6 +1343,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
         color = success_color if self.backup_groups else disabled_color
 
         self.restore_button_icon = ft.Icon(ft.Icons.RESTORE, size=20, color=color)
+        prime_icon_motion(self.restore_button_icon)
         # opacity=0 while collapsed; _on_hover fades it in as the wrapper widens.
         self.restore_button_text = ft.Text(
             "Restore",
@@ -1362,7 +1397,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
     def _build_restore_menu_items(self) -> list[ft.PopupMenuItem]:
         """Build the actual restore menu items (extracted from _create_restore_popup_menu)."""
         is_dark = self._registry.is_dark
-        groups = sorted(self.backup_groups.keys())
+        groups = restore_menu_groups(self.backup_groups)
 
         menu_items = [
             ft.PopupMenuItem(
@@ -1375,9 +1410,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
         if groups:
             menu_items.append(ft.PopupMenuItem())  # Divider
 
-            for group in groups:
+            for group, backup_count in groups.items():
                 color = TechnologyColors.get_themed_color(group, is_dark)
-                backup_count = len(self.backup_groups[group])
                 menu_items.append(
                     ft.PopupMenuItem(
                         content=ft.Row(
@@ -1711,6 +1745,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             self._select_button.border = (
                 ft.Border.all(1.5, ft.Colors.WHITE) if selected else None
             )
+            self._select_button.scale = SELECTED_PLATE_SCALE if selected else 1.0
         # The card's accent border is part of the same state. It used to be
         # recomputed only by the hover handler, so clearing a selection left
         # the border on every previously ticked card until it was next hovered.
@@ -1834,6 +1869,8 @@ class GameCard(ThemeAwareMixin, ft.Card):
         if self.restore_button_text is not None:
             self.restore_button_text.opacity = 1 if hovering else 0
 
+        self._apply_footer_motion(hovering)
+
         # Corner action cluster (eye / pencil / kebab) fades in on hover only.
         if getattr(self, "_overlay_cluster", None) is not None:
             self._overlay_cluster.opacity = 1 if hovering else 0
@@ -1854,6 +1891,31 @@ class GameCard(ThemeAwareMixin, ft.Card):
             from dlss_updater.ui_flet.perf_monitor import perf_logger
             perf_logger.warning(f"[SLOW] card_hover: update={update_ms:.1f}ms, total={total_ms:.1f}ms")
 
+    def _apply_footer_motion(self, hovering: bool) -> None:
+        """Point the footer icons at their hover motion, or back at rest. No update().
+
+        The update arrow drops and the restore arrow rewinds, the hub's way.
+        Looked up from the LIVE glyph, so the up-to-date clock and the
+        in-flight hourglass stay still, and a restore button with nothing to
+        restore doesn't beckon. A glyph with no motion is sent to rest
+        explicitly - it may have been swapped in mid-hover (arrow -> hourglass)
+        while the old glyph's offset was still applied.
+        """
+        rest = IconMotion()
+        if self.update_button_icon is not None:
+            motion = motion_for_icon(self.update_button_icon.icon)
+            apply_icon_motion(
+                self.update_button_icon,
+                motion or rest,
+                hovering and motion is not None and not self.is_ignored,
+            )
+        if self.restore_button_icon is not None:
+            apply_icon_motion(
+                self.restore_button_icon,
+                motion_for_icon(ft.Icons.RESTORE),
+                hovering and bool(self.backup_groups),
+            )
+
     def set_updating(self, is_updating: bool):
         """Set updating state - shows spinner and disables button.
 
@@ -1872,6 +1934,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
             else:
                 self.update_button_icon.icon = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
             self.update_button_icon.color = color
+            self._apply_footer_motion(self._is_hovering or self._menu_open)
         if self.update_button_text is not None:
             self.update_button_text.color = color
         if self.update_button_arrow is not None:
@@ -1923,6 +1986,7 @@ class GameCard(ThemeAwareMixin, ft.Card):
                 if self.update_button_icon:
                     self.update_button_icon.icon = ft.Icons.ARROW_DOWNWARD if has_outdated else ft.Icons.UPDATE
                     self.update_button_icon.color = color
+                    self._apply_footer_motion(self._is_hovering or self._menu_open)
                 if self.update_button_text:
                     self.update_button_text.color = color
                 if self.update_button_arrow:

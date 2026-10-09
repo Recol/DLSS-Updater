@@ -95,7 +95,7 @@ def test_no_usable_timestamps_yields_no_label():
 
 
 def _refresh_stub(rescanned_calls: list, **overrides) -> Any:
-    """A GamesView stand-in carrying only what _on_refresh_clicked touches."""
+    """A GamesView stand-in carrying only what _refresh_games touches."""
     calls = []
 
     async def _noop(*args, **kwargs):
@@ -144,7 +144,7 @@ async def test_refresh_stamps_last_scanned_before_reloading(monkeypatch):
 
     stub.load_games = _load
 
-    await GamesView._on_refresh_clicked(stub, None)
+    await GamesView._refresh_games(stub)
 
     assert stamped["ids"] == [7, 9]
     assert order == ["stamp", "load(force=True)"]
@@ -163,7 +163,7 @@ async def test_refresh_survives_a_failed_stamp(monkeypatch):
 
     rescanned = []
     stub = _refresh_stub(rescanned)
-    await GamesView._on_refresh_clicked(stub, None)
+    await GamesView._refresh_games(stub)
 
     assert "load(force=True)" in stub.calls
 
@@ -181,6 +181,6 @@ async def test_refresh_with_an_empty_library_stamps_nothing(monkeypatch):
     )
 
     stub = _refresh_stub([], game_cards={})
-    await GamesView._on_refresh_clicked(stub, None)
+    await GamesView._refresh_games(stub)
 
     assert called == [], "no games means no UPDATE ... IN () to issue"

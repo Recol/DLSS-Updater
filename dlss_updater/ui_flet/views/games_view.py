@@ -41,6 +41,8 @@ GAMES_BACKGROUND_BATCH_SIZE = 24  # Cards per background batch
 # GameCard theme repaints wake within a few ms of each other (same cascade
 # tier); this window lets them all join one GamesView flush.
 CARD_THEME_FLUSH_DEBOUNCE_S = 0.016
+# One turn of the refresh icon; repeated back-to-back while a refresh runs.
+REFRESH_SPIN_MS = 700
 
 # ==================== GRID DENSITY ====================
 # Card layout is a flexible banner + a FIXED 52 px footer (see game_card.py:
@@ -495,6 +497,7 @@ class GamesView(ThemeAwareMixin, ft.Column):
         self._total_games: int = 0  # Merged game total for the header subtitle
         self.is_loading = False
         self.refresh_button_ref = ft.Ref[ft.IconButton]()
+        self._refreshing = False
 
         # Game card tracking for single-game updates
         self.game_cards: dict[int, GameCard] = {}  # game_id -> GameCard
@@ -1058,7 +1061,9 @@ class GamesView(ThemeAwareMixin, ft.Column):
                                 icon=ft.Icons.REFRESH,
                                 tooltip="Refresh Games",
                                 on_click=self._on_refresh_clicked,
-                                animate_rotation=ft.Animation(400, ft.AnimationCurve.EASE_IN_OUT),
+                                # LINEAR so back-to-back turns join into one
+                                # continuous spin while a refresh runs.
+                                animate_rotation=ft.Animation(REFRESH_SPIN_MS, ft.AnimationCurve.LINEAR),
                                 rotate=0,
                                 ref=self.refresh_button_ref,
                             ),
@@ -2495,13 +2500,48 @@ class GamesView(ThemeAwareMixin, ft.Column):
         if is_view_attached(self):
             self.update()
 
-    async def _on_refresh_clicked(self, e):
-        """Handle refresh button click with rotation animation"""
-        # Rotate refresh button
-        if self.refresh_button_ref.current:
-            self.refresh_button_ref.current.rotate += math.pi * 2  # 360 degrees
-            self.update()
+    async def _spin_refresh_button(self, done: anyio.Event) -> None:
+        """Keep the refresh icon turning until ``done`` is set.
 
+        Each turn is one implicit rotation tween (REFRESH_SPIN_MS, LINEAR), and
+        the next is queued as the last one ends, so the client sees a steady
+        spin. Only the button is updated - a whole-view update per turn would
+        re-diff every card. The final turn always completes: its target was
+        already sent, so the icon comes to rest upright.
+        """
+        button = self.refresh_button_ref.current
+        if button is None:
+            return
+        while True:
+            button.rotate += math.pi * 2
+            if is_view_attached(self):
+                button.update()
+            with anyio.move_on_after(REFRESH_SPIN_MS / 1000):
+                await done.wait()
+            if done.is_set():
+                return
+
+    async def _on_refresh_clicked(self, e):
+        """Handle refresh button click: spin the icon for as long as it runs."""
+        if self._refreshing:
+            return  # A second click mid-refresh would only queue a duplicate rebuild
+        self._refreshing = True
+        # The spinner flushes the button itself; this handler's auto-update
+        # would otherwise serialize the whole view for nothing.
+        ft.context.disable_auto_update()
+        done = anyio.Event()
+        try:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(self._spin_refresh_button, done)
+                try:
+                    await self._refresh_games()
+                finally:
+                    done.set()
+        finally:
+            self._refreshing = False
+
+    async def _refresh_games(self) -> None:
+        """Re-read DLL versions from disk and rebuild the cards."""
         # Refresh DLL versions from filesystem before rebuilding cards
         # This ensures the DB has current versions after any external updates
         game_ids = list(self.game_cards.keys())

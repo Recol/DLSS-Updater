@@ -1,3 +1,25 @@
+Version 5.1.1:
+Added:
+  - The navigation pill's icons now move on hover, the same way the Hub's
+    do: the rocket lifts off, the controller tilts, the Backups arrow
+    rewinds, the gear turns, and Home gives a small hop.
+  - More of the app moves the same way. Hovering a game card drops its
+    update arrow and rewinds its restore arrow. Each Settings tile's icon
+    has its own motion. Restore buttons in the backup lists rewind on hover.
+  - Ticking a game for bulk update pops its checkbox.
+  - The Games refresh button keeps spinning until the refresh finishes,
+    rather than turning once. A second click while it runs is ignored.
+
+Changed:
+  - A game's Restore menu is now grouped by technology, like its Update
+    menu: "Restore DLSS (3)", "Restore Streamline (6)", each with its
+    technology's colour, instead of one row for every DLL.
+
+Fixed:
+  - Restoring one technology (XeSS, DLSS, FSR...) from a game's DLL groups
+    window always failed with "No backups found for group", even when the
+    backups were there. Restore All was unaffected. (#324)
+
 Version 5.1.0:
 Added:
   - The Hub's icons now move when you hover a card: the rocket lifts off,

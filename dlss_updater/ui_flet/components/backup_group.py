@@ -18,6 +18,11 @@ from typing import Callable
 import flet as ft
 
 from dlss_updater.models import GameDLLBackup
+from dlss_updater.ui_flet.components.hub_card import (
+    apply_icon_motion,
+    motion_for_icon,
+    prime_icon_motion,
+)
 from dlss_updater.ui_flet.theme.colors import MD3Colors
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin, get_theme_registry
 
@@ -54,6 +59,7 @@ class BackupRow(ft.Container):
         self._on_delete = on_delete
         self._is_dark = is_dark
         self._is_orphan = is_orphan
+        self._restore_button: ft.IconButton | None = None
 
         # Row controls (data columns + spacer). Action buttons are appended
         # afterwards so the restore button can be conditionally omitted for
@@ -101,18 +107,20 @@ class BackupRow(ft.Container):
         # handler is supplied. Orphan rows are now restorable-by-path, so the
         # view wires a handler for them too (only truly restore-less rows omit it).
         if on_restore is not None:
-            row_controls.append(
-                ft.IconButton(
-                    icon=ft.Icons.RESTORE,
-                    icon_size=18,
-                    icon_color=MD3Colors.get_primary(is_dark),
-                    tooltip="Restore this backup",
-                    on_click=self._handle_restore,
-                    style=ft.ButtonStyle(padding=ft.Padding.all(4)),
-                    width=32,
-                    height=32,
-                )
+            self._restore_button = ft.IconButton(
+                icon=ft.Icons.RESTORE,
+                icon_size=18,
+                icon_color=MD3Colors.get_primary(is_dark),
+                tooltip="Restore this backup",
+                on_click=self._handle_restore,
+                style=ft.ButtonStyle(padding=ft.Padding.all(4)),
+                width=32,
+                height=32,
             )
+            # The whole (round) button turns, so the rewind needs no separate
+            # ft.Icon - and a hover on the row, not just the button, plays it.
+            prime_icon_motion(self._restore_button)
+            row_controls.append(self._restore_button)
 
         row_controls.append(
             ft.IconButton(
@@ -164,10 +172,9 @@ class BackupRow(ft.Container):
 
     def _on_hover(self, e):
         """Handle hover state for visual feedback"""
-        if e.data is True or e.data == "true":
-            self.bgcolor = MD3Colors.get_surface_variant(self._is_dark)
-        else:
-            self.bgcolor = None
+        hovering = e.data is True or e.data == "true"
+        self.bgcolor = MD3Colors.get_surface_variant(self._is_dark) if hovering else None
+        apply_icon_motion(self._restore_button, motion_for_icon(ft.Icons.RESTORE), hovering)
         self.update()
 
 
@@ -343,11 +350,21 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
         # so the button is not created (self._restore_all_btn stays None;
         # apply_theme guards on it existing).
         self._restore_all_btn: ft.TextButton | None = None
+        self._restore_all_icon: ft.Icon | None = None
         if on_restore_all is not None:
+            # An ft.Icon rather than the glyph name, so the arrow can rewind on
+            # hover without turning the label with it. Coloured explicitly
+            # (apply_theme too) rather than trusting the button style to reach
+            # a custom icon control.
+            self._restore_all_icon = ft.Icon(
+                ft.Icons.RESTORE, size=18, color=MD3Colors.get_primary(is_dark)
+            )
+            prime_icon_motion(self._restore_all_icon)
             self._restore_all_btn = ft.TextButton(
                 "Restore All",
-                icon=ft.Icons.RESTORE,
+                icon=self._restore_all_icon,
                 on_click=self._handle_restore_all,
+                on_hover=self._on_restore_all_hover,
                 style=ft.ButtonStyle(
                     color=MD3Colors.get_primary(is_dark),
                     padding=ft.Padding.symmetric(horizontal=8, vertical=4),
@@ -413,6 +430,12 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
         elif size_bytes < 1024 * 1024 * 1024:
             return f"{size_bytes / (1024 * 1024):.1f} MB"
         return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+    def _on_restore_all_hover(self, e):
+        """Rewind the Restore All arrow while the button is hovered."""
+        hovering = e.data is True or e.data == "true"
+        apply_icon_motion(self._restore_all_icon, motion_for_icon(ft.Icons.RESTORE), hovering)
+        self._restore_all_btn.update()
 
     def _handle_restore_all(self, e):
         """Handle Restore All button click"""
@@ -524,6 +547,8 @@ class BackupGroup(ThemeAwareMixin, ft.ExpansionTile):
                     color=MD3Colors.get_primary(is_dark),
                     padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                 )
+                if self._restore_all_icon is not None:
+                    self._restore_all_icon.color = MD3Colors.get_primary(is_dark)
 
             # Rebuild backup rows with new theme (preserve orphan restore-hiding)
             if hasattr(self, '_backup_rows') and self.backups:

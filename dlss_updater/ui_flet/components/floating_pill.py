@@ -6,6 +6,12 @@ A floating capsule navigation bar shown at the bottom of views (hidden on hub).
 import anyio
 import flet as ft
 
+from dlss_updater.ui_flet.components.hub_card import (
+    IconMotion,
+    apply_icon_motion,
+    motion_for_icon,
+    prime_icon_motion,
+)
 from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors, Shadows
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin
 
@@ -13,6 +19,10 @@ from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin
 # the last item can scroll clear of the floating pill (pill ~44px + 16px offset
 # + breathing room).
 PILL_CLEARANCE = 88
+
+# The view icons reuse the hub cards' hover motions (same glyphs, same
+# meaning). Home has no hub card, so it gets its own: a small upward hop.
+_HOME_MOTION = IconMotion(scale=1.12, dy=-0.12)
 
 
 # ---- Pill surface (per-theme) ----
@@ -136,6 +146,7 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
             size=22,
             color=MD3Colors.get_on_surface_variant(is_dark),
         )
+        prime_icon_motion(self._home_icon)
         self._home_container = ft.Container(
             content=self._home_icon,
             width=36,
@@ -164,6 +175,7 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
                 size=22,
                 color=MD3Colors.get_on_surface_variant(is_dark),
             )
+            prime_icon_motion(icon_widget)
             self._icon_widgets[view_name] = icon_widget
 
             icon_container = ft.Container(
@@ -217,19 +229,21 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
                 self._page_ref.run_task(self._on_home)
 
     def _on_icon_hover(self, e, view_name: str):
-        """Handle icon hover effect."""
-        if view_name == self._active_view:
-            return
+        """Handle icon hover effect.
 
-        is_dark = self._page_ref.theme_mode == ft.ThemeMode.DARK if self._page_ref else True
-        config = self.VIEW_CONFIGS[view_name]
-        accent = config["accent_dark"] if is_dark else config["accent_light"]
+        The icon motion plays on every icon, the active one included; only the
+        hover tint is skipped for the active icon, which keeps its solid fill.
+        """
+        hovering = e.data is True or e.data == "true"
         container = self._icon_containers[view_name]
+        icon = self._icon_widgets[view_name]
+        apply_icon_motion(icon, motion_for_icon(icon.icon), hovering)
 
-        if e.data is True or e.data == "true":
-            container.bgcolor = f"{accent}14"  # 8% tint
-        else:
-            container.bgcolor = None
+        if view_name != self._active_view:
+            is_dark = self._page_ref.theme_mode == ft.ThemeMode.DARK if self._page_ref else True
+            config = self.VIEW_CONFIGS[view_name]
+            accent = config["accent_dark"] if is_dark else config["accent_light"]
+            container.bgcolor = f"{accent}14" if hovering else None  # 8% tint
 
         if self._page_ref:
             container.update()
@@ -239,10 +253,9 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
         is_dark = self._page_ref.theme_mode == ft.ThemeMode.DARK if self._page_ref else True
         primary = MD3Colors.get_primary(is_dark)
 
-        if e.data is True or e.data == "true":
-            self._home_container.bgcolor = f"{primary}14"
-        else:
-            self._home_container.bgcolor = None
+        hovering = e.data is True or e.data == "true"
+        self._home_container.bgcolor = f"{primary}14" if hovering else None
+        apply_icon_motion(self._home_icon, _HOME_MOTION, hovering)
 
         if self._page_ref:
             self._home_container.update()
@@ -272,9 +285,17 @@ class FloatingPill(ThemeAwareMixin, ft.Container):
         self.opacity = 1.0
 
     def hide(self):
-        """Hide the pill with fade-out."""
+        """Hide the pill with fade-out.
+
+        Also returns every icon to rest: clicking Home hides the pill while the
+        cursor is still over it, so no hover-exit arrives and the icon would
+        otherwise reappear mid-motion next time the pill is shown.
+        """
         self.opacity = 0.0
         self.visible = False
+        apply_icon_motion(self._home_icon, _HOME_MOTION, False)
+        for icon in self._icon_widgets.values():
+            apply_icon_motion(icon, motion_for_icon(icon.icon), False)
 
     async def apply_theme(self, is_dark: bool, delay_ms: int = 0) -> None:
         """Apply theme to pill and all icons."""

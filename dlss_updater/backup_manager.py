@@ -13,6 +13,7 @@ from pathlib import Path
 from dlss_updater.logger import setup_logger
 from dlss_updater.database import db_manager
 from dlss_updater.concurrency_limiters import io_heavy, thread_io
+from dlss_updater.constants import DLL_GROUPS
 
 logger = setup_logger()
 
@@ -593,7 +594,21 @@ async def restore_group_for_game(
                 backups_to_restore.extend(group_backups)
         elif group in backup_groups:
             backups_to_restore = backup_groups[group]
-        else:
+        elif group in DLL_GROUPS or group == "Other":
+            # Technology group from the DLL group dialog ("XeSS", "DLSS", ...).
+            # backup_groups is keyed by per-DLL type ("XeLL DLL", ...), so a
+            # technology name never matches a key directly - select its
+            # members by filename instead. "Other" is the dialog's bucket for
+            # DLLs that belong to no technology group.
+            all_backups = [b for group_backups in backup_groups.values() for b in group_backups]
+            if group == "Other":
+                grouped = {d.lower() for dlls in DLL_GROUPS.values() for d in dlls}
+                backups_to_restore = [b for b in all_backups if b.dll_filename.lower() not in grouped]
+            else:
+                members = {d.lower() for d in DLL_GROUPS[group]}
+                backups_to_restore = [b for b in all_backups if b.dll_filename.lower() in members]
+
+        if not backups_to_restore and group != "all":
             available_groups = ", ".join(backup_groups.keys())
             return False, f"No backups found for group '{group}'. Available: {available_groups}", []
 

@@ -99,6 +99,11 @@ ICON_MOTIONS: dict[str, IconMotion] = {
     ft.Icons.SYSTEM_UPDATE_ALT: IconMotion(dy=0.18),                              # drop
     ft.Icons.SEARCH: IconMotion(rotate=-0.35, scale=1.1),                         # magnifier sweep
     ft.Icons.TASK_ALT: IconMotion(rotate=0.2, scale=1.15),                        # pop
+    # Shared beyond the hub: the floating pill, game card footer and backup
+    # rows look their glyphs up here too, so one icon moves the same way
+    # everywhere it appears.
+    ft.Icons.RESTORE: IconMotion(rotate=-2 * math.pi),                            # rewind
+    ft.Icons.ARROW_DOWNWARD: IconMotion(dy=0.18),                                 # drop
 }
 
 
@@ -107,8 +112,12 @@ def motion_for_icon(icon) -> IconMotion | None:
     return ICON_MOTIONS.get(icon)
 
 
-def prime_icon_motion(icon: ft.Icon, duration_ms: int = ICON_MOTION_MS) -> None:
-    """Set the rest state and the implicit animations once, at build time."""
+def prime_icon_motion(icon: ft.LayoutControl, duration_ms: int = ICON_MOTION_MS) -> None:
+    """Set the rest state and the implicit animations once, at build time.
+
+    Usually an ft.Icon; any LayoutControl works (backup rows turn a whole
+    round IconButton).
+    """
     curve = ft.AnimationCurve.EASE_OUT_BACK
     icon.rotate = 0.0
     icon.scale = 1.0
@@ -119,7 +128,7 @@ def prime_icon_motion(icon: ft.Icon, duration_ms: int = ICON_MOTION_MS) -> None:
 
 
 def apply_icon_motion(
-    icon: ft.Icon | None, motion: IconMotion | None, hovering: bool, factor: float = 1.0
+    icon: ft.LayoutControl | None, motion: IconMotion | None, hovering: bool, factor: float = 1.0
 ) -> None:
     """Point ``icon`` at its hover target (or back at rest). No update()."""
     if icon is None or motion is None:

@@ -5,12 +5,20 @@ Hub for accessing all application settings: Update preferences, UI preferences, 
 
 import anyio
 import logging
+import math
 
 import flet as ft
 
 from dlss_updater.ui_flet.theme.colors import MD3Colors, TabColors, Shadows
 from dlss_updater.ui_flet.theme.theme_aware import ThemeAwareMixin
 from dlss_updater.ui_flet.components.floating_pill import PILL_CLEARANCE
+from dlss_updater.ui_flet.components.hub_card import (
+    WATERMARK_MOTION_FACTOR,
+    WATERMARK_MOTION_MS,
+    IconMotion,
+    apply_icon_motion,
+    prime_icon_motion,
+)
 from dlss_updater.ui_flet.components.hero_surface import (
     build_brand_wash,
     build_watermark_icon,
@@ -51,6 +59,20 @@ TILE_WATERMARK_OPACITY_LIGHT = 0.03
 #            plus 12px of breathing room, so one geometry serves every tile
 #            including the chevron ones (chevron is only 16 + 20 = 36px).
 TILE_WATERMARK_SIZE = 52
+
+# Hover motion per tile icon, in the hub's idiom (radians; offsets are a
+# fraction of the icon's size). The tile icon moves fully, its watermark at
+# WATERMARK_MOTION_FACTOR, like the hub cards.
+TILE_ICON_MOTIONS: dict[str, IconMotion] = {
+    ft.Icons.TUNE: IconMotion(dx=0.12),                            # slide
+    ft.Icons.PALETTE: IconMotion(rotate=-0.3, scale=1.1),          # tilt
+    ft.Icons.BLOCK: IconMotion(rotate=math.pi / 2),                # turn the bar
+    ft.Icons.VISIBILITY_OFF: IconMotion(scale=0.85),               # squint
+    ft.Icons.DARK_MODE: IconMotion(rotate=-0.45),                  # moon rocks
+    ft.Icons.LIGHT_MODE: IconMotion(rotate=math.pi / 4, scale=1.1),  # sun turns
+    ft.Icons.SYSTEM_UPDATE: IconMotion(dy=0.15),                   # drop
+    ft.Icons.LAYERS: IconMotion(dy=-0.12, scale=1.1),              # lift
+}
 TILE_WATERMARK_RIGHT_INSET = 88
 
 
@@ -257,6 +279,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         accent = themed_accent(TILE_COLORS[color_key], is_dark)
 
         icon_widget = ft.Icon(icon, size=22, color=ft.Colors.WHITE)
+        prime_icon_motion(icon_widget)
         icon_circle = ft.Container(
             content=icon_widget,
             width=44,
@@ -311,6 +334,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         watermark_container.top = 0
         watermark_container.bottom = 0
         watermark_widget = watermark_container.content  # ft.Icon, recolored/reshaped in apply_theme
+        prime_icon_motion(watermark_widget, WATERMARK_MOTION_MS)
 
         # Foreground content keeps the tile's original padding/layout. It is
         # NOT stack-positioned, so it (not the fill layers) determines the
@@ -346,9 +370,7 @@ class SettingsView(ThemeAwareMixin, ft.Column):
             ink=on_click is not None,
             col={"xs": 12, "md": 6},
         )
-        tile.on_hover = lambda e, t=tile: self._on_tile_hover(e, t)
-
-        self._tile_meta.append({
+        meta = {
             "tile": tile,
             "color_key": color_key,
             "icon_circle": icon_circle,
@@ -360,10 +382,12 @@ class SettingsView(ThemeAwareMixin, ft.Column):
             "watermark_widget": watermark_widget,
             # Chevron needs recoloring; an inline trailing control themes itself
             "chevron": trailing_control if trailing is None else None,
-        })
+        }
+        self._tile_meta.append(meta)
+        tile.on_hover = lambda e, m=meta: self._on_tile_hover(e, m)
         return tile
 
-    def _on_tile_hover(self, e, tile: ft.Container) -> None:
+    def _on_tile_hover(self, e, meta: dict) -> None:
         """Subtle hover motion: small scale-up + a modest shadow.
 
         Dialed back from hub_card.py's hover (scale 1.01-1.02 / Shadows.LEVEL_3
@@ -371,12 +395,18 @@ class SettingsView(ThemeAwareMixin, ft.Column):
         single-layer LEVEL_1 shadow reads as "lifted" without competing with
         the wash/watermark tint already on the tile.
         """
-        if e.data is True or e.data == "true":
+        tile = meta["tile"]
+        hovering = e.data is True or e.data == "true"
+        if hovering:
             tile.scale = 1.01
             tile.shadow = Shadows.LEVEL_1
         else:
             tile.scale = 1.0
             tile.shadow = None
+        # Looked up from the live glyph: the Theme tile swaps moon <-> sun.
+        motion = TILE_ICON_MOTIONS.get(meta["icon_widget"].icon)
+        apply_icon_motion(meta["icon_widget"], motion, hovering)
+        apply_icon_motion(meta["watermark_widget"], motion, hovering, WATERMARK_MOTION_FACTOR)
         if self._page_ref:
             tile.update()
 
@@ -419,6 +449,10 @@ class SettingsView(ThemeAwareMixin, ft.Column):
                 new_icon = ft.Icons.DARK_MODE if is_dark else ft.Icons.LIGHT_MODE
                 meta["icon_widget"].icon = new_icon
                 meta["watermark_widget"].icon = new_icon
+                # Toggling the switch happens mid-hover: drop the old glyph's
+                # pose rather than leave the new one wearing it.
+                apply_icon_motion(meta["icon_widget"], IconMotion(), False)
+                apply_icon_motion(meta["watermark_widget"], IconMotion(), False)
 
         try:
             self.update()
