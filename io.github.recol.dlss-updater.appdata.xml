@@ -64,6 +64,15 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="5.1.2" date="2026-10-21">
+      <description>
+        <p>Security update</p>
+        <ul>
+          <li>Updated the bundled libraries to their latest releases to pick up their security fixes, including the networking stack, the root certificate bundle and image handling (Pillow)</li>
+          <li>No changes to how the app looks or behaves</li>
+        </ul>
+      </description>
+    </release>
     <release version="5.1.1" date="2026-10-09">
       <description>
         <p>Icons that move throughout the app, a tidier Restore menu, and a restore fix</p>

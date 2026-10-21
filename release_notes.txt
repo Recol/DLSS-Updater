@@ -1,3 +1,12 @@
+Version 5.1.2:
+Security:
+  - Updated the libraries the app ships with to their latest releases,
+    picking up their security fixes. This includes the networking stack
+    (httpx2, httpcore2, urllib3-future, truststore), the root certificate
+    bundle (certifi), image handling (Pillow 13.0.0), and multidict,
+    filelock, platformdirs, tomlkit and chardet.
+  - No changes to how the app looks or behaves.
+
 Version 5.1.1:
 Added:
   - The navigation pill's icons now move on hover, the same way the Hub's
