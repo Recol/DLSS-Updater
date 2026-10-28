@@ -765,6 +765,7 @@ def update_dll_with_backup(dll_path, latest_dll_path, pre_created_backup_path=No
 
 FSR_VERSION_EXEMPT_DLLS = frozenset({
     "amd_fidelityfx_loader_dx12.dll",
+    "amd_fidelityfx_loader_vk.dll",
 })
 
 

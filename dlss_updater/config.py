@@ -181,17 +181,22 @@ LATEST_DLL_VERSIONS = {
     "sl.dlss_d.dll": "2.8.0.0",
     "sl.nis.dll": "2.8.0.0",
     # FidelityFX values below are read from the PE resources of the actual files
-    # hosted in the DLL repo (verified 2026-08-20) — not copied from manifest.json,
-    # which disagrees with its own binaries for amd_fidelityfx_dx12.dll.
+    # hosted in the DLL repo (FidelityFX SDK 2.4.0, verified 2026-10-28).
     #
     # These are NOT all the same version: since SDK 2.0.0 each effect DLL carries
-    # its own feature version, the loader carries a loader/SDK version, and the two
-    # monolithic SDK 1.1.4 libraries are frozen (no SDK 2.x package ships them).
+    # its own feature version, the loaders carry a loader/SDK version (and the DX12
+    # and Vulkan loaders are numbered independently), and the two monolithic
+    # SDK 1.1.4 libraries are frozen (no SDK 2.x package ships them).
     "amd_fidelityfx_dx12.dll": "1.0.1.41314",           # SDK 1.1.4 monolith
-    "amd_fidelityfx_vk.dll": "1.0.1.41314",             # SDK 1.1.4 monolith, DX12-only split leaves this frozen
-    "amd_fidelityfx_loader_dx12.dll": "1.0.2.44888",    # loader/SDK version, not an FSR version
-    "amd_fidelityfx_upscaler_dx12.dll": "4.0.2.44888",  # FSR 4 upscaling
-    "amd_fidelityfx_framegeneration_dx12.dll": "3.1.5.44888",  # FSR 3.1.5 frame gen, not FSR 4
+    "amd_fidelityfx_vk.dll": "1.0.1.41314",             # SDK 1.1.4 monolith
+    "amd_fidelityfx_loader_dx12.dll": "2.3.0.4555",     # loader/SDK version, not an FSR version
+    "amd_fidelityfx_upscaler_dx12.dll": "4.1.2.4555",   # FSR 4.1.2 upscaling
+    "amd_fidelityfx_framegeneration_dx12.dll": "4.0.2.4555",  # FSR 4.0.2 frame gen
+    "amd_fidelityfx_loader_vk.dll": "1.0.2.4555",       # Vulkan loader version, not an FSR version
+    "amd_fidelityfx_upscaler_vk.dll": "4.1.2.4555",     # FSR 4.1.2 upscaling (Vulkan)
+    "amd_fidelityfx_framegeneration_vk.dll": "4.0.2.4555",  # FSR 4.0.2 frame gen (Vulkan)
+    "amd_fidelityfx_denoiser_dx12.dll": "1.2.1.4555",   # FSR Ray Regeneration 1.2.1
+    "amd_fidelityfx_radiancecache_dx12.dll": "0.9.0.4555",  # Radiance Caching (preview)
 }
 
 

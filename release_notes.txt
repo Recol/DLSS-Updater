@@ -1,3 +1,42 @@
+Version 5.2.0:
+Added:
+  - FSR 4 now comes to Vulkan games. A Vulkan game that ships only FSR 3.1
+    gets the same FSR 4 upgrade DirectX 12 games already had: the new loader
+    goes in under the game's existing FidelityFX file name, with the Vulkan
+    upscaling and frame generation DLLs alongside it. It is all-or-nothing,
+    and Restore takes the game back to exactly how it was.
+  - FSR 4 upgrades now work on Radeon RX 6000 (RDNA 2) GPUs. AMD added RX 6000
+    support in FSR Upscaling 4.1.2, so FSR 3.1 games on those cards now get the
+    upgrade instead of being skipped. RDNA 2 integrated graphics (Ryzen 6000,
+    Steam Deck and similar) are still skipped, since AMD doesn't list them as
+    supported.
+
+Changed:
+  - Updated AMD FSR to FidelityFX SDK 2.4.0:
+      FSR Upscaling 4.1.1 -> 4.1.2 (DX12 and, new, Vulkan)
+      FSR Frame Generation 4.0.1 -> 4.0.2 (DX12 and, new, Vulkan)
+      FSR Ray Regeneration 1.2.0 -> 1.2.1
+      FSR Loader 2.3.0.2740 -> 2.3.0.4555, plus the new Vulkan loader 1.0.2
+      FSR Radiance Caching 0.9.0 (preview, still opt-in) rebuilt with the SDK
+  - Updated the UI framework (Flet) from 1.0.2 to 1.0.5. Among its fixes, the
+    app no longer turns off HDR or dims external monitors on Windows while it
+    is open, and controls keep their focus and scroll position when something
+    above them is shown or hidden.
+  - Updated the other bundled libraries to their latest releases (msgpack,
+    platformdirs, winloop, multidict, qh3, urllib3-future, certifi, tzdata).
+
+Fixed:
+  - Restoring a game after an FSR 4 upgrade left it with no FSR at all. The
+    upgrade replaced the game's original FidelityFX DLL without keeping a
+    backup, so Restore removed the new effect DLLs and left the new loader with
+    nothing to load. The original is now always backed up, and Restore puts
+    it back. A game upgraded by an earlier version has no such backup: use
+    your launcher's "verify files" option to get its original FSR back.
+  - Radeon RX 6400 / 6500 XT (and the other Navi 24 cards) were detected as
+    RDNA 3, and the Radeon RX 7600M XT as an older GPU. Both are now
+    identified correctly, which also corrects the GPU line in the Proton
+    upscaler panel on Linux.
+
 Version 5.1.2:
 Security:
   - Updated the libraries the app ships with to their latest releases,

@@ -645,10 +645,11 @@ class AsyncUpdateCoordinator:
 
                 processed += 1
 
-            # FSR 4 group install. Runs after the per-DLL pass because it is a
-            # different operation: it ADDS the effect DLLs an FSR 3.1 game never
-            # shipped and installs the loader under the monolith's name. Gated on
-            # RDNA 3/4 hardware and applied all-or-nothing (see fsr4_installer).
+            # FSR 4 group install (DX12 and, since SDK 2.4.0, Vulkan). Runs after
+            # the per-DLL pass because it is a different operation: it ADDS the
+            # effect DLLs an FSR 3.1 game never shipped and installs the loader
+            # under the monolith's name. Gated on
+            # RDNA 2/3/4 hardware and applied all-or-nothing (see fsr4_installer).
             if not self._cancel_requested:
                 await self._try_fsr4_upgrade(
                     game_id, game_name, dll_groups, skip_dll_filenames, results
@@ -697,7 +698,7 @@ class AsyncUpdateCoordinator:
         try:
             from dlss_updater.config import LATEST_DLL_PATHS, config_manager
             from dlss_updater.fsr4_installer import (
-                FSR4_ANCHOR_DLL,
+                FSR4_INSTALL_MAPS,
                 apply_fsr4_upgrade,
                 plan_fsr4_upgrade,
             )
@@ -706,21 +707,29 @@ class AsyncUpdateCoordinator:
                 return
             if not config_manager.get_update_preference("FSR"):
                 return
-            if skip_dll_filenames and FSR4_ANCHOR_DLL in skip_dll_filenames:
+
+            # The anchors (DX12 and Vulkan monoliths) this update may act on.
+            anchors = [
+                a for a in FSR4_INSTALL_MAPS
+                if not (skip_dll_filenames and a in skip_dll_filenames)
+            ]
+            if not anchors:
                 return
 
-            # Locate the folder(s) holding this game's FidelityFX monolith.
+            # Locate the folder(s) holding each FidelityFX monolith this game has.
             game_dlls = await db_manager.get_dlls_for_game(game_id)
-            game_dirs = {
-                str(Path(d.dll_path).parent)
+            targets = {
+                (str(Path(d.dll_path).parent), (d.dll_filename or "").lower())
                 for d in game_dlls
-                if (d.dll_filename or "").lower() == FSR4_ANCHOR_DLL
+                if (d.dll_filename or "").lower() in anchors
             }
-            if not game_dirs:
+            if not targets:
                 return
 
-            for game_dir in sorted(game_dirs):
-                plan = plan_fsr4_upgrade(game_dir, dict(LATEST_DLL_PATHS))
+            for game_dir, anchor_dll in sorted(targets):
+                plan = plan_fsr4_upgrade(
+                    game_dir, dict(LATEST_DLL_PATHS), anchor_dll=anchor_dll
+                )
                 if not plan.is_actionable:
                     self.logger.info(f"FSR 4 skipped for {game_name}: {plan.skipped_reason}")
                     continue

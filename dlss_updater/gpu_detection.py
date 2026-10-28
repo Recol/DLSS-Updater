@@ -210,13 +210,23 @@ _PCI_VENDOR_INTEL = 0x8086
 # GPU-generation override.
 _AMD_RDNA3_IGPU_IDS = {0x15BF, 0x15C8, 0x150E, 0x1586}
 
+# Navi 33 (RX 7600M XT) sits inside the Navi 2x block below, so it has to be
+# picked out before the range check. Ids checked against pci.ids, 2026-10-28.
+_AMD_RDNA3_IN_NAVI2X_RANGE = {0x73F0}
+
+# Discrete RDNA2 (Navi 21/22/23 in 0x73A0-0x73FF, Navi 24 in 0x7420-0x743F).
+# RDNA2 *iGPUs* (Rembrandt, Raphael, Van Gogh, Mendocino) are deliberately not
+# included: AMD's FSR 4.1.2 support list names RX 6000 discrete GPUs and the
+# Ryzen Z2 A only, so those iGPUs stay "other".
+_AMD_NAVI2X_RANGES = ((0x73A0, 0x73FF), (0x7420, 0x743F))
+
 
 class LinuxGPU(NamedTuple):
     """A GPU found via /sys/class/drm PCI ids."""
     vendor: str          # "nvidia" | "amd" | "intel" | "unknown"
     vendor_id: int
     device_id: int
-    amd_generation: str | None  # "rdna4" | "rdna3" | "other" (AMD only)
+    amd_generation: str | None  # "rdna4" | "rdna3" | "rdna2" | "other" (AMD only)
 
 
 def classify_pci_gpu(vendor_id: int, device_id: int) -> LinuxGPU:
@@ -225,14 +235,20 @@ def classify_pci_gpu(vendor_id: int, device_id: int) -> LinuxGPU:
 
     AMD generation uses device-id ranges: Navi 4x (RDNA4, FSR4 FP8-capable)
     sits in 0x7500-0x75FF, Navi 3x (RDNA3, FSR4 via FP16 path) in
-    0x7400-0x74FF, plus the known RDNA3 iGPU ids above.
+    0x7440-0x74FF, plus the known RDNA3 iGPU ids above. Discrete Navi 2x
+    (RDNA2) is 0x73A0-0x73FF and 0x7420-0x743F — the latter is Navi 24
+    (RX 6400/6500 XT), which used to be misread as RDNA3.
     """
     if vendor_id == _PCI_VENDOR_NVIDIA:
         return LinuxGPU("nvidia", vendor_id, device_id, None)
     if vendor_id == _PCI_VENDOR_AMD:
         if 0x7500 <= device_id <= 0x75FF:
             gen = "rdna4"
-        elif 0x7400 <= device_id <= 0x74FF or device_id in _AMD_RDNA3_IGPU_IDS:
+        elif device_id in _AMD_RDNA3_IN_NAVI2X_RANGE or device_id in _AMD_RDNA3_IGPU_IDS:
+            gen = "rdna3"
+        elif any(lo <= device_id <= hi for lo, hi in _AMD_NAVI2X_RANGES):
+            gen = "rdna2"
+        elif 0x7400 <= device_id <= 0x74FF:
             gen = "rdna3"
         else:
             gen = "other"
@@ -289,10 +305,10 @@ def pick_primary_gpu(gpus: list[LinuxGPU]) -> LinuxGPU | None:
         if gpu.vendor == "nvidia":
             return 0
         if gpu.vendor == "amd":
-            return {"rdna4": 1, "rdna3": 2}.get(gpu.amd_generation or "", 3)
+            return {"rdna4": 1, "rdna3": 2, "rdna2": 3}.get(gpu.amd_generation or "", 4)
         if gpu.vendor == "intel":
-            return 4
-        return 5
+            return 5
+        return 6
 
     return min(gpus, key=rank) if gpus else None
 
@@ -316,12 +332,15 @@ _MATCHING_DEVICE_ID_RE = re.compile(
     r"pci\\ven_([0-9a-f]{4})&dev_([0-9a-f]{4})", re.IGNORECASE
 )
 
-# AMD generations whose drivers expose the FSR 4 upscaler. RDNA 4 runs the FP8
-# path; RDNA 3 gained support in FSR Upscaling 4.1.1. Everything else — RDNA 2
-# and older, and every non-AMD vendor — cannot run FSR 4 at all, so installing
-# the FSR 4 DLL set over a working FSR 3.1 game there removes upscaling rather
-# than upgrading it.
-FSR4_CAPABLE_AMD_GENERATIONS = frozenset({"rdna3", "rdna4"})
+# AMD generations that can run the FSR 4 upscaler. RDNA 4 runs the FP8 path;
+# RDNA 3 gained support in FSR Upscaling 4.1.1, and discrete RDNA 2 (RX 6000) in
+# 4.1.2 (FidelityFX SDK 2.4.0). AMD states the new hardware support ships in the
+# SDK DLLs and needs no particular driver, and the FSR 4 install always writes
+# our cached 4.1.2+ upscaler, so RDNA 2 is safe to include. Everything else —
+# RDNA 1 and older, RDNA 2 iGPUs (see _AMD_NAVI2X_RANGES), and every non-AMD
+# vendor — cannot run FSR 4, so installing the FSR 4 DLL set over a working
+# FSR 3.1 game there removes upscaling rather than upgrading it.
+FSR4_CAPABLE_AMD_GENERATIONS = frozenset({"rdna2", "rdna3", "rdna4"})
 
 
 def _detect_windows_gpus_sync() -> list[PCIGPU]:
@@ -414,7 +433,7 @@ def system_supports_fsr4_sync() -> bool:
         return True
 
     logger.info(
-        "No RDNA 3/4 GPU detected - FSR 4 DLLs will not be added to games "
+        "No FSR 4 capable GPU (RX 6000 or newer) detected - FSR 4 DLLs will not be added to games "
         f"that lack them (found: {[g.vendor for g in gpus]})"
     )
     return False

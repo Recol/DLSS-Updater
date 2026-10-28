@@ -255,8 +255,29 @@ class TestGPUClassification:
         assert classify_pci_gpu(0x1002, 0x744C).amd_generation == "rdna3"  # Navi 31
         assert classify_pci_gpu(0x1002, 0x15BF).amd_generation == "rdna3"  # Phoenix iGPU
 
+    def test_amd_rdna2_discrete(self):
+        assert classify_pci_gpu(0x1002, 0x73BF).amd_generation == "rdna2"  # Navi 21
+        assert classify_pci_gpu(0x1002, 0x73DF).amd_generation == "rdna2"  # Navi 22
+        assert classify_pci_gpu(0x1002, 0x73FF).amd_generation == "rdna2"  # Navi 23
+
+    def test_navi24_is_rdna2_not_rdna3(self):
+        """RX 6400/6500 XT live in 0x74xx and used to be misread as RDNA3."""
+        assert classify_pci_gpu(0x1002, 0x743F).amd_generation == "rdna2"
+        assert classify_pci_gpu(0x1002, 0x7422).amd_generation == "rdna2"
+        assert classify_pci_gpu(0x1002, 0x7448).amd_generation == "rdna3"  # Navi 31
+
+    def test_navi33_inside_navi2x_block_is_rdna3(self):
+        assert classify_pci_gpu(0x1002, 0x73F0).amd_generation == "rdna3"
+
     def test_amd_older(self):
-        assert classify_pci_gpu(0x1002, 0x73BF).amd_generation == "other"  # Navi 21 (RDNA2)
+        assert classify_pci_gpu(0x1002, 0x731F).amd_generation == "other"  # Navi 10 (RDNA1)
+        assert classify_pci_gpu(0x1002, 0x1681).amd_generation == "other"  # Rembrandt iGPU (RDNA2)
+
+    def test_rdna2_counts_as_fsr4_capable(self):
+        from dlss_updater.gpu_detection import gpu_supports_fsr4
+        assert gpu_supports_fsr4(classify_pci_gpu(0x1002, 0x73BF))
+        assert not gpu_supports_fsr4(classify_pci_gpu(0x1002, 0x731F))
+        assert not gpu_supports_fsr4(classify_pci_gpu(0x1002, 0x1681))
 
     def test_intel(self):
         assert classify_pci_gpu(0x8086, 0x56A0).vendor == "intel"  # Arc A770

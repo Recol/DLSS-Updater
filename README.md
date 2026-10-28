@@ -141,7 +141,7 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 - **DLSS** Super Resolution, plus **Ray Reconstruction**, **Frame Generation** and **Streamline** (Reflex Low Latency, DirectSR, NIS, etc.)
 - **DLSS 5 Neural Rendering** — runs alongside Super Resolution rather than replacing it (RTX 50 series only; the DLL is ~158&nbsp;MB, so expect a longer first download)
 - **XeSS / XeSS Frame Generation / XeLL**
-- **FSR** — Upscaling, Frame Generation, Ray Regeneration, plus an **FSR 4 upgrade** for games that ship only FSR 3.1 (RDNA 3 / RDNA 4 only; skipped on other GPUs, where FSR 4 cannot run)
+- **FSR** — Upscaling, Frame Generation, Ray Regeneration, plus an **FSR 4 upgrade** for DirectX 12 and Vulkan games that ship only FSR 3.1 (Radeon RX 6000 / RDNA 2 and newer; skipped on other GPUs, where FSR 4 cannot run)
 - **DirectStorage** (Windows only)
 - Update everything at once, or update individual binaries for a specific game
 - **Choose what "update everything" means** — the caret beside *Start Update* (and beside the Hub's *Update all*) opens a menu of technologies. Untick the ones you want left alone and the run skips them; the caret shows a count whenever the run is narrower than everything. The choice applies to **that run only** and then reverts to your saved preferences, so a one-off "only DLSS this time" never quietly becomes permanent — use *Make this my default* to write it to **Update Preferences** instead. Both menus share one scope, so narrowing on the Hub shows up on the Launchers bar and vice versa
@@ -197,18 +197,20 @@ Cross-platform on **Windows and Linux**, with detection for the launchers below:
 
 | Technology | Included version |
 |---|---|
-| DLSS Super Resolution | 4.5 (`310.7.128.0`) |
-| DLSS FG / RR | 4.5 (`310.7.128.0`) |
-| Streamline (Reflex, DLSS SR/FG/RR, DirectSR, NIS) | `2.12.128.0` (NIS & DirectSR `2.12.0.0`) |
-| FSR Upscaling | 4.1.1 (`4.1.1.2740`) |
-| FSR Frame Generation | 4.0.1 (`4.0.1.2740`) |
-| FSR Ray Regeneration | 1.2.0 (`1.2.0.2740`) |
-| FSR Loader | `2.3.0.2740` |
-| FSR Radiance Caching *(preview, opt-in)* | 0.9.0 (`0.9.0.2740`) |
+| DLSS Super Resolution | 4.5 (`310.9.16.0`) |
+| DLSS FG / RR | 4.5 (`310.9.16.0`) |
+| DLSS 5 Neural Rendering *(RTX 50 series)* | `310.8.0.0` |
+| Streamline (Reflex, DLSS SR/FG/RR, DirectSR, NIS) | `2.14.16.0` |
+| FSR Upscaling (DX12 / Vulkan) | 4.1.2 (`4.1.2.4555`) |
+| FSR Frame Generation (DX12 / Vulkan) | 4.0.2 (`4.0.2.4555`) |
+| FSR Ray Regeneration | 1.2.1 (`1.2.1.4555`) |
+| FSR Loader | DX12 `2.3.0.4555`, Vulkan `1.0.2.4555` |
+| FSR Radiance Caching *(preview, opt-in)* | 0.9.0 (`0.9.0.4555`) |
 | FSR (DX12 / Vulkan, SDK 1.1.4) | `1.0.1.41314` |
-| XeSS | 2.0.2 |
-| XeSS Frame Generation | 1.3.1 |
-| XeLL | 1.3.2.10 |
+| XeSS (DX12 / DX11) | 2.0.2 (`2.0.2.68`) |
+| XeSS Frame Generation | 1.3.1 (`1.3.1.78`) |
+| XeLL | `1.3.2.10` |
+| DirectStorage *(Windows)* | 1.3 (`1.3.2506.2501`) |
 
 > See the [Intel XeSS releases](https://github.com/intel/xess/releases) for per-game XeSS support details.
 

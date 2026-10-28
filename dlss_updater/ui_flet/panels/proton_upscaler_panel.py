@@ -265,12 +265,16 @@ class ProtonUpscalerPanel(ThemeAwareMixin, PanelContentBase):
                 "GPU not detected - showing all vendor sections."
             )
         elif gpu.vendor == "amd":
-            gen = {"rdna4": "RDNA4", "rdna3": "RDNA3"}.get(gpu.amd_generation or "", "pre-RDNA3")
+            gen = {"rdna4": "RDNA4", "rdna3": "RDNA3", "rdna2": "RDNA2"}.get(
+                gpu.amd_generation or "", "pre-RDNA2"
+            )
             extra = ""
             if gpu.amd_generation == "rdna3":
                 extra = " RDNA3 mode is recommended for FSR 4."
-            elif gpu.amd_generation == "other":
-                extra = " FSR 4 upgrades need RDNA3 or newer."
+            elif gpu.amd_generation in ("rdna2", "other"):
+                # Proton's own upgrade toggles still target RDNA3+, even though
+                # the FSR 4.1.2 DLLs this app installs also run on RDNA2.
+                extra = " Proton's FSR 4 upgrades need RDNA3 or newer."
             self._gpu_status.value = f"Detected GPU: AMD ({gen}).{extra}"
         else:
             self._gpu_status.value = f"Detected GPU: {gpu.vendor.upper()}."

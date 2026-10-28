@@ -37,3 +37,6 @@ repo-key.gpg
 # Deliberately outside build/ so the clean step doesn't refetch it; must stay
 # untracked because the release commit stages the whole working tree.
 .build_cache/
+
+# Local key files for other tools (not part of this project)
+*.key

@@ -64,6 +64,19 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="5.2.0" date="2026-10-28">
+      <description>
+        <p>FSR 4 for Vulkan games and Radeon RX 6000, and AMD FidelityFX SDK 2.4.0</p>
+        <ul>
+          <li>Vulkan games that ship only FSR 3.1 can now be upgraded to FSR 4, the same way DirectX 12 games already could</li>
+          <li>FSR 4 upgrades now run on Radeon RX 6000 (RDNA 2) GPUs, which AMD added in FSR Upscaling 4.1.2</li>
+          <li>Updated AMD FSR to FidelityFX SDK 2.4.0: Upscaling 4.1.2, Frame Generation 4.0.2 and Ray Regeneration 1.2.1, with Vulkan builds of Upscaling and Frame Generation</li>
+          <li>Restoring a game after an FSR 4 upgrade now puts its original FidelityFX DLL back, instead of leaving it with no FSR at all</li>
+          <li>Radeon RX 6400/6500 XT and RX 7600M XT GPUs are now detected as the right generation</li>
+          <li>Updated the UI framework (Flet) to 1.0.5 and the other bundled libraries to their latest releases. Transparent windows no longer render as a black box on Linux</li>
+        </ul>
+      </description>
+    </release>
     <release version="5.1.2" date="2026-10-21">
       <description>
         <p>Security update</p>

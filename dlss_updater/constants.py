@@ -24,6 +24,9 @@ DLL_TYPE_MAP = {
     "amd_fidelityfx_upscaler_dx12.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Upscaler DLL",
     "amd_fidelityfx_framegeneration_dx12.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Frame Generation DLL",
     "amd_fidelityfx_loader_dx12.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Loader DLL",
+    "amd_fidelityfx_upscaler_vk.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Vulkan Upscaler DLL",
+    "amd_fidelityfx_framegeneration_vk.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Vulkan Frame Generation DLL",
+    "amd_fidelityfx_loader_vk.dll": "AMD FidelityFX Super Resolution 4 (FSR4) Vulkan Loader DLL",
     "amd_fidelityfx_denoiser_dx12.dll": "AMD FSR Ray Regeneration (Denoiser) DLL",
     "amd_fidelityfx_radiancecache_dx12.dll": "AMD FSR Radiance Caching DLL (Preview)",
 }
@@ -69,6 +72,12 @@ DLL_GROUPS = {
         "amd_fidelityfx_upscaler_dx12.dll",
         "amd_fidelityfx_framegeneration_dx12.dll",
         "amd_fidelityfx_loader_dx12.dll",
+        # Vulkan split DLLs, first shipped in FidelityFX SDK 2.4.0. Replaced where
+        # a game ships them, and added beside amd_fidelityfx_vk.dll by the FSR 4
+        # install (see fsr4_installer.FSR4_VK_INSTALL_MAP).
+        "amd_fidelityfx_upscaler_vk.dll",
+        "amd_fidelityfx_framegeneration_vk.dll",
+        "amd_fidelityfx_loader_vk.dll",
         # FSR Ray Regeneration. Replace-only: shipped by Call of Duty: Black Ops 7
         # and Crimson Desert, and never added to a game that lacks it.
         "amd_fidelityfx_denoiser_dx12.dll",
@@ -109,5 +118,6 @@ if FEATURES.directstorage:
 
 # FSR4 DLL rename mapping - source DLL name -> target DLL name
 FSR4_DLL_RENAME_MAP = {
-    "amd_fidelityfx_loader_dx12.dll": "amd_fidelityfx_dx12.dll"
+    "amd_fidelityfx_loader_dx12.dll": "amd_fidelityfx_dx12.dll",
+    "amd_fidelityfx_loader_vk.dll": "amd_fidelityfx_vk.dll",
 }
