@@ -121,7 +121,7 @@ repath==0.9.0
     # via flet
 rich==15.0.0
     # via pytest-codspeed
-setuptools==83.0.0
+setuptools==84.1.0
     # via pyinstaller
 six==1.17.0
     # via repath
